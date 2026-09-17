@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Flaw of Sprints — Why Scrum Masters Need Queueing Math, Not Another Certification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+        window.dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+    gtag('config', 'G-MM2SH8Z0L6');
+</script>
+
+<!-- SEO Description -->
+<meta name="description" content="A detailed exploration of system degradation, mathematical reliability, and architectural limits in complex reconciliation engines.">
+
+<!-- Open Graph / Social Media Tags -->
+<meta property="og:title" content="The Flaw of Sprints - Saurav Sana">
+<meta property="og:description" content="Why Scrum Masters Need Queueing Math, Not Another Certification.">
+<meta property="og:type" content="article">
+
+<link rel="stylesheet" href="../assets/css/blog-theme.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="../assets/js/theme-toggle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+</head>
+<body>
+<div class="container">
+<!--<div class="article"> -->
+
+
+
+<header class="site-header">
+    <a href="../index.html" class="site-title">
+        <span class="site-title__badge">SS</span>
+        <span>Saurav Sana | Field Notes</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary navigation">
+        <a href="../index.html">Home</a>
+        <a href="../index.html">Blog</a>
+        <a href="#">Tags</a>
+        <a href="../contact.html">Contact</a>
+        <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+            </svg>
+            <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+        </button>
+    </nav>
+</header>
+
+<nav aria-label="Breadcrumb" style="margin-bottom:1.5rem;">
+    <a href="../index.html" style="font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:var(--muted); text-decoration:none; letter-spacing:0.02em; display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        All Writings
+    </a>
+</nav>
+
+<main>
+    <article>
+        <div class="byline">FIELD NOTES · SOFTWARE DELIVERY &amp;amp; QUEUEING THEORY</div>
+        <h1>
+            The Flaw of Sprints
+            <span style="
+                display: inline-block;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.55rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        padding: 0.15rem 0.5rem;
+        border-radius: 2px;
+        margin-left: 0.6em;
+        vertical-align: middle;
+        font-style: normal;
+    ">Draft</span>
+</h1>
+<p class="deck">Why Scrum Masters Need Queueing Math, Not Another Certification</p>
+
+
+<nav class="toc" aria-label="Table of contents">
+    <div class="toc-title">CONTENTS</div>
+    <ol>
+        <li><a href="#s1">The Six Mathematical Failure Modes of Scrum</a></li>
+        <li><a href="#s2">The Corporate Fault Line: Resource vs. Flow Optimization</a></li>
+        <li><a href="#s3">Amdahl's Law: The Mathematical Limit of Speed</a></li>
+        <li><a href="#s4">Bringing Sanity When You're Forced Into Resource Optimization</a></li>
+        <li><a href="#s5">Inferential Statistics in Retrospectives: Retiring the Blame Game</a></li>
+        <li><a href="#s6">The Probabilistic Alternative: Flow Engineering</a></li>
+        <li><a href="#epilogue">Epilogue: The Delivery Manager Is a Systems Engineer</a></li>
+    </ol>
+</nav>
+
+  <h2 id="s1" style="border:none; margin-top:2rem;">1. The Six Mathematical Failure Modes of Scrum</h2>
+
+  <h3>I. Kingman's Utilization Trap — The Suitcase Fallacy</h3>
+
+  <p>Corporate Scrum treats developer capacity like airline carry-on luggage: if the team has 40 hours a week per head, the goal is to stuff exactly 40 hours of work into the bag. In operations-research terms, setting planned load equal to available capacity drives system utilization (&rho;) toward 1.0.</p>
+  <p>Kingman's heavy-traffic approximation describes what happens next:</p>
+  <p>$$W_q \approx \left(\frac{\rho}{1 - \rho}\right) \left(\frac{C_a^2 + C_s^2}{2}\right) \left(\frac{1}{\mu}\right)$$</p>
+  <p>Look at the first term. As utilization &rho; approaches 1, the ratio &rho; / (1 &minus; &rho;) diverges toward infinity.</p>
+  <p>In a cookie factory, process variance is tiny (C<sub>s</sub> &asymp; 0.1). In software, discovery work, third-party outages, undocumented legacy schemas, and edge cases drive variance far higher (C<sub>s</sub> &asymp; 1.0&ndash;3.0). Book a software team to 95% capacity, and any micro-interruption sends queue wait time (W<sub>q</sub>) climbing sharply. The tickets don't take forever to <em>code</em> — they take forever waiting for someone to look at them.</p>
+
+  <div class="instrument-wrap" id="panel-kingman"></div>
+
+  <h3>II. The Theory of Constraints — The Local-Optimization Trap</h3>
+  <p>Eliyahu Goldratt's Theory of Constraints holds that a system's throughput is strictly bounded by its bottleneck. Software delivery is a pipeline of dependent stages, each with its own service rate &mu;<sub>i</sub>. Total system throughput is capped by the slowest one:</p>
+  <p>$$\lambda_{\text{system}} = \min(\mu_{\text{discovery}}, \mu_{\text{coding}}, \mu_{\text{review}}, \mu_{\text{QA}})$$</p>
+  <p>Corporate Scrum optimizes locally: keep every developer 100% busy <em>writing code</em>. If coding capacity is 20 tickets a week but senior-engineer review capacity is 5 tickets a week, system throughput is exactly 5 — not 20.</p>
+  <p>Forcing developers to write 20 tickets does not produce 20 shipped features. It produces 5 shipped features and 15 blocked pull requests. Optimizing a non-bottleneck is a mathematical illusion; it only manufactures excess work-in-progress.</p>
+
+  <div class="instrument-wrap" id="panel-toc"></div>
+
+  <h3>III. Little's Law — The Multitasking Tax</h3>
+  <p>When an engineer is blocked waiting on review for Ticket A, the standard corporate instinct is to pick up Ticket B &ldquo;to stay productive.&rdquo; Little's Law, which holds for any stable queueing system, explains why that backfires:</p>
+  <p>$$L = \lambda W \quad \iff \quad W = \frac{L}{\lambda}$$</p>
+  <p>where <em>L</em> is work-in-progress (active ticket inventory), &lambda; is throughput (tickets finished per unit time), and <em>W</em> is cycle time (calendar days from &ldquo;in progress&rdquo; to production).</p>
+  <p>Because the bottleneck caps throughput (&lambda;), starting new tickets only inflates WIP (<em>L</em>) — and cycle time (<em>W</em>) scales linearly with it. A Scrum Master who allows 15 active tickets across five developers has guaranteed that a task requiring four hours of focused coding will spend nine calendar days swimming in active WIP inventory.</p>
+
+  <div class="instrument-wrap" id="panel-little"></div>
+
+  <h3>IV. Order Statistics — The Math of Guaranteed Spillover</h3>
+  <p>Scrum treats a sprint as an atomic bundle: commit to a batch of tickets, then get evaluated on whether the <em>entire</em> batch crosses the line together.</p>
+  <p>For a sprint of <em>n</em> independent tasks, the probability that all of them finish within the time box <em>T</em> is:</p>
+  <p>$$P(\text{All Delivered}) = \prod_{i=1}^{n} P(X_i \le T) = p^n$$</p>
+  <p>For a sprint of 12 tickets, each individually carrying a comfortable 90% on-time probability:</p>
+  <p>$$P(\text{All Delivered}) = (0.90)^{12} \approx 28.2\%$$</p>
+  <p>That's a 71.8% chance of spillover before the sprint even starts. Interrogating the team on Friday afternoon about why tickets spilled over is like dropping an anvil on your foot and interrogating gravity about why it hurts.</p>
+
+  <div class="instrument-wrap" id="panel-order"></div>
+
+  <h3>V. Jensen's Inequality and Covariance — The Fibonacci Delusion</h3>
+  <p>Planning poker assumes effort is a simple scalar that sums cleanly:</p>
+  <p>$$\text{Sprint Capacity} = \sum_{i=1}^{n} \text{Story Points}_i$$</p>
+  <p>Two facts break that assumption:</p>
+  <ul>
+    <li><strong>Convexity (Jensen's Inequality).</strong> For any convex cost function <em>g(x)</em> — merge conflicts, testing matrices — &#x1D53C;[g(X)] &ge; g(&#x1D53C;[X]). Overhead grows <em>faster</em> than linearly with batch size.</li>
+    <li><strong>Positive covariance.</strong> When tasks share a codebase, a review queue, or a deployment pipeline, Cov(X<sub>i</sub>, X<sub>j</sub>) &gt; 0. The variance of total sprint duration compounds well beyond what independent estimates suggest.</li>
+  </ul>
+  <p>Story-point arithmetic assumes tasks are independent line items on a receipt. Reality is a game of Jenga.</p>
+
+  <div class="instrument-wrap" id="panel-jensen"></div>
+
+  <h3>VI. Gunther's Universal Scalability Law — The Crosstalk Tax</h3>
+  <p>Why does cramming more parallel tracks into a sprint reliably reduce output? Neil Gunther's Universal Scalability Law formalizes the penalty:</p>
+  <p>$$C(N) = \frac{N}{1 + \alpha(N - 1) + \beta N(N - 1)}$$</p>
+  <p>Because pairwise communication paths scale quadratically — N(N &minus; 1) — the coherency penalty &beta; (sync meetings, merge conflicts, PR review contention) eventually dominates. Push concurrency far enough and the team enters <em>retrograde scalability</em>: adding another parallel track actively collapses total shipping velocity.</p>
+
+  <div class="instrument-wrap" id="panel-usl"></div>
+
+  <hr>
+
+  <h2 id="s2">2. The Corporate Fault Line: Resource vs. Flow Optimization</h2>
+  <p>The tension between <strong>resource optimization</strong> (&ldquo;keep everyone busy&rdquo;) and <strong>flow optimization</strong> (&ldquo;keep work moving&rdquo;) is the single biggest architectural and management fault line in modern software organizations.</p>
+  <table>
+    <tr><th>Dimension</th><th>Resource-Optimized Teams</th><th>Flow-Optimized Teams</th></tr>
+    <tr><td>Primary philosophy</td><td>19th-century cost accounting — idle labor is waste</td><td>Lean product development — idle <em>work</em> (inventory) is waste</td></tr>
+    <tr><td>Operational mandate</td><td>Keep every developer 100% booked (&rho; &rarr; 1.0)</td><td>Keep lead times minimal via buffer capacity (&rho; &le; 0.75)</td></tr>
+    <tr><td>Queueing impact</td><td>Kingman's trap: near-100% utilization, queue delay explodes</td><td>Wait time stays low and bounded; interruptions get absorbed</td></tr>
+    <tr><td>WIP &amp; multitasking</td><td>High WIP; blocked engineers pull new tickets to stay billable</td><td>Low WIP; engineers swarm to unblock existing work first</td></tr>
+    <tr><td>Flow efficiency</td><td>5%&ndash;15% (a 4-hour task takes 10&ndash;15 business days to ship)</td><td>40%&ndash;70% (a 4-hour task ships in 1&ndash;2 business days)</td></tr>
+    <tr><td>Bottleneck handling</td><td>Local optimization — coding outpaces QA's ability to test</td><td>Global subordination (TOC) — upstream paces to the slowest step</td></tr>
+  </table>
+
+  <h3>Why corporations choose which model</h3>
+  <p>The choice is rarely an engineering decision — it's dictated by how the organization makes money, structures its accounting, and views IT.</p>
+  <p><strong>Group A: the resource optimizers (cost centers).</strong> These organizations prioritize &rho; &rarr; 1.0 because their financial and governance structures penalize idle time far more than delayed features.</p>
+  <ul>
+    <li><em>IT consultancies and outsourcing firms (T&amp;M billing):</em> revenue scales directly with billable utilization. Twenty-five percent capacity slack is a 25% revenue drop.</li>
+    <li><em>Traditional enterprise IT (cost-center accounting):</em> software development is booked as SG&amp;A overhead. CapEx is calculated from hours logged to new features; slack or unblocking work is harder to capitalize.</li>
+  </ul>
+  <p><strong>Group B: the flow optimizers (profit engines).</strong> These organizations prioritize flow efficiency because cost of delay vastly outweighs engineering salary cost.</p>
+  <ul>
+    <li><em>Product-led tech and SaaS:</em> if shipping a checkout feature two weeks early yields $500K in incremental revenue, paying for 20% engineer slack is a rounding error.</li>
+    <li><em>Quantitative fintech and HFT:</em> exploiting market inefficiencies is measured in milliseconds. Squeezing developers to 100% utilization while trade pipelines stall behind a review queue costs millions in missed arbitrage.</li>
+  </ul>
+
+  <h3>Framing the debate for leadership</h3>
+  <ul>
+    <li><strong>In a resource-optimized firm</strong>, argue from risk and cost: <em>&ldquo;Keeping developers 100% booked forces our review queue to four days. That queue delay is why 40% of our commitments spill over — causing missed regulatory deadlines and costly production rollbacks.&rdquo;</em></li>
+    <li><strong>In a flow-optimized firm</strong>, argue from revenue: <em>&ldquo;By enforcing hard WIP limits and leaving 20% slack for review, median time-to-market drops from 18 days to 4 — letting us capture market demand three weeks ahead of competitors.&rdquo;</em></li>
+  </ul>
+
+  <h3>Tradeoffs of a Flow-Optimized Team</h3>
+  <p>Flow optimization is not a free lunch. It trades one set of failure modes for another, and leaders who adopt it without acknowledging the tradeoffs lose credibility the first time someone asks why an engineer looks idle.</p>
+  <ul>
+    <li><strong>Visible slack looks like waste to a cost-accounting eye.</strong> Deliberately keeping &rho; &le; 0.75 means engineers will, at points in the week, have no ticket in front of them. In a culture that equates busyness with productivity, this reads as underutilization — even though it's the exact slack that keeps queue delay from exploding. Expect to defend it every budget cycle.</li>
+    <li><strong>It resists per-head chargeback and T&amp;M billing.</strong> If revenue is tied to billable hours, &ldquo;reserved buffer capacity&rdquo; is a difficult line item to justify to a client or a PMO. Flow optimization is much easier to run inside a product organization that owns its own outcomes than inside a staff-augmentation model.</li>
+    <li><strong>It requires real authority to say no.</strong> WIP limits only work if someone can refuse a new ticket when the board is full — including refusing a request from a VP. Flow optimization without the organizational authority to enforce limits degrades back into resource optimization within a quarter.</li>
+    <li><strong>Throughput becomes less legible in the short term.</strong> Story-point velocity gives leadership a comforting, if fictional, single number. Flow metrics — cycle-time distributions, percentile forecasts, flow efficiency — take longer to explain and don't compress into a single trend line on a slide. The payoff is accuracy; the cost is a harder conversation.</li>
+    <li><strong>It punishes badly sliced work harder, not less.</strong> Flow optimization removes the padding that used to absorb an oversized, badly scoped ticket. Teams that don't invest in decomposition will see that pain surface immediately as a blown Service Level Expectation, rather than being quietly absorbed into 60 hours of unpaid overtime.</li>
+    <li><strong>It shifts risk from developers to management.</strong> Resource optimization outsources the pain of overcommitment to individual engineers, who absorb it as unpaid hours and burnout. Flow optimization forces management to own the capacity conversation explicitly — which is precisely why organizations avoid it.</li>
+  </ul>
+  <p>None of this is an argument against flow optimization. It is the honest ledger: flow optimization exchanges a hidden, individually-absorbed cost (burnout, quiet quality erosion, unsustainable pace) for a visible, organizationally-absorbed one (idle-looking capacity, harder billing conversations, slower-looking dashboards). Most engineering organizations that reject flow optimization are not rejecting the mathematics — they are declining to have the visible conversation.</p>
+
+  <hr>
+
+  <h2 id="s3">3. Amdahl's Law: The Mathematical Limit of Speed</h2>
+  <p>Amdahl's Law is a formula from computer science used to find the maximum expected improvement to an overall system when only a specific part of that system is improved. It was built to describe processor cores, but it describes a sprint just as precisely.</p>
+  <p>Mathematically, it is expressed as:</p>
+  <p>$$S_{\text{latency}} = \frac{1}{(1 - p) + \frac{p}{s}}$$</p>
+  <p>Where:</p>
+  <ul>
+    <li>$S_{\text{latency}}$ is the theoretical maximum speedup of the whole task.</li>
+    <li>$p$ is the proportion of execution time that the improved part originally occupied.</li>
+    <li>$s$ is the speedup factor applied to that specific part.</li>
+  </ul>
+
+  <h4>Application to software sprints and AI</h4>
+  <p>If a team adopts an AI coding agent that lets developers write syntax 10&times; faster (<em>s</em> = 10), management often expects the team to deliver features 10&times; faster. But typing code usually accounts for only about 20% of the end-to-end delivery lifecycle (<em>p</em> = 0.20). The other 80% (1 &minus; <em>p</em>) is spent gathering requirements, reading legacy code, reviewing pull requests, QA testing, and deployment — none of which got any faster.</p>
+  <p>Plugging this into Amdahl's Law:</p>
+  <p>$$S = \frac{1}{(1 - 0.20) + \frac{0.20}{10}} = \frac{1}{0.80 + 0.02} \approx 1.21\times$$</p>
+  <p>Despite making the coding phase 1,000% faster, the overall delivery pipeline speeds up by only 21%. The unoptimized serial fraction of the work — reviews, QA, deployment — acts as an immovable mathematical ceiling on velocity, no matter how fast the improved part gets.</p>
+
+  <div class="instrument-wrap" id="panel-amdahl"></div>
+
+  <h4>The AI coding agent delusion in the wild</h4>
+  <p>The current corporate obsession with AI coding agents is repeating this exact blunder at machine speed — confusing typing speed with delivery throughput.</p>
+  <table>
+    <tr><th>Delivery phase</th><th>Share of total time</th><th>AI impact</th></tr>
+    <tr><td>Problem discovery &amp; spec alignment</td><td>30%&ndash;50%</td><td>Minimal</td></tr>
+    <tr><td>Syntax / code typing</td><td>15%&ndash;35%</td><td>High acceleration</td></tr>
+    <tr><td>Review, integration, security, deployment</td><td>30%&ndash;50%</td><td>Minimal</td></tr>
+  </table>
+  <p>Using a generous 35% coding share and an agent so fast it approaches instantaneous:</p>
+  <p>$$\text{Speedup}_{\text{total}} = \frac{1}{(1 - 0.35) + \frac{0.35}{\infty}} = \frac{1}{0.65} \approx 1.54\times$$</p>
+  <p>Worse, it triggers <strong>Kingman's avalanche at the review gate</strong>. When developers use AI to generate code five times faster, they flood the downstream review queue (&lambda;&uarr;) — while senior engineers' review bandwidth (&mu;) stays flat. By Kingman's approximation, review wait time rises sharply, and the result is an inventory catastrophe: machine-generated PRs rotting in GitHub, conflicting with each other, waiting weeks for someone with architectural context to read them.</p>
+
+  <hr>
+
+  <h2 id="s4">4. Bringing Sanity When You're Forced Into Resource Optimization</h2>
+  <p>If finance mandates 100% billable developer utilization, you cannot repeal queueing physics — but you can pull the levers that remain.</p>
+  <ul>
+    <li><strong>Attack processing variance (C<sub>s</sub> &rarr; 0).</strong> If &rho; is locked near 1.0, variance reduction is your only lever left in Kingman's formula. Ban any ticket requiring more than 1&ndash;2 days of touch time. Decouple architectural spikes from implementation.</li>
+    <li><strong>Ring-fence capacity.</strong> If finance requires 40 logged hours, explicitly book 70% to feature work and 30% to an &ldquo;operational buffer&rdquo; line (PR reviews, pipeline maintenance, unplanned incidents). You satisfy the ledger while smuggling in the slack that keeps queue times sane.</li>
+    <li><strong>Expose flow efficiency to management.</strong> Stop showing story points. Show flow efficiency. Once executives see that 90% of a feature's lead time was spent waiting in queues created by 100% utilization, the conversation shifts from &ldquo;developer speed&rdquo; to &ldquo;pipeline congestion.&rdquo;</li>
+  </ul>
+
+  <h3>Drum-Buffer-Rope: Synchronizing to the Bottleneck</h3>
+  <p>Drum-Buffer-Rope (DBR) is a manufacturing concept from Goldratt's Theory of Constraints, adapted for knowledge work to prevent system collapse. It acknowledges that every system has exactly one active bottleneck at a time. Optimize anything <em>other</em> than the bottleneck and you don't gain throughput — you create inventory waste (WIP) and inflate cycle time.</p>
+  <p>Here is how it translates to an engineering team where senior code review is the bottleneck:</p>
+  <ul>
+    <li><strong>The Drum (the bottleneck).</strong> This dictates the rhythm of the entire system. If the senior engineers can thoroughly review and merge six pull requests a day, the team's absolute maximum throughput is six PRs a day — full stop. No amount of upstream coding speed changes that number.</li>
+    <li><strong>The Buffer (the queue).</strong> You never want the bottleneck starved of work. You allow a small, strictly limited queue of tickets — say, two or three PRs — sitting just before the review stage, so the senior engineers always have something ready to pull the moment they finish the last one.</li>
+    <li><strong>The Rope (the pull mechanism).</strong> This is the communication line running from the bottleneck back to the start of the pipeline. The rope prevents upstream developers from overproducing: no new ticket starts until the rope signals that the buffer has room.</li>
+  </ul>
+  <p><strong>The swarm mechanic.</strong> If the buffer fills — say three PRs are already waiting for review — the rope pulls taut. Developers are strictly forbidden from starting new tickets, writing new code, or opening new PRs. Instead, they swarm the bottleneck: pairing with senior engineers to review code, writing test automation, or running staging verification. All upstream activity subordinates itself to keeping the drum beating, rather than piling more inventory in front of it.</p>
+
+  <div class="instrument-wrap" id="panel-dbr"></div>
+
+  <hr>
+
+  <h2 id="s5">5. Inferential Statistics in Retrospectives: Retiring the Blame Game</h2>
+  <p>Stop running retrospectives that feel like corporate group therapy (&ldquo;we need to estimate better next time&rdquo;). Replace moralizing questions with inferential statistics and queueing diagnostics.</p>
+
+  <h3>I. Statistical process control — common cause vs. special cause</h3>
+  <p>When a ticket takes 14 days instead of 3, the instinct is a &ldquo;Five Whys&rdquo; root-cause hunt. Statistically, that's often a mistake. Plot cycle times on an X-mR control chart — software delivery naturally produces a fat-tailed distribution.</p>
+  <ul>
+    <li><strong>Common-cause variation:</strong> if the 14-day ticket falls within the upper natural process limit of historical data, it's aleatory noise. Don't chase it.</li>
+    <li><strong>Special-cause variation:</strong> if a ticket breaches the limit, an external systemic blocker occurred (a staging environment collapse, say). Focus the retro exclusively on these outliers.</li>
+  </ul>
+
+  <h3>II. Regime-shift detection</h3>
+  <p>Instead of debating whether the team is &ldquo;slowing down,&rdquo; test it. Run a Kolmogorov&ndash;Smirnov or Mann&ndash;Whitney U test comparing this sprint's empirical cycle-time distribution against the trailing three months. If <em>p</em> &lt; 0.05, the system has structurally degraded — proof for management that technical debt, a broken CI pipeline, or a new compliance gate has genuinely changed the team's delivery physics.</p>
+
+  <h3>III. Dynamic Monte Carlo adjustment</h3>
+  <p>Don't spend 45 minutes of planning arguing whether the team has &ldquo;30 points or 40 points&rdquo; of capacity. Feed the empirical cumulative distribution of the last four weeks of cycle times into a Monte Carlo simulator. If the environment has degraded, the distribution shifts right automatically, and the simulator's <em>p85</em> forecast adjusts downward — driven by data, not negotiation.</p>
+
+  <table>
+    <tr><th>Traditional interrogation</th><th>Flawed assumption</th><th>Systems-diagnostic replacement</th></tr>
+    <tr><td>&ldquo;Why did we spill over again?&rdquo;</td><td>The team lacked discipline or overcommitted</td><td>&ldquo;Our Monte Carlo <em>p85</em> says batch size was too large — how do we move toward single-piece flow?&rdquo;</td></tr>
+    <tr><td>&ldquo;Why did QA panic on the last day?&rdquo;</td><td>QA is too slow, or devs threw it over the wall late</td><td>&ldquo;We locally optimized coding and flooded the QA bottleneck — how do we subordinate pace to QA's throughput?&rdquo;</td></tr>
+    <tr><td>&ldquo;Why did this ticket take 8 days instead of 2?&rdquo;</td><td>The developer missed edge cases</td><td>&ldquo;What was this ticket's flow efficiency — touch time versus queue wait?&rdquo;</td></tr>
+    <tr><td>&ldquo;Why did code reviews take 3 days?&rdquo;</td><td>Reviewers are slow or unmotivated</td><td>&ldquo;Did reviewers have the 25% capacity slack Kingman's formula requires to clear PRs without a queue explosion?&rdquo;</td></tr>
+    <tr><td>&ldquo;How can we estimate more accurately?&rdquo;</td><td>Unknowns can be eliminated with longer meetings</td><td>&ldquo;How can we slice tickets smaller to push task variance toward zero?&rdquo;</td></tr>
+  </table>
+
+  <hr>
+
+  <h2 id="s6">6. The Probabilistic Alternative: Flow Engineering</h2>
+  <p>Breaking the sprint-failure cycle means replacing deterministic ritual with stochastic flow engineering.</p>
+  <ul>
+    <li><strong>Enforce hard board WIP limits.</strong> Reconfigure the board to enforce Little's Law physically: active tickets across In Progress, Review, and Testing must not exceed the number of active developers (<em>L</em> &le; <em>N</em>). The swarming rule: if an engineer finishes a task and Review is full, they don't pull new work — they review open PRs or pair instead. Work stops <em>starting</em> and starts <em>finishing</em>.</li>
+    <li><strong>Replace story points with empirical lead times.</strong> Track actual elapsed calendar days from In Progress to Production and build an empirical CDF. Derive a Service Level Expectation — &ldquo;85% of tasks complete within 4.2 days&rdquo; — and flag anything past day five as statistically anomalous, triggering pairing before it becomes a delay.</li>
+    <li><strong>Forecast with Monte Carlo simulation.</strong> Replace deterministic velocity arithmetic with probabilistic ranges when reporting to leadership or clients: <em>&ldquo;There is a 50% probability this release lands within 18 days, 85% within 26 days, and a 95% conservative boundary at 34 days.&rdquo;</em></li>
+  </ul>
+
+  <div class="instrument-wrap" id="panel-monte"></div>
+
+  <hr>
+
+  <h2 id="epilogue" style="border:none;">Epilogue: The Delivery Manager Is a Systems Engineer</h2>
+  <p>A process framework does not dictate reality; mathematics does.</p>
+  <p>Agile failed its original promise in many large organizations because it was co-opted by project-management philosophies that prefer deterministic Gantt charts over stochastic reality. They rebranded waterfall phases into two-week batches, kept utilization at 100%, and wondered why nothing sped up.</p>
+  <p>The job of an engineering leader is not to interrogate why a developer's 3-point estimate was wrong. It is to recognize that:</p>
+  <ul>
+    <li>The 3-point estimate was the median of a right-skewed distribution.</li>
+    <li>The ticket spent 80% of its lifecycle waiting in queues.</li>
+    <li>Those queues exist because the system runs at 95% utilization.</li>
+    <li>The QA bottleneck limits the entire team's throughput, per the Theory of Constraints.</li>
+    <li>Utilization sits at 95% because management refuses to limit work-in-progress.</li>
+  </ul>
+  <p>You do not fix software delivery by demanding better estimates or holding moralizing retrospectives. You fix it with inferential statistics, subordination to the bottleneck, active queue management, honest acknowledgment of variance, and a flow architecture built to survive the inevitable shape of uncertainty.</p>
+
+  <hr>
+
+  <footer class="bib">
+    <h3 style="color:var(--text);">Bibliography</h3>
+    <p>Anderson, D. (2010). <em>Kanban: Successful Evolutionary Change for Your Technology Business.</em> Blue Hole Press.</p>
+    <p>Bossavit, L. (2015). <em>The Leprechauns of Software Engineering.</em> Leanpub.</p>
+    <p>Brooker, M. (2015). &ldquo;Exponential Backoff and Jitter.&rdquo; <em>AWS Architecture Blog.</em></p>
+    <p>Forsgren, N., Humble, J., &amp; Kim, G. (2018). <em>Accelerate: The Science of Lean Software and DevOps.</em> IT Revolution.</p>
+    <p>Goldratt, E. M. (1984). <em>The Goal: A Process of Ongoing Improvement.</em> North River Press.</p>
+    <p>Gruver, G., Young, M., &amp; Fulghum, P. (2013). <em>A Practical Approach to Large-Scale Agile Development.</em> Addison-Wesley.</p>
+    <p>Gunther, N. J. (2007). <em>Guerrilla Capacity Planning.</em> Springer.</p>
+    <p>Kingman, J. F. C. (1961). &ldquo;The Single Server Queue in Heavy Traffic.&rdquo; <em>Mathematical Proceedings of the Cambridge Philosophical Society</em>, 57(4), 902&ndash;904.</p>
+    <p>Little, J. D. C. (1961). &ldquo;A Proof for the Queuing Formula: L = &lambda;W.&rdquo; <em>Operations Research</em>, 9(3), 383&ndash;387.</p>
+    <p>Reinertsen, D. G. (2009). <em>The Principles of Product Development Flow.</em> Celeritas.</p>
+    <p>Sakasegawa, H. (1977). &ldquo;An Approximation Formula L<sub>q</sub> &asymp; &alpha;&middot;&rho;^&beta; / (1&minus;&rho;).&rdquo; <em>Annals of the Institute of Statistical Mathematics</em>, 29(1), 67&ndash;75.</p>
+    <p>Schwaber, K., &amp; Sutherland, J. (2020). <em>The Scrum Guide.</em></p>
+    <p>Vacanti, D. (2015). <em>Actionable Agile Metrics for Predictability.</em> ActionableAgile Press.</p>
+
+  </article>
+</main>
+
+<footer class="site-footer">
+
+    <div>© 2026 Saurav Sana</div>
+    <div class="footer-links">
+        <a href="#">Github</a>
+        <a href="#">X / Twitter</a>
+        <a href="#">LinkedIn</a>
+        <a href="../contact.html">Email</a>
+    </div>
+</footer>
+
+
+</div><!-- /.container -->
+
+
+
+<script>
+/* ============================================================
+   Shared tiny SVG chart helpers — namespaced per-instrument below
+   so multiple instruments can coexist on one page without collisions.
+   ============================================================ */
+const _NS = "http://www.w3.org/2000/svg";
+function _el(t,a){const e=document.createElementNS(_NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function _clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function _frame(svg,o,H){
+  _clearSvg(svg);
+  H = H || 260;
+  const W=640,padL=46,padR=18,padT=16,padB=32,plotW=W-padL-padR,plotH=H-padT-padB;
+  const {xMin,xMax,yMin,yMax,xTicks=5,yTicks=4,xFmt=v=>v.toFixed(1),yFmt=v=>v.toFixed(1)}=o;
+  for(let i=0;i<=yTicks;i++){const y=padT+plotH-(i/yTicks)*plotH;
+    svg.appendChild(_el("line",{x1:padL,x2:W-padR,y1:y,y2:y,class:"grid-line"}));
+    const val=yMin+(i/yTicks)*(yMax-yMin);const t=_el("text",{x:padL-8,y:y+3,class:"axis-text","text-anchor":"end"});
+    t.textContent=yFmt(val);svg.appendChild(t);}
+  for(let i=0;i<=xTicks;i++){const x=padL+(i/xTicks)*plotW;const val=xMin+(i/xTicks)*(xMax-xMin);
+    const t=_el("text",{x:x,y:H-padB+16,class:"axis-text","text-anchor":"middle"});t.textContent=xFmt(val);svg.appendChild(t);}
+  svg.appendChild(_el("line",{x1:padL,x2:W-padR,y1:padT+plotH,y2:padT+plotH,class:"axis-line"}));
+  svg.appendChild(_el("line",{x1:padL,x2:padL,y1:padT,y2:padT+plotH,class:"axis-line"}));
+  const sx=v=>padL+((v-xMin)/(xMax-xMin))*plotW;
+  const sy=v=>padT+plotH-((Math.max(yMin,Math.min(yMax,v))-yMin)/(yMax-yMin))*plotH;
+  return {sx,sy,padL,padR,padT,padB,plotW,plotH,W,H};
+}
+function _pathFor(pts,sx,sy){return pts.map((p,i)=>(i===0?"M":"L")+sx(p[0]).toFixed(1)+","+sy(p[1]).toFixed(1)).join(" ");}
+function _mount(containerId, html){ document.getElementById(containerId).innerHTML = html; }
+
+/* ---------------------------------------------------------------
+   1) KINGMAN'S HEAVY-TRAFFIC DELAY
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-kingman', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.I</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Kingman's Heavy-Traffic Delay</h4><p class="desc">Drag utilization and variance and watch W<sub>q</sub> diverge in real time. Time is in units of average service time (1/&mu;=1, C<sub>a</sub>=1).</p></div>
+        <div class="readout"><div class="val amber" id="k-readout">0.0&times;</div><div class="lbl">W<sub>q</sub> at current &rho;</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Utilization &rho; &nbsp;<span class="cval" id="k-rho-val">0.85</span></label><input type="range" id="k-rho" min="0.50" max="0.99" step="0.01" value="0.85"></div>
+          <div class="control"><label>Service variance C<sub>s</sub> &nbsp;<span class="cval" id="k-cs-val">1.5</span></label><input type="range" id="k-cs" min="0.1" max="3.0" step="0.1" value="1.5"></div>
+          <p class="note">Dashed red = C<sub>s</sub>=0.1, a cookie factory. Software rarely lives there.</p>
+        </div>
+        <svg class="chart" id="k-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const rhoEl=document.getElementById('k-rho'), csEl=document.getElementById('k-cs');
+  function wq(rho,cs,ca=1){ return (rho/(1-rho))*((ca*ca+cs*cs)/2); }
+  function draw(){
+    const rho=parseFloat(rhoEl.value), cs=parseFloat(csEl.value);
+    document.getElementById('k-rho-val').textContent=rho.toFixed(2);
+    document.getElementById('k-cs-val').textContent=cs.toFixed(1);
+    const svg=document.getElementById('k-svg');
+    const yMax=Math.min(60,Math.max(10,wq(0.99,cs)*1.05));
+    const f=_frame(svg,{xMin:0.5,xMax:0.99,yMin:0,yMax:yMax,xFmt:v=>v.toFixed(2),yFmt:v=>v.toFixed(0)});
+    const pts=[],ptsRef=[];
+    for(let r=0.5;r<=0.99;r+=0.01){pts.push([r,Math.min(yMax,wq(r,cs))]);ptsRef.push([r,Math.min(yMax,wq(r,0.1))]);}
+    svg.appendChild(_el("path",{d:_pathFor(ptsRef,f.sx,f.sy),class:"curve-warn"}));
+    svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+    const val=wq(rho,cs), cx=f.sx(rho), cy=f.sy(val);
+    svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+    svg.appendChild(_el("circle",{cx:cx,cy:cy,r:4,class:"marker"}));
+    document.getElementById('k-readout').textContent=val.toFixed(1)+"\u00D7";
+  }
+  rhoEl.addEventListener('input',draw); csEl.addEventListener('input',draw);
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   2) THEORY OF CONSTRAINTS — min(stage rates)
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-toc', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.II</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>System Throughput = min(stage rates)</h4><p class="desc">Set each stage's service rate. Total system throughput is capped at the slowest one, no matter how fast the others run.</p></div>
+        <div class="readout"><div class="val red" id="t-readout">5</div><div class="lbl">system throughput / day</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Discovery &nbsp;<span class="cval" id="t-d-val">8</span></label><input type="range" id="t-d" min="1" max="20" step="1" value="8"></div>
+          <div class="control"><label>Coding &nbsp;<span class="cval" id="t-c-val">20</span></label><input type="range" id="t-c" min="1" max="20" step="1" value="20"></div>
+          <div class="control"><label>Review &nbsp;<span class="cval" id="t-r-val">5</span></label><input type="range" id="t-r" min="1" max="20" step="1" value="5"></div>
+          <div class="control"><label>QA &nbsp;<span class="cval" id="t-q-val">9</span></label><input type="range" id="t-q" min="1" max="20" step="1" value="9"></div>
+        </div>
+        <svg class="chart" id="t-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const dEl=document.getElementById('t-d'), cEl=document.getElementById('t-c'), rEl=document.getElementById('t-r'), qEl=document.getElementById('t-q');
+  function draw(){
+    const vals={Discovery:parseInt(dEl.value),Coding:parseInt(cEl.value),Review:parseInt(rEl.value),QA:parseInt(qEl.value)};
+    document.getElementById('t-d-val').textContent=vals.Discovery;
+    document.getElementById('t-c-val').textContent=vals.Coding;
+    document.getElementById('t-r-val').textContent=vals.Review;
+    document.getElementById('t-q-val').textContent=vals.QA;
+    const entries=Object.entries(vals);
+    const minVal=Math.min(...entries.map(e=>e[1]));
+    const svg=document.getElementById('t-svg');
+    const yMax=Math.max(...entries.map(e=>e[1]))*1.2;
+    const f=_frame(svg,{xMin:0,xMax:entries.length,yMin:0,yMax:yMax,xTicks:entries.length,xFmt:()=>"",yFmt:v=>v.toFixed(0)});
+    const barW=f.plotW/entries.length*0.5;
+    entries.forEach(([name,val],i)=>{
+      const cx=f.sx(i+0.5), x=cx-barW/2, y=f.sy(val), h=(f.padT+f.plotH)-y;
+      svg.appendChild(_el("rect",{x:x,y:y,width:barW,height:h,class:val===minVal?"bar-min":"bar-normal"}));
+      const t=_el("text",{x:cx,y:f.padT+f.plotH+16,class:"axis-text","text-anchor":"middle"}); t.textContent=name; svg.appendChild(t);
+      const t2=_el("text",{x:cx,y:y-6,class:"axis-text","text-anchor":"middle"}); t2.textContent=val; svg.appendChild(t2);
+    });
+    document.getElementById('t-readout').textContent=minVal;
+  }
+  [dEl,cEl,rEl,qEl].forEach(s=>s.addEventListener('input',draw));
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   3) LITTLE'S LAW
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-little', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.III</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Little's Law: WIP vs. Cycle Time</h4><p class="desc">W = L / &lambda;. Adjust WIP and throughput and read cycle time directly off the curve.</p></div>
+        <div class="readout"><div class="val teal" id="l-readout">3.0 d</div><div class="lbl">cycle time at current WIP</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Active WIP (L, tickets) &nbsp;<span class="cval" id="l-wip-val">15</span></label><input type="range" id="l-wip" min="1" max="30" step="1" value="15"></div>
+          <div class="control"><label>Throughput &lambda; (tickets/day) &nbsp;<span class="cval" id="l-lam-val">5.0</span></label><input type="range" id="l-lam" min="1" max="10" step="0.5" value="5.0"></div>
+          <p class="note">Five developers, fifteen open tickets: a four-hour task inherits a nine-day queue.</p>
+        </div>
+        <svg class="chart" id="l-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const wipEl=document.getElementById('l-wip'), lamEl=document.getElementById('l-lam');
+  function draw(){
+    const L=parseInt(wipEl.value), lam=parseFloat(lamEl.value);
+    document.getElementById('l-wip-val').textContent=L;
+    document.getElementById('l-lam-val').textContent=lam.toFixed(1);
+    const svg=document.getElementById('l-svg');
+    const f=_frame(svg,{xMin:1,xMax:30,yMin:0,yMax:30,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(0)});
+    const pts=[]; for(let l=1;l<=30;l+=0.5){pts.push([l,Math.min(30,l/lam)]);}
+    svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+    const w=L/lam, cx=f.sx(L), cy=f.sy(Math.min(30,w));
+    svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+    svg.appendChild(_el("circle",{cx:cx,cy:cy,r:4,class:"marker"}));
+    document.getElementById('l-readout').textContent=w.toFixed(1)+" d";
+  }
+  wipEl.addEventListener('input',draw); lamEl.addEventListener('input',draw);
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   4) ORDER STATISTICS — spillover risk
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-order', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.IV</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Spillover Risk</h4><p class="desc">P(all delivered) = p<sup>n</sup>. Batch size is the enemy of certainty, even when each ticket is individually low-risk.</p></div>
+        <div class="readout"><div class="val red" id="o-readout">28%</div><div class="lbl">P(all delivered)</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Tickets in sprint (n) &nbsp;<span class="cval" id="o-n-val">12</span></label><input type="range" id="o-n" min="1" max="25" step="1" value="12"></div>
+          <div class="control"><label>Per-ticket on-time p &nbsp;<span class="cval" id="o-p-val">0.90</span></label><input type="range" id="o-p" min="0.50" max="0.99" step="0.01" value="0.90"></div>
+          <p class="note">At p = 0.90 and n = 12, spillover probability is already 72% before the sprint begins.</p>
+        </div>
+        <svg class="chart" id="o-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const nEl=document.getElementById('o-n'), pEl=document.getElementById('o-p');
+  function draw(){
+    const n=parseInt(nEl.value), p=parseFloat(pEl.value);
+    document.getElementById('o-n-val').textContent=n;
+    document.getElementById('o-p-val').textContent=p.toFixed(2);
+    const svg=document.getElementById('o-svg');
+    const f=_frame(svg,{xMin:1,xMax:25,yMin:0,yMax:1,xFmt:v=>v.toFixed(0),yFmt:v=>(v*100).toFixed(0)+"%"});
+    const barW=f.plotW/25*0.6;
+    for(let i=1;i<=25;i++){
+      const prob=Math.pow(p,i);
+      const x=f.sx(i)-barW/2, y=f.sy(prob), h=(f.padT+f.plotH)-y;
+      svg.appendChild(_el("rect",{x:x,y:y,width:barW,height:h,class:i===n?"bar":"bar-tail",opacity:i===n?1:0.35}));
+    }
+    document.getElementById('o-readout').textContent=(Math.pow(p,n)*100).toFixed(0)+"%";
+  }
+  nEl.addEventListener('input',draw); pEl.addEventListener('input',draw);
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   5) JENSEN'S INEQUALITY & COVARIANCE — Fibonacci delusion
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-jensen', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.V</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>The Fibonacci Delusion</h4><p class="desc">Naive &sum;points vs. a simulated actual total including convex overhead and positive covariance between tasks.</p></div>
+        <div class="readout"><div class="val red" id="j-readout">+0%</div><div class="lbl">actual over naive sum</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Tasks in batch (n) &nbsp;<span class="cval" id="j-n-val">10</span></label><input type="range" id="j-n" min="2" max="20" step="1" value="10"></div>
+          <div class="control"><label>Convexity exponent &nbsp;<span class="cval" id="j-conv-val">1.15</span></label><input type="range" id="j-conv" min="1.0" max="1.6" step="0.01" value="1.15"></div>
+          <div class="control"><label>Covariance strength &nbsp;<span class="cval" id="j-cov-val">0.30</span></label><input type="range" id="j-cov" min="0" max="0.8" step="0.02" value="0.30"></div>
+          <p class="note">Exponent 1.0 and covariance 0 recovers plain addition. Push either up and the gap is overhead planning poker never counted.</p>
+        </div>
+        <svg class="chart" id="j-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const nEl=document.getElementById('j-n'), convEl=document.getElementById('j-conv'), covEl=document.getElementById('j-cov');
+  function draw(){
+    const n=parseInt(nEl.value), conv=parseFloat(convEl.value), cov=parseFloat(covEl.value);
+    document.getElementById('j-n-val').textContent=n;
+    document.getElementById('j-conv-val').textContent=conv.toFixed(2);
+    document.getElementById('j-cov-val').textContent=cov.toFixed(2);
+    const unitPoint=3;
+    const naiveSum=n*unitPoint;
+    const convexSum=n*Math.pow(unitPoint,conv);
+    const covOverhead=cov*unitPoint*(n*(n-1))/2/n;
+    const actualTotal=convexSum+covOverhead;
+    const svg=document.getElementById('j-svg');
+    const yMax=Math.max(naiveSum,actualTotal)*1.2;
+    const f=_frame(svg,{xMin:0,xMax:2,yMin:0,yMax:yMax,xTicks:2,xFmt:()=>"",yFmt:v=>v.toFixed(0)});
+    const barW=f.plotW*0.22;
+    let x=f.sx(0.5)-barW/2, y=f.sy(naiveSum), h=(f.padT+f.plotH)-y;
+    svg.appendChild(_el("rect",{x:x,y:y,width:barW,height:h,class:"bar-naive"}));
+    let lbl=_el("text",{x:f.sx(0.5),y:f.padT+f.plotH+16,class:"legend","text-anchor":"middle"});
+    lbl.setAttribute("fill","#4fb8a6"); lbl.textContent="naive \u03A3 points: "+naiveSum.toFixed(0);
+    svg.appendChild(lbl);
+    x=f.sx(1.5)-barW/2; y=f.sy(actualTotal); h=(f.padT+f.plotH)-y;
+    svg.appendChild(_el("rect",{x:x,y:y,width:barW,height:h,class:"bar-actual"}));
+    let lbl2=_el("text",{x:f.sx(1.5),y:f.padT+f.plotH+16,class:"legend","text-anchor":"middle"});
+    lbl2.setAttribute("fill","#d9645c"); lbl2.textContent="actual total: "+actualTotal.toFixed(1);
+    svg.appendChild(lbl2);
+    document.getElementById('j-readout').textContent="+"+(((actualTotal/naiveSum)-1)*100).toFixed(0)+"%";
+  }
+  [nEl,convEl,covEl].forEach(s=>s.addEventListener('input',draw));
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   6) UNIVERSAL SCALABILITY LAW
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-usl', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 1.VI</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Universal Scalability Law</h4><p class="desc">Tune contention and coherency cost and watch the peak — and the collapse past it — move.</p></div>
+        <div class="readout"><div class="val amber" id="u-readout">N=8</div><div class="lbl">peak effective throughput</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Contention &alpha; &nbsp;<span class="cval" id="u-a-val">0.08</span></label><input type="range" id="u-a" min="0" max="0.40" step="0.01" value="0.08"></div>
+          <div class="control"><label>Coherency &beta; &nbsp;<span class="cval" id="u-b-val">0.020</span></label><input type="range" id="u-b" min="0" max="0.08" step="0.002" value="0.020"></div>
+          <p class="note">Past the peak, adding another parallel track makes the team slower, not faster.</p>
+        </div>
+        <svg class="chart" id="u-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const aEl=document.getElementById('u-a'), bEl=document.getElementById('u-b');
+  function uslC(n,a,b){ return n/(1+a*(n-1)+b*n*(n-1)); }
+  function draw(){
+    const a=parseFloat(aEl.value), b=parseFloat(bEl.value);
+    document.getElementById('u-a-val').textContent=a.toFixed(2);
+    document.getElementById('u-b-val').textContent=b.toFixed(3);
+    const svg=document.getElementById('u-svg');
+    let yMax=1; const pts=[];
+    for(let n=1;n<=32;n+=0.5){ const c=uslC(n,a,b); pts.push([n,c]); if(c>yMax) yMax=c; }
+    yMax*=1.15;
+    const f=_frame(svg,{xMin:1,xMax:32,yMin:0,yMax:yMax,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(0)});
+    svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+    let bestN=1,bestC=-1;
+    for(let n=1;n<=32;n+=0.1){ const c=uslC(n,a,b); if(c>bestC){bestC=c;bestN=n;} }
+    const cx=f.sx(bestN), cy=f.sy(bestC);
+    svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+    svg.appendChild(_el("circle",{cx:cx,cy:cy,r:4,class:"marker"}));
+    document.getElementById('u-readout').textContent="N="+Math.round(bestN);
+  }
+  aEl.addEventListener('input',draw); bEl.addEventListener('input',draw);
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   7) AMDAHL'S LAW
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-amdahl', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 3</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Amdahl's Law: The Ceiling on Speedup</h4><p class="desc">Set the improved fraction of the work and its speedup factor. Total speedup obeys a hard ceiling regardless.</p></div>
+        <div class="readout"><div class="val amber" id="a-readout">1.2&times;</div><div class="lbl">total pipeline speedup</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Improved fraction p &nbsp;<span class="cval" id="a-p-val">0.20</span></label><input type="range" id="a-p" min="0.05" max="0.95" step="0.01" value="0.20"></div>
+          <div class="control"><label>Speedup of that part s &nbsp;<span class="cval" id="a-s-val">10&times;</span></label><input type="range" id="a-s" min="1" max="100" step="1" value="10"></div>
+          <p class="note">At p = 0.20, s = 10&times;: total speedup &asymp;1.21&times;. Dashed red = ideal linear speedup (s&rarr;&infin;, y=x) for reference.</p>
+        </div>
+        <svg class="chart" id="a-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const pEl=document.getElementById('a-p'), sEl=document.getElementById('a-s');
+  function amdahl(p,s){ return 1/((1-p)+p/s); }
+  function draw(){
+    const p=parseFloat(pEl.value), s=parseFloat(sEl.value);
+    document.getElementById('a-p-val').textContent=p.toFixed(2);
+    document.getElementById('a-s-val').textContent=s.toFixed(0)+"\u00D7";
+    const svg=document.getElementById('a-svg');
+    const yCeil=1/(1-p);
+    const yMax=Math.min(20,yCeil*1.1);
+    const f=_frame(svg,{xMin:1,xMax:100,yMin:0,yMax:yMax,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(1)});
+    const pts=[], ptsIdeal=[];
+    for(let sv=1; sv<=100; sv+=1){ pts.push([sv, Math.min(yMax, amdahl(p,sv))]); ptsIdeal.push([sv, Math.min(yMax, sv)]); }
+    svg.appendChild(_el("path",{d:_pathFor(ptsIdeal,f.sx,f.sy),class:"curve-ideal"}));
+    svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+    const cx=f.sx(s), cy=f.sy(Math.min(yMax,amdahl(p,s)));
+    svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+    svg.appendChild(_el("circle",{cx:cx,cy:cy,r:4,class:"marker"}));
+    document.getElementById('a-readout').textContent=amdahl(p,s).toFixed(2)+"\u00D7";
+  }
+  pEl.addEventListener('input',draw); sEl.addEventListener('input',draw);
+  draw();
+})();
+
+/* ---------------------------------------------------------------
+   8) DRUM-BUFFER-ROPE — animated buffer/rope/swarm simulation
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-dbr', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 4</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Drum-Buffer-Rope in Motion</h4><p class="desc">Coding attempts to push PRs into the buffer ahead of Review, the drum. When the buffer hits its cap, the rope pulls taut: upstream stops, and the team swarms the bottleneck.</p></div>
+        <div class="readout"><div class="val teal" id="d-readout">0</div><div class="lbl">shipped total</div></div>
+      </div>
+      <div class="dbr-controls">
+        <div class="dbr-control control"><label>Coding attempt rate &nbsp;<span class="cval" id="d-code-val">6</span>/day</label><input type="range" id="d-code" min="1" max="15" step="1" value="6"></div>
+        <div class="dbr-control control"><label>Drum (Review) rate &nbsp;<span class="cval" id="d-rev-val">3</span>/day</label><input type="range" id="d-rev" min="1" max="12" step="1" value="3"></div>
+        <div class="dbr-control control"><label>Buffer cap &nbsp;<span class="cval" id="d-cap-val">3</span></label><input type="range" id="d-cap" min="1" max="10" step="1" value="3"></div>
+        <div class="dbr-control"><button class="run" id="d-play">Pause</button></div>
+      </div>
+      <div class="stage-row">
+        <div class="stage-box"><div class="stage-label">CODING (UPSTREAM)</div><div class="stage-track" id="d-code-track"></div><div class="stage-count" id="d-code-count">rate: 6/day</div></div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage-box"><div class="stage-label">BUFFER (QUEUE)</div><div class="stage-track" id="d-buf-track"></div><div class="stage-count" id="d-buf-count">0 / 3</div></div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage-box"><div class="stage-label">DRUM — SENIOR REVIEW</div><div class="stage-track" id="d-rev-track"></div><div class="stage-count" id="d-rev-count">rate: 3/day</div></div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage-box"><div class="stage-label">DONE</div><div class="stage-track" id="d-done-track"></div><div class="stage-count" id="d-done-count">0 shipped</div></div>
+      </div>
+      <div class="rope-status" id="d-rope">Rope slack — upstream flowing normally</div>
+      <svg class="chart" id="d-svg" viewBox="0 0 640 190"></svg>
+      <p class="note" style="padding:0 20px 16px;">Line: daily throughput through the drum. It clamps at the Review rate regardless of how fast Coding attempts to feed it.</p>
+    </section>
+  `);
+  const codeEl=document.getElementById('d-code'), revEl=document.getElementById('d-rev'), capEl=document.getElementById('d-cap'), playBtn=document.getElementById('d-play');
+  const codeTrack=document.getElementById('d-code-track'), bufTrack=document.getElementById('d-buf-track'), revTrack=document.getElementById('d-rev-track'), doneTrack=document.getElementById('d-done-track');
+  const bufCount=document.getElementById('d-buf-count'), doneCount=document.getElementById('d-done-count'), codeCount=document.getElementById('d-code-count'), revCount=document.getElementById('d-rev-count');
+  const ropeEl=document.getElementById('d-rope'), readoutEl=document.getElementById('d-readout');
+
+  let bufferLen=0, doneTotal=0, playing=false, timer=null, historyDays=[];
+  const MAX_HISTORY=30;
+
+  function renderDots(container,count,capForTail){
+    container.innerHTML='';
+    for(let i=0;i<count;i++){
+      const el=document.createElement('div');
+      el.className='dot'+(capForTail!=null && i>=capForTail ? ' tail':'');
+      container.appendChild(el);
+    }
+  }
+  function drawHistory(){
+    const svg=document.getElementById('d-svg');
+    const yMax=Math.max(1,parseInt(revEl.value))*1.4;
+    const f=_frame(svg,{xMin:0,xMax:MAX_HISTORY,yMin:0,yMax:yMax,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(0)},190);
+    const pts=historyDays.map((v,i)=>[i,v]);
+    if(pts.length>1) svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+    const rate=parseInt(revEl.value);
+    const refPath=_el("path",{d:_pathFor([[0,rate],[MAX_HISTORY,rate]],f.sx,f.sy)});
+    refPath.setAttribute("stroke","#e8a33d"); refPath.setAttribute("stroke-dasharray","3 3"); refPath.setAttribute("fill","none"); refPath.setAttribute("stroke-width","1.2");
+    svg.appendChild(refPath);
+  }
+  function tick(){
+    const codeRate=parseInt(codeEl.value), revRate=parseInt(revEl.value), cap=parseInt(capEl.value);
+    codeCount.textContent="rate: "+codeRate+"/day";
+    revCount.textContent="rate: "+revRate+"/day";
+    const ropeTaut = bufferLen >= cap;
+    let effectiveRevRate = revRate, arrivalsAccepted = 0;
+    if(ropeTaut){
+      effectiveRevRate = Math.round(revRate*1.5);
+    } else {
+      const room = cap - bufferLen;
+      arrivalsAccepted = Math.min(codeRate, room);
+      bufferLen += arrivalsAccepted;
+    }
+    const processed = Math.min(bufferLen, effectiveRevRate);
+    bufferLen -= processed;
+    doneTotal += processed;
+    historyDays.push(processed);
+    if(historyDays.length>MAX_HISTORY) historyDays.shift();
+
+    renderDots(codeTrack, ropeTaut?0:arrivalsAccepted, null);
+    renderDots(bufTrack, bufferLen, cap);
+    renderDots(revTrack, processed, null);
+    renderDots(doneTrack, Math.min(processed,8), null);
+    bufCount.textContent = bufferLen+" / "+cap;
+    doneCount.textContent = doneTotal+" shipped";
+    readoutEl.textContent = doneTotal;
+    if(ropeTaut){
+      ropeEl.textContent="ROPE TAUT — upstream halted, team swarming the drum (+50% review capacity today)";
+      ropeEl.classList.add('taut');
+    } else {
+      ropeEl.textContent="Rope slack — upstream flowing normally";
+      ropeEl.classList.remove('taut');
+    }
+    drawHistory();
+  }
+  function play(){ playing=true; playBtn.textContent="Pause"; timer=setInterval(tick,700); }
+  function pause(){ playing=false; playBtn.textContent="Play"; clearInterval(timer); }
+  playBtn.addEventListener('click', ()=> playing ? pause() : play());
+  [codeEl,revEl,capEl].forEach(s=>s.addEventListener('input', ()=>{
+    document.getElementById('d-code-val').textContent=codeEl.value;
+    document.getElementById('d-rev-val').textContent=revEl.value;
+    document.getElementById('d-cap-val').textContent=capEl.value;
+    drawHistory();
+  }));
+  renderDots(codeTrack,0,null); renderDots(bufTrack,0,parseInt(capEl.value)); renderDots(revTrack,0,null); renderDots(doneTrack,0,null);
+  drawHistory();
+  play();
+})();
+
+/* ---------------------------------------------------------------
+   9) MONTE CARLO DELIVERY FORECAST
+--------------------------------------------------------------- */
+(function(){
+  _mount('panel-monte', `
+    <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SECTION 6.III</div></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h4>Monte Carlo Delivery Forecast</h4><p class="desc">2,000 simulated sprints, summing skewed per-ticket cycle times. Read off p50 / p85 / p95 instead of promising a single date.</p></div>
+        <div class="readout"><div class="val teal" id="m-readout">&mdash;</div><div class="lbl">p85 sprint duration</div></div>
+      </div>
+      <div class="panel-body">
+        <div class="controls">
+          <div class="control"><label>Tickets (n) &nbsp;<span class="cval" id="m-n-val">12</span></label><input type="range" id="m-n" min="4" max="25" step="1" value="12"></div>
+          <div class="control"><label>Mean ticket duration (days) &nbsp;<span class="cval" id="m-mean-val">1.8</span></label><input type="range" id="m-mean" min="0.5" max="4" step="0.1" value="1.8"></div>
+          <div class="control"><label>Variance C<sub>s</sub> &nbsp;<span class="cval" id="m-cs-val">1.5</span></label><input type="range" id="m-cs" min="0.2" max="3.0" step="0.1" value="1.5"></div>
+          <button class="run" id="m-run">Run 2,000 trials</button>
+        </div>
+        <svg class="chart" id="m-svg" viewBox="0 0 640 260"></svg>
+      </div>
+    </section>
+  `);
+  const nEl=document.getElementById('m-n'), meanEl=document.getElementById('m-mean'), csEl=document.getElementById('m-cs'), runBtn=document.getElementById('m-run');
+  function randNormal(){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+  function sampleLognormal(mean,cs){ const sigma2=Math.log(1+cs*cs), sigma=Math.sqrt(sigma2), mu=Math.log(mean)-sigma2/2; return Math.exp(mu+sigma*randNormal()); }
+  function run(){
+    const n=parseInt(nEl.value), mean=parseFloat(meanEl.value), cs=parseFloat(csEl.value);
+    document.getElementById('m-n-val').textContent=n;
+    document.getElementById('m-mean-val').textContent=mean.toFixed(1);
+    document.getElementById('m-cs-val').textContent=cs.toFixed(1);
+    const trials=2000, totals=[];
+    for(let t=0;t<trials;t++){
+      let maxDur=0;
+      for(let i=0;i<n;i++){ const d=sampleLognormal(mean,cs); if(d>maxDur)maxDur=d; }
+      const drag=sampleLognormal(mean*0.35,cs)*Math.log(1+n);
+      totals.push(maxDur+drag);
+    }
+    totals.sort((a,b)=>a-b);
+    const pct=p=>totals[Math.floor(p*(totals.length-1))];
+    const p50=pct(0.50), p85=pct(0.85), p95=pct(0.95);
+    drawHist(totals,p50,p85,p95);
+    document.getElementById('m-readout').textContent=p85.toFixed(1)+" d";
+  }
+  function drawHist(totals,p50,p85,p95){
+    const svg=document.getElementById('m-svg');
+    const xMax=Math.max(...totals)*1.05, bins=28, counts=new Array(bins).fill(0);
+    totals.forEach(v=>{ let idx=Math.floor((v/xMax)*bins); if(idx>=bins)idx=bins-1; counts[idx]++; });
+    const maxCount=Math.max(...counts);
+    const f=_frame(svg,{xMin:0,xMax:xMax,yMin:0,yMax:maxCount,xFmt:v=>v.toFixed(0)+"d",yFmt:v=>v.toFixed(0)});
+    const barW=f.plotW/bins*0.82;
+    counts.forEach((c,i)=>{
+      const xVal=(i+0.5)/bins*xMax, isTail=xVal>p85;
+      const x=f.sx(xVal)-barW/2, y=f.sy(c), h=(f.padT+f.plotH)-y;
+      svg.appendChild(_el("rect",{x:x,y:y,width:barW,height:h,class:isTail?"bar-tail":"bar",opacity:isTail?0.55:0.85}));
+    });
+    [["p50",p50],["p85",p85],["p95",p95]].forEach(([label,val])=>{
+      const x=f.sx(val);
+      svg.appendChild(_el("line",{x1:x,x2:x,y1:f.padT,y2:f.padT+f.plotH,class:"pctl-line"}));
+      const t=_el("text",{x:x+4,y:f.padT+12,class:"pctl-text"}); t.textContent=label+" "+val.toFixed(1)+"d";
+      svg.appendChild(t);
+    });
+  }
+  runBtn.addEventListener('click',run);
+  [nEl,meanEl,csEl].forEach(inp=>inp.addEventListener('input',()=>{
+    document.getElementById('m-n-val').textContent=nEl.value;
+    document.getElementById('m-mean-val').textContent=parseFloat(meanEl.value).toFixed(1);
+    document.getElementById('m-cs-val').textContent=parseFloat(csEl.value).toFixed(1);
+  }));
+  run();
+})();
+
+
+/* Render all LaTeX math — runs after all scripts above have executed */
+if (window.renderMathInElement) {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$",  right: "$",  display: false }
+    ],
+    throwOnError: false
+  });
+}
+</script>
+</body>
+</html>
