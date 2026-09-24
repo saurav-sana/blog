@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+            window.dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+    
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality | Saurav Sana</title>
+    <meta name="title" content="Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality | Saurav Sana">
+    <meta name="description" content="Explore a 5-part engineering series on designing a stateless, application-aware data gateway (DuckDB + Arrow Flight + Iceberg) to bypass expensive distributed MPP clusters for the 95% operational read path.">
+    <meta name="keywords" content="Data Architecture, Apache Iceberg, DuckDB, MPP Engines, Trino, Snowflake, Databricks, Data Gateway, Analytical Workloads, Distributed Systems, JVM Heap Tax, FinOps">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/">
+
+    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/">
+    <meta property="og:title" content="Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality | Saurav Sana">
+    <meta property="og:description" content="Explore a 5-part engineering series on bypassing expensive distributed MPP clusters by building a stateless lakehouse gateway optimized for the 95% operational read path.">
+    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+
+    <!-- Twitter / X Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/">
+    <meta name="twitter:title" content="Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality | Saurav Sana">
+    <meta name="twitter:description" content="Explore a 5-part engineering series on bypassing expensive distributed MPP clusters by building a stateless lakehouse gateway optimized for the 95% operational read path.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+
+    <!-- Structured Data (JSON-LD for AIO / LLM Crawlers) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality",
+      "description": "A 5-part technical engineering series examining why traditional distributed MPP engines fail operational serving workloads and how to build a stateless DuckDB and Apache Arrow data gateway.",
+      "author": {
+        "@type": "Person",
+        "name": "Saurav Sana",
+        "url": "https://sauravsana.github.io/blog/"
+      },
+      "datePublished": "2026-09-25",
+      "dateModified": "2026-09-25",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Saurav Sana | Field Notes",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://sauravsana.github.io/blog/assets/img/logo.png"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/"
+      }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+    <script src="../../assets/js/theme-toggle.js"></script>
+
+    <style>
+        /* =======================================================================
+           DARK MODE OVERRIDES
+           ======================================================================= */
+        [data-theme="dark"], .dark, .dark-mode, .theme-dark {
+            --panel: rgba(255, 255, 255, 0.06) !important;
+            --panel-2: rgba(255, 255, 255, 0.095) !important;
+            --line: rgba(255, 255, 255, 0.18) !important;
+            --line-soft: rgba(255, 255, 255, 0.1) !important;
+            --tldr-bg: rgba(79, 184, 166, 0.12) !important;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]):not(.light):not(.theme-light) {
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel-2: rgba(255, 255, 255, 0.095);
+                --line: rgba(255, 255, 255, 0.18);
+                --line-soft: rgba(255, 255, 255, 0.1);
+                --tldr-bg: rgba(79, 184, 166, 0.12);
+            }
+        }
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; }
+        .article { margin-top: 0 !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+        
+        .byline {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.75rem;
+            color: var(--teal);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .deck {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 1.15rem;
+            color: var(--muted);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        /* --- Quote Styling --- */
+        .snarky-quote {
+            border-left: 3px solid var(--amber, #D4A72C);
+            padding: 0.1rem 0 0.1rem 1.25rem;
+            margin: 3rem 0;
+            background: transparent;
+        }
+        .snarky-quote-text {
+            font-family: 'Georgia', serif;
+            font-size: 1.15rem;
+            font-style: italic;
+            color: var(--muted);
+            line-height: 1.6;
+            margin: 0 0 0.6rem 0;
+        }
+        .snarky-quote-author {
+            font-family: 'Georgia', serif;
+            font-size: 1.05rem;
+            color: var(--muted);
+            margin: 0;
+        }
+        .snarky-quote-author strong {
+            font-weight: 700;
+            font-style: italic;
+            color: var(--text);
+        }
+
+        /* --- XKCD Top Centered Layout --- */
+        .xkcd-wrapper-top {
+            background: #e2e8f0; 
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            text-align: center;
+            margin: 0 auto 3.5rem auto;
+            max-width: 600px;
+        }
+
+        .xkcd-wrapper-top img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            mix-blend-mode: multiply; 
+        }
+
+        .xkcd-caption {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.75rem;
+            color: #475569;
+            margin: 0.75rem 0 0;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        /* --- TL;DR Box --- */
+        .tldr-box {
+            background: var(--tldr-bg, rgba(79, 184, 166, 0.06));
+            border-left: 3px solid var(--teal, #4fb8a6);
+            padding: 1.75rem 1.5rem;
+            margin-bottom: 3.5rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .tldr-eyebrow {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            color: var(--teal, #4fb8a6);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1.25rem;
+            font-weight: 600;
+        }
+
+        .tldr-content {
+            font-family: 'IBM Plex Sans', Arial, sans-serif;
+            color: var(--muted, #c9d1d9);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); }
+        .tldr-content ul { padding-left: 1.2rem; margin: 1rem 0 1.25rem 0; }
+        .tldr-content li { margin-bottom: 0.6rem; color: var(--text); }
+        .tldr-content strong { color: var(--text, #ffffff); font-weight: 600; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 2.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        
+        .toc { background: var(--panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line); margin: 2.5rem 0; }
+        .toc-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted-2); letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc a { color: var(--teal); text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; }
+        .toc a:hover { text-decoration: underline; }
+
+        .cite-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.75em; color: var(--muted-2); margin-left: 0.2rem; }
+
+        /* --- Series Cards --- */
+        .part-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .part-card {
+            display: block;
+            text-decoration: none;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 200ms ease;
+            position: relative;
+        }
+
+        .part-card:hover,
+        .part-card:focus-visible {
+            border-color: var(--teal);
+            background: var(--panel-2);
+        }
+
+        .part-eyebrow {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.68rem;
+            color: var(--teal);
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            margin-bottom: 0.35rem;
+        }
+
+        .part-title {
+            font-family: 'Libre Franklin', Arial, sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text);
+            margin: 0 0 0.2rem;
+            transition: color 160ms ease;
+            line-height: 1.25;
+        }
+
+        .part-card:hover .part-title {
+            color: var(--teal);
+        }
+
+        .part-subtitle {
+            font-family: 'IBM Plex Sans', Arial, sans-serif;
+            font-size: 0.8rem;
+            color: var(--amber);
+            font-style: italic;
+            margin: 0 0 0.65rem;
+        }
+
+        .part-covers {
+            font-family: 'IBM Plex Sans', Arial, sans-serif;
+            font-size: 0.82rem;
+            color: var(--muted);
+            line-height: 1.6;
+            margin: 0 0 0.5rem;
+        }
+
+        .part-hook {
+            font-family: 'IBM Plex Sans', Arial, sans-serif;
+            font-size: 0.78rem;
+            color: var(--muted-2);
+            line-height: 1.55;
+            margin: 0;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .part-hook strong {
+            color: var(--muted);
+        }
+
+        .series-heading-row {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .series-heading-row h1 {
+            margin: 0;
+            font-size: 2.0rem;
+        }
+
+        .series-heading-row .btn-download {
+            margin: 0;
+            flex-shrink: 0;
+            font-size: 0.78rem;
+            padding: 0.4rem 0.85rem;
+            white-space: nowrap;
+            background: rgba(79, 184, 166, 0.1);
+            color: var(--teal);
+            border: 1px solid var(--teal);
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background 150ms ease;
+        }
+        
+        .series-heading-row .btn-download:hover {
+            background: rgba(79, 184, 166, 0.2);
+        }
+
+        .section-title {
+            font-family: 'Libre Franklin', sans-serif;
+            font-size: 1.2rem;
+            margin-top: 3.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Global Header -->
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+            
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="#" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+
+        <main>
+            <div class="post-meta" style="margin-bottom: 0.5rem;">
+                <a href="../../index.html" style="color: inherit; text-decoration: none;">← All Writings</a>
+            </div>
+
+            <div class="series-heading-row">
+                <h1>Beyond the MPP Default: Designing a Smart Data Gateway for the 95% Reality</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">September 25, 2026 · 5-Part Series</div>
+
+            <!-- XKCD 974: The General Problem -->
+            <div class="xkcd-wrapper-top">
+                <img src="https://imgs.xkcd.com/comics/the_general_problem.png" alt="XKCD: The General Problem" title="I find that when someone's taking time to do something right in the present, they're a perfectionist with no ability to prioritize, whereas when someone took time to do something right in the past, they're a master artisan of great foresight.">
+                <p class="xkcd-caption">XKCD 974: Why we bought a distributed cluster just to pass the salt.</p>
+            </div>
+
+            <div class="snarky-quote">
+                <p class="snarky-quote-text">“Most 'Big Data' problems are just 'Small Data' problems wearing a trench coat made of JVM tuning parameters and Kubernetes manifests. We spent a decade convincing the industry to replace millisecond local memory access with 50-node network shuffles, mostly so we could put 'Distributed Systems Architecture' on our resumes.”</p>
+                <p class="snarky-quote-author">— <strong><em>Anonymous Principal Engineer</em></strong></p>
+            </div>
+
+            <!-- TL;DR Box -->
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">TL ; DR</div>
+                <div class="tldr-content">
+                    <p><strong>The Core Insight:</strong> Most organizations don't have a Big Data problem; they have a serving problem. Forcing small, localized operational queries through a Massively Parallel Processing (MPP) engine mathematically guarantees latency spikes and runaway costs.</p>
+                    <ul>
+                        <li><strong>The Distributed Penalty (Universal Scalability Law):</strong> Coherency overhead in JVM clusters destroys throughput for queries that would comfortably fit in a single node's RAM.</li>
+                        <li><strong>The Storage Mismatch:</strong> Direct compute-to-object-storage architectures suffer full network latency. A local NVMe byte-range proxy is physically required to decapitate the P99 tail.</li>
+                        <li><strong>The AI Integration Trap:</strong> Connecting LLM agents directly to raw databases via the Model Context Protocol (MCP) invites unbounded table scans, token exhaustion, and multi-tenant data bleed.</li>
+                    </ul>
+                    <p><strong>The Fix:</strong> Stop over-engineering for the 1% outlier. Deploy a stateless, horizontally scalable gateway (DuckDB + Arrow Flight + PyIceberg) to serve the 95% case locally, and route only the massive distributed joins to your legacy MPP cluster.</p>
+                </div>
+            </div>
+
+            <p class="section-title">Series Contents</p>
+
+            <ul class="part-list" role="list">
+
+                <li>
+                    <a href="part-1-the-monolith-crisis.html" class="part-card" data-tooltip="An empirical look at the limits of legacy OLAP and the mathematical reality that 94% of enterprise analytical queries scan less than 10GB of data.">
+                        <div class="part-eyebrow">Part 1</div>
+                        <h2 class="part-title">The Monolith Crisis & The 95% Reality</h2>
+                        <p class="part-subtitle">Breaking the MPP Default and Validating the True Shape of Analytical Load</p>
+                        <p class="part-covers"><strong>Covers:</strong> The real-time lakehouse serving cost trap (keeping Spark/Iceberg clusters idling 24/7 for dashboard point-reads), the four laws of operational workloads, Jordan Tigani’s Redshift telemetry (proving 94% of query spend goes to unnecessary big data compute), the JVM Heap Tax, and why traditional distributed engines fail operational APIs.</p>
+                        <p class="part-hook"><strong>Why it hooks:</strong> Exposes why the industry spends massive query dollars on a workload that is statistically a rounding error of actual user traffic.</p>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="part-2-architectural-evolution.html" class="part-card" data-tooltip="A step-by-step breakdown of how the architecture evolved to solve OOM crashes, Python GIL locks, and load balancer timeouts.">
+                        <div class="part-eyebrow">Part 2</div>
+                        <h2 class="part-title">Architectural Evolution</h2>
+                        <p class="part-subtitle">From Fat Client to Enterprise Dual-Protocol Gateway</p>
+                        <p class="part-covers"><strong>Covers:</strong> The resolution of OOM crashes via PyIceberg lazy evaluation, overcoming concurrency limits with Arrow Flight, and split-plane routing (REST asynchronous polling vs. gRPC zero-copy streaming).</p>
+                        <p class="part-hook"><strong>Why it hooks:</strong> A pragmatic, honest look at the exact failures that forced each architectural pivot, instead of presenting the final design as a fait accompli.</p>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="part-3-primitives-and-theoretical-validation.html" class="part-card" data-tooltip="Mapping technology choices to computer science laws: Universal Scalability Law, Amdahl's Law, and Kingman's Formula.">
+                        <div class="part-eyebrow">Part 3</div>
+                        <h2 class="part-title">Primitives & Theoretical Validation</h2>
+                        <p class="part-subtitle">Selecting the Stack and the Physics of the Gateway</p>
+                        <p class="part-covers"><strong>Covers:</strong> DuckDB, Apache Arrow, PyIceberg, and REST Catalogs. Validates the architecture against the Universal Scalability Law (USL), Amdahl's Law, and Kingman's Formula.</p>
+                        <p class="part-hook"><strong>Why it hooks:</strong> Proves mathematically why a stateless local gateway scales linearly, while an MPP cluster collapses under coherency penalties for operational traffic.</p>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="part-4-reliability-scaling-and-finops.html" class="part-card" data-tooltip="Sizing the caching tier, Envoy tail-tolerance, and avoiding the Kubernetes bin-packing math trap.">
+                        <div class="part-eyebrow">Part 4</div>
+                        <h2 class="part-title">High Availability, SRE, and FinOps</h2>
+                        <p class="part-subtitle">Sizing the Caching Tier and Surviving Multi-Tenant Concurrency</p>
+                        <p class="part-covers"><strong>Covers:</strong> Load balancer selection (Envoy vs. AGFC), the Kubernetes pod bin-packing trap, NVMe hardware selection (L4s_v4), and tail-tolerant hedged requests.</p>
+                        <p class="part-hook"><strong>Why it hooks:</strong> Explains how to prevent Azure network throttles from silently destroying your caching layer, and the exact configurations required to decapitate P99 latency.</p>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="part-5-roi-and-ai-native-future.html" class="part-card" data-tooltip="The physical limits of Parquet, and how to safely extend the gateway's AST guardrails to autonomous LLMs via MCP.">
+                        <div class="part-eyebrow">Part 5</div>
+                        <h2 class="part-title">Production ROI and the AI-Native Future</h2>
+                        <p class="part-subtitle">Where it Fails, and How it Scales to Autonomous Agents</p>
+                        <p class="part-covers"><strong>Covers:</strong> Real-world infrastructure reductions (>80% RAM saved), architectural non-fits (OLTP, fuzzy search), and extending the gateway with Model Context Protocol (MCP) for LLMs.</p>
+                        <p class="part-hook"><strong>Why it hooks:</strong> Discovers how zero-trust SQLGlot AST guardrails make it structurally safe to let autonomous AI agents loose on your enterprise data lake without token bloat.</p>
+                    </a>
+                </li>
+
+            </ul>
+        </main>
+
+        <!-- Global Footer -->
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Global Tooltip Implementation -->
+    <div class="tooltip-box" id="global-tooltip" aria-hidden="true" style="position: fixed; display: none; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 0.75rem; border-radius: 6px; font-size: 0.85rem; max-width: 280px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;"></div>
+
+    <script>
+        (function () {
+            var tip = document.getElementById('global-tooltip');
+            var currentTarget = null;
+            var GAP = 16;
+            var VIEWPORT_PADDING = 12;
+
+            function showTip(el) {
+                var text = el.getAttribute('data-tooltip');
+                if (!text) return;
+                tip.textContent = text;
+                tip.classList.remove('visible');
+                
+                var rect = el.getBoundingClientRect();
+                
+                var tipLeft = rect.right + GAP;
+                var tipWidth = 280; 
+                
+                if (tipLeft + tipWidth > window.innerWidth - VIEWPORT_PADDING) {
+                    tipLeft = window.innerWidth - tipWidth - VIEWPORT_PADDING;
+                }
+                
+                tip.style.left = tipLeft + 'px';
+                tip.style.top = '-9999px';
+                tip.style.display = 'block';
+                
+                var tipHeight = tip.offsetHeight;
+                var maxTop = window.innerHeight - VIEWPORT_PADDING - tipHeight;
+                var minTop = VIEWPORT_PADDING;
+                var tipTop = rect.top;
+                
+                if (tipTop > maxTop) tipTop = maxTop;
+                if (tipTop < minTop) tipTop = minTop;
+                
+                tip.style.top = tipTop + 'px';
+                
+                requestAnimationFrame(function () { tip.classList.add('visible'); });
+                currentTarget = el;
+            }
+
+            function hideTip() {
+                tip.classList.remove('visible');
+                tip.style.display = 'none';
+                currentTarget = null;
+            }
+
+            document.querySelectorAll('[data-tooltip]').forEach(function (el) {
+                el.addEventListener('mouseenter', function () { showTip(el); });
+                el.addEventListener('mouseleave', hideTip);
+                el.addEventListener('focusin', function () { showTip(el); });
+                el.addEventListener('focusout', hideTip);
+            });
+
+            window.addEventListener('scroll', function () { if (currentTarget) showTip(currentTarget); }, { passive: true });
+            window.addEventListener('resize', function () { if (currentTarget) showTip(currentTarget); else hideTip(); });
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+            window.dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana</title>
+    <meta name="title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta name="description" content="Discover why traditional MPP data engines fail operational serving workloads. Empirical telemetry proves 94% of queries scan under 10GB—exposing the JVM heap tax and the high cost of distributed compute.">
+    <meta name="keywords" content="Data Architecture, Apache Iceberg, DuckDB, MPP Engines, Trino, Snowflake, Databricks, Data Gateway, Analytical Workloads, Distributed Systems, JVM Heap Tax, FinOps">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+
+    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+    <meta property="og:title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta property="og:description" content="Why traditional MPP data engines fail operational serving workloads and why 94% of analytical queries never need distributed clusters.">
+    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/monolith-crisis-preview.png">
+
+    <!-- Twitter / X Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+    <meta name="twitter:title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta name="twitter:description" content="Why traditional MPP data engines fail operational serving workloads and why 94% of analytical queries never need distributed clusters.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/monolith-crisis-preview.png">
+
+    <!-- Structured Data (JSON-LD for AIO / Search Engines) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Part 1: The Monolith Crisis & The 95% Reality",
+      "description": "Breaking the MPP default and validating the true mathematical shape of analytical load using empirical telemetry.",
+      "author": {
+        "@type": "Person",
+        "name": "Saurav Sana",
+        "url": "https://sauravsana.github.io/blog/"
+      },
+      "datePublished": "2026-10-09",
+      "dateModified": "2026-10-09",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Saurav Sana | Field Notes",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://sauravsana.github.io/blog/assets/img/logo.png"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html"
+      }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+    <script src="../../assets/js/theme-toggle.js"></script>
+
+    <style>
+        /* =======================================================================
+           DARK MODE OVERRIDES (Reverted strictly to blog-theme standards)
+           ======================================================================= */
+        [data-theme="dark"], .dark, .dark-mode, .theme-dark {
+            --panel: rgba(255, 255, 255, 0.06) !important;
+            --panel-2: rgba(255, 255, 255, 0.095) !important;
+            --line: rgba(255, 255, 255, 0.18) !important;
+            --line-soft: rgba(255, 255, 255, 0.1) !important;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]):not(.light):not(.theme-light) {
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel-2: rgba(255, 255, 255, 0.095);
+                --line: rgba(255, 255, 255, 0.18);
+                --line-soft: rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+        
+        .byline {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.75rem;
+            color: var(--teal);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .deck {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 1.15rem;
+            color: var(--muted);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        /* --- Quote Styling --- */
+        .snarky-quote {
+            border-left: 3px solid var(--amber, #D4A72C);
+            padding: 0.1rem 0 0.1rem 1.25rem;
+            margin: 3rem 0;
+            background: transparent;
+        }
+        .snarky-quote-text {
+            font-family: 'Georgia', serif;
+            font-size: 1.15rem;
+            font-style: italic;
+            color: var(--muted);
+            line-height: 1.6;
+            margin: 0 0 0.6rem 0;
+        }
+        .snarky-quote-author {
+            font-family: 'Georgia', serif;
+            font-size: 1.05rem;
+            color: var(--muted);
+            margin: 0;
+        }
+        .snarky-quote-author strong {
+            font-weight: 700;
+            font-style: italic;
+            color: var(--text);
+        }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+        
+        .toc { background: var(--panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line); margin: 2.5rem 0; }
+        .toc-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted-2); letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc a { color: var(--teal); text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; }
+        .toc a:hover { text-decoration: underline; }
+
+        /* --- Custom Table Styling --- */
+        .mpp-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: var(--panel);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+        .mpp-table th, .mpp-table td {
+            padding: 1.25rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--line-soft);
+            vertical-align: top;
+        }
+        .mpp-table th {
+            background: var(--panel-2);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--teal);
+            font-weight: 600;
+        }
+        .mpp-table td {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--text);
+        }
+        .mpp-table tr:last-child td { border-bottom: none; }
+        .engine-name { font-weight: 700; color: var(--text); display: block; margin-bottom: 0.3rem; font-size: 1.05rem;}
+        .engine-type { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--amber); }
+
+        /* --- CSS Bar Chart for Survey Data --- */
+        .chart-container {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2.5rem 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .chart-title {
+            font-family: 'Libre Franklin', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        .chart-desc {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 120px 1fr auto;
+            gap: 1.5rem;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--line-soft);
+            transition: background 150ms ease;
+        }
+        .chart-row:last-child { border-bottom: none; }
+        .chart-row:hover { background: rgba(255,255,255,0.02); }
+        .chart-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            text-align: right;
+            color: var(--muted);
+        }
+        .bar-track {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .bar-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .bar {
+            height: 14px;
+            border-radius: 2px;
+            min-width: 2px;
+        }
+        .bar.vol { background: var(--teal); }
+        .bar.time { background: var(--amber); opacity: 0.9; }
+        .bar.single { background: var(--teal); }
+        .bar-val {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text);
+            min-width: 45px;
+        }
+        .chart-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--amber);
+            background: rgba(212, 167, 44, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .chart-takeaway {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--line);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .chart-takeaway strong { color: var(--teal); }
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        .source-caption { text-align:right; font-family:'IBM Plex Mono', monospace; font-size:0.7rem; color:var(--muted-2); margin-top:1rem; }
+
+        /* --- Compact Design Goals Layout --- */
+        .design-chart-layout {
+            display: grid;
+            grid-template-columns: 1fr 1.1fr;
+            gap: 2rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.75rem 1.5rem;
+            margin: 2.5rem 0;
+            align-items: stretch;
+        }
+        @media (max-width: 768px) {
+            .design-chart-layout { grid-template-columns: 1fr; gap: 1.5rem; }
+        }
+        
+        .v-chart-wrapper { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+        .v-chart-title { font-family: 'Libre Franklin', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; text-align: center; }
+        
+        .v-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 130px;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--line-soft);
+        }
+        .v-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 30%; height: 100%; }
+        .v-bar { width: 45px; border-radius: 3px 3px 0 0; }
+        .v-bar.teal { background: var(--teal); }
+        .v-bar.amber { background: var(--amber); }
+        .v-bar.grey { background: #64748b; }
+        .v-val { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.3rem; }
+        .v-bar-col.teal .v-val { color: var(--teal); }
+        .v-bar-col.amber .v-val { color: var(--amber); }
+        .v-bar-col.grey .v-val { color: #94a3b8; }
+
+        .v-label-area { display: flex; justify-content: space-around; margin-top: 0.75rem; text-align: center; align-items: flex-start; }
+        .v-label-col { width: 32%; }
+        .v-size { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--text); }
+        .v-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.68rem; color: var(--muted); line-height: 1.3; margin-top: 0.2rem; }
+
+        .v-domains { display: flex; margin-top: 1rem; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .v-domain-left { width: 66%; color: var(--teal); border-top: 2px solid var(--teal); padding-top: 0.4rem; }
+        .v-domain-right { width: 34%; color: var(--muted); border-top: 2px solid #64748b; padding-top: 0.4rem; }
+
+        .design-goals-list { display: flex; flex-direction: column; gap: 0.75rem; justify-content: space-between; }
+        .dg-header-title { font-family: 'Libre Franklin', sans-serif; font-size: 1rem; font-weight: 700; color: var(--teal); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .dg-item {
+            background: var(--panel-2);
+            border: 1px solid var(--line-soft);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+        }
+        .dg-header { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.15rem; }
+        .dg-num { font-family: 'IBM Plex Mono', monospace; color: var(--amber); font-weight: 700; font-size: 0.8rem; }
+        .dg-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; color: var(--text); font-size: 0.9rem; }
+        .dg-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.82rem; color: var(--muted); line-height: 1.4; margin: 0; padding-left: 1.6rem; }
+
+        .decision-rule {
+            background: var(--panel-2);
+            border: 1px solid var(--teal);
+            color: var(--text);
+            padding: 0.85rem 1rem;
+            border-radius: 6px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            margin-top: 1.25rem;
+            grid-column: 1 / -1;
+        }
+        .decision-rule strong { color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Global Header -->
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+            
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="#" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+
+        <!-- Article Content -->
+        <main>
+            <article class="article">
+                
+                <!-- Back Navigation -->
+                <div style="margin-bottom: 1rem; margin-top: 0;">
+                    <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none;">&larr; Back to Series Index</a>
+                </div>
+
+                <div class="byline">PART 1 · DATA ENGINEERING & ARCHITECTURE</div>
+
+                <h1 style="margin-top: 0.5rem; font-family: 'Libre Franklin', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem;">The Monolith Crisis & The 95% Reality</h1>
+                <p class="deck">Breaking the MPP Default and Validating the True Shape of Analytical Load</p>
+
+                <!-- PUBLICATION DATES -->
+                <div style="font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 0.8rem; color: var(--muted); margin-bottom: 2rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                    October 9, 2026
+                </div>
+
+                <!-- Snarky Quote -->
+                <div class="snarky-quote">
+                    <p class="snarky-quote-text">“Data engineering is the only profession where we respond to a request for a 50-row UI grid by spinning up a 40-node distributed cluster, orchestrating a terabyte of memory over the network, and presenting a $50,000 monthly cloud bill with an absolutely straight face.”</p>
+                    <p class="snarky-quote-author">— <strong><em>Anonymous Platform Architect</em></strong></p>
+                </div>
+
+                <nav class="toc">
+                    <div class="toc-title">ON THIS PAGE</div>
+                    <ol>
+                        <li><a href="#s1">The Motivation: Trading One Bottleneck for Another</a></li>
+                        <li><a href="#s2">The Realization: The Four Laws of Operational Workloads</a></li>
+                        <li><a href="#s3">The Validation: The 95% Reality in Numbers</a></li>
+                        <li><a href="#s4">The Architectural Pathology of Legacy MPP: The "Fat Executor" Fallacy</a></li>
+                        <li><a href="#s5">The Landscape Breakdown: Do All MPP Engines Suffer Alike?</a></li>
+                        <li><a href="#s6">The Design North Star: What Must Be Built</a></li>
+                    </ol>
+                </nav>
+
+                <h2 id="s1">1. The Motivation: Trading One Bottleneck for Another</h2>
+                
+                <p>The journey away from massive monolithic architectures rarely starts with a clever insight. It usually starts with pain.</p>
+                
+                <p>For years, our multi-tenant regulatory reporting platform ran on legacy OLTP databases. Without aggressive data purging, multi-tenant event data grew unchecked. Suboptimal indexing, rising volume, and heavy client search patterns eventually made the system both slow and expensive. UI response times collapsed, export pipelines timed out, and basic SLAs became aspirational.</p>
+                
+                <p>To solve this, we executed the classic enterprise maneuver: a massive transformation project migrating our architecture from OLTP to a modern lakehouse. Real-time event streams were ingested continuously via Spark clusters directly into open table formats (Apache Iceberg), successfully achieving sub-200ms ingestion latency at the 95th percentile. On paper, it was a triumph. By centralizing everything into a single lakehouse, we completely bypassed the dreaded dual-store architecture—no more fragile CDC pipelines syncing operational data to analytical stores, and no more endless engineering tax of out-of-band reconciliation scripts trying to resolve data drift.</p>
+
+                <p><strong>Then the hidden tax of real-time dashboards caught up with us.</strong></p>
+
+                <p>While the lakehouse elegantly solved our ingestion and storage scaling bottlenecks, it created a severe serving mismatch. Because real users depended on real-time operational dashboards backed directly by the lakehouse, our Spark and MPP compute clusters had to remain powered on 24/7. We were forced to pay a massive baseline infrastructure cost simply to keep heavy, distributed compute idling, waiting for a user to click a dashboard filter or request a modest 50-row UI grid.</p>
+
+                <p>The architecture no longer failed operationally—it scaled smoothly with massive data ingestion. But the economics were entirely broken. When we audited the infrastructure, the raw cost of running a heavy distributed MPP system for small, repetitive point-reads simply could not be justified. We had solved data drift, but we had traded it for a cloud-compute billing inferno.</p>
+
+                <h2 id="s2">2. The Realization: The Four Laws of Operational Workloads</h2>
+
+                <p>When we examined the actual query telemetry, a clear pattern appeared. Almost all traffic consisted of denormalized event-store reads, on-demand aggregations, and exports well under 100 GB.</p>
+
+                <p>At first we assumed this was unique to our platform. It wasn’t. The workload obeyed four durable laws of operational data access:</p>
+
+                <ul>
+                    <li><strong>Power-law demand:</strong> Traffic heavily concentrates on the last 72 hours. Older data sits largely untouched.</li>
+                    <li><strong>Strong locality:</strong> Queries are almost always scoped to one tenant, one time window, and one bounded result set.</li>
+                    <li><strong>Pre-joined serving layers:</strong> Once data is denormalized upstream, forcing a distributed engine to shuffle it again is pure overhead.</li>
+                    <li><strong>Bounded human and API attention:</strong> A UI grid shows 50 rows. A REST call has a few seconds before it times out. Neither wants a full-table scan.</li>
+                </ul>
+
+                <p>The conclusion was unavoidable. We were paying for distributed compute designed for massive scans while almost all real traffic consisted of small, recent, tenant-specific slices. It was the architectural equivalent of using a sledgehammer to swat a fly — and then paying enterprise license fees for the sledgehammer.</p>
+
+                <h2 id="s3">3. The Validation: The 95% Reality in Numbers</h2>
+                
+                <p>Internal metrics are easy to dismiss. Public data is harder to ignore.</p>
+                
+                <p>In 2024, analysis of the Amazon Redshift “Redset” dataset (via MotherDuck) showed the same shape we were seeing internally:</p>
+                <ul>
+                    <li><strong>Big Data Queries Are Extremely Rare:</strong> A minuscule 0.03% of query volume exceeds 10 TB, accounting for just ~5.6% of total compute time.</li>
+                    <li><strong>Most Users Never Touch Big Data:</strong> Over 93% of users never exceed 10 GB in their largest query.</li>
+                    <li><strong>The Core Imbalance:</strong> Only 0.25% of queries scan more than 1 TB, yet those outliers consume 16.6% of the total elapsed time.</li>
+                </ul>
+
+                <!-- PRO CHART 1: Query Volume vs Elapsed Time -->
+                <div class="chart-container">
+                    <div class="chart-title">Query Share vs. Elapsed-Time Share by Scan Size</div>
+                    <div class="chart-desc">How frequently queries occur at a given size vs. how much total compute time they consume.</div>
+                    
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-color bar-vol"></div> Query Volume (%)</div>
+                        <div class="legend-item"><div class="legend-color bar-time"></div> Elapsed Time (%)</div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 75%;"></div><div class="bar-val">75%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 31%;"></div><div class="bar-val">31%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 19%;"></div><div class="bar-val">19%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 14%;"></div><div class="bar-val">14%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 4.1%;"></div><div class="bar-val">4.1%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 20%;"></div><div class="bar-val">20%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 1.1%;"></div><div class="bar-val">1.1%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 18%;"></div><div class="bar-val">18%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 0.21%;"></div><div class="bar-val">0.2%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 11%;"></div><div class="bar-val">11%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&gt; 10 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 0.03%;"></div><div class="bar-val">0.03%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 5.6%;"></div><div class="bar-val">5.6%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> 75% of queries scan less than 1 GB. Queries over 10 TB are only 0.03% of volume. The industry is spending a disproportionate share of its query budget on infrastructure sized for a workload that is, statistically, a rounding error.
+                    </div>
+                    <div class="source-caption">Source: Jordan Tigani, "Redshift Files: The Hunt for Big Data," MotherDuck</div>
+                </div>
+
+                <!-- PRO CHART 2: Max User Scan Size -->
+                <div class="chart-container">
+                    <div class="chart-title">Who Has Big Data? (Max Scan Size Per User)</div>
+                    <div class="chart-desc">The maximum data scale touched by individual users across the fleet.</div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 67%;"></div><div class="bar-val">67%</div></div></div>
+                        <div class="chart-tag">Laptop-ready</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 26%;"></div><div class="bar-val">26%</div></div></div>
+                        <div class="chart-tag">Laptop-ready</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 5.4%;"></div><div class="bar-val">5.4%</div></div></div>
+                        <div class="chart-tag">Single Node</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 0.9%;"></div><div class="bar-val">0.91%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 0.36%;"></div><div class="bar-val">0.36%</div></div></div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> 93% of all users max out at under 10 GB, meaning their regular workflow can comfortably run on a standard local laptop or a single-node engine.
+                    </div>
+                </div>
+
+                <!-- PRO CHART 3: Big Data Orgs -->
+                <div class="chart-container">
+                    <div class="chart-title">Query Patterns Inside "Big Data" Organizations</div>
+                    <div class="chart-desc">The actual size of tables queried day-to-day by enterprises that possess multi-terabyte datasets.</div>
+                    
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 68%;"></div><div class="bar-val">68%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 23%;"></div><div class="bar-val">23%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 4.7%;"></div><div class="bar-val">4.7%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 2%;"></div><div class="bar-val">2.0%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">&gt; 1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 1.9%;"></div><div class="bar-val">1.9%</div></div></div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> Even inside companies with petabytes of data, 99% of day-to-day queries target small tables (&lt; 1 TB) because raw data is pre-aggregated and summarized into clean serving tiers.
+                    </div>
+                </div>
+
+                <h2 id="s4">4. The Architectural Pathology of Legacy MPP: The "Fat Executor" Fallacy</h2>
+                
+                <p>If most analytical traffic is overwhelming small, why do so many teams still run 20–50 giant worker nodes with 128 GB of RAM?</p>
+
+                <p>The standard vendor answer is: <em>“You need massive parallelism for large analytical joins.”</em> That answer is only half true — and for operational workloads, it is the misleading half.</p>
+
+                <p>The real driver of the hardware footprint is not computational necessity. It is <strong>runtime survival</strong>, specifically the JVM Heap Tax.</p>
+
+                <h3>The Anatomy of the JVM Heap Tax</h3>
+                <p>Most foundational Big Data engines (Trino, Presto, Spark, and legacy enterprise query platforms) were built on the Java Virtual Machine. While Java offered exceptional developer velocity in the 2010s Hadoop era, its execution semantics are structurally hostile to high-concurrency, low-latency analytical serving:</p>
+
+                <ul>
+                    <li><strong>Object Memory Bloat:</strong> Java objects carry headers, pointers, and padding. Storing tabular data this way routinely inflates memory usage by 3–6× compared with contiguous columnar formats such as Apache Arrow or Parquet.</li>
+                    <li><strong>Garbage Collection Stop-the-World Latency:</strong> When concurrent queries churn through millions of temporary intermediate tuples, the allocation rate in the JVM Eden space explodes. Even modern collectors (G1, ZGC, Shenandoah) produce pauses. A 500 ms–2 s GC pause may be tolerable for batch jobs; for interactive UIs or REST APIs it is an SLA violation.</li>
+                    <li><strong>The "Fat Executor" Defense Mechanism:</strong> Teams provision 128 GB instances not because the query needs that much math, but because operators must keep a large unallocated safety buffer simply to stop the garbage collector from tipping into long pauses or OOM kills. You are paying for RAM that exists as an insurance policy against the runtime.</li>
+                    <li><strong>The Shared-Memory Noisy Neighbor Catastrophe:</strong> All concurrent tenants share a single global JVM heap. One poorly scoped query from Tenant A can flood the heap, trigger GC pressure, and pause or kill the queries of every other tenant on that node. In a multi-tenant platform this is an unacceptable isolation failure.</li>
+                </ul>
+
+                <h3>The Scatter-Gather Penalty</h3>
+                <p>Beyond memory, traditional MPP systems enforce a mandatory scatter-gather execution model. The coordinator breaks the query into stages, scatters fragments across networked workers, and later gathers results after a network shuffle.</p>
+
+                <p>For a 50-terabyte aggregation this overhead is a necessary cost. For a 50-megabyte tenant-scoped query it is pure waste. Scheduling, network setup, and serialization routinely cost far more than the actual vectorized computation.</p>
+
+                <h2 id="s5">5. The Landscape Breakdown: Do All MPP Engines Suffer Alike?</h2>
+                
+                <p>When teams hit these latency and cost walls, the usual response is to migrate from one MPP vendor to another. In practice this is often just rearranging deck chairs. Because most of these systems were built as monolithic databases rather than modular gateways, they share the same structural friction:</p>
+
+                <table class="mpp-table">
+                    <thead>
+                        <tr>
+                            <th>Platform</th>
+                            <th>Underlying Pathology & The Operational Reality</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Trino / Presto</span>
+                                <span class="engine-type">Distributed JVM Query Engine</span>
+                            </td>
+                            <td>
+                                <strong>The JVM Heap Roulette & Cache Coupling.</strong> Relies on a shared fleet of JVM workers. A single tenant's heavy query exhausts heap space, causing OOM kills that take down innocent tenant sessions on that node. Caching (via Alluxio/Rubix) is tightly coupled to worker-local NVMe. Auto-scaling down during quiet hours wipes the cache, guaranteeing severe cold-start latency spikes when morning traffic arrives.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Dremio</span>
+                                <span class="engine-type">Monolithic Lakehouse Platform</span>
+                            </td>
+                            <td>
+                                <strong>The Semantic Bottleneck & Reflection Ransom.</strong> Dremio combines the semantic layer and the compute engine. Its "Data Reflections" (materialized views) and C3 cache are tightly coupled to the heavy JVM executor nodes. You cannot scale compute to zero without losing the cache, and the monolithic coordinator struggles to route traffic cleanly under high API concurrency.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Spark / Databricks</span>
+                                <span class="engine-type">Distributed Batch & Lakehouse Compute</span>
+                            </td>
+                            <td>
+                                <strong>Thread Contention & The Delta Cache Ransom.</strong> Multi-tenant shared clusters suffer from severe executor thread contention. Isolating tenants requires spinning up separate compute clusters, multiplying baseline spend. The Delta Cache is physically locked to specific worker instance NVMe drives. Databricks Serverless abstracts this at a premium, but operates as a total black box—forbidding the injection of custom proxy caching.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Snowflake</span>
+                                <span class="engine-type">Proprietary Cloud Data Warehouse</span>
+                            </td>
+                            <td>
+                                <strong>The Virtual Warehouse Tollbooth.</strong> Solves noisy neighbors by allowing isolated Virtual Warehouses per workload—but you pay the full metered credit rate for each isolated cluster. Local disk caching is tied to the warehouse; suspending it to save cost purges the cache, causing cold-start penalties on resume. A closed garden: zero ability to implement proactive, application-aware cache warming via ETL sidecars.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">StarRocks / Apache Doris</span>
+                                <span class="engine-type">C++ Distributed Real-Time OLAP</span>
+                            </td>
+                            <td>
+                                <strong>The Proprietary Ingestion Lock-In.</strong> Eliminates the JVM heap tax by running native C++ vectorized execution. However, they are stateful, coupled databases, not stateless compute layers. To achieve sub-second speeds, they require ingesting your lakehouse data into their proprietary, replicated storage engines. This duplicates storage costs and shatters the dream of a single, open Iceberg data lake.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">AWS Athena / BigQuery</span>
+                                <span class="engine-type">Serverless Query Services</span>
+                            </td>
+                            <td>
+                                <strong>The 10MB Minimum & The Black Box Trap.</strong> Beautiful for zero-maintenance ad-hoc analysis, but disastrous as a backend API gateway. High query startup overhead (often 1–3 seconds just for planning and slot allocation). Furthermore, pricing per TB scanned (with strict minimum scan charges per query) makes frequent, high-volume polling from operational dashboards or iterative AI agent loops financially unviable.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2 id="s6">6. The Design North Star: What Must Be Built</h2>
+
+                <p>The industry has spent two decades optimizing databases for the rare, large, complex query. Meanwhile, most real operational traffic remains small, local, and repetitive.</p>
+
+                <p>We do not need another distributed database. We do not need another proprietary warehouse. What we need is a different kind of layer entirely: a <strong>Smart Data Gateway</strong> — lightweight, stateless, application-aware, and optimized for the 95% case, while still able to hand the genuine long tail to a real MPP engine.</p>
+
+                <p>To succeed where legacy MPP platforms collapse, this gateway must be governed by four uncompromising architectural design goals:</p>
+
+                <!-- Re-engineered Compact Design Goals Layout -->
+                <div class="design-chart-layout">
+                    
+                    <!-- Left Side: Vertical Bar Chart -->
+                    <div class="v-chart-wrapper">
+                        <div class="v-chart-title">Optimize the 95% read path—not every workload</div>
+                        
+                        <div class="v-chart">
+                            <div class="v-bar-col teal">
+                                <div class="v-val">75%</div>
+                                <div class="v-bar teal" style="height: 75%;"></div>
+                            </div>
+                            <div class="v-bar-col amber">
+                                <div class="v-val">19%</div>
+                                <div class="v-bar amber" style="height: 19%;"></div>
+                            </div>
+                            <div class="v-bar-col grey">
+                                <div class="v-val">~5%</div>
+                                <div class="v-bar grey" style="height: 12%;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="v-label-area">
+                            <div class="v-label-col">
+                                <div class="v-size">&lt; 1 GB</div>
+                                <div class="v-desc">UI grids served instantly</div>
+                            </div>
+                            <div class="v-label-col">
+                                <div class="v-size">1 - 10 GB</div>
+                                <div class="v-desc">Local cache & pruning</div>
+                            </div>
+                            <div class="v-label-col">
+                                <div class="v-size">&gt; 10 GB</div>
+                                <div class="v-desc">Offloaded to MPP</div>
+                            </div>
+                        </div>
+
+                        <div class="v-domains">
+                            <div class="v-domain-left">Gateway Domain</div>
+                            <div class="v-domain-right">MPP Domain</div>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: Compact Goals List -->
+                    <div class="design-goals-list">
+                        <div class="dg-header-title">Design North Star</div>
+                        
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">01</span><span class="dg-title">Optimize the 95% read path</span>
+                            </div>
+                            <p class="dg-text">Vectorized, stateless single-node execution for frequent reads.</p>
+                        </div>
+                        
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">02</span><span class="dg-title">Avoid scatter-gather overhead</span>
+                            </div>
+                            <p class="dg-text">No multi-executor parallelism—one stateless engine serves reads.</p>
+                        </div>
+                        
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">03</span><span class="dg-title">Accept deliberate limits</span>
+                            </div>
+                            <p class="dg-text">Read path only. Writes stay out of scope; absorb no other workloads.</p>
+                        </div>
+                        
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">04</span><span class="dg-title">Route by size, keep MPP fallback</span>
+                            </div>
+                            <p class="dg-text">Common reads stay local; heavy scans route to legacy MPP.</p>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Span: Decision Rule -->
+                    <div class="decision-rule">
+                        <strong>Decision Rule:</strong> Optimize the common 95%; route large-scale reads and analytics to MPP.
+                    </div>
+                </div>
+
+                <p>In Part 2 we leave the diagnosis behind and examine how the architecture actually evolved — including the failures, dead ends, and forced pivots that produced the final design.</p>
+
+                <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between;">
+                    <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); text-decoration: none;">&larr; Series Index</a>
+                    <a href="part-2-architectural-evolution.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Next: Part 2 (Architectural Evolution) &rarr;</a>
+                </div>
+
+            </article>
+        </main>
+
+        <!-- Global Footer -->
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+</body>
+</html>
