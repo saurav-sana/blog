@@ -75,7 +75,7 @@
 
     <style>
         /* =======================================================================
-           DARK MODE OVERRIDES (Reverted strictly to blog-theme standards)
+           DARK MODE OVERRIDES
            ======================================================================= */
         [data-theme="dark"], .dark, .dark-mode, .theme-dark {
             --panel: rgba(255, 255, 255, 0.06) !important;
@@ -139,6 +139,21 @@
             font-weight: 700;
             font-style: italic;
             color: var(--text);
+        }
+
+        /* --- Callout & Law Grid Styles --- */
+        .callout { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--teal); padding: 1.25rem 1.4rem; border-radius: 8px; margin: 2rem 0; }
+        .callout strong { color: var(--teal); }
+        .warning { border-left-color: var(--amber); }
+
+        .law-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 2rem 0; }
+        .law { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem; }
+        .law-num { font: 700 .75rem 'IBM Plex Mono', monospace; color: var(--amber); }
+        .law h3 { margin: .35rem 0 .5rem; color: var(--text); font-size: 1rem; font-family: 'Libre Franklin', sans-serif; }
+        .law p { font-size: .92rem; margin: 0; color: var(--muted); }
+
+        @media(max-width: 700px) {
+            .law-grid { grid-template-columns: 1fr; }
         }
 
         /* --- Typography & Elements --- */
@@ -445,6 +460,8 @@
 
                 <p>While the lakehouse elegantly solved our ingestion and storage scaling bottlenecks, it created a severe serving mismatch. Because real users depended on real-time operational dashboards backed directly by the lakehouse, our Spark and MPP compute clusters had to remain powered on 24/7. We were forced to pay a massive baseline infrastructure cost simply to keep heavy, distributed compute idling, waiting for a user to click a dashboard filter or request a modest 50-row UI grid.</p>
 
+                <div class="callout warning"><strong>The architectural mismatch:</strong> the data was large, but an individual request was usually small. The platform was being sized for the first statement while users were paying for the second.</div>
+
                 <p>The architecture no longer failed operationally—it scaled smoothly with massive data ingestion. But the economics were entirely broken. When we audited the infrastructure, the raw cost of running a heavy distributed MPP system for small, repetitive point-reads simply could not be justified. We had solved data drift, but we had traded it for a cloud-compute billing inferno.</p>
 
                 <h2 id="s2">2. The Realization: The Four Laws of Operational Workloads</h2>
@@ -453,12 +470,28 @@
 
                 <p>At first we assumed this was unique to our platform. It wasn’t. The workload obeyed four durable laws of operational data access:</p>
 
-                <ul>
-                    <li><strong>Power-law demand:</strong> Traffic heavily concentrates on the last 72 hours. Older data sits largely untouched.</li>
-                    <li><strong>Strong locality:</strong> Queries are almost always scoped to one tenant, one time window, and one bounded result set.</li>
-                    <li><strong>Pre-joined serving layers:</strong> Once data is denormalized upstream, forcing a distributed engine to shuffle it again is pure overhead.</li>
-                    <li><strong>Bounded human and API attention:</strong> A UI grid shows 50 rows. A REST call has a few seconds before it times out. Neither wants a full-table scan.</li>
-                </ul>
+                <div class="law-grid">
+                    <div class="law">
+                        <div class="law-num">LAW 01</div>
+                        <h3>Temporal locality</h3>
+                        <p>Operational traffic is usually skewed toward recent partitions. “Last hour”, “last day”, and “last few weeks” are more common than arbitrary full-history scans. Partition pruning can therefore eliminate most of the physical data before execution begins.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 02</div>
+                        <h3>Tenant and predicate locality</h3>
+                        <p>Serving requests commonly contain strong predicates: tenant, account, device, customer, region, or time window. A query against a petabyte lake is not necessarily a petabyte operation.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 03</div>
+                        <h3>Bounded attention</h3>
+                        <p>Humans and APIs impose hard practical bounds. A dashboard may need 50 rows, an API may have a two-second budget, and an export endpoint may paginate. The result contract is often dramatically smaller than the underlying dataset.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 04</div>
+                        <h3>Long-tail coexistence</h3>
+                        <p>The common path does not eliminate the long tail. A platform can have thousands of tiny requests and a few enormous joins at the same time. That argues for workload routing, not for pretending that MPP is obsolete.</p>
+                    </div>
+                </div>
 
                 <p>The conclusion was unavoidable. We were paying for distributed compute designed for massive scans while almost all real traffic consisted of small, recent, tenant-specific slices. It was the architectural equivalent of using a sledgehammer to swat a fly — and then paying enterprise license fees for the sledgehammer.</p>
 
@@ -638,74 +671,82 @@
 
                 <p>For a 50-terabyte aggregation this overhead is a necessary cost. For a 50-megabyte tenant-scoped query it is pure waste. Scheduling, network setup, and serialization routinely cost far more than the actual vectorized computation.</p>
 
-                <h2 id="s5">5. The Landscape Breakdown: Do All MPP Engines Suffer Alike?</h2>
+                <h2 id="s5">5. MPP Landscape: Strengths, Trade-offs, and the Serving Gap</h2>
                 
-                <p>When teams hit these latency and cost walls, the usual response is to migrate from one MPP vendor to another. In practice this is often just rearranging deck chairs. Because most of these systems were built as monolithic databases rather than modular gateways, they share the same structural friction:</p>
+                <p>The previous version of this section described competing engines mainly through their weaknesses. That is unfair to the technology and weakens the thesis. These systems exist because they solve hard problems extremely well.</p>
+
+                <p>The useful comparison is therefore not “which engine is bad?” but:</p>
+
+                <p><strong>What problem is each engine optimized to solve, and what happens when that execution model is used for high-frequency, bounded operational serving?</strong></p>
 
                 <table class="mpp-table">
                     <thead>
                         <tr>
-                            <th>Platform</th>
-                            <th>Underlying Pathology & The Operational Reality</th>
+                            <th>Platform / family</th>
+                            <th>Where it is strong</th>
+                            <th>Serving trade-off for this workload shape</th>
+                            <th>Why it still belongs in the architecture</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>
                                 <span class="engine-name">Trino / Presto</span>
-                                <span class="engine-type">Distributed JVM Query Engine</span>
+                                <span class="engine-type">Distributed SQL</span>
                             </td>
-                            <td>
-                                <strong>The JVM Heap Roulette & Cache Coupling.</strong> Relies on a shared fleet of JVM workers. A single tenant's heavy query exhausts heap space, causing OOM kills that take down innocent tenant sessions on that node. Caching (via Alluxio/Rubix) is tightly coupled to worker-local NVMe. Auto-scaling down during quiet hours wipes the cache, guaranteeing severe cold-start latency spikes when morning traffic arrives.
-                            </td>
+                            <td>Federated SQL across object stores, databases, and catalogs; excellent for interactive exploration and large distributed scans.</td>
+                            <td>For a tiny API request, distributed planning and execution can be more machinery than the query needs. Shared clusters also require explicit resource governance under multi-tenant load.</td>
+                            <td>Excellent long-tail engine. Keep it for joins, broad scans, federation, and workloads whose parallelism amortizes its coordination cost. <a class="source-link" href="https://trino.io/docs/current/overview.html" target="_blank" rel="noopener noreferrer">Docs</a></td>
                         </tr>
                         <tr>
                             <td>
                                 <span class="engine-name">Dremio</span>
-                                <span class="engine-type">Monolithic Lakehouse Platform</span>
+                                <span class="engine-type">Lakehouse analytics</span>
                             </td>
-                            <td>
-                                <strong>The Semantic Bottleneck & Reflection Ransom.</strong> Dremio combines the semantic layer and the compute engine. Its "Data Reflections" (materialized views) and C3 cache are tightly coupled to the heavy JVM executor nodes. You cannot scale compute to zero without losing the cache, and the monolithic coordinator struggles to route traffic cleanly under high API concurrency.
-                            </td>
+                            <td>Lakehouse SQL, semantic organization, Reflections, and caching; explicitly designed to accelerate queries over data lakes.</td>
+                            <td>The platform still has a distributed execution plane. That is useful for scale, but may be more infrastructure than a bounded API read requires.</td>
+                            <td>Strong option when governed self-service analytics and acceleration are first-class requirements. Dremio documents separate control, data, and execution planes and executor-local caching. <a class="source-link" href="https://docs.dremio.com/dremio-cloud/about/architecture" target="_blank" rel="noopener noreferrer">Architecture</a></td>
                         </tr>
                         <tr>
                             <td>
                                 <span class="engine-name">Spark / Databricks</span>
-                                <span class="engine-type">Distributed Batch & Lakehouse Compute</span>
+                                <span class="engine-type">Distributed compute platform</span>
                             </td>
-                            <td>
-                                <strong>Thread Contention & The Delta Cache Ransom.</strong> Multi-tenant shared clusters suffer from severe executor thread contention. Isolating tenants requires spinning up separate compute clusters, multiplying baseline spend. The Delta Cache is physically locked to specific worker instance NVMe drives. Databricks Serverless abstracts this at a premium, but operates as a total black box—forbidding the injection of custom proxy caching.
-                            </td>
+                            <td>ETL, large-scale transformations, streaming, ML/data workloads, and ecosystem integration. Photon/native execution can accelerate SQL workloads.</td>
+                            <td>Starting a large distributed execution environment for small synchronous API requests can be the wrong latency/cost shape. Dedicated or serverless serving changes the trade-off but does not remove the need to choose the right execution mode.</td>
+                            <td>Ideal for ingestion, transformation, and the genuinely large analytical tail. It should not be judged as an API engine.</td>
                         </tr>
                         <tr>
                             <td>
                                 <span class="engine-name">Snowflake</span>
-                                <span class="engine-type">Proprietary Cloud Data Warehouse</span>
+                                <span class="engine-type">Cloud warehouse</span>
                             </td>
-                            <td>
-                                <strong>The Virtual Warehouse Tollbooth.</strong> Solves noisy neighbors by allowing isolated Virtual Warehouses per workload—but you pay the full metered credit rate for each isolated cluster. Local disk caching is tied to the warehouse; suspending it to save cost purges the cache, causing cold-start penalties on resume. A closed garden: zero ability to implement proactive, application-aware cache warming via ETL sidecars.
-                            </td>
+                            <td>Strong separation of storage and compute, mature governance, workload isolation, elastic warehouses, and managed operations.</td>
+                            <td>Warehouse sizing and auto-suspend/resume become economic design parameters for high-frequency serving. Snowflake explicitly notes that running warehouses consume credits and that suspending can discard useful warehouse cache.</td>
+                            <td>Excellent managed warehouse for analytical workloads. The gateway thesis is about adding a workload-specific serving layer, not replacing Snowflake. <a class="source-link" href="https://docs.snowflake.com/en/user-guide/performance-query-warehouse-cache" target="_blank" rel="noopener noreferrer">Warehouse cache</a></td>
                         </tr>
                         <tr>
                             <td>
                                 <span class="engine-name">StarRocks / Apache Doris</span>
-                                <span class="engine-type">C++ Distributed Real-Time OLAP</span>
+                                <span class="engine-type">Native real-time OLAP</span>
                             </td>
-                            <td>
-                                <strong>The Proprietary Ingestion Lock-In.</strong> Eliminates the JVM heap tax by running native C++ vectorized execution. However, they are stateful, coupled databases, not stateless compute layers. To achieve sub-second speeds, they require ingesting your lakehouse data into their proprietary, replicated storage engines. This duplicates storage costs and shatters the dream of a single, open Iceberg data lake.
-                            </td>
+                            <td>Very fast native/vectorized distributed OLAP, high concurrency, and real-time serving when data is modeled for the engine.</td>
+                            <td>The strongest performance often comes from using the engine's own optimized storage/indexing path. That can introduce a second serving storage system if the authoritative lakehouse remains Iceberg.</td>
+                            <td>A legitimate alternative when sub-second OLAP justifies an additional serving store. StarRocks also supports Iceberg catalogs, so the boundary is not absolute. <a class="source-link" href="https://docs.starrocks.io/docs/sql-reference/sql-statements/Catalog/CREATE_EXTERNAL_CATALOG/" target="_blank" rel="noopener noreferrer">StarRocks Iceberg catalogs</a></td>
                         </tr>
                         <tr>
                             <td>
-                                <span class="engine-name">AWS Athena / BigQuery</span>
-                                <span class="engine-type">Serverless Query Services</span>
+                                <span class="engine-name">Athena / BigQuery</span>
+                                <span class="engine-type">Serverless query services</span>
                             </td>
-                            <td>
-                                <strong>The 10MB Minimum & The Black Box Trap.</strong> Beautiful for zero-maintenance ad-hoc analysis, but disastrous as a backend API gateway. High query startup overhead (often 1–3 seconds just for planning and slot allocation). Furthermore, pricing per TB scanned (with strict minimum scan charges per query) makes frequent, high-volume polling from operational dashboards or iterative AI agent loops financially unviable.
-                            </td>
+                            <td>Minimal infrastructure management, elastic execution, and excellent ad-hoc analysis over large datasets.</td>
+                            <td>Per-query economics, startup/planning behavior, and repeated polling patterns can make them a poor fit for a very high-QPS synchronous serving path. The exact cost model depends on service and workload.</td>
+                            <td>Excellent for bursty, ad-hoc, and large analytical workloads where operational simplicity matters more than API-style tail latency.</td>
                         </tr>
                     </tbody>
                 </table>
+
+                <p><strong>The conclusion is deliberately boring:</strong> none of these systems is “the problem.” Each is optimized for a different region of workload space. The architectural mistake is using one execution model as the default for every region.</p>
 
                 <h2 id="s6">6. The Design North Star: What Must Be Built</h2>
 
