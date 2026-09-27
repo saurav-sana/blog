@@ -29,7 +29,7 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html">
     <meta property="og:title" content="Part 2: Architectural Evolution — From Fat Client OOMKills to an Enterprise Data Gateway">
-    <meta property="og:description" content="A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing zero-copy columnar streams, and scaling multi-tenant Iceberg reads.">
+    <meta property="og:description" content="A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing low-copy columnar streams, and scaling multi-tenant Iceberg reads.">
     <meta property="og:image" content="https://sauravsana.github.io/assets/images/smart-data-gateway-part2-banner.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -51,11 +51,11 @@
 
     <meta name="theme-color" content="#0e1424" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f8f9fb" media="(prefers-color-scheme: light)">
-    <meta name="color-scheme" content="dark light">
+    <meta name="color-scheme" dark light>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 
     <link rel="preload" href="../../assets/css/blog-theme.css" as="style">
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
@@ -72,7 +72,7 @@
       "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html#article",
       "headline": "Part 2: Architectural Evolution",
       "alternativeHeadline": "From Fat Client OOMKills to an Enterprise Dual-Protocol Smart Data Gateway",
-      "description": "A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing zero-copy columnar streams, and scaling multi-tenant Iceberg reads.",
+      "description": "A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing format-aligned columnar streams, and scaling multi-tenant Iceberg reads.",
       "author": {
         "@type": "Person",
         "name": "Saurav Sana",
@@ -129,7 +129,7 @@
             function isDarkTheme() {
                 const html = document.documentElement;
                 const body = document.body;
-                const explicit = html.getAttribute('data-theme');
+                const explicit = html.getAttribute('data-theme') || body.getAttribute('data-theme');
                 if (explicit === 'dark') return true;
                 if (explicit === 'light') return false;
                 if (html.classList.contains('dark') || body.classList.contains('dark')) return true;
@@ -144,11 +144,19 @@
                     theme: 'base',
                     themeVariables: {
                         fontFamily: "'IBM Plex Sans', sans-serif",
-                        fontSize: '15.5px',
-                        primaryColor: isDark ? '#1e293b' : '#f8fafc',
+                        fontSize: '15px',
+                        primaryColor: isDark ? '#11182c' : '#f8fafc',
                         primaryTextColor: isDark ? '#f8fafc' : '#0f172a',
                         primaryBorderColor: isDark ? '#2dd4bf' : '#0d9488',
-                        lineColor: isDark ? '#cbd5e1' : '#1e293b',
+                        lineColor: isDark ? '#38bdf8' : '#334155',
+                        signalColor: isDark ? '#38bdf8' : '#334155',
+                        signalTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        actorTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        actorLineColor: isDark ? '#475569' : '#94a3b8',
+                        boxTextColor: isDark ? '#2dd4bf' : '#0d9488',
+                        boxBorderColor: isDark ? '#334366' : '#cbd5e1',
+                        labelTextColor: isDark ? '#fbbf24' : '#d97706',
+                        loopTextColor: isDark ? '#f8fafc' : '#0f172a',
                         secondaryColor: isDark ? '#11182c' : '#ffffff',
                         tertiaryColor: isDark ? '#11182c' : '#ffffff',
                         noteBkgColor: isDark ? '#1e293b' : '#fef3c7',
@@ -156,7 +164,6 @@
                         noteBorderColor: isDark ? '#fbbf24' : '#d97706',
                         actorBkg: isDark ? '#11182c' : '#ffffff',
                         actorBorder: isDark ? '#2dd4bf' : '#0d9488',
-                        actorTextColor: isDark ? '#f8fafc' : '#0f172a',
                         sequenceNumberColor: '#ffffff',
                         activationBorderColor: isDark ? '#2dd4bf' : '#0d9488',
                         activationBkgColor: isDark ? '#134e4a' : '#ccfbf1'
@@ -164,16 +171,13 @@
                     sequence: {
                         useMaxWidth: false,
                         rightAngles: true,
-                        actorMargin: 70,
-                        messageMargin: 50,
-                        boxMargin: 18,
+                        actorMargin: 55,
+                        messageMargin: 38,
+                        boxMargin: 12,
                         mirrorActors: false,
                         messageFontFamily: "'IBM Plex Sans', sans-serif",
                         actorFontFamily: "'Libre Franklin', sans-serif",
-                        noteFontFamily: "'IBM Plex Mono', monospace",
-                        messageFontSize: 15.5,
-                        actorFontSize: 16.5,
-                        noteFontSize: 14
+                        noteFontFamily: "'IBM Plex Mono', monospace"
                     }
                 };
             }
@@ -233,6 +237,61 @@
                 wrap.appendChild(btn);
             });
 
+            // Fit-First Overview: Mode Switcher & Inline Zoom Handling
+            document.querySelectorAll('.diagram-panel').forEach(panel => {
+                const summaryEl = panel.querySelector('.diagram-view-summary');
+                const detailEl = panel.querySelector('.diagram-view-detail');
+                const badge = panel.querySelector('.mode-badge');
+                const btnSummary = panel.querySelector('[data-view="summary"]');
+                const btnDetail = panel.querySelector('[data-view="detail"]');
+
+                let currentScale = 1.0;
+
+                function applyScale(scale) {
+                    currentScale = Math.max(0.65, Math.min(scale, 1.8));
+                    const activeView = panel.querySelector('.diagram-view:not([style*="display: none"]) .mermaid');
+                    if (activeView) {
+                        activeView.style.transform = currentScale === 1.0 ? 'none' : `scale(${currentScale})`;
+                        activeView.style.transformOrigin = 'top center';
+                    }
+                }
+
+                if (btnSummary && btnDetail) {
+                    btnSummary.addEventListener('click', () => {
+                        btnSummary.classList.add('active');
+                        btnDetail.classList.remove('active');
+                        if (summaryEl) summaryEl.style.display = 'block';
+                        if (detailEl) detailEl.style.display = 'none';
+                        if (badge) badge.textContent = 'Overview';
+                        applyScale(1.0);
+                    });
+
+                    btnDetail.addEventListener('click', () => {
+                        btnDetail.classList.add('active');
+                        btnSummary.classList.remove('active');
+                        if (summaryEl) summaryEl.style.display = 'none';
+                        if (detailEl) detailEl.style.display = 'block';
+                        if (badge) badge.textContent = 'Detailed';
+                        applyScale(1.0);
+                    });
+                }
+
+                const btnZoomIn = panel.querySelector('.inline-zoomin');
+                const btnZoomOut = panel.querySelector('.inline-zoomout');
+                const btnZoomFit = panel.querySelector('.inline-zoomfit');
+
+                if (btnZoomIn) {
+                    btnZoomIn.addEventListener('click', () => {
+                        if (btnDetail && !btnDetail.classList.contains('active')) {
+                            btnDetail.click();
+                        }
+                        applyScale(currentScale + 0.15);
+                    });
+                }
+                if (btnZoomOut) btnZoomOut.addEventListener('click', () => applyScale(currentScale - 0.15));
+                if (btnZoomFit) btnZoomFit.addEventListener('click', () => applyScale(1.0));
+            });
+
             // Lightbox Modal System with Theme-Aware Container and Zoom/Pan
             const modal = document.getElementById('diagram-modal');
             const modalBody = document.getElementById('diagram-modal-body');
@@ -242,15 +301,15 @@
             const btnZoomOut = document.getElementById('modal-btn-zoomout');
             const btnReset = document.getElementById('modal-btn-reset');
 
-            let currentScale = 1;
+            let modalScale = 1;
             let isPanning = false, startX, startY, scrollLeft, scrollTop;
             let lastFocusedTrigger = null;
 
-            function updateZoom(newScale) {
-                currentScale = Math.max(0.6, Math.min(newScale, 3.0));
+            function updateModalZoom(newScale) {
+                modalScale = Math.max(0.6, Math.min(newScale, 2.5));
                 const canvas = modalBody.querySelector('.modal-canvas');
                 if (canvas) {
-                    canvas.style.transform = `scale(${currentScale})`;
+                    canvas.style.transform = `scale(${modalScale})`;
                     canvas.style.transformOrigin = 'top center';
                 }
             }
@@ -258,27 +317,26 @@
             function openModal(panel, triggerEl) {
                 lastFocusedTrigger = triggerEl;
                 const title = panel.querySelector('.diagram-title')?.textContent || 'Architecture Sequence Flow';
-                const svg = panel.querySelector('.mermaid svg');
-                if (!svg) return;
+                const detailSvg = panel.querySelector('.diagram-view-detail .mermaid svg') || panel.querySelector('.mermaid svg');
+                if (!detailSvg) return;
 
                 modalTitle.textContent = title;
                 modalBody.innerHTML = '';
 
-                // Wrap cloned SVG inside an explicit themed canvas card that inherits class "mermaid"
                 const canvas = document.createElement('div');
                 canvas.className = 'modal-canvas mermaid';
 
-                const clonedSvg = svg.cloneNode(true);
+                const clonedSvg = detailSvg.cloneNode(true);
                 clonedSvg.style.maxWidth = 'none';
                 clonedSvg.style.width = '100%';
-                clonedSvg.style.minWidth = '1000px';
+                clonedSvg.style.minWidth = '1050px';
                 clonedSvg.style.height = 'auto';
 
                 canvas.appendChild(clonedSvg);
                 modalBody.appendChild(canvas);
 
-                currentScale = 1.15;
-                updateZoom(currentScale);
+                modalScale = 1.05;
+                updateModalZoom(modalScale);
 
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
@@ -304,9 +362,9 @@
             });
 
             if (btnClose) btnClose.addEventListener('click', closeModal);
-            if (btnZoomIn) btnZoomIn.addEventListener('click', () => updateZoom(currentScale + 0.25));
-            if (btnZoomOut) btnZoomOut.addEventListener('click', () => updateZoom(currentScale - 0.25));
-            if (btnReset) btnReset.addEventListener('click', () => updateZoom(1.0));
+            if (btnZoomIn) btnZoomIn.addEventListener('click', () => updateModalZoom(modalScale + 0.2));
+            if (btnZoomOut) btnZoomOut.addEventListener('click', () => updateModalZoom(modalScale - 0.2));
+            if (btnReset) btnReset.addEventListener('click', () => updateModalZoom(1.0));
 
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) closeModal();
@@ -420,6 +478,38 @@
             --sdg-btn-fg: #0f172a;
             --sdg-btn-border: #cbd5e1;
             --sdg-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+
+            /* Universal Mermaid Theme Variables */
+            --mermaid-bg: #f8fafc;
+            --mermaid-actor-fill: #ffffff;
+            --mermaid-actor-border: var(--teal, #0d9488);
+            --mermaid-actor-text: #0f172a;
+            --mermaid-line: #334155;
+            --mermaid-text: #0f172a;
+            --mermaid-note-fill: #fef3c7;
+            --mermaid-note-border: #d97706;
+            --mermaid-note-text: #78350f;
+            --mermaid-box-fill: rgba(13, 148, 136, 0.04);
+            --mermaid-box-border: #cbd5e1;
+            --mermaid-box-title: var(--teal, #0d9488);
+        }
+
+        /* Responsive Dark Mode Defaults via prefers-color-scheme */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --mermaid-bg: #070b16;
+                --mermaid-actor-fill: #11182c;
+                --mermaid-actor-border: #2dd4bf;
+                --mermaid-actor-text: #f8fafc;
+                --mermaid-line: #38bdf8;
+                --mermaid-text: #f8fafc;
+                --mermaid-note-fill: #141d33;
+                --mermaid-note-border: #fbbf24;
+                --mermaid-note-text: #fef3c7;
+                --mermaid-box-fill: rgba(45, 212, 191, 0.07);
+                --mermaid-box-border: #334366;
+                --mermaid-box-title: #2dd4bf;
+            }
         }
 
         [data-theme="dark"], .dark, .dark-mode, .theme-dark {
@@ -476,6 +566,19 @@
             --sdg-btn-fg: #f1f5f9;
             --sdg-btn-border: #283857;
             --sdg-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+
+            --mermaid-bg: #070b16 !important;
+            --mermaid-actor-fill: #11182c !important;
+            --mermaid-actor-border: #2dd4bf !important;
+            --mermaid-actor-text: #f8fafc !important;
+            --mermaid-line: #38bdf8 !important;
+            --mermaid-text: #f8fafc !important;
+            --mermaid-note-fill: #141d33 !important;
+            --mermaid-note-border: #fbbf24 !important;
+            --mermaid-note-text: #fef3c7 !important;
+            --mermaid-box-fill: rgba(45, 212, 191, 0.07) !important;
+            --mermaid-box-border: #334366 !important;
+            --mermaid-box-title: #2dd4bf !important;
         }
 
         /* Reading Progress Bar */
@@ -585,7 +688,7 @@
         pre code { color: inherit; background: transparent; padding: 0; }
 
         /* =======================================================================
-           HIGH-LEGIBILITY SEQUENCE DIAGRAM PANELS
+           FIT-FIRST OVERVIEW SEQUENCE PANELS (SUMMARY ZERO-SCROLL + DETAIL SCROLL)
            ======================================================================= */
         .diagram-panel {
             background: var(--panel);
@@ -601,8 +704,15 @@
             justify-content: space-between;
             align-items: center;
             background: var(--panel-2);
-            padding: 0.85rem 1.4rem;
+            padding: 0.75rem 1.25rem;
             border-bottom: 1px solid var(--line-soft);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .diagram-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .diagram-title {
             font-family: var(--font-mono);
@@ -612,126 +722,274 @@
             letter-spacing: 0.06em;
             font-weight: 700;
         }
+        .mode-badge {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(13, 148, 136, 0.15);
+            color: var(--teal);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .diagram-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .view-switcher {
+            display: flex;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-right: 4px;
+        }
+        .view-btn {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            padding: 4px 9px;
+            font: 600 0.72rem var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .view-btn.active {
+            background: var(--teal);
+            color: #ffffff;
+            font-weight: 700;
+        }
+        .diag-btn {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font: 600 0.72rem var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .diag-btn:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+        }
         .fullscreen-btn {
             background: var(--panel);
             border: 1px solid var(--line);
             color: var(--text);
-            padding: 6px 12px;
-            border-radius: 5px;
+            padding: 4px 10px;
+            border-radius: 4px;
             cursor: pointer;
             font-family: var(--font-mono);
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             transition: all 0.15s ease;
-            user-select: none;
         }
-        .fullscreen-btn:hover, .fullscreen-btn:focus-visible {
+        .fullscreen-btn:hover {
             background: var(--teal);
             color: #ffffff;
             border-color: var(--teal);
-            outline: 2px solid var(--teal);
-            outline-offset: 2px;
         }
 
-        .mermaid-container {
-            padding: 2.5rem 1.8rem;
-            overflow-x: auto;
+        .diagram-tooltip {
+            background: rgba(13, 148, 136, 0.08);
+            border-bottom: 1px dashed var(--line-soft);
+            padding: 6px 14px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.8rem;
+            color: var(--muted);
             display: flex;
-            justify-content: center;
-            background: var(--panel);
-            -webkit-overflow-scrolling: touch;
+            align-items: center;
+            gap: 6px;
         }
-        .mermaid {
+        .diagram-tooltip strong { color: var(--teal); }
+
+        .diagram-viewport {
+            padding: 1.25rem 1rem;
             width: 100%;
-            min-width: 950px;
-            text-align: center;
-        }
-        .mermaid svg {
-            width: 100% !important;
-            min-width: 950px !important;
-            height: auto !important;
-            font-family: 'IBM Plex Sans', sans-serif !important;
+            box-sizing: border-box;
+            background: var(--mermaid-bg) !important;
+            position: relative;
         }
 
-        /* --- Crisp High-Contrast Mermaid Overrides (Light Mode Baseline) --- */
-        .mermaid .actor, .modal-canvas .actor {
-            fill: #ffffff !important;
-            stroke: var(--teal) !important;
-            stroke-width: 2px !important;
-            rx: 6px; ry: 6px;
-            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.08));
+        /* Summary View: Strictly fits available space, zero horizontal scrolling */
+        .diagram-view-summary {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden !important;
+            display: block;
+            margin: 0 auto;
         }
-        .mermaid text.actor > tspan, .modal-canvas text.actor > tspan {
-            fill: #0f172a !important;
+        .diagram-view-summary .mermaid {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            display: block !important;
+            margin: 0 auto !important;
+            text-align: center !important;
+            transform: none !important;
+        }
+        .diagram-view-summary .mermaid svg {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+
+        /* Summary view font sizes: balanced, sharp */
+        .diagram-view-summary .mermaid text.actor > tspan {
+            font-size: 13.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-summary .mermaid .messageText,
+        .diagram-view-summary .mermaid text.messageText,
+        .diagram-view-summary .mermaid .messageText > tspan {
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+        }
+        .diagram-view-summary .mermaid .noteText,
+        .diagram-view-summary .mermaid .noteText > tspan {
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+        }
+        .diagram-view-summary .mermaid circle.sequenceNumber {
+            r: 10px !important;
+        }
+        .diagram-view-summary .mermaid text.sequenceNumber {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+        }
+        .diagram-view-summary .mermaid .messageLine0,
+        .diagram-view-summary .mermaid .messageLine1 {
+            stroke-width: 1.6px !important;
+        }
+
+        /* Detail View: Fully unconstrained for deep horizontal scroll inspection */
+        .diagram-view-detail {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            text-align: left;
+            -webkit-overflow-scrolling: touch;
+            padding: 1rem 0.5rem;
+            box-sizing: border-box;
+        }
+        .diagram-view-detail .mermaid {
+            display: inline-block;
+            min-width: 1020px !important;
+            text-align: left;
+            margin: 0;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .diagram-view-detail .mermaid svg {
+            display: block;
+            min-width: 1020px !important;
+            height: auto !important;
+            margin: 0;
+        }
+
+        /* Detail view fonts: large, high-legibility */
+        .diagram-view-detail .mermaid text.actor > tspan {
+            font-size: 17.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-detail .mermaid .messageText,
+        .diagram-view-detail .mermaid text.messageText,
+        .diagram-view-detail .mermaid .messageText > tspan {
+            font-size: 17.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-detail .mermaid .noteText,
+        .diagram-view-detail .mermaid .noteText > tspan {
+            font-size: 14px !important;
+        }
+        .diagram-view-detail .mermaid circle.sequenceNumber {
+            r: 13.5px !important;
+        }
+        .diagram-view-detail .mermaid text.sequenceNumber {
+            font-size: 12.5px !important;
+        }
+        .diagram-view-detail .mermaid .messageLine0,
+        .diagram-view-detail .mermaid .messageLine1 {
+            stroke-width: 2.2px !important;
+        }
+
+        /* =======================================================================
+           DYNAMIC THEMED MERMAID RENDERING (BOUND TO CSS VARIABLES WITH !IMPORTANT)
+           ======================================================================= */
+        .mermaid .actor, .modal-canvas .actor {
+            fill: var(--mermaid-actor-fill) !important;
+            stroke: var(--mermaid-actor-border) !important;
+            stroke-width: 2px !important;
+            rx: 5px; ry: 5px;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.12));
+        }
+        .mermaid text.actor, .mermaid text.actor > tspan,
+        .modal-canvas text.actor, .modal-canvas text.actor > tspan,
+        .mermaid .actor-man text, .mermaid g[class*="actor"] text {
+            fill: var(--mermaid-actor-text) !important;
             font-family: 'Libre Franklin', sans-serif !important;
             font-weight: 700 !important;
-            font-size: 17px !important;
-            letter-spacing: -0.01em;
         }
         .mermaid .actor-line, .modal-canvas .actor-line {
-            stroke: #94a3b8 !important;
-            stroke-width: 1.6px !important;
-            stroke-dasharray: 5 5 !important;
+            stroke: var(--mermaid-line) !important;
+            stroke-width: 1.8px !important;
+            stroke-dasharray: 4 4 !important;
+            opacity: 0.65 !important;
         }
         .mermaid .messageLine0, .mermaid .messageLine1,
         .modal-canvas .messageLine0, .modal-canvas .messageLine1 {
-            stroke: #334155 !important;
-            stroke-width: 2px !important;
-            opacity: 0.95;
+            stroke: var(--mermaid-line) !important;
         }
         .mermaid marker path, .mermaid #arrowhead path,
         .modal-canvas marker path, .modal-canvas #arrowhead path {
-            fill: #334155 !important;
-            stroke: #334155 !important;
+            fill: var(--mermaid-line) !important;
+            stroke: var(--mermaid-line) !important;
         }
-        .mermaid .messageText, .modal-canvas .messageText {
-            fill: #0f172a !important;
+
+        /* Crucial Text Visibility Rule: Overrides any dark default styles */
+        .mermaid .messageText, .mermaid text.messageText, .mermaid .messageText > tspan,
+        .modal-canvas .messageText, .modal-canvas text.messageText, .modal-canvas .messageText > tspan {
+            fill: var(--mermaid-text) !important;
+            color: var(--mermaid-text) !important;
             font-family: 'IBM Plex Sans', sans-serif !important;
-            font-size: 16px !important;
-            font-weight: 600 !important;
-            line-height: 1.5 !important;
+            font-weight: 700 !important;
+            line-height: 1.4 !important;
         }
+
         .mermaid circle.sequenceNumber, .modal-canvas circle.sequenceNumber {
             fill: var(--teal) !important;
             stroke: var(--teal) !important;
-            r: 13px !important;
         }
         .mermaid text.sequenceNumber, .modal-canvas text.sequenceNumber {
             fill: #ffffff !important;
             font-family: var(--font-mono) !important;
-            font-weight: 800 !important;
-            font-size: 12.5px !important;
-            text-anchor: middle !important;
             dominant-baseline: central !important;
+            text-anchor: middle !important;
         }
         .mermaid .note, .modal-canvas .note {
-            fill: #fef3c7 !important;
-            stroke: #d97706 !important;
-            stroke-width: 1.8px !important;
-            rx: 6px; ry: 6px;
+            fill: var(--mermaid-note-fill) !important;
+            stroke: var(--mermaid-note-border) !important;
+            stroke-width: 1.6px !important;
+            rx: 5px; ry: 5px;
         }
         .mermaid .noteText, .mermaid .noteText > tspan,
         .modal-canvas .noteText, .modal-canvas .noteText > tspan {
-            fill: #78350f !important;
+            fill: var(--mermaid-note-text) !important;
             font-family: var(--font-mono) !important;
-            font-size: 14.5px !important;
-            font-weight: 600 !important;
-            line-height: 1.5 !important;
-        }
-        .mermaid .activation0, .mermaid .activation1, .mermaid .activation2,
-        .modal-canvas .activation0, .modal-canvas .activation1, .modal-canvas .activation2 {
-            fill: rgba(13, 148, 136, 0.22) !important;
-            stroke: var(--teal) !important;
-            stroke-width: 1.8px !important;
+            line-height: 1.4 !important;
         }
         .mermaid .labelBox, .modal-canvas .labelBox {
             fill: #f1f5f9 !important;
             stroke: #cbd5e1 !important;
             stroke-width: 1.5px !important;
-            rx: 5px;
+            rx: 4px;
         }
         .mermaid .labelText, .mermaid .labelText > tspan,
         .modal-canvas .labelText, .modal-canvas .labelText > tspan {
@@ -740,108 +998,36 @@
             font-weight: 700 !important;
             font-size: 13px !important;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
         }
         .mermaid .loopText, .mermaid .loopText > tspan,
         .modal-canvas .loopText, .modal-canvas .loopText > tspan {
-            fill: #0f172a !important;
+            fill: var(--mermaid-text) !important;
             font-family: 'IBM Plex Sans', sans-serif !important;
-            font-size: 15px !important;
-            font-weight: 600 !important;
-        }
-        .mermaid .loopLine, .modal-canvas .loopLine {
-            stroke: #94a3b8 !important;
-            stroke-width: 1.5px !important;
-            stroke-dasharray: 4 4 !important;
-        }
-        .mermaid text.boxTitle, .mermaid .box text, .mermaid .boxTitle,
-        .modal-canvas text.boxTitle, .modal-canvas .box text, .modal-canvas .boxTitle {
-            fill: var(--teal) !important;
-            font-family: var(--font-mono) !important;
-            font-weight: 700 !important;
             font-size: 14.5px !important;
+            font-weight: 600 !important;
         }
         .mermaid .box rect, .mermaid rect.box,
         .modal-canvas .box rect, .modal-canvas rect.box {
-            fill: #f8fafc !important;
-            stroke: #cbd5e1 !important;
+            fill: var(--mermaid-box-fill) !important;
+            stroke: var(--mermaid-box-border) !important;
             stroke-width: 1.5px !important;
+            stroke-dasharray: 5 4 !important;
+            rx: 6px !important;
+        }
+        .mermaid text.boxTitle, .mermaid .box text, .mermaid .boxTitle,
+        .modal-canvas text.boxTitle, .modal-canvas .box text, .modal-canvas .boxTitle {
+            fill: var(--mermaid-box-title) !important;
+            font-family: var(--font-mono) !important;
+            font-weight: 800 !important;
+            font-size: 14px !important;
         }
 
-        /* --- Dark Theme Overrides for Mermaid SVGs --- */
-        [data-theme="dark"] .mermaid .actor, [data-theme="dark"] .modal-canvas .actor,
-        .dark .mermaid .actor, .dark .modal-canvas .actor {
-            fill: #11182c !important;
-            stroke: #2dd4bf !important;
-        }
-        [data-theme="dark"] .mermaid text.actor > tspan, [data-theme="dark"] .modal-canvas text.actor > tspan,
-        .dark .mermaid text.actor > tspan, .dark .modal-canvas text.actor > tspan {
-            fill: #f8fafc !important;
-        }
-        [data-theme="dark"] .mermaid .actor-line, [data-theme="dark"] .modal-canvas .actor-line,
-        .dark .mermaid .actor-line, .dark .modal-canvas .actor-line {
-            stroke: #334366 !important;
-        }
-        [data-theme="dark"] .mermaid .messageLine0, [data-theme="dark"] .mermaid .messageLine1,
-        [data-theme="dark"] .modal-canvas .messageLine0, [data-theme="dark"] .modal-canvas .messageLine1,
-        .dark .mermaid .messageLine0, .dark .modal-canvas .messageLine0 {
-            stroke: #cbd5e1 !important;
-        }
-        [data-theme="dark"] .mermaid marker path, [data-theme="dark"] .mermaid #arrowhead path,
-        [data-theme="dark"] .modal-canvas marker path, [data-theme="dark"] .modal-canvas #arrowhead path,
-        .dark .mermaid marker path, .dark .modal-canvas marker path {
-            fill: #cbd5e1 !important;
-            stroke: #cbd5e1 !important;
-        }
-        [data-theme="dark"] .mermaid .messageText, [data-theme="dark"] .modal-canvas .messageText,
-        .dark .mermaid .messageText, .dark .modal-canvas .messageText {
-            fill: #f8fafc !important;
-        }
-        [data-theme="dark"] .mermaid .note, [data-theme="dark"] .modal-canvas .note,
-        .dark .mermaid .note, .dark .modal-canvas .note {
-            fill: #141d33 !important;
-            stroke: #fbbf24 !important;
-        }
-        [data-theme="dark"] .mermaid .noteText, [data-theme="dark"] .mermaid .noteText > tspan,
-        [data-theme="dark"] .modal-canvas .noteText, [data-theme="dark"] .modal-canvas .noteText > tspan,
-        .dark .mermaid .noteText, .dark .modal-canvas .noteText {
-            fill: #fef3c7 !important;
-        }
-        [data-theme="dark"] .mermaid .labelBox, [data-theme="dark"] .modal-canvas .labelBox,
-        .dark .mermaid .labelBox, .dark .modal-canvas .labelBox {
-            fill: #141d33 !important;
-            stroke: #283857 !important;
-        }
-        [data-theme="dark"] .mermaid .labelText, [data-theme="dark"] .mermaid .labelText > tspan,
-        [data-theme="dark"] .modal-canvas .labelText, .dark .modal-canvas .labelText {
-            fill: #fbbf24 !important;
-        }
-        [data-theme="dark"] .mermaid .loopText, [data-theme="dark"] .mermaid .loopText > tspan,
-        [data-theme="dark"] .modal-canvas .loopText, .dark .modal-canvas .loopText {
-            fill: #f8fafc !important;
-        }
-        [data-theme="dark"] .mermaid .loopLine, [data-theme="dark"] .modal-canvas .loopLine,
-        .dark .mermaid .loopLine, .dark .modal-canvas .loopLine {
-            stroke: #334366 !important;
-        }
-        [data-theme="dark"] .mermaid .box rect, [data-theme="dark"] .modal-canvas .box rect,
-        .dark .mermaid .box rect, .dark .modal-canvas .box rect {
-            fill: rgba(255, 255, 255, 0.04) !important;
-            stroke: #222f49 !important;
-        }
-        [data-theme="dark"] .mermaid text.boxTitle, [data-theme="dark"] .mermaid .box text,
-        .dark .mermaid text.boxTitle, .dark .modal-canvas text.boxTitle {
-            fill: #2dd4bf !important;
-        }
+        .diagram-view-detail::-webkit-scrollbar { height: 8px; }
+        .diagram-view-detail::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+        .diagram-view-detail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+        .diagram-view-detail::-webkit-scrollbar-thumb:hover { background: var(--teal); }
 
-        .mermaid-container::-webkit-scrollbar { height: 8px; }
-        .mermaid-container::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
-        .mermaid-container::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-        .mermaid-container::-webkit-scrollbar-thumb:hover { background: var(--teal); }
-
-        /* =======================================================================
-           FULLSCREEN LIGHTBOX MODAL WITH ZOOM / PAN CONTROLS & THEMED CANVAS
-           ======================================================================= */
+        /* Fullscreen Lightbox Modal */
         .diagram-modal {
             display: none;
             position: fixed;
@@ -928,12 +1114,12 @@
         }
 
         .modal-canvas {
-            background: #ffffff;
+            background: var(--mermaid-bg) !important;
             border: 1px solid #cbd5e1;
             border-radius: 12px;
-            padding: 2.5rem 2rem;
+            padding: 2.8rem 2.8rem;
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-            min-width: 1000px;
+            min-width: 1050px;
             margin: auto;
             transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -941,12 +1127,11 @@
         .dark .modal-canvas,
         .dark-mode .modal-canvas,
         .theme-dark .modal-canvas {
-            background: #0b1020 !important;
             border-color: #222f49 !important;
             box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6) !important;
         }
 
-        /* ==================== RESTORED COMPLETE STYLING: SMART DATA GATEWAY EMBEDDED WIDGET ==================== */
+        /* ==================== RESPONSIVE SMART DATA GATEWAY EMBEDDED WIDGET ==================== */
         .sdg-wrap {
             max-width: 100%;
             margin: 2.5rem auto;
@@ -1010,6 +1195,7 @@
         .sdg-legend span { display: inline-flex; align-items: center; gap: 4px; }
         .sdg-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
 
+        /* Responsive Stage without fixed horizontal overflow on mobile */
         .sdg-stage {
             position: relative;
             width: 100%;
@@ -1022,7 +1208,6 @@
         }
         .sdg-stage svg { width: 100%; height: 100%; display: block; }
 
-        /* Explicit non-black overrides for SVG Zones & Nodes */
         .sdg-zone { fill: var(--sdg-zone-fill) !important; stroke: var(--sdg-zone-stroke) !important; stroke-width: 1; }
         .sdg-zone-head { fill: var(--sdg-zone-head) !important; stroke: var(--sdg-zone-stroke) !important; stroke-width: 1; }
         .sdg-zone-label { fill: var(--sdg-muted-2) !important; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; font-family: var(--font-mono); }
@@ -1113,18 +1298,6 @@
             .sdg-btn { padding: 3px 6px; font-size: 9px; }
             .sdg-caption { font-size: 10.5px; }
         }
-
-        @media (max-width: 640px) {
-            .sdg-stage {
-                overflow-x: auto !important;
-                aspect-ratio: auto;
-                height: 320px;
-            }
-            .sdg-stage svg {
-                min-width: 720px;
-                height: 100%;
-            }
-        }
     </style>
 </head>
 <body>
@@ -1162,7 +1335,7 @@
                 <p class="deck">From Fat Client OOMKills to an Enterprise Dual-Protocol Smart Data Gateway</p>
 
                 <div class="meta-line">
-                    September 27, 2026  
+                    September 27, 2026 · [DRAFT]
                 </div>
 
                 <!-- Section 0: Philosophy -->
@@ -1223,14 +1396,14 @@
                 <nav class="toc">
                     <div class="toc-title">ON THIS PAGE</div>
                     <ol>
-                        <li><a href="#s1">1. Why Now? The Convergence of Primitives</a></li>
-                        <li><a href="#s2">2. Technology Selection &amp; Format Agnosticism</a></li>
-                        <li><a href="#s3">3. Phase 1: Embedded Mode &amp; Network Bottlenecks (Steps A &amp; B)</a></li>
-                        <li><a href="#s4">4. Phase 2: Decoupled Execution &amp; Metadata Isolation (Steps C, D, &amp; E)</a></li>
-                        <li><a href="#s5">5. Phase 3: Scaling Concurrency &amp; Task Orchestration (Steps F, G, H, &amp; I)</a></li>
-                        <li><a href="#s6">6. Phase 4: Enterprise Dual-Protocol Serving &amp; Zero-Trust (Steps J, K, L, &amp; M)</a></li>
-                        <li><a href="#s7">7. System in Motion: Interactive Simulation</a></li>
-                        <li><a href="#s8">8. The Architectural Evolution Matrix</a></li>
+                        <li><a href="#s1">Why Now? The Convergence of Primitives</a></li>
+                        <li><a href="#s2">Technology Selection &amp; Format Agnosticism</a></li>
+                        <li><a href="#s3">Phase 1: Embedded Mode &amp; Network Bottlenecks (Steps A &amp; B)</a></li>
+                        <li><a href="#s4">Phase 2: Decoupled Execution &amp; Metadata Isolation (Steps C, D, &amp; E)</a></li>
+                        <li><a href="#s5">Phase 3: Scaling Concurrency &amp; Task Orchestration (Steps F, G, H, &amp; I)</a></li>
+                        <li><a href="#s6">Phase 4: Enterprise Dual-Protocol Serving &amp; Zero-Trust (Steps J, K, L, &amp; M)</a></li>
+                        <li><a href="#s7">System in Motion: Interactive Simulation</a></li>
+                        <li><a href="#s8">The Architectural Evolution Matrix</a></li>
                     </ol>
                 </nav>
 
@@ -1247,7 +1420,7 @@
                 </p>
                 <ul>
                     <li><strong>Open Table Formats (Apache Iceberg, Delta Lake):</strong> Decoupled physical Parquet files from proprietary database engines. For the first time, immutable manifest trees, snapshot trees, and column statistics became open specifications accessible over standard HTTP REST interfaces.</li>
-                    <li><strong>Apache Arrow &amp; Arrow Flight:</strong> Standardized a columnar, in-memory format that eliminates serialization penalties. Arrow Flight utilizes HTTP/2 gRPC to stream raw columnar memory buffers across network boundaries with true zero-copy ergonomics.</li>
+                    <li><strong>Apache Arrow &amp; Arrow Flight:</strong> Standardized a columnar, in-memory format that eliminates serialization penalties. While Arrow provides true zero-copy sharing across in-process threads and local shared-memory IPC, network transport via Arrow Flight incurs HTTP/2 framing, serialization, and socket buffer copies. Arrow Flight is properly understood as <strong>low-copy, format-aligned columnar transport</strong> that streams columnar memory buffers across network boundaries without row-to-object deserialization.</li>
                     <li><strong>Embedded Vectorized Engines (DuckDB, DataFusion):</strong> Vectorized analytical compute engines running directly in C++ with SIMD optimizations proved they could execute analytical queries across millions of rows in milliseconds—completely bypassing JVM garbage collection pauses and distributed network shuffle overhead.</li>
                 </ul>
 
@@ -1257,8 +1430,23 @@
                     To build the gateway, we needed an execution engine with a specific profile: a lightweight memory footprint, native Parquet reader optimization, late materialization, and seamless in-memory Arrow integration.
                 </p>
                 <p>
-                    We evaluated <strong>Apache DataFusion</strong>, <strong>Daft</strong>, and <strong>DuckDB</strong>. While DataFusion offers brilliant Rust-level extensibility, <strong>DuckDB</strong> stood out with its mature Parquet reader, comprehensive SQL dialect coverage, and native zero-copy Arrow memory sharing.
+                    We evaluated <strong>Apache DataFusion</strong>, <strong>Daft</strong>, and <strong>DuckDB</strong>. While DataFusion offers brilliant Rust-level extensibility, <strong>DuckDB</strong> stood out with its mature Parquet reader, comprehensive SQL dialect coverage, and native zero-copy Arrow memory sharing across in-process threads.
                 </p>
+
+                <h3>DuckDB Concurrency &amp; Reader/Writer Isolation Contract</h3>
+                <p>
+                    Designing a multi-tenant gateway required engineering around DuckDB's underlying concurrency model:
+                </p>
+                <div class="callout warn">
+                    <strong>The DuckDB Concurrency Constraint:</strong> DuckDB natively supports <strong>concurrent readers</strong> on an in-memory database instance or read-only attached database file. However, writing or attaching a database file in read-write mode blocks on a <strong>single-writer exclusive lock</strong>.
+                </div>
+                <p>
+                    To ensure concurrent query requests never block on engine locks, the Smart Data Gateway enforces a strict operational contract:
+                </p>
+                <ul>
+                    <li><strong>Stateless, Read-Only Consumer Instances:</strong> Every Gateway worker node instantiates DuckDB strictly as an in-memory, read-only query processor (<code>duckdb.connect(":memory:")</code>). It never writes back to lakehouse storage, modifies tables, or participates in snapshot commits.</li>
+                    <li><strong>Out-of-Band Lakehouse Writes:</strong> Ingestion, compaction, snapshot commits, and schema changes are strictly delegated to independent external ETL pipelines (such as PySpark or Flink). Because Gateway engine instances operate exclusively as read-only analytical consumers, they are completely isolated from write locks and table contention.</li>
+                </ul>
 
                 <h3>Why Apache Iceberg — And Why the Pattern Transcends Format</h3>
                 <p>
@@ -1273,7 +1461,7 @@
                         <div class="tier-header">Tier 1: Core Execution Primitives</div>
                         <ul>
                             <li><strong>DuckDB C++ Core:</strong> Vectorized execution engine executing SIMD query kernels without JVM runtime overhead.</li>
-                            <li><strong>Apache Arrow:</strong> Zero-copy in-memory IPC format enabling direct memory transfer to network sockets.</li>
+                            <li><strong>Apache Arrow:</strong> Zero-copy in-memory IPC format enabling format-aligned streaming to network sockets.</li>
                             <li><strong>Format SDKs (PyIceberg / Delta-RS):</strong> Evaluates partition metadata and file-level min/max statistics prior to physical scan.</li>
                             <li><strong>Open Catalogs:</strong> REST catalogs (Iceberg REST, Polaris, Nessie) providing authoritative snapshot versions.</li>
                         </ul>
@@ -1319,27 +1507,61 @@
                 <div class="callout danger">
                     <strong>Failure Mode: The CLR Interop Tax &amp; The Kernel's Wrath</strong>
                     <ul>
-                        <li><strong>The Boxing/Unboxing Penalty:</strong> DuckDB's vectorized execution runs in blistering native C++. But shoving gigabytes of computed records through the C# P/Invoke boundary required massive memory copying, boxing, and unboxing. Our CPU cores spent more time converting C++ native pointers into managed .NET objects than actually computing aggregates.</li>
+                        <li><strong>The Boxing/Unboxing Penalty:</strong> DuckDB's vectorized execution runs in native C++. But shoving gigabytes of computed records through the C# P/Invoke boundary required massive memory copying, boxing, and unboxing. Our CPU cores spent more time converting C++ native pointers into managed .NET objects than actually computing aggregates.</li>
                         <li><strong>Cold WAN Latency:</strong> ADLS Gen2 is optimized for massive throughput, not per-request low latency. Even running <code>SELECT * FROM trades LIMIT 10</code> on a small table required multiple HTTP round-trips to read Parquet footers across the internet, turning a trivial query into a 4-second spinner.</li>
                         <li><strong>Shared Fate &amp; OOMKill:</strong> Compute and UI threads shared the exact same memory space. When a query scanned a wider table, DuckDB pulled large Parquet byte ranges into RAM to evaluate joins. Once the process exceeded the client machine's physical memory limit, the OS kernel stepped in: an ungraceful <strong>OOMKill (SIGKILL)</strong> that terminated the entire user application without so much as an unhandled exception dialog.</li>
                     </ul>
                 </div>
 
-                <!-- Diagram Step A -->
+                <!-- Diagram Step A: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-a">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 1 · Step A: In-Process Fat Client (OOMKill Reality)</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 1 · Step A: In-Process Fat Client (OOMKill Reality)</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor Client as User / Dashboard
-    box Fat Client Process (.NET)
+    box rgb(240, 245, 250) Fat Client Process (.NET)
+        participant App as Application UI (.NET)
+        participant Duck as DuckDB C++ Core
+    end
+    participant Storage as Azure Storage (ADLS Gen2)
+
+    Client->>App: Run Analytical Query
+    App->>Duck: P/Invoke Execute() (Marshaling Overhead)
+    Duck->>Storage: Cold WAN HTTP Reads (Manifest & Footers)
+    Storage-->>Duck: Parquet Bytes
+    Duck->>Duck: In-Process Vector Math (RAM Spikes)
+    note over Duck,App: OS Kernel SIGKILL: Process OOMKilled
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Fat Client Process (.NET)
         participant App as Application UI (.NET)
         participant Duck as DuckDB C++ Core (DuckDB.NET)
     end
@@ -1367,6 +1589,7 @@ sequenceDiagram
         deactivate Duck
         App-->>Client: Render UI Grid
     end
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1408,25 +1631,60 @@ proxy_cache_use_stale error timeout updating http_500 http_502;</code></pre>
                     </p>
                 </div>
 
-                <!-- Diagram Step B -->
+                <!-- Diagram Step B: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-b">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 2 · Step B: Fat Client with NGINX Proxy CDN</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 2 · Step B: Fat Client with NGINX Proxy CDN</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor Client as User / Dashboard
-    box Client Pod (Shared cgroup Memory)
+    box rgb(240, 245, 250) Client Pod (Shared cgroup)
+        participant App as Application UI
+        participant Duck as DuckDB Sidecar
+    end
+    participant Nginx as NGINX Proxy (NVMe)
+    participant Storage as Azure Lakehouse
+
+    Client->>App: Submit Query
+    App->>Duck: Execute In-Process
+    Duck->>Nginx: HTTP Range Reads (SSD Hits)
+    Nginx-->>Duck: Fast Cached Parquet Bytes
+    Duck->>Duck: High file fragmentation -> Loads thousands of fragments
+    note over App,Duck: Pod cgroup Limit Breached: Evicted (Exit Code 137)
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Client Pod (Shared cgroup Memory)
         participant App as Application UI
         participant Duck as Embedded DuckDB (.NET Sidecar)
     end
-    box Edge Caching Tier
+    box rgb(245, 245, 245) Edge Caching Tier
         participant Nginx as NGINX Reverse Proxy (NVMe SSD)
     end
     participant Storage as Azure Data Lake (ADLS Gen2)
@@ -1469,6 +1727,7 @@ sequenceDiagram
         deactivate Duck
         App-->>Client: Render Dashboard
     end
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1478,7 +1737,7 @@ sequenceDiagram
 
                 <h4>Step C: Decoupled Query Execution (Python &amp; Arrow Flight)</h4>
                 <p>
-                    Running analytical compute within client pods was dead. We extracted query execution into an independent, containerized backend service running in Python, leveraging Arrow Flight to stream raw columnar <code>RecordBatches</code> directly to clients over gRPC/HTTP/2.
+                    Running analytical compute within client pods was dead. We extracted query execution into an independent, containerized backend service running in Python, leveraging Arrow Flight to stream columnar <code>RecordBatches</code> directly to clients over gRPC/HTTP/2 as low-copy, format-aligned columnar streams.
                 </p>
                 <div class="callout danger">
                     <strong>The Eager-Loading Ambush</strong>
@@ -1530,27 +1789,63 @@ def enforce_tenant_rls(raw_sql: str, tenant_id: str) -> str:
             select.where(tenant_predicate, copy=False)
     return ast.sql()</code></pre>
 
-                <!-- Diagram Step E -->
+                <!-- Diagram Step E: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-e">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 3 · Step E: SQLglot AST Rewriting &amp; PyIceberg Pruning Pipeline</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 3 · Step E: SQLglot AST Rewriting &amp; PyIceberg Pruning Pipeline</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor Client as Flight / REST Client
-    box Isolated Query Service
+    box rgb(240, 245, 250) Gateway Query Service
+        participant AST as SQLglot AST Engine
+        participant PyIceberg as PyIceberg Planner
+        participant Duck as DuckDB C++ Core
+    end
+    participant Nginx as NGINX Proxy (NVMe)
+
+    Client->>AST: Submit SQL Query
+    AST->>PyIceberg: Extracted Filter Predicates
+    PyIceberg->>Nginx: Stream Manifests (Lazy Pruning)
+    Nginx-->>PyIceberg: Filtered Parquet File URIs
+    AST->>Duck: Bind URIs: read_parquet([files])
+    Duck->>Nginx: Vectorized Column Chunk Reads
+    Duck-->>Client: Low-Copy Arrow Columnar Stream
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    box rgb(240, 245, 250) Isolated Query Service
         participant API as API Server (FastAPI / Flight)
         participant SQLglot as SQLglot AST Transpiler
         participant PyIceberg as PyIceberg SDK (Lazy Planner)
         participant Duck as DuckDB C++ Core Engine
     end
-    box Distributed Cache Tier
+    box rgb(245, 245, 245) Distributed Cache Tier
         participant Nginx as NGINX Proxy (NVMe Cache)
     end
     participant Storage as Azure Data Lake (ADLS Gen2)
@@ -1587,8 +1882,9 @@ sequenceDiagram
     Duck-->>API: Yield Arrow RecordBatches
     deactivate Duck
 
-    API-->>Client: Stream Zero-Copy Results (Flight IPC / REST JSON)
+    API-->>Client: Stream Low-Copy Results (Flight IPC / REST JSON)
     deactivate API
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1612,9 +1908,9 @@ sequenceDiagram
                     We upgraded the server into an asynchronous architecture leveraging <code>pyarrow.flight</code>, <code>asyncio</code>, and <code>concurrent.futures.ProcessPoolExecutor</code>:
                 </p>
                 <ul>
-                    <li><strong>Sub-Millisecond Handshake:</strong> When a client calls <code>GetFlightInfo</code>, the main event loop extracts the target table, pulls the cached Arrow schema from memory, mints an Arrow Ticket, and returns instantly without triggering execution.</li>
+                    <li><strong>Fast Handshake:</strong> When a client calls <code>GetFlightInfo</code>, the main event loop extracts the target table, pulls the cached Arrow schema from memory, mints an Arrow Ticket, and returns promptly without triggering execution.</li>
                     <li><strong>Non-Blocking Execution:</strong> When the client subsequently calls <code>DoGet(Ticket)</code>, the query is dispatched to a background child process pool. The main thread remains unblocked to answer new handshakes.</li>
-                    <li><strong>Zero-Copy IPC:</strong> Once computation completes, Arrow batches are passed to the API thread via shared memory (<code>pyarrow.ipc</code>) and streamed directly across the HTTP/2 wire.</li>
+                    <li><strong>Low-Copy IPC:</strong> Once computation completes, Arrow batches are passed to the API thread via shared memory (<code>pyarrow.ipc</code>) and streamed across the HTTP/2 wire with format alignment.</li>
                 </ul>
 
                 <h4>Step H: Decoupled Executors &amp; The Claim-Check Pattern</h4>
@@ -1628,34 +1924,68 @@ sequenceDiagram
                             <br><em>The Fix (The Claim-Check Pattern):</em> Workers stream large Arrow/JSON payloads directly to temporary cloud storage (Azure Blob). The worker writes a tiny JSON string to Redis containing the URI pointer: <code>{"status": "COMPLETED", "blob_uri": "az://temp/job-42.arrow"}</code>. Redis handles only lightweight coordination metadata.</li>
                         <li><strong>The Data Bouncing Penalty (Double Hop):</strong> Routing data through Worker &rarr; Blob &rarr; Gateway &rarr; Client forced large analytical datasets to traverse the internal Kubernetes network twice.
                             <br><em>The Fix (Distributed Flight Endpoints):</em> The gateway acts as a coordinator, returning a <code>FlightEndpoint</code> pointing the client directly to the worker pod or signed storage URI.</li>
-                        <li><strong>Celery Polling Latency:</strong> Celery's default polling mechanism added 50–150ms of artificial latency to queries.
-                            <br><em>The Fix (Push-Based Redis Pub/Sub):</em> We replaced Celery's polling backend with Redis Pub/Sub. When the worker finishes writing data to blob storage, it publishes a completion event to <code>channel:ticket_{uuid}</code>. The gateway receives the event immediately, eliminating polling latency.</li>
+                        <li><strong>Celery Polling Latency vs Push-Based Pub/Sub:</strong> In default, out-of-the-box configurations, Celery clients poll the result backend on a periodic timer (typically every 50ms), adding 50–150ms of artificial latency to queries.
+                            <br><em>The Fix (Push-Based Redis Pub/Sub):</em> We replaced result-backend polling with Redis Pub/Sub notifications. When the worker finishes writing data to blob storage, it publishes a completion event to <code>channel:ticket_{uuid}</code>. The gateway receives the event immediately, eliminating polling latency and triggering client streaming in sub-2ms.</li>
                     </ol>
                 </div>
 
-                <!-- Diagram Step H -->
+                <!-- Diagram Step H: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-h">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 4 · Step H: Decoupled Task Queue, Claim Check &amp; Push Pub/Sub</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 4 · Step H: Decoupled Task Queue, Claim Check &amp; Push Pub/Sub</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor Client as Flight / REST Client
-    box Gateway and Orchestration
+    participant GW as Flight Gateway
+    participant Redis as Redis Queue &amp; Pub/Sub
+    participant Worker as DuckDB Celery Worker
+    participant Blob as Temp Azure Blob
+
+    Client->>GW: DoGet(Ticket)
+    GW->>Redis: Enqueue Task &amp; Subscribe
+    Redis->>Worker: Dispatch Task (KEDA Autoscale)
+    Worker->>Blob: Stream Payload (Claim-Check)
+    Worker->>Redis: Publish Completion (Blob URI Pointer)
+    Redis-->>GW: Sub-2ms Push Notification
+    GW-->>Client: Stream Columnar Results
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    box rgb(240, 245, 250) Gateway and Orchestration
         participant GW as Arrow Flight Gateway
         participant Redis as Redis Queue and Pub/Sub
         participant KEDA as KEDA Autoscaler
     end
-    box Decoupled Compute Fleet
+    box rgb(245, 240, 250) Decoupled Compute Fleet
         participant Worker as Celery Worker (DuckDB)
     end
-    box Temporary Storage and Cache
+    box rgb(245, 245, 245) Temporary Storage and Cache
         participant Blob as Azure Temp Blob Storage
         participant Nginx as NGINX SSD Proxy
     end
@@ -1688,19 +2018,17 @@ sequenceDiagram
     Blob-->>GW: Stream Arrow Payload
     GW-->>Client: Stream Arrow RecordBatches to Client
     deactivate GW
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <h4>Step I: Architectural Fork: The Rule of 50 vs. Stateless Monoliths</h4>
+                <h4>Step I: Architectural Fork: The 20-Query POC Heuristic vs. Stateless Monoliths</h4>
                 <div class="callout warn">
-                    <strong>Architectural Decision Fork: When Distributed Orchestration is Premature Optimization</strong>
-                    <p>
-                        The Celery path is powerful, but it carries real baggage. Managing Celery, Redis, KEDA, and temporary blob lifecycles introduces operational drag. If your workload peaks at <strong>under 50 concurrent analytical queries</strong>, building an asynchronous distributed queue cluster is pure over-engineering.
-                    </p>
+                    <strong>The 20-Query POC Heuristic [HEURISTIC]:</strong> In our specific POC configuration, approximately <strong>20 concurrent analytical queries</strong> represented the tipping point where the operational overhead of a distributed queue (Redis, Celery, KEDA) was justified over simpler replicated stateless monoliths.
                 </div>
                 <p>
-                    A <strong>Replicated Stateless Monolith</strong> packages the Flight API server and DuckDB execution pool into a single container running behind a Layer 7 Load Balancer:
+                    Below roughly 20 concurrent requests, the operational drag of running Redis brokers, Celery workers, KEDA scalers, and managing ephemeral storage lifecycles outweighs the performance benefit. A <strong>Replicated Stateless Monolith</strong> packages the Flight API server and DuckDB execution pool into a single container running behind a Layer 7 Load Balancer:
                 </p>
                 <ul>
                     <li><strong>Cryptographically Signed Stateless Tickets:</strong> During <code>GetFlightInfo</code>, the parsed SQL query is compressed with <code>lz4</code>, encrypted and signed via <strong>HMAC-SHA256</strong> (preventing client-side query tampering), and encoded directly into the Arrow ticket bytes. The cluster stores zero session state.</li>
@@ -1711,6 +2039,10 @@ sequenceDiagram
 PRAGMA memory_limit = '6GB';
 PRAGMA temp_directory = '/tmp/duckdb_spill';
 PRAGMA threads = 2;</code></pre>
+
+                <p>
+                    <em>Note:</em> The 20-query cutoff is an empirical workload-specific heuristic, not an immutable law. In Part 3, we transition from heuristics to mathematical modeling, formally modeling this crossover point using Kingman's formula for queueing latency and the Universal Scalability Law (USL).
+                </p>
 
                 <!-- Section 6 -->
                 <h2 id="s6">6. Phase 4: Enterprise Dual-Protocol Serving &amp; Zero-Trust</h2>
@@ -1732,33 +2064,68 @@ PRAGMA threads = 2;</code></pre>
                     <li><strong>Trailer Preservation:</strong> gRPC sends status codes inside HTTP/2 trailers appended to the end of the stream. Envoy preserves these trailers, ensuring client applications receive exact SQL error codes and timeout signals.</li>
                 </ul>
 
-                <!-- Diagram Step J -->
+                <!-- Diagram Step J: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-j">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 5 · Step J: Dual-Protocol Edge Ingress Routing</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 5 · Step J: Dual-Protocol Edge Ingress Routing</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Client App
+    participant L7 as Envoy L7 Ingress
+    participant Flight as Path A: Flight Monolith (gRPC)
+    participant REST as Path B: REST Fleet (Celery/Claim-Check)
+
+    alt Arrow Flight Streaming (gRPC/HTTP2)
+        Client->>L7: DoGet (Multiplexed Stream)
+        L7->>Flight: Per-Stream Route to Worker
+        Flight-->>Client: Low-Copy Arrow Columnar Stream
+    else REST Client (HTTP/1.1 JSON)
+        Client->>L7: POST /api/v1/jobs (Submit SQL)
+        L7->>REST: 202 Accepted -> Celery Execution
+        REST-->>Client: Return Claim-Check JSON
+    end
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor FlightClient as Flight Client (gRPC)
     actor RestClient as Web Dashboard (REST)
-    box Unified Edge Ingress
+    box rgb(240, 245, 250) Unified Edge Ingress
         participant LB as L7 Ingress (Envoy / AGFC)
     end
-    box Path A - Flight Monoliths
+    box rgb(240, 250, 245) Path A - Flight Monoliths
         participant FlightNode as Flight Monolith (API + DuckDB)
     end
-    box Path B - Decoupled REST Fleet
+    box rgb(250, 240, 245) Path B - Decoupled REST Fleet
         participant RestAPI as REST API Gateway
         participant Redis as Redis Queue
         participant Worker as Celery Worker
     end
-    box Shared Caching Tier
+    box rgb(245, 245, 245) Shared Caching Tier
         participant Nginx as NGINX NVMe Proxy
     end
     participant Storage as Azure Data Lake (ADLS Gen2)
@@ -1772,7 +2139,7 @@ sequenceDiagram
     Storage-->>Nginx: Return Parquet Bytes
     Nginx-->>FlightNode: Return Parquet Bytes
     FlightNode->>FlightNode: Execute Vector Math in Local RAM
-    FlightNode-->>LB: Stream Arrow RecordBatches (Zero-Copy IPC)
+    FlightNode-->>LB: Stream Arrow RecordBatches (Low-Copy IPC)
     LB-->>FlightClient: Stream Raw Columnar Bytes
     deactivate FlightNode
 
@@ -1803,6 +2170,7 @@ sequenceDiagram
     RestAPI-->>LB: HTTP 200 OK (Chunked JSON Stream)
     deactivate RestAPI
     LB-->>RestClient: Deliver Dashboard JSON
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1844,27 +2212,62 @@ sequenceDiagram
                     <li><strong>Azure Workload Identity:</strong> We eliminated static SAS tokens and storage keys. AKS compute pods leverage Azure Workload Identity, exchanging short-lived Kubernetes service account tokens for ephemeral Azure access tokens on the fly.</li>
                 </ul>
 
-                <!-- Diagram Step M -->
+                <!-- Diagram Step M: Fit-First Overview Pattern -->
                 <div class="diagram-panel" id="diag-step-m">
                     <div class="diagram-header">
-                        <span class="diagram-title">Sequence Flow 6 · Step M: Zero-Trust Identity, Local JWKS &amp; RLS AST Injection</span>
-                        <button class="fullscreen-btn" aria-label="Expand diagram to full screen">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                            Expand View
-                        </button>
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 6 · Step M: Zero-Trust Identity, Local JWKS &amp; RLS AST Injection</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
                     </div>
-                    <div class="mermaid-container">
-                        <div class="mermaid">
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
 sequenceDiagram
     autonumber
     actor Client as Client Application
-    box Edge Security Layer
+    participant Ingress as Ingress Gateway (JWKS Cache)
+    participant AST as SQLglot AST Orchestrator
+    participant Worker as DuckDB Worker (AKS)
+    participant Storage as Azure Lakehouse
+
+    Client->>Ingress: Bearer JWT Token + Query
+    Ingress->>Ingress: Verify Signature locally via JWKS (<1ms)
+    Ingress->>AST: Validated tenant_id Claim
+    AST->>AST: Inject: WHERE tenant_id = '...'
+    AST->>Worker: Dispatch Hardened Query
+    Worker->>Worker: Azure Workload Identity Token Fetch
+    Worker->>Storage: Read Authorized Parquet Slices
+    Worker-->>Client: Deliver Verified Columnar Data
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Client Application
+    box rgb(240, 245, 250) Edge Security Layer
         participant Ingress as Ingress Gateway (Envoy / NGINX)
     end
-    box Identity Provider
+    box rgb(250, 245, 240) Identity Provider
         participant IdP as Identity Provider (Dremio / Entra ID)
     end
-    box Query Engine Fleet
+    box rgb(240, 250, 245) Query Engine Fleet
         participant SQLglot as SQLglot AST Orchestrator
         participant Worker as DuckDB Compute Worker (AKS)
     end
@@ -1905,6 +2308,7 @@ sequenceDiagram
 
     Ingress-->>Client: Deliver Verified Tenant Data
     deactivate Ingress
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1915,7 +2319,7 @@ sequenceDiagram
                     Explore the physical data flow architecture below, followed by the programmatic dual-protocol sequence trace.
                 </p>
 
-                <!-- ==================== RESTORED ORIGINAL WORKING ANIMATION EMBED ==================== -->
+                <!-- Restored Responsive Animation Embed (Fluid scaling on mobile without horizontal scrollbar) -->
                 <h3>Animated Enterprise Architecture Flow</h3>
 
                 <div class="sdg-wrap">
@@ -2044,7 +2448,7 @@ sequenceDiagram
                                 <rect x="22" y="196" width="96" height="56" rx="5"/>
                                 <text class="sdg-node-title" x="70" y="218">Flight Client</text>
                                 <text class="sdg-node-sub" x="70" y="232">Arrow Flight / gRPC</text>
-                                <text class="sdg-node-badge" x="70" y="243">Zero-Copy Stream</text>
+                                <text class="sdg-node-badge" x="70" y="243">Columnar Stream</text>
                             </g>
 
                             <g class="sdg-node" id="sdg-node-monitor">
@@ -2199,7 +2603,7 @@ sequenceDiagram
                                 <td>Implement Claim-Check pattern via Azure Blob; adopt push Pub/Sub.</td>
                             </tr>
                             <tr>
-                                <td><strong>Step I: Stateless Monoliths</strong><br>(&lt;50 Concurrent Load)</td>
+                                <td><strong>Step I: Stateless Monoliths</strong><br>(The 20-Query POC Heuristic)</td>
                                 <td>gRPC ticket payload size limits; connection timeouts.</td>
                                 <td>Raw SQL in Arrow Tickets can breach 8KB metadata limits; idle balancer drops.</td>
                                 <td>Compress &amp; HMAC-sign tickets; configure memory caps, disk spill, and HTTP/2 Keep-Alive.</td>
@@ -2262,7 +2666,7 @@ sequenceDiagram
         </footer>
     </div>
 
-    <!-- ==================== DEDICATED FULLSCREEN LIGHTBOX PORTAL ==================== -->
+    <!-- DEDICATED FULLSCREEN LIGHTBOX PORTAL -->
     <div id="diagram-modal" class="diagram-modal" role="dialog" aria-modal="true" aria-labelledby="diagram-modal-title">
         <div class="modal-toolbar">
             <h4 id="diagram-modal-title" class="modal-title">Architecture Sequence Flow</h4>
@@ -2282,7 +2686,7 @@ sequenceDiagram
         <div id="diagram-modal-body" class="modal-viewport"></div>
     </div>
 
-    <!-- ==================== EXACT ORIGINAL WORKING ANIMATION SIMULATION SCRIPT ==================== -->
+    <!-- EXACT ORIGINAL WORKING ANIMATION SIMULATION SCRIPT -->
     <script>
     (() => {
       'use strict';
@@ -2380,7 +2784,7 @@ sequenceDiagram
       const steps = [
         {
           label: 'REQUEST', phase: 'flow',
-          caption: 'Clients submit queries via REST (HTTP / async polling) or Arrow Flight (zero-copy gRPC streaming).',
+          caption: 'Clients submit queries via REST (HTTP / async polling) or Arrow Flight (low-copy gRPC streaming).',
           run: async (sig) => {
             highlight(['rest', 'flight', 'lb']);
             showFlow('rest'); showFlow('flight');
