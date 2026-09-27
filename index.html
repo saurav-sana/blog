@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- RSS Feed Autodiscovery -->
+    <link rel="alternate" type="application/rss+xml" title="Saurav Sana | Field Notes" href="feed.xml">
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
@@ -13,9 +17,108 @@
         gtag('js', new Date());
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
-    <title>Saurav Sana | Engineering Notes</title>
+    <title>Saurav Sana | Field Notes</title>
     <link rel="stylesheet" href="assets/css/blog-theme.css">
     <script src="assets/js/theme-toggle.js"></script>
+    <style>
+        /* Bio & Tone statement */
+        .site-bio {
+            margin: 1.5rem 0 2.5rem 0;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px dashed var(--border, #e5e5e5);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--muted, #666);
+        }
+
+        /* Section Accordions */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 0.85rem 0;
+            margin-top: 2.75rem;
+            border-bottom: 1px solid var(--border, #e5e5e5);
+            user-select: none;
+        }
+        .section-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .section-count {
+            font-size: 0.72rem;
+            font-family: 'IBM Plex Mono', monospace;
+            background: color-mix(in srgb, var(--border, #e5e5e5) 70%, transparent);
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+            font-weight: 400;
+            color: var(--muted, #666);
+        }
+        .section-subtitle {
+            font-size: 0.8rem;
+            color: var(--muted, #777);
+            font-style: italic;
+            margin: 0.5rem 0 1rem 0;
+        }
+        .section-header .chevron {
+            transition: transform 0.2s ease;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .section-header[aria-expanded="true"] .chevron {
+            transform: rotate(90deg);
+        }
+        .collapsible-content {
+            display: none;
+            padding-top: 0.5rem;
+        }
+        .collapsible-content.open {
+            display: block;
+        }
+
+        /* Badges & Tags */
+        .post-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.45rem;
+            border-radius: 3px;
+            letter-spacing: -0.01em;
+            display: inline-block;
+        }
+        .tag-series {
+            background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+            color: var(--accent, #3b82f6);
+            border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 30%, transparent);
+        }
+        .tag-upcoming {
+            background: color-mix(in srgb, #f59e0b 14%, transparent);
+            color: #d97706;
+            border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+        }
+        .tag-math {
+            background: color-mix(in srgb, #10b981 12%, transparent);
+            color: #059669;
+            border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
+        }
+
+        /* Post Items */
+        .post-item--upcoming .post-link-wrapper {
+            opacity: 0.95;
+        }
+        .post-link-wrapper {
+            position: relative;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        .post-link-wrapper:hover {
+            transform: translateX(3px);
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -29,7 +132,7 @@
             <nav class="site-nav" aria-label="Primary navigation">
                 <a href="index.html">Home</a>
                 <a href="index.html">Blog</a>
-                <a href="#">Tags</a>
+                <a href="feed.xml" target="_blank" rel="noopener noreferrer">RSS</a>
                 <a href="contact.html">Contact</a>
                 <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -37,7 +140,7 @@
                     </svg>
                     <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="12" cy="12" r="5"/>
-                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="2" x2="12" y2="3"/>
                         <line x1="12" y1="21" x2="12" y2="23"/>
                         <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
                         <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
@@ -50,35 +153,43 @@
             </nav>
         </header>
 
-        <main>
-            <ul class="post-list">
+        <!-- Tone Anchor Statement -->
+        <div class="site-bio">
+            Field notes on distributed systems, queueing physics, and enterprise software economics. Grounded in reality, skeptical of architectural dogma.
+        </div>
 
-                <!-- LIVE: Beyond the MPP Default (Part 1 Published) -->
+        <main>
+            <!-- ==================== PUBLISHED ==================== -->
+            <ul class="post-list" id="published-list">
+
+                <!-- LIVE: Beyond the MPP Default -->
                 <li class="post-item">
                     <a href="series/smart-data-gateway/index.html" class="post-link-wrapper"
-                       data-tooltip="Part 1 of an engineering series exploring how to bypass expensive distributed MPP clusters by designing a stateless, application-aware data gateway tailored for the 95% operational read path. — Published September 25, 2026">
+                       data-tooltip="Part 1 of an engineering series exploring how to bypass bloated distributed MPP clusters by designing a stateless, application-aware data gateway tailored for the 95% operational read path. — Published September 25, 2026">
                         <div class="post-content">
-                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.4em;">
+                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
                                 Beyond the MPP Default: Designing Data Gateway for the 95% Reality
-                                <span style="font-size:0.75em; font-weight:500; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:0.4em; font-style:normal;">Series </span>
+                                <span class="post-tag tag-series">Series</span>
+                                <span class="post-tag tag-math">Data Engineering</span>
                             </div>
-                            <p class="post-summary">An architectural blueprint for turning immutable lakehouses into interactive, zero-copy operational engines for web APIs and AI agents—without the enterprise licensing penalty.</p>
-                            <div class="post-meta">September 25, 2026</div>
+                            <p class="post-summary">An architectural blueprint for turning immutable lakehouses into interactive, zero-copy operational engines for web APIs and AI agents—without paying the enterprise licensing penalty.</p>
+                            <div class="post-meta">September 25, 2026 • Stateless System Architecture</div>
                         </div>
                         <div class="read-more-hover" aria-hidden="true">Read →</div>
                     </a>
                 </li>
 
-                <!-- LIVE: The $28,500 PDF Nobody Read? -->
+                <!-- LIVE: The $28,500 PDF -->
                 <li class="post-item">
                     <a href="single-posts/the-28500-dollar-pdf.html" class="post-link-wrapper"
                        data-tooltip="An empirical systems audit analyzing the opportunity cost of senior engineering hours, the PR Decay Model of signal attenuation, and why 85% of corporate thought leadership fails to impress enterprise buyers.">
                         <div class="post-content">
-                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.4em;">
+                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
                                 The $28,500 PDF Nobody Read?
+                                <span class="post-tag tag-math">Audit</span>
                             </div>
-                            <p class="post-summary">An empirical audit of corporate thought leadership, engineering opportunity costs, and signal attenuation.</p>
-                            <div class="post-meta">September 20, 2026</div>
+                            <p class="post-summary">An empirical audit of corporate thought leadership, senior engineering opportunity costs, and why your marketing whitepaper got zero qualified leads.</p>
+                            <div class="post-meta">September 20, 2026 • Engineering Economics</div>
                         </div>
                         <div class="read-more-hover" aria-hidden="true">Read →</div>
                     </a>
@@ -89,39 +200,135 @@
                     <a href="single-posts/the-flaw-of-sprint.html" class="post-link-wrapper"
                        data-tooltip="Corporate Scrum fails not from a lack of developer discipline, but from a fundamental denial of queueing physics. By pushing utilization to 100% and relying on deterministic story-point arithmetic, teams guarantee crippling wait times, bottleneck starvation, and inevitable sprint spillover.">
                         <div class="post-content">
-                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.4em;">
+                            <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
                                 The Flaw of Sprints
+                                <span class="post-tag tag-math">Corporate Sprints</span>
                             </div>
-                            <p class="post-summary">Why Scrum Masters need queueing math, not another certification.</p>
-                            <div class="post-meta">September 18, 2026 &bull; Updated September 20, 2026</div>
+                            <p class="post-summary">Why Scrum Masters need Kingman’s formula and queueing math, not another colored sticky note or two-day certification.</p>
+                            <div class="post-meta">September 18, 2026 (Updated Sep 20) • Queueing Physics</div>
                         </div>
                         <div class="read-more-hover" aria-hidden="true">Read →</div>
                     </a>
                 </li>
-
-                <!-- UPCOMING: The Shape of Failure -->
-                <li class="post-item post-item--upcoming" aria-label="Upcoming — not yet published">
-                    <div class="post-link-wrapper"
-                         role="article"
-                         tabindex="0"
-                         data-tooltip="Distributed cloud systems do not fail deterministically; they fail probabilistically. The Shape of Failure dismantles the illusion of predictable load and reveals the mathematical realities governing modern software architecture. From mapping statistical distributions directly to FinOps baselines, to mastering Kingman's queueing traps, retry storms, and extreme tail latencies, this series equips senior engineers with the stochastic physics required to stop guessing at capacity and start building mathematically resilient, multi-tenant systems. — Publishing October 9, 2026">
-                        <div class="post-content">
-                            <div class="post-title">
-                                The Shape of Failure
-                                <span style="font-size:0.75em; font-weight:500; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:0.4em; font-style:normal;">Series</span>
-                                <span class="upcoming-badge">Upcoming</span>
-                            </div>
-                            <p class="post-summary">An exploration of system degradation, mathematical reliability, and the reality of architectural limits.</p>
-                            <div class="post-meta">Publishing October 16, 2026</div>
-                        </div>
-                    </div>
-                </li>
-
             </ul>
+
+            <!-- ==================== UPCOMING ==================== -->
+            <div class="section-header" role="button" tabindex="0" aria-expanded="false" aria-controls="upcoming-content" id="upcoming-header">
+                <h2>
+                    Upcoming 
+                    <span class="section-count">7</span>
+                </h2>
+                <span class="chevron">▶</span>
+            </div>
+            <p class="section-subtitle">Upcoming posts will arrive if time permits—or significantly sooner if AI takes my job first.</p>
+            
+            <div class="collapsible-content" id="upcoming-content">
+                <ul class="post-list">
+
+                    <!-- Shape of Failure -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="Distributed cloud systems do not fail deterministically; they fail when three unrelated micro-timeouts align to summon cascading retries. An unvarnished look at queue degradation, extreme value theory, and why your multi-region failover script has never actually worked in production.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    The Shape of Failure: Why Your 99.99% SLA Is Mostly Creative Accounting
+                                    <span class="post-tag tag-series">Series</span>
+                                    <span class="post-tag tag-upcoming">October 2026</span>
+                                </div>
+                                <p class="post-summary">A mathematical post-mortem on why distributed systems don't degrade gracefully—they collapse in synchronized hysterics. Poisson arrival rates, cascade resonances, and the lie of five nines.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Inference Engine -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="We don't need another prompt wrapper; we need people who understand memory buses, NUMA nodes, continuous batching, and page alignment. A full-stack engineering teardown of building a bare-metal inference engine from hardware constraints up, without the VC mysticism.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    I Need an Engineer, Not an “AI Engineer”: Building an Open Inference Engine from Scratch
+                                    <span class="post-tag tag-upcoming">November 2026</span>
+                                </div>
+                                <p class="post-summary">Why “Just swap the model” is the most expensive sentence in modern IT. PCIe lane saturation, KV-cache memory bandwidth, custom schedulers, and zero-copy tokenization—the low-level systems work nobody wants to talk about.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Automation -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="Tracing the stubborn physics of automation from 1950s punch-card numerical control through modern LLM agents. An exploration of computability ceilings, Rice's theorem, and the iron law of enterprise software: whenever you automate a task, the cost of debugging edge cases eventually exceeds the salary of the person you replaced.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    The Mathematical Limits of Automation: 75 Years of Moving the Bottleneck
+                                    <span class="post-tag tag-upcoming">December 2026</span>
+                                </div>
+                                <p class="post-summary">How numerical control, cybernetics, and modern AI share the exact same fate: you don't eliminate human labor, you just concentrate all the risk into three panicked engineers at 3:00 AM.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Time -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="Every developer is an optimist until they discover two servers in the same rack disagreeing on what 'now' means by 42 milliseconds. A deep dive into crystal oscillator drift, TSO, Lamport timestamps, TrueTime hardware, and why relying on timestamps for transaction ordering is an invitation for silent data corruption.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    Time Is Not Free: Your Clocks Are Lying and Your Database Believes Them
+                                    <span class="post-tag tag-upcoming">January 2027</span>
+                                </div>
+                                <p class="post-summary">Most software treats wall-clock time like a friendly ambient utility instead of a hostile distributed consensus problem. Monotonic vs. wall time, NTP leap-second carnage, and causal illusions.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Real-time -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="Corporate product managers use 'real-time' to mean 'I want it fast enough that my boss doesn't ask questions.' Engineers use 'real-time' to mean deterministic sub-millisecond bounded jitter with zero GC pauses. This post dissects what happens when the two collide—and why 90% of real-time architectures are just very expensive ways to run SELECT * every 300ms.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    What Corporations Call “Real-Time” (And What It Actually Costs)
+                                    <span class="post-tag tag-upcoming">February 2027</span>
+                                </div>
+                                <p class="post-summary">Corporate roadmaps love the phrase “real-time.” Dissecting the gulf between PowerPoint expectations, kernel-level back-pressure, and the $500k event-driven cluster that could have been a cron job.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Inference Statistical Observability -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="Your Grafana dashboard is glowing green: 0.01% error rate, healthy CPU usage, and 200 OK across the board. Meanwhile, your production decode phase has collapsed into token repetition loops, your p99 Time-To-First-Token just spiked to 14 seconds due to KV-cache thrashing, and you just spent $800 answering a single query with hallucinated whitespace.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    Inference Statistical Observability: When 200 OK Just Means You Paid to Hallucinate Faster
+                                    <span class="post-tag tag-upcoming">March 2027</span>
+                                </div>
+                                <p class="post-summary">Traditional APM tracks HTTP status codes; LLM failure modes live in token entropy degradation, TTFT vs. ITL distribution bimodality, and KV-cache eviction cliffs. Why standard monitoring guarantees you won’t notice a failure until the cloud bill arrives.</p>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- Agent Alignment for Systems Engineers -->
+                    <li class="post-item post-item--upcoming">
+                        <div class="post-link-wrapper" role="article" tabindex="0"
+                             data-tooltip="AI ethicists write 90-page manifestos on benevolence and moral philosophy. Systems engineers have a simpler problem: how do I stop an autonomous agent loop from recursively executing DROP TABLE or maxing out an AWS line of credit at 4:00 AM? You don't need a PhD in cognitive science—you need POSIX permissions, deterministic state invariants, leased capability tokens, and sandbox walls.">
+                            <div class="post-content">
+                                <div class="post-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.5em;">
+                                    Agent “Alignment” for Systems Engineers: Blast Radius, Not Philosophy
+                                    <span class="post-tag tag-upcoming">April 2027</span>
+                                </div>
+                                <p class="post-summary">I don’t know AI theology, and neither does your infrastructure. An engineer’s guide to containing autonomous agents: strict state machine boundaries, finite execution budgets, capability leasing, and treating stochastic models like untrusted interns with bash access.</p>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </main>
 
         <footer class="site-footer">
-            <div>© 2026 Saurav Sana</div>
+            <div>© 2026 Saurav Sana • Hosted on static silicon</div>
             <div class="footer-links">
                 <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
                 <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
@@ -135,6 +342,7 @@
     <div class="tooltip-box" id="global-tooltip" aria-hidden="true"></div>
 
     <script>
+        // Tooltip positioning logic
         (function () {
             var tip = document.getElementById('global-tooltip');
             var currentTarget = null;
@@ -148,8 +356,11 @@
                 tip.classList.remove('visible');
                 var rect = el.getBoundingClientRect();
                 var tipLeft = rect.right + GAP;
-                var tipWidth = 260;
-                if (tipLeft + tipWidth > window.innerWidth - VIEWPORT_PADDING) return;
+                var tipWidth = 280;
+                if (tipLeft + tipWidth > window.innerWidth - VIEWPORT_PADDING) {
+                    tipLeft = rect.left - tipWidth - GAP;
+                    if (tipLeft < VIEWPORT_PADDING) tipLeft = VIEWPORT_PADDING;
+                }
                 tip.style.left = tipLeft + 'px';
                 tip.style.top = '-9999px';
                 tip.style.display = 'block';
@@ -180,7 +391,26 @@
             window.addEventListener('scroll', function () { if (currentTarget) showTip(currentTarget); }, { passive: true });
             window.addEventListener('resize', function () { if (currentTarget) showTip(currentTarget); else hideTip(); });
         })();
-    </script>
 
+        // Section Accordions
+        (function () {
+            function toggleSection(header) {
+                var expanded = header.getAttribute('aria-expanded') === 'true';
+                var content = document.getElementById(header.getAttribute('aria-controls'));
+                header.setAttribute('aria-expanded', !expanded);
+                content.classList.toggle('open', !expanded);
+            }
+
+            document.querySelectorAll('.section-header').forEach(function (header) {
+                header.addEventListener('click', function () { toggleSection(header); });
+                header.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleSection(header);
+                    }
+                });
+            });
+        })();
+    </script>
 </body>
 </html>
