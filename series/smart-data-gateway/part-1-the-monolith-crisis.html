@@ -811,6 +811,62 @@
                 <p>For years, our multi-tenant regulatory reporting platform ran on legacy OLTP databases. Without aggressive data purging, multi-tenant event data grew unchecked. Suboptimal indexing, rising volume, and heavy client search patterns eventually made the system both slow and expensive. UI response times collapsed, export pipelines timed out, and basic SLAs became aspirational.</p>
 
                 <p>To solve this, we executed the classic enterprise maneuver: a massive transformation project migrating our architecture from OLTP to a modern lakehouse. Real-time event streams were ingested continuously via Spark clusters directly into open table formats (Apache Iceberg), successfully achieving sub-200ms ingestion latency at the 95th percentile. On paper, it was a triumph. By centralizing everything into a single lakehouse, we completely bypassed the dreaded dual-store architecture—no more fragile CDC pipelines syncing operational data to analytical stores, and no more endless engineering tax of out-of-band reconciliation scripts trying to resolve data drift.</p>
+                 
+                <!-- =======================================================
+     TABLE FORMAT AGNOSTICISM & COMPARISON MATRIX
+     ======================================================= -->
+<div class="callout" style="margin: 2rem 0 1.5rem 0;">
+    <strong>Architecture Note: Table-Format Agnosticism &amp; Ingestion Drivers</strong>
+    <p style="margin: 0.5rem 0 0 0; font-size: 0.95rem; line-height: 1.6;">
+        While this series implements the gateway pattern using <strong>Apache Iceberg</strong>, the gateway design itself is <em>table-format agnostic</em>. The architecture requires only two runtime primitives: a metadata parser capable of resolving snapshot manifests into Parquet split locations, and an embedded vectorized compute engine (such as DuckDB) to execute queries over those files.
+    </p>
+    <p style="margin: 0.75rem 0 0 0; font-size: 0.95rem; line-height: 1.6;">
+        Our production platform committed to Iceberg specifically because of our ingestion profile: high-velocity regulatory event streams with massive append throughput and virtually zero in-place updates. For teams evaluating storage formats, the choice depends heavily on mutation patterns, catalog independence, and engine diversity:
+    </p>
+</div>
+
+<table class="mpp-table">
+    <thead>
+        <tr>
+            <th>Format</th>
+            <th>Primary Architecture Sweet Spot</th>
+            <th>Best-Fit Workload</th>
+            <th>Gateway / Embedded Serving Trade-Off</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <span class="engine-name">Apache Iceberg</span>
+                <span class="engine-type">Manifest Tree · Open Spec</span>
+            </td>
+            <td>Engine-neutral metadata architecture; hierarchical manifest tree separating catalog snapshots from physical files; seamless partition and schema evolution.</td>
+            <td><strong>High-throughput append-only event stores</strong>, analytical lakehouses queried concurrently by heterogeneous engines (Spark, Trino, Flink, DuckDB).</td>
+            <td>Lightweight REST catalog integration; hierarchical manifest lists allow single-node gateways to prune metadata in milliseconds without distributed workers.</td>
+        </tr>
+        <tr>
+            <td>
+                <span class="engine-name">Delta Lake</span>
+                <span class="engine-type">Transaction Log · Spark-Centric</span>
+            </td>
+            <td>ACID transaction log (Delta Log) with native Spark and Databricks runtime optimizations; Liquid Clustering; robust CDC merging.</td>
+            <td><strong>Spark/Databricks-first lakehouses</strong>, structured streaming pipelines, and environments needing uniform cross-format reading via UniForm.</td>
+            <td>Native embedded Rust and C++ reader kernels (Delta-RS) exist, but historical dependency on Spark-native extensions requires careful catalog synchronization.</td>
+        </tr>
+        <tr>
+            <td>
+                <span class="engine-name">Apache Hudi</span>
+                <span class="engine-type">Timeline Index · Streaming MoR</span>
+            </td>
+            <td>Record-level indexing (Bloom, HFile), granular Merge-on-Read (MoR), and commit timelines designed specifically for database CDC upsert streams.</td>
+            <td><strong>Frequent row-level mutations</strong>, high-churn CDC ingestion from operational OLTP databases, and incremental streaming consumption.</td>
+            <td>Heavier metadata complexity and runtime indexing overhead; resolving merge-on-read log deltas outside of dedicated JVM engines adds execution weight to lightweight gateways.</td>
+        </tr>
+    </tbody>
+</table>
+<!-- =======================================================
+     /TABLE FORMAT AGNOSTICISM & COMPARISON MATRIX
+     ======================================================= -->
 
                 <p><strong>Then the structural overhead of operational dashboards caught up with us.</strong></p>
 
