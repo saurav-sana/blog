@@ -1,0 +1,2406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Theme Initialization (Prevents FOUC) -->
+    <script>
+        (function() {
+            let stored = localStorage.getItem('theme');
+            if (!stored) {
+                stored = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', stored);
+        })();
+    </script>
+
+    <!-- Primary SEO Meta Tags -->
+    <title>Part 3: The Production Reality Check — Systems Architecture &amp; Mathematical Modeling | Saurav Sana</title>
+    <meta name="title" content="Part 3: The Production Reality Check — Systems Architecture &amp; Mathematical Modeling | Saurav Sana">
+    <meta name="description" content="Part 3: Blueprinting the Smart Data Gateway for production. Physical laws of scalability, architectural elasticity, tail-tolerance algorithms, availability mathematics, Azure FinOps, failure modeling, and SRE validation protocols.">
+    <meta name="keywords" content="Data Architecture, Systems Engineering, DuckDB, Arrow Flight, Iceberg, AKS, Envoy, Hedged Requests, Microsoft Entra ID, USL, Queueing Theory, TLA+, Formal Methods, SRE, Chaos Mesh, FinOps">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-3-the-production-reality-check.html">
+    <link rel="prev" href="part-2-architectural-evolution.html">
+    <link rel="next" href="part-4-primitives-theoretical-validation.html">
+
+    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-3-the-production-reality-check.html">
+    <meta property="og:title" content="Part 3: The Production Reality Check — Systems Architecture &amp; Mathematical Modeling | Saurav Sana">
+    <meta property="og:description" content="Physical laws of scalability, architectural elasticity, tail-tolerance algorithms, availability mathematics, Azure FinOps, failure modeling, and SRE test execution protocols.">
+    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/gateway-part3-preview.png">
+    <meta property="og:site_name" content="Saurav Sana | Field Notes">
+    <meta property="og:locale" content="en_US">
+    <meta property="article:author" content="Saurav Sana">
+    <meta property="article:published_time" content="2026-10-18">
+    <meta property="article:section" content="Data Engineering">
+
+    <!-- Twitter / X Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:creator" content="@sauravsana">
+    <meta name="twitter:title" content="Part 3: The Production Reality Check | Saurav Sana">
+    <meta name="twitter:description" content="Physical laws of scalability, architectural elasticity, tail-tolerance algorithms, availability mathematics, Azure FinOps, and SRE validation execution.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/gateway-part3-preview.png">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-3-the-production-reality-check.html#article",
+      "headline": "Part 3: The Production Reality Check: Engineering the Smart Data Gateway",
+      "description": "Physical Laws of Scalability, Hardware Limits, Architectural Elasticity, Tail-Tolerance, Entra ID Authentication, Availability Mathematics, Azure FinOps, SRE Validation Protocols, and the Bridge to Formal Verification.",
+      "author": {
+        "@type": "Person",
+        "name": "Saurav Sana",
+        "url": "https://sauravsana.github.io/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Saurav Sana | Field Notes",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://sauravsana.github.io/blog/assets/img/logo.png"
+        }
+      },
+      "datePublished": "2026-10-04",
+      "dateModified": "2026-10-04",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-3-the-production-reality-check.html"
+      }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800;900&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        /* =======================================================================
+           CORE BLOG TYPOGRAPHY & EXACT THEME SYSTEM
+           ======================================================================= */
+        :root {
+            /* Light Mode Variables (Warm paper/beige match) */
+            --bg: #efebe1;
+            --text: #111827;
+            --muted: #4b5563;
+            --muted-2: #6b7280;
+            
+            --panel: #e5e1d5;
+            --panel-2: #dcd8cc;
+            --line: #cfcbc0;
+            --line-soft: #e2ded4;
+            
+            --teal: #0f766e;
+            --amber: #b45309;
+            --danger: #b91c1c;
+            --success: #15803d;
+            
+            --code-bg: #e5e1d5;
+            --code-text: #111827;
+
+            --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-display: 'Libre Franklin', sans-serif;
+            --font-mono: 'IBM Plex Mono', Consolas, monospace;
+            --font-serif: 'IBM Plex Serif', Georgia, serif;
+        }
+
+        /* Dark Mode Variables (Deep navy/slate match) */
+        [data-theme="dark"] {
+            --bg: #0f1419;
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+            --muted-2: #6b7280;
+            
+            --panel: #1a202c;
+            --panel-2: #2d3748;
+            --line: #374151;
+            --line-soft: #1f2937;
+            
+            --teal: #2dd4bf;
+            --amber: #fbbf24;
+            --danger: #fca5a5;
+            --success: #6ee7b7;
+            
+            --code-bg: #050811;
+            --code-text: #e2e8f0;
+        }
+
+        /* Page Layout & Container Alignment */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 860px; margin-left: auto; margin-right: auto; }
+
+        .article {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        /* Toggle Icons */
+        .theme-toggle {
+            background: transparent;
+            border: none;
+            color: var(--amber);
+            padding: 0.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            margin-left: auto;
+        }
+        .theme-toggle:hover { color: var(--text); }
+        .theme-toggle .icon-moon { display: none; }
+        .theme-toggle .icon-bulb { display: block; }
+        
+        [data-theme="dark"] .theme-toggle .icon-bulb { display: none; }
+        [data-theme="dark"] .theme-toggle .icon-moon { display: block; color: var(--muted); }
+        [data-theme="dark"] .theme-toggle:hover .icon-moon { color: var(--text); }
+
+        /* Typography & Headers */
+        .byline {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--teal);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .meta-line {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .meta-line span { color: var(--muted-2); }
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.75rem;
+            line-height: 1.15;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin: 0.5rem 0 1rem;
+            color: var(--text);
+            word-break: break-word;
+        }
+        .deck {
+            font-family: var(--font-sans);
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.4;
+            margin-bottom: 2rem;
+            word-break: break-word;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 1.85rem;
+            margin-top: 4rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--line-soft);
+            color: var(--text);
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            word-break: break-word;
+        }
+        h3 {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            color: var(--text);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            word-break: break-word;
+        }
+        h4 {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--teal);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            font-weight: 700;
+            word-break: break-word;
+        }
+        p, li {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 1.5rem;
+            overflow-wrap: break-word;
+        }
+        ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+        strong { font-weight: 700; }
+        
+        .toc {
+            background: var(--panel);
+            padding: 1.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            margin: 3rem 0;
+            max-width: 100%;
+        }
+        .toc-title {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--muted-2);
+            letter-spacing: 0.08em;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc li { margin-bottom: 0.5rem; font-size: 1rem; }
+        .toc a {
+            color: var(--teal);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .toc a:hover { text-decoration: underline; }
+
+        .callout {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--teal);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2.5rem 0;
+            font-size: 1.05rem;
+            color: var(--text);
+            max-width: 100%;
+        }
+        .callout strong { color: var(--teal); font-family: var(--font-display); font-weight: 700; }
+        .callout.warning { border-left-color: var(--amber); }
+        .callout.warning strong { color: var(--amber); }
+
+        /* Tables & Horizontal Containers */
+        .table-container {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            margin: 2.5rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            -webkit-overflow-scrolling: touch;
+        }
+        .mpp-table {
+            width: 100%;
+            min-width: 580px;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            text-align: left;
+        }
+        .mpp-table th, .mpp-table td {
+            padding: 1.15rem 1.25rem;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+            color: var(--text);
+        }
+        .mpp-table th {
+            background: var(--panel-2);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--teal);
+            font-weight: 700;
+        }
+        .mpp-table tr:last-child td { border-bottom: none; }
+        .mpp-table tr:hover td { background: var(--panel-2); }
+
+        /* Code Blocks */
+        pre, code {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+        }
+        code {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+        p code, li code {
+            background: var(--panel);
+            color: var(--teal);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            border: 1px solid var(--line);
+        }
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.25rem 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            max-width: 100%;
+            margin: 2rem 0;
+            line-height: 1.6;
+            border: 1px solid var(--line);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Architecture Grids */
+        .arch-diagram {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 1.75rem;
+            margin: 3rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-width: 100%;
+        }
+        .arch-tier {
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            position: relative;
+            min-width: 0;
+        }
+        .arch-tier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .arch-tier-title {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--teal);
+        }
+        .arch-badge {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background: var(--panel);
+            border: 1px solid var(--teal);
+            color: var(--teal);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .arch-badge.amber { border-color: var(--amber); color: var(--amber); }
+        .arch-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+        .arch-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+        
+        .arch-card {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            min-width: 0;
+        }
+        .arch-card-name {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text);
+            word-break: break-word;
+        }
+        .arch-card-desc {
+            font-size: 0.9rem;
+            color: var(--muted);
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .arch-card-meta {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--amber);
+            margin-top: 0.3rem;
+            font-weight: 600;
+        }
+        .arch-arrow-down {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--muted);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            gap: 0.5rem;
+            margin: -0.5rem 0;
+            text-align: center;
+            flex-wrap: wrap;
+        }
+
+        /* SRE Blocks */
+        .sre-test-block {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--teal);
+            border-radius: 8px;
+            padding: 1.75rem;
+            margin: 2.5rem 0;
+            max-width: 100%;
+        }
+        .sre-test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 0.75rem;
+        }
+        .sre-test-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+            margin: 0;
+        }
+        .sre-test-badge {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--teal);
+            background: var(--panel-2);
+            border: 1px solid var(--teal);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+        }
+        .sre-field {
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--text);
+            word-break: break-word;
+        }
+        .sre-field:last-child { margin-bottom: 0; }
+        .sre-label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--amber);
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        /* Interactive Sim Cards */
+        .sim-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.75rem;
+            margin: 3rem 0;
+            max-width: 100%;
+        }
+        .sim-header { margin-bottom: 1.5rem; }
+        .sim-header h3 { margin: 0 0 0.5rem 0; font-size: 1.25rem; color: var(--text); }
+        .sim-header p { font-size: 0.95rem; color: var(--muted); margin: 0; line-height: 1.5; }
+        .sim-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 1.25rem;
+            background: var(--bg);
+            padding: 1.25rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--line);
+        }
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--text);
+            min-width: 0;
+        }
+        .control-item span { color: var(--teal); }
+        .control-item input[type=range] { width: 100%; cursor: pointer; accent-color: var(--teal); touch-action: manipulation; }
+        
+        .sim-canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            background: var(--code-bg);
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            padding-top: 1rem;
+        }
+        canvas { display: block; width: 100%; height: 340px; }
+        
+        .chart-legend {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 1rem;
+        }
+        .chart-legend .swatch {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: -1px;
+        }
+        
+        .sim-readout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+            font-family: var(--font-mono);
+        }
+        .readout-box {
+            background: var(--bg);
+            padding: 0.85rem;
+            border-radius: 6px;
+            border: 1px solid var(--line);
+            text-align: center;
+            min-width: 0;
+        }
+        .readout-box div:first-child { color: var(--muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .readout-val { font-size: 1.25rem; font-weight: 700; color: var(--teal); margin-top: 0.3rem; word-break: break-all; }
+
+        /* Footer */
+        .site-footer {
+            margin-top: 5rem;
+            padding: 2rem 0;
+            border-top: 1px solid var(--line-soft);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+            font-family: var(--font-sans);
+            font-weight: 500;
+            width: 100%;
+        }
+        .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .footer-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+        .footer-links a:hover { color: var(--teal); }
+        
+        .reading-progress {
+            position: fixed;
+            top: 0; left: 0;
+            height: 4px;
+            width: 0%;
+            background: var(--teal);
+            z-index: 9998;
+            transition: width 100ms linear;
+        }
+
+        /* KaTeX Overflow Boundaries */
+        .katex-display {
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            max-width: 100% !important;
+            padding: 0.5rem 0 !important;
+            margin: 1.25rem 0 !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        .katex {
+            max-width: 100%;
+        }
+
+        /* =======================================================================
+           MOBILE RESPONSIVE OVERRIDES
+           ======================================================================= */
+        @media (max-width: 768px) {
+            h1 { font-size: 2.15rem !important; }
+            .deck { font-size: 1.15rem; }
+            h2 { font-size: 1.55rem; margin-top: 3rem; }
+            h3 { font-size: 1.25rem; }
+
+            .arch-grid-2, .arch-grid-3 { 
+                grid-template-columns: minmax(0, 1fr) !important; 
+            }
+            
+            .sim-controls {
+                grid-template-columns: minmax(0, 1fr) !important;
+                padding: 1rem;
+                gap: 1rem;
+            }
+            
+            .sim-readout {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0.6rem;
+            }
+
+            .readout-box {
+                padding: 0.65rem 0.5rem;
+            }
+
+            .readout-val {
+                font-size: 1.1rem;
+            }
+
+            .mpp-table th, .mpp-table td {
+                padding: 0.75rem 0.6rem;
+                font-size: 0.85rem;
+            }
+
+            .arch-diagram { padding: 1.15rem; }
+            .arch-tier { padding: 1rem; }
+            .sim-card { padding: 1.15rem; }
+            .sre-test-block { padding: 1.15rem; }
+            .toc { padding: 1.25rem 1rem; }
+            pre { padding: 1rem; }
+
+            .site-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="reading-progress" id="reading-progress" aria-hidden="true"></div>
+
+<div class="container">
+
+<!-- Global Header -->
+<header class="site-header">
+    <a href="../../index.html" class="site-title">
+        <span class="site-title__badge">SS</span>
+        <span>Saurav Sana | Field Notes</span>
+    </a>
+
+    <nav class="site-nav">
+        <a href="../../index.html">Home</a>
+        <a href="../../index.html#blog">Blog</a>
+        <a href="index.html" style="color:var(--teal); font-weight:600;">Series</a>
+        <a href="../../contact.html">Contact</a>
+        <button class="theme-toggle" id="theme-btn" aria-label="Toggle light/dark theme" title="Toggle theme">
+            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+            <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+    </nav>
+</header>
+
+<main>
+    <article class="article">
+
+        <!-- Back Navigation -->
+        <div style="margin-bottom: 1rem;">
+            <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Back to Series Index</a>
+        </div>
+
+        <div class="byline">PART 3 · DATA ENGINEERING &amp; ARCHITECTURE</div>
+        <h1>The Production Reality Check</h1>
+        <p class="deck">Elasticity, tail-tolerance, identity hardening, availability mathematics, Azure FinOps, and SRE validation protocols.</p>
+        
+        <div class="meta-line">October 4, 2026</div>
+
+        <blockquote class="epigraph">
+            <p>
+                “Everyone has a plan until they get punched in the mouth”
+            </p>
+            <footer>
+                —<strong> Mike Tyson </strong>, <cite>(In enterprise data architecture, that punch arrives precisely at 09:00:02 AM on Day 2 in Production.)</cite>
+            </footer>
+        </blockquote>
+
+        <p>Let us confront the engineering elephant standing squarely in the middle of our architectural review room.</p>
+
+        <p>In Parts 1 and 2 of this series, we demonstrated why operational workloads—the high-concurrency UI grids, trade reconciliations, and autonomous AI agents—suffer under distributed cluster coordination taxes. We established the conceptual blueprint for a stateless edge gateway powered by embedded vectorized C++ engines (DuckDB), Arrow Flight streaming, and local NVMe proxy caching.</p>
+
+        <p>Inevitably, the immediate reaction from an enthusiastic engineering team is:<br>
+        <em>"Brilliant! The Proof of Concept returned a query in 12 milliseconds! Let’s ship this container directly to production on Friday afternoon!"</em></p>
+
+        <p>This is what seasoned systems architects call the <strong>"PoC Euphoria" Trap</strong>. On a quiet Tuesday afternoon, a developer runs a benchmark script against an isolated, perfectly clean dataset. There are zero concurrent users. There is no network packet loss. There are no rogue background jobs stealing CPU cycles. The query completes in 15 milliseconds. Confetti falls. Highly optimistic PowerPoint slides are immediately sent to leadership.</p>
+
+        <p>But there is a universal, unforgiving law in distributed systems engineering: <strong>A Proof of Concept only tests the happy path.</strong></p>
+
+        <p>Then comes Day 2 in enterprise production:</p>
+        <ul>
+            <li>An Azure availability zone suffers an unannounced power transient.</li>
+            <li>Three concurrent tenants submit malformed cross-joins that attempt to swallow 80 GB of worker RAM.</li>
+            <li>An upstream PySpark ETL job micro-batches fresh Iceberg snapshots every 30 seconds while an un-hedged NVMe PCIe controller stalls for 400 milliseconds.</li>
+        </ul>
+
+        <p>If your architecture only works when everything is perfect, <strong>you do not have an architecture; you have a pet project.</strong></p>
+
+        <div class="callout">
+            <strong>Blueprint Scope: Empirical Models vs. Formal Validation</strong><br>
+            In this part, we establish the structural, security, and mathematical blueprint for the gateway using <strong>empirical models and stochastic simulations</strong>. The numerical projections below—latency percentiles, MTTR, and availability formulations—represent theoretical baseline outputs that are yet to be validated by live SRE load testing and chaos drills.<br><br>
+            Furthermore, while empirical models and load tests ensure physical scaling viability, they cannot guarantee the absence of logical distributed flaws. In <strong>Part 4</strong>, we will explore distributed primitives and <strong>formal validation</strong> to mathematically prove the system safety guarantees that empirical simulations simply cannot.
+        </div>
+
+        <!-- Table of Contents -->
+        <nav class="toc">
+            <div class="toc-title">ON THIS PAGE</div>
+            <ol>
+                <li><a href="#s1"> The Laws of Systems Physics &amp; Hardware Correctness</a></li>
+                <li><a href="#s2"> When MPP Actually Wins (The Scaling Horizon)</a></li>
+                <li><a href="#s3"> Stochastic Bounding: Validation Without Production Data</a></li>
+                <li><a href="#s4"> Architectural Elasticity &amp; Robustness Topology</a></li>
+                <li><a href="#s5"> Tail-Tolerant Systems Engineering &amp; Authentication Architecture</a></li>
+                <li><a href="#s6"> Availability Mathematics, SLA Commitments &amp; FMEA</a></li>
+                <li><a href="#s7"> Latency Engineering &amp; Workload Profiling</a></li>
+                <li><a href="#s8"> Azure Hardware Sizing &amp; FinOps Analysis</a></li>
+                <li><a href="#s9"> Stochastic Performance Modeling: Systems Physics &amp; Proofs</a></li>
+                <li><a href="#s10"> The SRE Validation Framework &amp; Acceptance Criteria</a></li>
+                <li><a href="#s11"> What Analytical Models Can &amp; Cannot Prove (The Formal Methods Bridge)</a></li>
+            </ol>
+        </nav>
+
+        <!-- SECTION 1 -->
+        <h2 id="s1">1. The Laws of Systems Physics &amp; Hardware Correctness</h2>
+        <p>
+            Software architecture is ultimately governed by the laws of distributed systems physics. When an organization forces small, highly concurrent operational queries through a distributed MPP cluster, it violates fundamental mathematical laws.
+        </p>
+
+        <h3>Law 1: The Universal Scalability Law (USL) — Eliminating Coherency Crosstalk (\(\beta\))</h3>
+        <p>
+            <strong>Universal Scalability Law (Dr. Neil J. Gunther):</strong> Throughput capacity \(C(N)\) across \(N\) nodes is penalized by two physical factors: concurrency contention \(\alpha\) (queuing for shared resources) and coherency delay \(\beta\) (the inter-node chatter required to maintain distributed consistency).
+        </p>
+        <div class="katex-display">
+            \[C(N) = \frac{N}{1 + \alpha(N-1) + \beta N(N-1)}\]
+        </div>
+        <ul>
+            <li><strong>MPP Failure Mode:</strong> In a distributed cluster, cross-node data shuffles and metadata synchronization grow quadratically (\(\beta N(N-1)\)). Beyond the critical threshold \(N_{\text{crit}} = \sqrt{(1-\alpha)/\beta}\), adding nodes actually <em>degrades</em> system throughput.</li>
+            <li><strong>Gateway Advantage:</strong> A stateless gateway executing locally against NVMe blocks has zero cross-node coherency chatter: <strong>\(\beta = 0\)</strong>. The scalability curve remains perfectly linear.</li>
+        </ul>
+
+        <h3>Law 2: Amdahl’s Law — Shrinking the Serial Coordination Fraction (\(1 - p\))</h3>
+        <p>
+            <strong>Amdahl’s Law (Gene Amdahl, 1967):</strong> The maximum parallel speedup of a system is bounded by the fraction of the algorithm that is strictly serial \((1 - p)\).
+        </p>
+        <div class="katex-display">
+            \[\text{Speedup} = \frac{1}{(1 - p) + \frac{p}{N}}\]
+        </div>
+        <ul>
+            <li><strong>MPP Failure Mode:</strong> Distributed engines require global query planning, Calcite AST compilation, distributed lock allocation, and coordinator result aggregation. This keeps the serial fraction \((1 - p)\) high, imposing a hard speed ceiling.</li>
+            <li><strong>Gateway Advantage:</strong> By shifting execution to self-contained workers reading immutable storage directly, cluster coordination steps are eliminated, maximizing hardware speedup.</li>
+        </ul>
+
+        <h3>Law 3: Little’s Law — Preventing In-Flight Backlog Collapse</h3>
+        <p>
+            <strong>Little’s Law (John Little, 1961):</strong> In any stable queueing system, the number of concurrent requests in flight (\(N\)) equals the arrival rate (\(X\)) multiplied by the average response time (\(R\)).
+        </p>
+        <div class="katex-display">
+            \[N = X \times R\]
+        </div>
+        <ul>
+            <li><strong>MPP Failure Mode:</strong> Under multi-tenant concurrency, network shuffles cause response time \(R\) to spike. By Little's Law, as \(R\) climbs, the in-flight backlog \(N\) explodes exponentially, exhausting thread pools and causing timeouts.</li>
+            <li><strong>Gateway Advantage:</strong> Local NVMe caching keeps response time \(R\) minimal (\(\le 50\text{ms}\)). In-flight backlog \(N\) stays suppressed, keeping the gateway resilient during traffic surges.</li>
+        </ul>
+
+        <h3>Law 4: Kingman’s Formula — Decapitating Variance Explosion</h3>
+        <p>
+            <strong>Kingman’s Heavy-Traffic Approximation (John Kingman, 1961):</strong> Average queue wait time \(W_q\) grows non-linearly with server utilization \(\rho\) and is driven directly by the sum of arrival variance \(c_a^2\) and service time variance \(c_s^2\).
+        </p>
+        <div class="katex-display">
+            \[W_q \approx \left( \frac{c_a^2 + c_s^2}{2} \right) \left( \frac{\rho}{1 - \rho} \right) \tau\]
+        </div>
+        <ul>
+            <li><strong>MPP Failure Mode:</strong> Distributed queries are bound entirely by the slowest straggler node. Network jitter compounds across nodes, wildly inflating service variance \(c_s^2\). As cluster utilization \(\rho\) approaches 80%, queue wait times explode.</li>
+            <li><strong>Gateway Advantage:</strong> Single-node embedded engines eliminate multi-node stragglers. Suppressing service variance (\(c_s^2 \to 0\)) keeps queue wait times near zero.</li>
+        </ul>
+        
+        <h3>Law 5: The Roofline Model — Bypassing the Network Bandwidth Ceiling</h3>
+        <p>
+            MPP clusters push intermediate tables across network fabrics during distributed shuffles. Because 25Gbps network bandwidth (3.1 GB/s) is orders of magnitude slower than local memory buses (100+ GB/s), queries instantly hit the network ceiling, leaving multi-core CPUs starved. Local execution reads NVMe drives directly via HTTP range requests at PCIe speeds. Memory bus throughput becomes the governing bound.
+        </p>
+
+        <h3>Law 6: Jim Gray’s Law of Balanced I/O &amp; Compute</h3>
+        <p>
+            Jim Gray stated: <em>"A byte of memory is worth a CPU instruction."</em> Moving data across physical network switches violates this, forcing expensive serialization taxes. The gateway keeps compute co-located with local memory and NVMe channels, minimizing instructions executed per byte transferred.
+        </p>
+
+        <h3>Law 7: The PACELC Theorem — Eliminating Distributed State Latency</h3>
+        <p>
+            Distributed engines trade latency during normal execution (\(E\)) to maintain distributed consensus, locks, and multi-node transaction state (a PC/EC system). By executing decoupled compute over immutable object storage (Apache Iceberg) with atomic snapshot manifests, the gateway completely avoids the "Else-Consistency" latency tax.
+        </p>
+
+        <!-- SECTION 2 -->
+        <h2 id="s2">2. When MPP Actually Wins (The Scaling Horizon)</h2>
+        <p>
+            An architect who claims one architecture solves 100% of use cases is selling snake oil. When query scan sizes cross terabyte boundaries, the economics and physics invert decisively in favor of distributed MPP clusters.
+        </p>
+
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Governing Law</th>
+                        <th>MPP Cluster Advantage (Heavy Scale)</th>
+                        <th>Single-Node Gateway Limit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong>Gustafson’s Law (Weak Scaling)</strong>
+                        </td>
+                        <td>A 50 TB scan across 50 nodes leaves 1 TB per node. Parallel efficiency is preserved as data volume and node counts scale together.</td>
+                        <td>A single worker cannot scale its physical hardware. Execution eventually collapses into serialized disk-spill processing.</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Amdahl’s Memory Wall</strong>
+                        </td>
+                        <td>Distributed MPP engines pool terabytes of memory across 64 nodes, keeping massive multi-table hash joins entirely in RAM.</td>
+                        <td>When working set sizes exceed physical host RAM (e.g., &gt; 14 GiB), DuckDB is forced to spill to NVMe scratch disk.</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Aggregate Parallel I/O</strong>
+                        </td>
+                        <td>Sixteen nodes pool memory buses and network NICs, achieving 100+ GB/s aggregate throughput to chew through unpartitioned data.</td>
+                        <td>A single node's I/O bus caps at physical PCIe and NIC limits (~7 to 15 GB/s), regardless of software optimization.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 3 -->
+        <h2 id="s3">3. Stochastic Bounding: Validation Without Production Data</h2>
+        
+        <p>
+            Before writing a single line of application code, we evaluated whether the architecture would physically survive production workloads. Unlike conventional enterprise testing—often summarized as <em>"deploy on Friday, update your resume on Saturday"</em>—we established mathematical operating boundaries using six stochastic models in simulation. We used <strong>Monte Carlo simulations</strong> to confirm that hedged requests at the Envoy edge cap P99 scatter-gather tail latencies under storage read skew; <strong>\(M/M/c/K\) queueing models</strong> with Poisson arrivals to verify that the Redis admission queue buffers traffic bursts without overflow during the 90-second KEDA pod-boot window; and <strong>Universal Scalability Law curve-fitting</strong> to identify the concurrency threshold where worker expansion hits network saturation. Complementing this, a <strong>four-state Markov chain</strong> (Warm, Hot, Evicting, Thrashing) proved our NVMe cache sizing keeps thrashing probability below 1%, a <strong>10,000-iteration probabilistic FinOps model</strong> bounded cloud egress and compute costs under random traffic spikes, and <strong>Weibull failure distributions</strong> verified that our multi-zone redundancy satisfies our 99.90% availability commitment.
+        </p>
+
+        <!-- SECTION 4 -->
+        <h2 id="s4">4. Architectural Elasticity &amp; Robustness Topology</h2>
+
+        <p>The core principle of the Smart Data Gateway is the <strong>physical decoupling of stateless vectorized compute from the caching substrate</strong>. By routing internal storage requests through an in-cluster consistent hash ring before reaching the caching proxy tier, byte-range requests are deduplicated and pinned directly to ephemeral NVMe drives.</p>
+
+        <p><strong>The Purpose of this Topology:</strong> The block diagram below translates our conceptual design into a physical, production-ready deployment model. It traces the exact execution path of a query: originating from internal VNet clients, passing securely through private North-South ingress, distributing across stateless DuckDB workers, and intelligently routing to the isolated NVMe cache tier via Envoy. This strict physical tiering guarantees that compute scaling, cache warming, and metadata resolution can all fail or scale independently without triggering cascading system outages.</p>
+
+        <div class="callout">
+            <strong>Cloud Agnosticism Note</strong><br>
+            Our reference implementation is deployed on Microsoft Azure, utilizing Azure Kubernetes Service (AKS), ADLS Gen2, and Azure Managed Redis. However, the systems engineering mathematics, tail-tolerance algorithms, and structural analysis performed in this blueprint are entirely cloud-agnostic. This exact topology maps identically to AWS (EKS, S3, Amazon ElastiCache) or GCP (GKE, Cloud Storage, Cloud Memorystore) by swapping the underlying managed infrastructure primitives.
+        </div>
+
+        <!-- RESPONSIVE ARCHITECTURE TOPOLOGY CARD -->
+        <div class="arch-diagram">
+            <!-- TIER 1: GLOBAL TRAFFIC -->
+            <div class="arch-tier">
+                <div class="arch-tier-header">
+                    <span class="arch-tier-title">Tier 1 · Internal Application &amp; Private Routing</span>
+                    <span class="arch-badge">Active / Passive (Pilot Light)</span>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-card-name">VNet Clients &amp; Azure Load Balancer</div>
+                    <div class="arch-card-desc">Analytic clients executing securely within the corporate VNet (AKS/VMs). Azure Load Balancer routes exclusively internal traffic to the primary region, with automated failover to the DR Pilot Light region. <strong>Strictly no public internet exposure.</strong></div>
+                </div>
+            </div>
+
+            <div class="arch-arrow-down">▼ Private Internal HTTPS / gRPC Arrow Flight Ingress ▼</div>
+
+            <!-- TIER 2: PRIMARY REGION AKS FABRIC -->
+            <div class="arch-tier">
+                <div class="arch-tier-header">
+                    <span class="arch-tier-title">Tier 2 · Primary Region Gateway Platform (AKS Multi-Zone)</span>
+                    <span class="arch-badge">Zones 1, 2, 3</span>
+                </div>
+
+                <div class="arch-grid-2" style="margin-bottom:1rem;">
+                    <div class="arch-card">
+                        <div class="arch-card-name">North-South Ingress (Envoy / AGFC)</div>
+                        <div class="arch-card-desc">Internal-only multi-zone ingress data plane terminating private TLS and balancing incoming HTTP/2 gRPC Arrow Flight streams.</div>
+                        <div class="arch-card-meta">SLA: 99.99% · AZ 1, 2, 3</div>
+                    </div>
+                    <div class="arch-card">
+                        <div class="arch-card-name">Gateway API Controller Tier</div>
+                        <div class="arch-card-desc">2 Replicas (1 Active Leader + 1 Warm Standby) synchronized via Kubernetes Lease API locks (3–5s failover) for admission control.</div>
+                        <div class="arch-card-meta">Lease Duration: 5s · Renew: 3s</div>
+                    </div>
+                </div>
+
+                <div class="arch-grid-3">
+                    <div class="arch-card">
+                        <div class="arch-card-name">Azure Managed Redis</div>
+                        <div class="arch-card-desc">Asynchronous query queue and claim-check broker for long-running exports and catalog version tokens.</div>
+                        <div class="arch-card-meta">State &amp; Admission Broker</div>
+                    </div>
+                    <div class="arch-card">
+                        <div class="arch-card-name">Flight Workers (DuckDB)</div>
+                        <div class="arch-card-desc">Stateless vectorized C++ engines executing in-process Arrow RecordBatches. Auto-scales from 3 to 10 pods via HPA.</div>
+                        <div class="arch-card-meta">HPA: Queue Depth + &gt; 80% CPU/Mem</div>
+                    </div>
+                    <div class="arch-card">
+                        <div class="arch-card-name">East-West Routing (Envoy)</div>
+                        <div class="arch-card-desc">In-cluster Envoy proxy managing node-to-node Maglev consistent hashing, P2C stream balancing, and hedged requests.</div>
+                        <div class="arch-card-meta">Maglev Factor: 1.25</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:1rem;" class="arch-grid-2">
+                    <div class="arch-card">
+                        <div class="arch-card-name">3x NGINX Cache Proxies</div>
+                        <div class="arch-card-desc">Local PCIe ephemeral NVMe storage holding Parquet slices with Linux <code>sendfile()</code> and RAM <code>tmpfs</code> manifest caches.</div>
+                        <div class="arch-card-meta">Sub-0.1ms Local Read Latency</div>
+                    </div>
+                    <div class="arch-card">
+                        <div class="arch-card-name">Metadata Catalog Quorum</div>
+                        <div class="arch-card-desc">3 catalog replicas pinned across independent AZs resolving Iceberg manifests and snapshot versions.</div>
+                        <div class="arch-card-meta">Raft Quorum · AZ Resilient</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="arch-arrow-down">▼ Asynchronous Re-hydration / Block-Range Cache Misses ▼</div>
+
+            <!-- TIER 3: STORAGE -->
+            <div class="arch-tier">
+                <div class="arch-tier-header">
+                    <span class="arch-tier-title">Tier 3 · Object Storage Substrate (ADLS Gen2)</span>
+                    <span class="arch-badge">RA-GZRS Resilient</span>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-card-name">Azure Data Lake Storage Gen2 (Primary: ZRS ──► Secondary: Read-Only GZRS)</div>
+                    <div class="arch-card-desc">Synchronously replicated across 3 local zones with asynchronous cross-region geo-replication (RPO &le; 15 min).</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5 -->
+        <h2 id="s5">5. Tail-Tolerant Systems Engineering &amp; Authentication Architecture</h2>
+
+        <p>To eliminate tail latency across a platform executing high-frequency regulatory queries and scatter-gather fetches, the routing layer must separate long-lived streaming connections from microsecond local cache fetches.</p>
+
+        <h3>A. Load Balancer Layer: Arrow Flight (gRPC) to DuckDB Workers</h3>
+        <p>While standard Round Robin perfectly distributes request <em>counts</em>, it blindly assumes all queries take equal time. In reality, a heavy 1-month data aggregation stream will pin a DuckDB worker indefinitely while millisecond point-queries cycle rapidly. Round Robin carelessly routes new traffic into these blocked queues, creating severe hot spots.</p>
+
+        <h4>Algorithm: Power of Two Random Choices (P2C)</h4>
+        <p>Envoy’s <code>LEAST_REQUEST</code> implements the <strong>Power of Two Random Choices (P2C)</strong> algorithm. Instead of scanning all nodes to find the absolute least loaded (which requires an expensive \(\mathcal{O}(N)\) global lock and causes "thundering herd" bottlenecks), Envoy selects exactly <em>two</em> random healthy DuckDB worker pods and routes the connection to the one with fewer active requests.</p>
+        
+        <p>Mathematically, if we distribute \(N\) requests across \(N\) worker nodes using purely random routing, the maximum queue depth on the most overloaded node grows as \(\mathcal{O}\left(\frac{\ln N}{\ln \ln N}\right)\). However, by simply picking two random nodes and choosing the lesser loaded, the maximum queue depth drops exponentially to \(\mathcal{O}\left(\frac{\ln \ln N}{\ln 2}\right)\). This elegant probability bounds our worker imbalance to near-perfect uniformity with only an \(\mathcal{O}(1)\) lookup cost.</p>
+
+        <h4>Critical gRPC Tail-Tolerance Configurations</h4>
+        <ul>
+            <li><code>max_requests_per_connection</code>: Clamped to <strong>1,000 requests</strong> to force periodic re-connection, dynamically redistributing load across pods as HPA scales out.</li>
+            <li><strong>Circuit Breaking:</strong> Strict pending request ceilings return immediate <code>HTTP 503</code>, triggering client-side exponential backoff rather than holding deadlocked sockets.</li>
+            <li><strong>Connection Lifecycle:</strong> Enforces <code>MAX_CONNECTION_AGE</code> (30 min) to trigger graceful <code>GOAWAY</code> handshakes while active streams finish safely.</li>
+        </ul>
+
+        <!-- SUBSECTION: ENTRA ID INTEGRATION -->
+        <h3>B. Identity &amp; Authentication Architecture: Microsoft Entra ID Integration</h3>
+        <p>When user authentication is enforced at the gateway boundary via <strong>Microsoft Entra ID</strong> (OAuth 2.0 / OpenID Connect JWT tokens), three critical architectural dimensions must be analyzed:</p>
+
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Architectural Vector</th>
+                        <th>Entra ID Execution Model</th>
+                        <th>Impact on Data Gateway Analysis</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Handshake Latency</strong></td>
+                        <td>Stateless local JWKS signature validation (RS256).</td>
+                        <td><strong>Negligible (\(+0.08\text{ms}\) to \(0.15\text{ms}\)).</strong> In-process cryptographic verification against cached public keys adds sub-millisecond CPU overhead during initial gRPC handshakes, preserving our 30ms P50 SLA.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Availability &amp; Error Budget</strong></td>
+                        <td>Cached signing keys with background refresh.</td>
+                        <td><strong>Preserves 99.90% SLA.</strong> Caching JWKS public keys with an in-memory TTL prevents gateway outages during transient Entra ID control-plane outages. Synchronous remote token introspection is strictly forbidden.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tenant Isolation Guarantee</strong></td>
+                        <td>Cryptographic token claim extraction (<code>tid</code>, <code>roles</code>).</td>
+                        <td><strong>Hardened Security Binding.</strong> The verified token claim provides the cryptographic tenant identity passed to the SQLglot AST sanitizer, eliminating header-spoofing risks.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout warning">
+            <strong>Architectural Rule on Entra ID Token Introspection:</strong><br>
+            Under no circumstances should the gateway invoke synchronous remote token introspection endpoints on the query critical path. Doing so introduces an external network dependency of <strong>40ms to 180ms per query</strong> and directly caps the gateway's SLA to external identity endpoint availability. The gateway must validate signatures locally against pre-cached JWKS certificates.
+        </div>
+
+        <h3>C. AST Query Sanitizer &amp; Tenant Guardrails (SQLglot)</h3>
+        <p>In a multi-tenant gateway, raw SQL can never be dispatched directly to storage. All client queries pass through an in-memory <strong>Abstract Syntax Tree (AST) Sanitizer</strong> built on SQLglot:</p>
+        <ul>
+            <li><strong>Grammar Enforcement:</strong> Rejects non-<code>SELECT</code> operations (dropping <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>DROP</code>) with immediate HTTP 400 client rejections.</li>
+            <li><strong>Recursive Predicate Injection:</strong> Traverses all AST scopes—including Common Table Expressions (CTEs), nested subqueries, and table expressions—and injects mandatory Row-Level Security predicates (e.g., <code>WHERE tenant_id = 'Tenant_US_01'</code>) extracted directly from the verified Entra ID token claim.</li>
+            <li><strong>Partition Boundary Enforcement:</strong> Queries omitting date filters on partitioned tables are clamped to a maximum 15-day window to prevent unbounded full-table scans from exhausting worker memory.</li>
+        </ul>
+
+        <h3>D. Internal Routing Layer: DuckDB to NGINX NVMe Cache</h3>
+        <p>When DuckDB evaluates a query, it scatters dozens of HTTP byte-range requests across the storage layer simultaneously. The overall latency of that query is dictated entirely by the slowest individual chunk.</p>
+
+        <div class="callout">
+            <strong>Architectural Decision: Internal Envoy vs. Managed AGFC</strong><br>
+            For East-West internal routing to the NGINX caching replicas, <strong>Envoy is strictly preferable</strong> to Azure Application Gateway for Containers (AGFC). While AGFC serves well as a North-South boundary controller, it lacks the advanced data-plane primitives required for a high-performance caching tier.
+            <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                <li><strong>Feature Gaps:</strong> AGFC only supports coarse cookie/IP session affinity, whereas Envoy supports Maglev Consistent Hashing on custom HTTP headers (e.g., file paths/byte ranges), bounded-load overprovisioning, and speculative hedged requests.</li>
+                <li><strong>Latency Penalty:</strong> Routing internal worker-to-cache traffic out through an external managed AGFC data plane adds unnecessary network hops (+2ms to 5ms), whereas an in-cluster Envoy proxy routes directly pod-to-pod via the CNI bridge (&lt;0.1ms).</li>
+                <li><strong>FinOps Impact:</strong> AGFC billing scales on Container Capacity Units (ACUs). High-bandwidth internal scatter-gather traffic can quickly add <strong>$80 to $220/month</strong> in managed service fees. Envoy, running as a lightweight C++ container inside the existing AKS nodes, costs nothing in managed fees and consumes negligible compute (effectively <strong>$10 to $15/month</strong>).</li>
+            </ul>
+        </div>
+
+        <h4>Algorithm: Bounded-Load Consistent Hashing (Maglev)</h4>
+        <p>When distributing data across \(M = 3\) NGINX cache replicas, the computational cost of finding a hash ring target—whether \(\mathcal{O}(1)\) for Maglev or \(\mathcal{O}(\log M)\) for standard consistent hashing—is entirely negligible. The true architectural value of Maglev is its <strong>mathematical guarantee of uniform key distribution</strong>.</p>
+        
+        <p>Standard consistent hashing relies on random node placement. Even with virtual nodes, the probability of an uneven distribution is high, often resulting in a 10% to 30% load imbalance. Maglev constructs a static preference matrix that mathematically bounds distribution variance to at most 1%, ensuring all three NGINX nodes cache an almost identical ~33.3 GB footprint.</p>
+
+        <p>Furthermore, Envoy's Maglev configuration uses an <code>overprovisioning_factor</code> of <strong>1.25</strong>. If a specific tenant's data becomes a "hot key" and pushes an NGINX cache node past 125% of average cluster load, requests probabilistically spill to the next replica in the permutation matrix, eliminating exponential queue-wait spikes.</p>
+
+        <h4>Hedged Requests Policy</h4>
+        <p>In distributed systems, tail latency amplifies exponentially with query fan-out. If a query requires fetching \(N\) Parquet chunks, and the baseline probability of any single chunk returning quickly is 99% (\(p = 0.99\)), the probability that the <em>entire</em> query is fast is \(p^N\). Consequently, the probability of experiencing a slow query is \(1 - p^N\).</p>
+        
+        <p>If a query requires fetching \(N = 100\) data files, the probability that all 100 chunks return fast is \(0.99^{100} \approx 36.6\%\). This means a staggering <strong>63.4% of queries will experience tail latency issues</strong>. To neutralize this mathematical inevitability, Envoy implements hedging. If an NGINX NVMe node encounters a hardware micro-stall and takes longer than threshold \(\tau = 15\text{ms}\), Envoy automatically fires an identical duplicate request to an alternate node, proceeding with \(\min(T_{\text{primary}}, \tau + T_{\text{secondary}})\).</p>
+
+        <h3>E. Separating the Cache Warmer from Live Traffic</h3>
+        <ul>
+            <li><strong>Priority Circuit Breaking:</strong> Background warming carries <code>x-traffic-class: background-warm</code> (mapped to <code>PRIORITY_DEFAULT</code>), which Envoy sheds first during traffic surges.</li>
+            <li><strong>Dual-Zone Caching:</strong> Iceberg metadata manifests are held in <code>tmpfs</code> (RAM) for sub-millisecond lookups, while Parquet data blocks are cached on physical NVMe drives via Linux <code>sendfile()</code>.</li>
+            <li><strong>Snapshot Consistency Guard:</strong> Mutable root catalog pointers bypass NGINX proxy caching entirely (enforcing <code>Cache-Control: no-cache, must-revalidate</code>) to prevent stale reads during upstream data commits.</li>
+        </ul>
+
+        <!-- SECTION 7 -->
+        <h2 id="s6">6. Availability Mathematics, SLA Commitments &amp; FMEA</h2>
+
+        <h3>Component SLAs (Azure Multi-Zone Standard)</h3>
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Component Layer</th>
+                        <th>Redundancy Architecture</th>
+                        <th>Individual SLA</th>
+                        <th>Availability Metric (\(A_i\))</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>AGFC (Ingress)</strong></td><td>Multi-Zone Active/Active (AZ 1, 2, 3)</td><td>99.99%</td><td>0.9999</td></tr>
+                    <tr><td><strong>AKS Control Plane &amp; Nodes</strong></td><td>Multi-Zone Node Pool Fabric</td><td>99.95%</td><td>0.9995</td></tr>
+                    <tr><td><strong>Gateway API Controller</strong></td><td>2 Replicas (Active Leader + Warm Standby)</td><td>99.95%</td><td>0.9995</td></tr>
+                    <tr><td><strong>Polaris Catalog &amp; Auth</strong></td><td>3 Replicas across 3 AZs (Quorum)</td><td>99.95%</td><td>0.9995</td></tr>
+                    <tr><td><strong>Flight Workers &amp; NGINX</strong></td><td>Multi-Zone Replicas (Pod Anti-Affinity + HPA)</td><td>99.95%</td><td>0.9995</td></tr>
+                    <tr><td><strong>ADLS Gen2 Storage</strong></td><td>Zone-Redundant Storage (ZRS / RA-GZRS)</td><td>99.99%</td><td>0.9999</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Mathematical Availability Formulations</h3>
+        <p><strong>Model A: Conservative Serial Model (Independent Domains):</strong></p>
+        <div class="katex-display">
+            \[A_{\text{System}} = A_{\text{AGFC}} \times A_{\text{AKS}} \times A_{\text{Controller}} \times A_{\text{Polaris}} \times A_{\text{Workers/NGINX}} \times A_{\text{Storage}} \approx 99.78\%\]
+        </div>
+
+        <p><strong>Model B: Grouped Infrastructure Model (Shared Node Fabric):</strong></p>
+        <div class="katex-display">
+            \[A_{\text{System}} = A_{\text{AGFC}} \times A_{\text{AKS Platform}} \times A_{\text{Storage}} = 0.9999 \times 0.9995 \times 0.9999 \approx 99.93\%\]
+        </div>
+
+        <div class="callout warning">
+            <strong>Note on Correlated Failure Modes:</strong> Model A assumes component failures are statistically independent. In practice, common-cause failures (such as regional Entra ID token stalls or ARM control plane stalls) bypass node-level isolation. Realized availability falls between \(99.78\%\) and \(99.93\%\). Single-region availability remains <strong>bounded by the AKS control-plane SLA of 99.95%</strong>.
+        </div>
+
+        <!-- DISASTER RECOVERY COMPONENT -->
+        <h3>Disaster Recovery: Pilot Light Model</h3>
+        <div class="arch-diagram">
+            <div class="arch-grid-2">
+                <div class="arch-tier">
+                    <div class="arch-tier-header">
+                        <span class="arch-tier-title">Primary Region (Active)</span>
+                        <span class="arch-badge">Full Production Scale</span>
+                    </div>
+                    <ul style="font-size:0.9rem; padding-left:1.25rem; margin:0; color:var(--text);">
+                        <li>AGFC Ingress (Active across 3 AZs)</li>
+                        <li>2x Gateway Controllers (Active Leader lock)</li>
+                        <li>Flight Workers (3–10 Pods via HPA)</li>
+                        <li>3x NGINX Proxies (Hot NVMe Cache)</li>
+                        <li>ADLS Gen2 Primary Storage (ZRS Commit)</li>
+                    </ul>
+                </div>
+
+                <div class="arch-tier">
+                    <div class="arch-tier-header">
+                        <span class="arch-tier-title">DR Region (Pilot Light Standby)</span>
+                        <span class="arch-badge amber">Minimal Idle Footprint</span>
+                    </div>
+                    <ul style="font-size:0.9rem; padding-left:1.25rem; margin:0; color:var(--text);">
+                        <li>AGFC Ingress (Pre-provisioned, health-checked)</li>
+                        <li>2x Gateway Controllers (Pre-deployed)</li>
+                        <li>Flight Workers (1 Baseline Standby Pod)</li>
+                        <li>3x NGINX Proxies (Cold Cache Shell)</li>
+                        <li>ADLS Gen2 Secondary Read Endpoint (RA-GZRS)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="arch-card" style="text-align:center;">
+                <div class="arch-card-name">Asynchronous Storage Synchronization (RA-GZRS)</div>
+                <div class="arch-card-desc">Recovery Point Objective (RPO) &le; 15 min · Recovery Time Objective (RTO) &le; 10–15 min via KEDA worker scale-out.</div>
+            </div>
+        </div>
+
+        <h3>Failure Modes and Effects Analysis (FMEA)</h3>
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Failure Mode</th>
+                        <th>Blast Radius</th>
+                        <th>Automated Mitigation</th>
+                        <th>Projected MTTR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>AGFC Ingress</strong></td><td>Zone 1 loses power</td><td>33% of incoming traffic drops momentarily</td><td>ALB shifts traffic across surviving Zones 2 &amp; 3</td><td><strong>&lt; 30 seconds</strong></td></tr>
+                    <tr><td><strong>Gateway Controller</strong></td><td>Leader pod OOM / crash</td><td>Routing updates pause; data plane routes traffic</td><td>Standby acquires Kubernetes Lease lock</td><td><strong>3 – 5 seconds</strong></td></tr>
+                    <tr><td><strong>Flight Workers</strong></td><td>CPU surges to 100%</td><td>Query latency rises; potential timeouts</td><td>HPA auto-scales worker pool proportionally to 10 pods</td><td><strong>~15 seconds</strong></td></tr>
+                    <tr><td><strong>NGINX Proxy</strong></td><td>Physical NVMe corrupts</td><td>33% requests miss cache, surging ADLS reads</td><td>Envoy removes failed proxy from hash ring</td><td><strong>Hash-ring failover &lt; 1s</strong></td></tr>
+                    <tr><td><strong>Storage (ADLS)</strong></td><td>Underlying node failure</td><td>Zero client impact</td><td>ZRS replicates across 3 zones; transparent redirect</td><td><strong>Transparent (storage SLA)</strong></td></tr>
+                    <tr><td><strong>Metadata Catalog</strong></td><td>Un-replicated AZ offline</td><td>Critical; query planning fails if quorum lost</td><td>Pinning 3 catalog replicas across 3 independent AZs</td><td><strong>5 – 15 seconds</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 8 -->
+        <h2 id="s7">7. Latency Engineering &amp; Workload Profiling</h2>
+        <p>Total operational query latency is modeled as:</p>
+        <div class="katex-display">
+            \[T_{\text{Total}} = T_{\text{Metadata}} + T_{\text{I/O}} + T_{\text{Compute}} + T_{\text{Transfer}} + T_{\text{Network}}\]
+        </div>
+        <div class="katex-display">
+            \[T_{\text{I/O}} = \frac{\text{Data Size} \times \text{Hit Rate}}{\text{NVMe Read Speed (2.5 GB/s)}} + \frac{\text{Data Size} \times (1 - \text{Hit Rate})}{\text{ADLS Read Speed (350 MB/s)}}\]
+        </div>
+
+        <p>Because query latency in a distributed scatter-gather system is highly sensitive to external variables, deterministic mathematical modeling is insufficient. Real-world latency varies drastically based on storage layout, I/O limits, and dynamic cache hit ratios.</p>
+
+        <h3>Theoretical Latency by Query Type</h3>
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Query Profile</th>
+                        <th>Data Scanned</th>
+                        <th>Cache Hit Target</th>
+                        <th>Theoretical Profile</th>
+                        <th>Primary Bottleneck</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>1. Point Query / Event Lookup</strong></td><td>5 MB – 30 MB</td><td>&gt; 90%</td><td><strong>Near-instantaneous</strong> (\(\mathcal{O}(1)\) local cache fetch)</td><td>Network Round Trip</td></tr>
+                    <tr><td><strong>2. 1-Day Data Aggregation</strong></td><td>20 MB – 100 MB</td><td>85%</td><td><strong>Sub-second</strong></td><td>CPU Vectorization Efficiency</td></tr>
+                    <tr><td><strong>3. 1-Week Data Aggregation</strong></td><td>150 MB – 800 MB</td><td>70%</td><td><strong>Low single-digits</strong> (seconds)</td><td>NVMe / Network I/O</td></tr>
+                    <tr><td><strong>4. 1-Month Data Aggregation</strong></td><td>800 MB – 4 GB+</td><td>&lt; 50%</td><td><strong>I/O Bound</strong> (Sustained ADLS Gen2 fallback)</td><td>ADLS Gen2 Egress limits</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SECTION 9 -->
+        <h2 id="s8">8. Azure Hardware Sizing &amp; FinOps Analysis</h2>
+
+        <h3>The Kubernetes Math Trap: Why 8 Cores Does Not Equal 8 Cores</h3>
+        <p>If you configure worker pod resource requests to <code>cpu: "8"</code> and <code>memory: "32Gi"</code>, scheduling breaks on standard Azure shapes: on a <code>Standard_D8s_v5</code> node, Azure reserves ~0.5 vCPU and ~4 GiB of RAM for OS kernels, kubelet daemons, and CNI networking. The allocatable space is only ~7.5 vCPUs, leaving the 8-core pod in <code>Pending</code> indefinitely.</p>
+
+        <h3>Caching Tier Hardware Selection (ADR)</h3>
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Option 1: D4s_v5 (Network SSD)</th>
+                        <th>Option 2: D4ds_v5 (Ephemeral NVMe)</th>
+                        <th>Option 3: L4s_v4 (Storage NVMe)</th>
+                        <th>Option 4: L8s_v3 (Storage NVMe)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Compute Spec</strong></td><td>4 vCPU / 16 GiB RAM</td><td>4 vCPU / 16 GiB RAM</td><td>4 vCPU / 32 GiB RAM</td><td>8 vCPU / 64 GiB RAM</td></tr>
+                    <tr><td><strong>Storage Substrate</strong></td><td>512 GB (Premium SSD v2)</td><td>150 GB (Direct PCIe NVMe)</td><td>480 GB (Direct PCIe NVMe)</td><td>1.92 TB (Direct PCIe NVMe)</td></tr>
+                    <tr><td><strong>Max Disk IOPS</strong></td><td>6,400 (VM Cap)</td><td><strong>75,000 IOPS</strong></td><td><strong>150,000 IOPS</strong></td><td>400,000 IOPS</td></tr>
+                    <tr><td><strong>Max Throughput</strong></td><td>145 MB/s (VM Cap)</td><td><strong>500 MB/s</strong></td><td><strong>1,000 MB/s</strong></td><td>2,000 MB/s</td></tr>
+                    <tr><td><strong>Storage Latency</strong></td><td>1.0 – 2.0 ms</td><td><strong>~0.08 ms</strong></td><td><strong>~0.06 ms</strong></td><td>~0.05 ms</td></tr>
+                    <tr><td><strong>Cluster Cost (3 Nodes)</strong></td><td>~$540 / month</td><td><strong>~$510 / month</strong></td><td><strong>~$820 / month</strong></td><td>~$1,380 / month</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout warning">
+            <strong>Architectural Decision: Direct-Attached NVMe Nodes</strong><br>
+            The shift to direct ephemeral NVMe drives completely bypasses network-attached throttle caps, delivering a 10x to 15x increase in IOPS. <strong>The final architectural decision between these SKUs depends entirely on cost constraints and the required active data volume to be cached.</strong>
+            <ul style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                <li><strong>Standard_D4ds_v5:</strong> The most cost-effective option for smaller datasets (150 GB cache).</li>
+                <li><strong>Standard_L4s_v4:</strong> The ideal middle-ground, offering a generous 480 GB NVMe cache and 32 GiB RAM with an intermediate cost.</li>
+                <li><strong>Standard_L8s_v3:</strong> Best for massive multi-terabyte datasets (1.92 TB cache), but incurs a much higher compute premium.</li>
+            </ul>
+        </div>
+
+        <!-- SECTION 10 -->
+        <h2 id="s9">9. Stochastic Performance Modeling: Systems Physics &amp; Proofs</h2>
+
+        <h3>1. Scatter-Gather Tail Latency: Monte Carlo Simulations</h3>
+        <p>Load test logs from NGINX cache nodes and ADLS endpoints are fitted to a Log-Normal distribution (\(\mu, \sigma\)). Envoy hedging logic is applied via \(T_{\text{chunk}} = \min(T_{\text{primary}}, \tau + T_{\text{secondary}})\).</p>
+
+        <div class="sim-card">
+            <div class="sim-header">
+                <h3>Interactive: Hedged vs. Baseline Tail Latency</h3>
+                <p>Client-side Monte Carlo across synthetic Log-Normal distributions incorporating trigger delay \(\tau\).</p>
+            </div>
+            <div class="sim-controls">
+                <div class="control-item">
+                    <label for="hedgeSigma">Tail heaviness (&sigma;): <span id="valHedgeSigma">0.80</span></label>
+                    <input type="range" id="hedgeSigma" min="0.3" max="1.4" step="0.05" value="0.8">
+                </div>
+                <div class="control-item">
+                    <label for="hedgeThreshold">Hedge threshold (ms): <span id="valHedgeThreshold">15</span></label>
+                    <input type="range" id="hedgeThreshold" min="5" max="40" step="1" value="15">
+                </div>
+                <div class="control-item">
+                    <label for="hedgeChunks">Chunks per query: <span id="valHedgeChunks">50</span></label>
+                    <input type="range" id="hedgeChunks" min="5" max="80" step="1" value="50">
+                </div>
+            </div>
+            <div class="sim-canvas-container">
+                <canvas id="hedgeCanvas"></canvas>
+            </div>
+            <div class="chart-legend">
+                <span><span class="swatch" style="background:#f87171;"></span>Baseline (no hedging)</span>
+                <span><span class="swatch" style="background:#2dd4bf;"></span>Hedged (\(\min(T_1, \tau + T_2)\))</span>
+            </div>
+            <div class="sim-readout">
+                <div class="readout-box"><div>Baseline P99</div><div class="readout-val" style="color:var(--danger);" id="hedgeBaseP99">—</div></div>
+                <div class="readout-box"><div>Hedged P99</div><div class="readout-val" id="hedgeHedgedP99">—</div></div>
+                <div class="readout-box"><div>P99 reduction</div><div class="readout-val" style="color:var(--success);" id="hedgeImprovement">—</div></div>
+                <div class="readout-box"><div>Baseline P50</div><div class="readout-val" id="hedgeBaseP50">—</div></div>
+            </div>
+        </div>
+
+        <h3>2. Queueing Theory Models: M/M/c with Dynamic HPA Capacity</h3>
+        <p>In the Smart Data Gateway, Kubernetes autoscaling adjusts server count dynamically based on Redis admission queue depth. We evaluate an arrival stream with Poisson arrivals, modeling whether the queue depth can absorb burst spikes without breaching client SLAs.</p>
+
+        <div class="sim-card">
+            <div class="sim-header">
+                <h3>Interactive: Queue Depth Under a Traffic Spike</h3>
+                <p>A 2-minute burst hits at t=60s. HPA dynamically calculates proportional target worker scale.</p>
+            </div>
+            <div class="sim-controls">
+                <div class="control-item">
+                    <label for="queueLambda">Spike arrival rate (qps): <span id="valQueueLambda">12</span></label>
+                    <input type="range" id="queueLambda" min="2" max="30" step="1" value="12">
+                </div>
+                <div class="control-item">
+                    <label for="queueService">Service time (s): <span id="valQueueService">1.2</span></label>
+                    <input type="range" id="queueService" min="0.3" max="3" step="0.1" value="1.2">
+                </div>
+                <div class="control-item">
+                    <label for="queueThreshold">Scale threshold: <span id="valQueueThreshold">8</span></label>
+                    <input type="range" id="queueThreshold" min="2" max="20" step="1" value="8">
+                </div>
+                <div class="control-item">
+                    <label for="queueBoot">VM boot delay (s): <span id="valQueueBoot">90</span></label>
+                    <input type="range" id="queueBoot" min="15" max="150" step="5" value="90">
+                </div>
+            </div>
+            <div class="sim-canvas-container">
+                <canvas id="queueCanvas"></canvas>
+            </div>
+            <div class="chart-legend">
+                <span><span class="swatch" style="background:#2dd4bf;"></span>Queue depth (jobs waiting)</span>
+                <span><span class="swatch" style="background:#fbbf24;"></span>Active workers (right scale)</span>
+            </div>
+            <div class="sim-readout">
+                <div class="readout-box"><div>Peak queue depth</div><div class="readout-val" id="queuePeak">—</div></div>
+                <div class="readout-box"><div>Time to drain spike</div><div class="readout-val" id="queueDrain">—</div></div>
+                <div class="readout-box"><div>Max workers reached</div><div class="readout-val" id="queueMaxWorkers">—</div></div>
+                <div class="readout-box"><div>SLA status</div><div class="readout-val" id="queueSla">—</div></div>
+            </div>
+        </div>
+
+        <h3>3. Universal Scalability Law (USL): Defining the HPA Boundary</h3>
+        <div class="katex-display">
+            \[X(N) = \frac{\lambda N}{1 + \alpha(N-1) + \beta N(N-1)}\]
+        </div>
+
+        <div class="sim-card">
+            <div class="sim-header">
+                <h3>Interactive: USL Throughput Curve (Gateway Auto-Ranging)</h3>
+                <p>Adjust concurrency, contention (\(\alpha\)), and coherency chatter (\(\beta\)). Y-axis dynamically auto-ranges to display throughput without clipping.</p>
+            </div>
+            <div class="sim-controls">
+                <div class="control-item">
+                    <label for="concurrencySlider">Concurrent Users (N): <span id="valConcurrency">45</span></label>
+                    <input type="range" id="concurrencySlider" min="1" max="100" value="45">
+                </div>
+                <div class="control-item">
+                    <label for="uslAlphaSlider">Contention Fraction (&alpha;): <span id="valUslAlpha">0.020</span></label>
+                    <input type="range" id="uslAlphaSlider" min="0.005" max="0.080" step="0.005" value="0.020">
+                </div>
+                <div class="control-item">
+                    <label for="cacheSlider">Cache Hit Ratio (%): <span id="valCache">85%</span></label>
+                    <input type="range" id="cacheSlider" min="0" max="100" value="85">
+                </div>
+                <div class="control-item">
+                    <label for="betaSlider">Coherency Chatter (&beta;): <span id="valBeta">0.0035</span></label>
+                    <input type="range" id="betaSlider" min="0.0005" max="0.0100" step="0.0005" value="0.0035">
+                </div>
+            </div>
+            <div class="sim-canvas-container">
+                <canvas id="simCanvas"></canvas>
+            </div>
+            <div class="sim-readout">
+                <div class="readout-box"><div>Gateway P99</div><div class="readout-val" id="dispGatewayLatency">—</div></div>
+                <div class="readout-box"><div>Monolith P99</div><div class="readout-val" style="color:var(--danger);" id="dispMppLatency">—</div></div>
+                <div class="readout-box"><div>Gateway QPS</div><div class="readout-val" style="color:var(--success);" id="dispGatewayQps">—</div></div>
+                <div class="readout-box"><div>Monolith QPS</div><div class="readout-val" style="color:var(--amber);" id="dispMppQps">—</div></div>
+            </div>
+        </div>
+
+        <h3>4. Markov Chain Cache Thrashing Models</h3>
+        <p><strong>Cache thrashing</strong> occurs when the active working set of data exceeds physical cache capacity, forcing the system to endlessly evict and re-fetch the same data. We model cache state probabilities using a discrete Markov Chain vector \(S = [\text{Warm}, \text{Hot}, \text{Evicting}, \text{Thrashing}]\).</p>
+
+        <div class="sim-card">
+            <div class="sim-header">
+                <h3>Interactive: Cache State Evolution Over 24 Hours</h3>
+                <p>Find the NVMe cache size where Thrashing stays under 1%.</p>
+            </div>
+            <div class="sim-controls">
+                <div class="control-item">
+                    <label for="cacheGBSlider">NVMe cache size (GB): <span id="valCacheGB">480</span></label>
+                    <input type="range" id="cacheGBSlider" min="60" max="960" step="20" value="480">
+                </div>
+            </div>
+            <div class="sim-canvas-container">
+                <canvas id="markovCanvas"></canvas>
+            </div>
+            <div class="chart-legend">
+                <span><span class="swatch" style="background:#2dd4bf;"></span>Warm</span>
+                <span><span class="swatch" style="background:#4ade80;"></span>Hot</span>
+                <span><span class="swatch" style="background:#fbbf24;"></span>Evicting</span>
+                <span><span class="swatch" style="background:#f87171;"></span>Thrashing</span>
+            </div>
+            <div class="sim-readout">
+                <div class="readout-box"><div>Steady-state Thrashing</div><div class="readout-val" id="markovThrash">—</div></div>
+                <div class="readout-box"><div>Steady-state Hot+Warm</div><div class="readout-val" style="color:var(--success);" id="markovHealthy">—</div></div>
+                <div class="readout-box"><div>Meets &lt;1% target?</div><div class="readout-val" id="markovVerdict">—</div></div>
+            </div>
+        </div>
+
+        <h3>5. Monte Carlo FinOps Cost Distribution</h3>
+        <p>Financial predictability is a strict architectural requirement. This Monte Carlo simulation generates 3,000 synthetic monthly billing cycles by sampling Poisson traffic spikes and randomized cache hit variance.</p>
+
+        <div class="sim-card">
+            <div class="sim-header">
+                <h3>Interactive: Monthly Cost Distribution (3,000 Simulated Months)</h3>
+                <p>Probability Density Histogram showing the expected frequency of your final monthly bill.</p>
+            </div>
+            <div class="sim-controls">
+                <div class="control-item">
+                    <label for="finopsSpikeRate">Avg spikes / month: <span id="valFinopsSpikeRate">15.0</span></label>
+                    <input type="range" id="finopsSpikeRate" min="5" max="50" step="1" value="15">
+                </div>
+                <div class="control-item">
+                    <label for="finopsSpikeDur">Avg duration (hrs): <span id="valFinopsSpikeDur">4.0</span></label>
+                    <input type="range" id="finopsSpikeDur" min="1" max="12" step="0.5" value="4">
+                </div>
+                <div class="control-item">
+                    <label for="finopsCacheHit">Cache hit (%): <span id="valCacheHit">85</span></label>
+                    <input type="range" id="finopsCacheHit" min="40" max="99" step="1" value="85">
+                </div>
+                <div class="control-item">
+                    <label for="finopsNodeRate">Node rate ($/hr): <span id="valFinopsNodeRate">0.19</span></label>
+                    <input type="range" id="finopsNodeRate" min="0.10" max="0.80" step="0.01" value="0.19">
+                </div>
+            </div>
+            <div class="sim-canvas-container">
+                <canvas id="finopsCanvas"></canvas>
+            </div>
+            <div class="sim-readout">
+                <div class="readout-box"><div>P50 monthly cost</div><div class="readout-val" id="finopsP50">—</div></div>
+                <div class="readout-box"><div>P90 monthly cost</div><div class="readout-val" id="finopsP90">—</div></div>
+                <div class="readout-box"><div>P99 monthly cost (cap)</div><div class="readout-val" style="color:var(--amber);" id="finopsP99">—</div></div>
+            </div>
+        </div>
+
+        <!-- SECTION 11 -->
+        <h2 id="s10">10. The SRE Validation Framework &amp; Acceptance Criteria</h2>
+
+        <p>To transition our architecture from theoretical models into production certification, we formalize seven Non-Functional Requirement (NFR) pillars. Each pillar defines its exact deployment topology, load execution profile, target metrics, and verification harness.</p>
+
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>NFR Pillar</th>
+                        <th>Validation Objective</th>
+                        <th>Primary Tooling</th>
+                        <th>Acceptance Threshold</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>1. Performance &amp; Spikes</strong></td><td>Measure query latency percentiles under load.</td><td>Locust / k6</td><td>P95 &lt; 350ms, P99 &lt; 1.2s for point queries.</td></tr>
+                    <tr><td><strong>2. Scalability &amp; Elasticity</strong></td><td>Validate HPA behavior and queue saturation boundaries.</td><td>Locust + KEDA Metrics</td><td>Workers scale 3 to 10 pods proportionally within 30s.</td></tr>
+                    <tr><td><strong>3. Chaos &amp; Resiliency</strong></td><td>Verify automated MTTR during pod kills and network splits.</td><td>Chaos Mesh</td><td>MTTR &lt; 15s; no unretried user-visible 5xx errors.</td></tr>
+                    <tr><td><strong>4. Soak &amp; Endurance</strong></td><td>Detect memory leaks, FD leaks, or cache thrashing.</td><td>72-Hour Continuous Run</td><td>Memory consumption plateaus; zero container restarts.</td></tr>
+                    <tr><td><strong>5. Observability (SLI/SLO)</strong></td><td>Verify distributed trace propagation end-to-end.</td><td>OpenTelemetry + ADX (KQL)</td><td>100% of slow queries captured with parent spans.</td></tr>
+                    <tr><td><strong>6. Multi-Tenant Security</strong></td><td>Validate zero cross-tenant data leakage via AST injection.</td><td>SQL Fuzzing Harness</td><td>100% of malicious SQL injections rejected at parse time.</td></tr>
+                    <tr><td><strong>7. Disaster Recovery</strong></td><td>Verify regional Pilot Light failover.</td><td>Terraform / Azure CLI Drill</td><td>RTO &lt; 15 minutes; RPO &lt; 15 minutes.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>SRE Execution Protocols &amp; Measurement Standards</h3>
+
+        <!-- Test 1 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 1 · Performance &amp; Spike Latency Protocol</span>
+                <span class="sre-test-badge">Locust / k6 + Envoy Metrics</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                A dedicated Locust master with 8 distributed worker pods is provisioned on an isolated AKS node pool within the same Azure VNet peering group. Target table: a 100 GB partitioned Apache Iceberg table in ADLS Gen2 populated with synthetic regulatory trade events across 50 tenants.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                The test runs a 3-stage load curve: (1) baseline warm-up at 50 QPS for 10 minutes, (2) stepped ramp from 50 to 500 QPS over 5 minutes, and (3) an instantaneous 10x traffic spike from 50 to 500 QPS in under 5 seconds, held for 3 minutes before stepping down.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                End-to-end Flight gRPC request latency (P50, P90, P95, P99), time-to-first-RecordBatch stream latency, Envoy P2C upstream connection distribution, and NGINX NVMe byte-range cache hit ratio.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Collect client-side percentiles from the Locust execution summary. Upstream cluster metrics are captured via Prometheus PromQL: <code>histogram_quantile(0.99, sum(rate(envoy_cluster_upstream_rq_time_bucket[1m])) by (le))</code> and ADX KQL span aggregations.
+            </div>
+        </div>
+
+        <!-- Test 2 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 2 · Scalability &amp; Elasticity (KEDA / HPA)</span>
+                <span class="sre-test-badge">KEDA + Prometheus Adapter</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                The gateway compute tier is governed by a KEDA <code>ScaledObject</code> monitoring Redis admission queue depth (target threshold: 8 pending requests per active pod) with a minimum replica count of 3 and maximum of 10.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                A synthetic batch script enqueues 80 heavy analytical aggregation queries into the Redis claim-check broker over a 2-second burst, holding the surge for 180 seconds to test worker scale-out and subsequent cooldown scale-in.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                KEDA scale-out trigger latency (\(T_{\text{detect}} \le 15\text{s}\)), Azure VM node provisioning and container pull delay (\(T_{\text{provision}} \le 90\text{s}\)), queue backlog drain rate, and scale-in cooldown stability.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Track Kubernetes replica scaling events via <code>kubectl get events -n gateway --watch</code>. Correlate with PromQL: <code>kube_deployment_status_replicas_available{deployment="flight-worker"}</code> and Redis queue depth telemetry: <code>redis_queue_length{queue="query-jobs"}</code>.
+            </div>
+        </div>
+
+        <!-- Test 3 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 3 · Chaos &amp; Outlier Ejection Resiliency</span>
+                <span class="sre-test-badge">Chaos Mesh Engine</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                Chaos Mesh is deployed with RBAC permissions to inject pod, network, and disk faults across the gateway namespace. A steady 100 QPS load is applied continuously by an external test client.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                The chaos workflow executes three successive failure injections: (1) abrupt <code>PodKill</code> on the active Gateway Controller leader, (2) <code>NetworkChaos</code> introducing 250ms latency and 20% packet loss on 1 NGINX cache node, and (3) physical <code>IOChaos</code> read latency injection on an ephemeral NVMe mount.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                Kubernetes Lease lock acquisition MTTR (target: 3–5s), Envoy Outlier Ejection latency for degrading NGINX nodes (target: &lt; 1s), hedged request activation rate (\(\min(T_1, \tau + T_2)\)), and unretried HTTP 5xx errors returned to clients (must equal 0%).
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Query Envoy access logs in ADX filtering on response flags: <code>Traces | where ResponseFlags has "UO" or ResponseFlags has "NR"</code>; calculate client-perceived error rate: <code>failed_requests / total_requests * 100</code>.
+            </div>
+        </div>
+
+        <!-- Test 4 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 4 · Soak &amp; Memory Endurance (72-Hour Run)</span>
+                <span class="sre-test-badge">Continuous Automated Load Loop</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                A dedicated long-running AKS staging cluster running 3 Flight worker pods and 3 NGINX cache proxies. A load generator script cycles realistic operational queries continuously for 72 consecutive hours.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                Sustained execution at 60 QPS multi-tenant load. Upstream Iceberg data ingestion commits fresh snapshots every 60 seconds to simulate real-world commit churn.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                Flight worker RSS memory growth (detecting PyArrow / DuckDB C++ memory fragmentation), open file descriptor consumption, Linux kernel socket leaks (TIME_WAIT counts), and NVMe disk cache inode exhaustion.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Prometheus time-series slopes evaluated over 72 hours via PromQL: <code>deriv(container_memory_working_set_bytes{container="duckdb-worker"}[1h])</code> (must plateau to &le; 0 slope) and <code>process_open_fds{job="flight-worker"}</code>.
+            </div>
+        </div>
+
+        <!-- Test 5 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 5 · Observability &amp; Distributed Tracing (SLI/SLO)</span>
+                <span class="sre-test-badge">OpenTelemetry + ADX (KQL)</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                OpenTelemetry Collector deployed as an AKS DaemonSet. Gateway Controller, DuckDB Flight workers, and Envoy proxies are configured with W3C TraceContext propagation.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                Synthetic queries are dispatched with explicit <code>traceparent</code> headers. The harness injects edge conditions: queries that trigger the 250ms micro-timeout ADLS fallback, hedged request triggers, and AST security syntax rejections.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                Distributed trace span completeness from AGFC ingress through DuckDB execution to NGINX byte fetch. Target: 100% of P99 and failed requests must retain unbroken causal span trees with metadata tags.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Run verification KQL queries in Azure Data Explorer to identify orphaned spans:
+                <pre style="margin:0.5rem 0 0 0;"><code>Traces
+| where Timestamp > ago(1h)
+| summarize TotalSpans=count(), MissingParents=countif(isempty(ParentSpanId) and SpanKind != "Server")
+| extend ContinuityRate = (TotalSpans - MissingParents) * 100.0 / TotalSpans</code></pre>
+            </div>
+        </div>
+
+        <!-- Test 6 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 6 · Multi-Tenant Security &amp; AST Fuzzing</span>
+                <span class="sre-test-badge">SQLglot AST Fuzzing Harness</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                A standalone security test suite configured with multiple mock tenant security contexts authenticated via mock Microsoft Entra ID JWT tokens carrying distinct <code>tid</code> and role claims.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                The harness feeds 10,000 synthesized adversarial queries to the gateway: SQL injection payloads, stacked queries, DDL injection, recursive CTE cross-joins, and subqueries explicitly designed to reference unassigned tenant partitions.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                Validation that 100% of non-<code>SELECT</code> operations are rejected at parse time with HTTP 400, and that 100% of parsed query execution trees have the verified Entra ID tenant ID injected into every table scan node across all scopes.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Automated AST regression assertions: verify that no generated DuckDB physical execution plan contains an un-scoped table scan, and ADLS access logs verify zero file reads outside the authenticated tenant storage prefix.
+            </div>
+        </div>
+
+        <!-- Test 7 -->
+        <div class="sre-test-block">
+            <div class="sre-test-header">
+                <span class="sre-test-title">Pillar 7 · Disaster Recovery &amp; Regional Failover Drill</span>
+                <span class="sre-test-badge">Azure Front Door + Terraform</span>
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Test Setup &amp; Harness</span>
+                Primary active region running full gateway deployment; secondary paired region running the Pilot Light configuration (1 standby Flight worker pod, pre-provisioned AGFC, standby Redis, secondary read-only ADLS RA-GZRS endpoint).
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">Execution Workflow</span>
+                Simulate catastrophic primary region loss by severing Azure Front Door backend pools to the primary region. Execute the automated DR activation runbook via Terraform / Azure CLI to scale out the DR Flight worker fleet and update storage pointers to the secondary read endpoint.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">What to Measure</span>
+                Recovery Time Objective (\(RTO \le 10\text{--}15\text{ min}\)), Recovery Point Objective (\(RPO \le 15\text{ min}\)), and cold-cache hydration latency recovery curve.
+            </div>
+            <div class="sre-field">
+                <span class="sre-label">How to Measure</span>
+                Automated synthetic probes logging continuous HTTP status:
+                <div class="katex-display">
+                    \[RTO = t_{\text{first\_successful\_response}} - t_{\text{primary\_shutdown}}\]
+                </div>
+                Query Iceberg commit log timestamps to verify replication integrity:
+                <div class="katex-display">
+                    \[RPO = t_{\text{primary\_snapshot}} - t_{\text{secondary\_snapshot}}\]
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 12 -->
+        <h2 id="s11">11. What Analytical Models Can &amp; Cannot Prove (The Formal Methods Bridge)</h2>
+        
+        <blockquote class="epigraph">
+            <p>
+                “All models are wrong, but some are useful.”
+            </p>
+            <footer>
+                — <strong>George Box </strong>, <cite>British Statistician</cite>
+            </footer>
+        </blockquote>
+
+        <p>Analytical modeling, queueing theory, and stochastic simulations are vital—they prevent us from building architectures that violate systems physics from day one. But they are not reality, nor can they guarantee the absence of logical distributed flaws.</p>
+
+        <h3>Analytical Engineering vs. Formal Temporal Verification</h3>
+        <p>To ensure the safety of a distributed gateway, we must cross the chasm from stochastic approximations to formal mathematical proofs of state. This is where <strong>TLA+ and PlusCal</strong> enter the picture.</p>
+
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Architectural Concern</th>
+                        <th>Analytical Math (Queueing, USL, Big-O)</th>
+                        <th>Formal Methods (TLA+ / PlusCal)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>System Capacity &amp; Saturation</strong></td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (Calculates bottleneck resource utilization &amp; knee points)</td>
+                        <td><strong style="color:var(--muted-2);">Out of Scope</strong> (Abstracts away physical wall-clock time)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Scaling Ceilings &amp; Contention</strong></td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (USL models coherency \(\beta\) and contention \(\alpha\))</td>
+                        <td><strong style="color:var(--muted-2);">Out of Scope</strong> (Does not model physical hardware saturation)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Race Conditions &amp; Interleavings</strong></td>
+                        <td><strong style="color:var(--danger);">Cannot be proved</strong> (Treats arrivals as stochastic distributions)</td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (Explores all possible thread and network schedules)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Deadlock &amp; Livelock Freedom</strong></td>
+                        <td><strong style="color:var(--danger);">Cannot be proved</strong> (Assumes steady-state conditions \(\lambda < \mu\))</td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (Explores every cyclic graph path via fairness &amp; \(\lozenge\))</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Data Leakage / Security Invariants</strong></td>
+                        <td><strong style="color:var(--danger);">Cannot be proved</strong> (Relies on empirical testing/fuzzing)</td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (Proves \(\Box (\text{TenantData}[c] = \text{ClientTenant}[c])\) globally)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Partial Failure Recovery</strong></td>
+                        <td><strong style="color:var(--danger);">Cannot be proved</strong> (Assumes failure rates \(\lambda_f\), not failure states)</td>
+                        <td><strong style="color:var(--success);">Can be proved</strong> (Validates intermediate states under crash/restart actions)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>Analytical modeling demonstrates our architecture can be <strong>physically viable</strong> under load. But in mission-critical financial and regulatory systems, physical viability is merely your license to proceed to logical verification and testing.</p>
+
+        <p>To ensure our design is <strong>operationally indestructible and logically flawless</strong>, we must subject it to the crucible of physical load, chaotic fault injection, and formal state verification. That rigorous proving ground is the subject of Part 4: Formal Validation and Proofs.</p>
+
+        <!-- Navigation Links -->
+        <div style="margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <a href="part-2-architectural-evolution.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Part 2: Architectural Evolution</a>
+            <a href="part-4-primitives-theoretical-validation.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Part 4: Formal Validation and Proofs &rarr;</a>
+        </div>
+
+    </article>
+</main>
+
+<!-- Global Footer -->
+<footer class="site-footer">
+    <div>© 2026 Saurav Sana</div>
+    <div class="footer-links">
+        <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+        <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+        <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="../../contact.html">Email</a>
+    </div>
+</footer>
+</div>
+
+<!-- ========================================================================= -->
+<!-- JAVASCRIPT: STOCHASTIC QUEUEING & USL SIMULATOR SCRIPTS -->
+<!-- ========================================================================= -->
+<script>
+// CSS Variable Fetcher
+function getThemeVar(name, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+// 0. Reading Progress Bar
+(function () {
+  const bar = document.getElementById('reading-progress');
+  if (!bar) return;
+  function updateProgress() {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
+    bar.style.width = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+})();
+
+// 1. Theme Toggle
+document.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById('theme-btn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            let current = document.documentElement.getAttribute('data-theme');
+            let next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            
+            setTimeout(() => {
+                document.dispatchEvent(new CustomEvent('theme-changed'));
+            }, 50);
+        });
+    }
+});
+
+function setupHiDPICanvas(canvas, cssHeight) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  canvas.width = w * window.devicePixelRatio;
+  canvas.height = cssHeight * window.devicePixelRatio;
+  canvas.style.height = cssHeight + 'px';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  return { ctx, w, h: cssHeight };
+}
+
+function drawFrame(ctx, w, h, margin) {
+  ctx.fillStyle = getThemeVar('--code-bg', '#050811');
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = getThemeVar('--line-soft', '#1f2937');
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = margin.top + (i * (h - margin.top - margin.bottom) / 5);
+    ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(w - margin.right, y); ctx.stroke();
+  }
+  ctx.strokeStyle = getThemeVar('--line', '#475569');
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, h - margin.bottom);
+  ctx.lineTo(w - margin.right, h - margin.bottom);
+  ctx.stroke();
+}
+
+function plotSeries(ctx, points, color, margin, w, h, xMin, xMax, yMin, yMax) {
+  const px = x => margin.left + ((x - xMin) / (xMax - xMin)) * (w - margin.left - margin.right);
+  const py = y => (h - margin.bottom) - ((y - yMin) / (yMax - yMin)) * (h - margin.top - margin.bottom);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  points.forEach((p, i) => { const x = px(p.x), y = py(Math.max(yMin, Math.min(yMax, p.y))); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.stroke();
+  return { px, py };
+}
+
+function axisLabel(ctx, text, x, y) {
+  ctx.fillStyle = getThemeVar('--muted', '#94a3b8');
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.fillText(text, x, y);
+}
+
+// Simulator 1: Hedged Latency Canvas
+(function () {
+  const canvas = document.getElementById('hedgeCanvas');
+  if (!canvas) return;
+  const sigmaSlider = document.getElementById('hedgeSigma');
+  const thresholdSlider = document.getElementById('hedgeThreshold');
+  const chunksSlider = document.getElementById('hedgeChunks');
+  const valSigma = document.getElementById('valHedgeSigma');
+  const valThreshold = document.getElementById('valHedgeThreshold');
+  const valChunks = document.getElementById('valHedgeChunks');
+
+  const MU = 1.5;
+  const NUM_QUERIES = 4000;
+
+  function randLognormal(mu, sigma) {
+    let u1 = Math.random() || 1e-9, u2 = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.exp(mu + sigma * z);
+  }
+  function percentile(sortedArr, p) {
+    const idx = Math.min(sortedArr.length - 1, Math.max(0, Math.ceil((p / 100) * sortedArr.length) - 1));
+    return sortedArr[idx];
+  }
+
+  let canvasCtx, canvasW, canvasH;
+  function initCanvas() {
+    const res = setupHiDPICanvas(canvas, 340);
+    canvasCtx = res.ctx; canvasW = res.w; canvasH = res.h;
+  }
+
+  function run() {
+    if (!canvasCtx) initCanvas();
+    const sigma = parseFloat(sigmaSlider.value);
+    const threshold = parseFloat(thresholdSlider.value);
+    const chunks = parseInt(chunksSlider.value);
+    valSigma.innerText = sigma.toFixed(2);
+    valThreshold.innerText = threshold;
+    valChunks.innerText = chunks;
+
+    const baseline = new Array(NUM_QUERIES);
+    const hedged = new Array(NUM_QUERIES);
+    for (let q = 0; q < NUM_QUERIES; q++) {
+      let maxBase = 0, maxHedged = 0;
+      for (let c = 0; c < chunks; c++) {
+        const lat = randLognormal(MU, sigma);
+        maxBase = Math.max(maxBase, lat);
+        let hedgedLat = lat;
+        if (lat > threshold) {
+          hedgedLat = Math.min(lat, threshold + randLognormal(MU, sigma));
+        }
+        maxHedged = Math.max(maxHedged, hedgedLat);
+      }
+      baseline[q] = maxBase;
+      hedged[q] = maxHedged;
+    }
+    baseline.sort((a, b) => a - b);
+    hedged.sort((a, b) => a - b);
+
+    const percentiles = [10, 25, 50, 75, 90, 95, 99, 99.9];
+    const basePts = percentiles.map(p => ({ x: p, y: percentile(baseline, p) }));
+    const hedgePts = percentiles.map(p => ({ x: p, y: percentile(hedged, p) }));
+
+    const margin = { left: 55, right: 20, top: 20, bottom: 40 };
+    drawFrame(canvasCtx, canvasW, canvasH, margin);
+
+    const yMax = Math.max(percentile(baseline, 99.9), 20);
+    const logMin = Math.log10(Math.max(1, Math.min(percentile(baseline, 10), percentile(hedged, 10))));
+    const logMax = Math.log10(yMax * 1.15);
+    const toLog = pts => pts.map(p => ({ x: p.x, y: Math.log10(Math.max(1, p.y)) }));
+
+    plotSeries(canvasCtx, toLog(basePts), getThemeVar('--danger', '#f87171'), margin, canvasW, canvasH, 10, 99.9, logMin, logMax);
+    plotSeries(canvasCtx, toLog(hedgePts), getThemeVar('--teal', '#2dd4bf'), margin, canvasW, canvasH, 10, 99.9, logMin, logMax);
+
+    axisLabel(canvasCtx, 'Percentile →', canvasW / 2 - 35, canvasH - 8);
+    canvasCtx.save(); canvasCtx.translate(14, canvasH / 2 + 30); canvasCtx.rotate(-Math.PI / 2);
+    axisLabel(canvasCtx, 'Latency ms (log scale)', 0, 0); canvasCtx.restore();
+
+    const baseP99 = percentile(baseline, 99), hedgeP99 = percentile(hedged, 99);
+    document.getElementById('hedgeBaseP99').innerText = Math.round(baseP99) + ' ms';
+    document.getElementById('hedgeHedgedP99').innerText = Math.round(hedgeP99) + ' ms';
+    document.getElementById('hedgeImprovement').innerText = Math.round(((baseP99 - hedgeP99) / baseP99) * 100) + '%';
+    document.getElementById('hedgeBaseP50').innerText = Math.round(percentile(baseline, 50)) + ' ms';
+  }
+  [sigmaSlider, thresholdSlider, chunksSlider].forEach(el => el.addEventListener('input', run));
+  window.addEventListener('resize', () => { initCanvas(); run(); });
+  initCanvas();
+  run();
+  window.redrawHedgeCanvas = run;
+})();
+
+// Simulator 2: Dynamic HPA Queue Depth
+(function () {
+  const canvas = document.getElementById('queueCanvas');
+  if (!canvas) return;
+  const lambdaSlider = document.getElementById('queueLambda');
+  const serviceSlider = document.getElementById('queueService');
+  const thresholdSlider = document.getElementById('queueThreshold');
+  const bootSlider = document.getElementById('queueBoot');
+  const valLambda = document.getElementById('valQueueLambda');
+  const valService = document.getElementById('valQueueService');
+  const valThreshold = document.getElementById('valQueueThreshold');
+  const valBoot = document.getElementById('valQueueBoot');
+
+  let canvasCtx, canvasW, canvasH;
+  function initCanvas() {
+    const res = setupHiDPICanvas(canvas, 340);
+    canvasCtx = res.ctx; canvasW = res.w; canvasH = res.h;
+  }
+
+  function run() {
+    if (!canvasCtx) initCanvas();
+    const peakLambda = parseFloat(lambdaSlider.value);
+    const serviceTime = parseFloat(serviceSlider.value);
+    const threshold = parseFloat(thresholdSlider.value);
+    const bootDelay = parseFloat(bootSlider.value);
+    valLambda.innerText = peakLambda;
+    valService.innerText = serviceTime.toFixed(1);
+    valThreshold.innerText = threshold;
+    valBoot.innerText = bootDelay;
+
+    const T = 420, dt = 1;
+    let workers = 3, queue = 0, targetWorkers = 3, scaleCompleteAt = null, lastCheck = -15;
+    const history = [];
+    let peak = 0, maxWorkers = workers, drainTime = null, slaBreached = false;
+    const SLA_LIMIT = threshold * 3.0;
+
+    for (let t = 0; t <= T; t += dt) {
+      if (scaleCompleteAt !== null && t >= scaleCompleteAt) {
+        workers = targetWorkers;
+        scaleCompleteAt = null;
+      }
+      const inSpike = t >= 60 && t < 180;
+      const lambda = inSpike ? peakLambda : peakLambda * 0.25;
+      queue += lambda * dt;
+      const capacity = (workers / serviceTime) * dt;
+      const served = Math.min(queue, capacity);
+      queue = Math.max(0, queue - served);
+
+      if (t - lastCheck >= 15) {
+        lastCheck = t;
+        const desired = Math.min(10, Math.max(3, Math.ceil(queue / threshold)));
+        if (desired > workers && scaleCompleteAt === null) {
+          targetWorkers = desired;
+          scaleCompleteAt = t + bootDelay;
+        } else if (desired < workers && queue < 1 && scaleCompleteAt === null && t > 210) {
+          targetWorkers = desired;
+          scaleCompleteAt = t + 30;
+        }
+      }
+      peak = Math.max(peak, queue);
+      maxWorkers = Math.max(maxWorkers, workers);
+      if (queue > SLA_LIMIT) slaBreached = true;
+      if (inSpike === false && t > 180 && drainTime === null && queue < 0.5) drainTime = t;
+      history.push({ t, queue, workers });
+    }
+
+    const margin = { left: 55, right: 50, top: 20, bottom: 40 };
+    drawFrame(canvasCtx, canvasW, canvasH, margin);
+
+    const qMax = Math.max(peak * 1.15, 5);
+    plotSeries(canvasCtx, history.map(p => ({ x: p.t, y: p.queue })), getThemeVar('--teal', '#2dd4bf'), margin, canvasW, canvasH, 0, T, 0, qMax);
+
+    const wMax = 11;
+    plotSeries(canvasCtx, history.map(p => ({ x: p.t, y: p.workers })), getThemeVar('--amber', '#fbbf24'), margin, canvasW, canvasH, 0, T, 0, wMax);
+
+    axisLabel(canvasCtx, 'Simulated time (s) →', canvasW / 2 - 55, canvasH - 8);
+    canvasCtx.save(); canvasCtx.translate(14, canvasH / 2 + 40); canvasCtx.rotate(-Math.PI / 2);
+    axisLabel(canvasCtx, 'Queue depth (jobs)', 0, 0); canvasCtx.restore();
+
+    document.getElementById('queuePeak').innerText = peak.toFixed(1) + ' jobs';
+    document.getElementById('queueDrain').innerText = drainTime ? (drainTime - 60) + 's' : '> ' + (T - 60) + 's';
+    document.getElementById('queueMaxWorkers').innerText = maxWorkers;
+    const slaEl = document.getElementById('queueSla');
+    slaEl.innerText = slaBreached ? 'Breached' : 'Held';
+    slaEl.style.color = slaBreached ? 'var(--danger)' : 'var(--success)';
+  }
+  [lambdaSlider, serviceSlider, thresholdSlider, bootSlider].forEach(el => el.addEventListener('input', run));
+  window.addEventListener('resize', () => { initCanvas(); run(); });
+  initCanvas();
+  run();
+  window.redrawQueueCanvas = run;
+})();
+
+// Simulator 3: USL Throughput Curve (Gateway Auto-Ranging)
+(function() {
+  const canvas = document.getElementById('simCanvas');
+  if (!canvas) return;
+  let ctx;
+
+  const concurrencySlider = document.getElementById('concurrencySlider');
+  const uslAlphaSlider = document.getElementById('uslAlphaSlider');
+  const cacheSlider = document.getElementById('cacheSlider');
+  const betaSlider = document.getElementById('betaSlider');
+
+  const valConcurrency = document.getElementById('valConcurrency');
+  const valUslAlpha = document.getElementById('valUslAlpha');
+  const valCache = document.getElementById('valCache');
+  const valBeta = document.getElementById('valBeta');
+
+  const dispGatewayLatency = document.getElementById('dispGatewayLatency');
+  const dispMppLatency = document.getElementById('dispMppLatency');
+  const dispGatewayQps = document.getElementById('dispGatewayQps');
+  const dispMppQps = document.getElementById('dispMppQps');
+
+  function initCanvas() {
+    const res = setupHiDPICanvas(canvas, 340);
+    ctx = res.ctx;
+  }
+
+  function calculateModels(N, alpha, cacheHitRatio, beta) {
+    const baseGatewayLatency = (cacheHitRatio * 5) + ((1 - cacheHitRatio) * 45);
+    const gatewaySpeedup = N / (1 + (alpha * 0.1) * (N - 1));
+    const gatewayLatency = Math.max(12, baseGatewayLatency + (N * 0.35));
+    const gatewayQps = Math.round((1000 / gatewayLatency) * gatewaySpeedup * 2.8);
+
+    const mppDenominator = 1 + alpha * (N - 1) + beta * N * (N - 1);
+    const mppSpeedup = Math.max(0.1, N / mppDenominator);
+    const rho = Math.min(0.96, (N / 100) * 1.15);
+    const kingmanWait = ((0.5 + 1.2) / 2) * (rho / (1 - rho)) * 40;
+    const mppLatency = Math.round(350 + kingmanWait + (beta * N * N * 12));
+    const mppQps = Math.max(25, Math.round((1000 / mppLatency) * mppSpeedup * 8));
+
+    return {
+      gatewayLatency: Math.round(gatewayLatency),
+      mppLatency: Math.min(12000, mppLatency),
+      gatewayQps: gatewayQps,
+      mppQps: mppQps
+    };
+  }
+
+  function drawSimulation() {
+    if (!ctx) initCanvas();
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
+
+    const N = parseInt(concurrencySlider.value);
+    const alpha = parseFloat(uslAlphaSlider.value);
+    const cacheHit = parseInt(cacheSlider.value) / 100;
+    const beta = parseFloat(betaSlider.value);
+
+    valConcurrency.innerText = N;
+    valUslAlpha.innerText = alpha.toFixed(3);
+    valCache.innerText = Math.round(cacheHit * 100) + '%';
+    valBeta.innerText = beta.toFixed(4);
+
+    const results = calculateModels(N, alpha, cacheHit, beta);
+
+    dispGatewayLatency.innerText = results.gatewayLatency + " ms";
+    dispMppLatency.innerText = results.mppLatency.toLocaleString() + " ms";
+    dispGatewayQps.innerText = results.gatewayQps.toLocaleString();
+    dispMppQps.innerText = results.mppQps.toLocaleString();
+
+    ctx.fillStyle = getThemeVar('--code-bg', '#050811');
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = getThemeVar('--line-soft', '#1f2937');
+    ctx.lineWidth = 1;
+    for (let x = 60; x < w - 20; x += (w - 80) / 10) {
+      ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, h - 45); ctx.stroke();
+    }
+    for (let y = 30; y < h - 45; y += (h - 75) / 5) {
+      ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(w - 20, y); ctx.stroke();
+    }
+
+    ctx.strokeStyle = getThemeVar('--line', '#475569');
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(60, 20); ctx.lineTo(60, h - 45); ctx.lineTo(w - 20, h - 45); ctx.stroke();
+
+    ctx.fillStyle = getThemeVar('--muted', '#94a3b8');
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.fillText("Concurrency (N)", w / 2 - 40, h - 15);
+    ctx.save();
+    ctx.translate(20, h / 2 + 30);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("Throughput (Normalized QPS)", 0, 0);
+    ctx.restore();
+
+    const maxN = 100;
+    const step = (w - 80) / maxN;
+
+    let peakCalculatedQps = 0;
+    for (let i = 1; i <= maxN; i++) {
+      const res = calculateModels(i, alpha, cacheHit, beta);
+      if (res.gatewayQps > peakCalculatedQps) peakCalculatedQps = res.gatewayQps;
+      if (res.mppQps > peakCalculatedQps) peakCalculatedQps = res.mppQps;
+    }
+    const maxDisplayQps = Math.max(2000, Math.ceil((peakCalculatedQps * 1.15) / 500) * 500);
+
+    ctx.strokeStyle = getThemeVar('--danger', '#f87171');
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 1; i <= maxN; i++) {
+      const res = calculateModels(i, alpha, cacheHit, beta);
+      const plotX = 60 + (i * step);
+      const plotY = (h - 45) - ((res.mppQps / maxDisplayQps) * (h - 80));
+      if (i === 1) ctx.moveTo(plotX, plotY);
+      else ctx.lineTo(plotX, plotY);
+    }
+    ctx.stroke();
+
+    const currentTeal = getThemeVar('--teal', '#2dd4bf');
+    ctx.strokeStyle = currentTeal;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 1; i <= maxN; i++) {
+      const res = calculateModels(i, alpha, cacheHit, beta);
+      const plotX = 60 + (i * step);
+      const plotY = (h - 45) - ((res.gatewayQps / maxDisplayQps) * (h - 80));
+      if (i === 1) ctx.moveTo(plotX, plotY);
+      else ctx.lineTo(plotX, plotY);
+    }
+    ctx.stroke();
+
+    const currX = 60 + (N * step);
+    const currGatewayY = (h - 45) - ((results.gatewayQps / maxDisplayQps) * (h - 80));
+    const currMppY = (h - 45) - ((results.mppQps / maxDisplayQps) * (h - 80));
+
+    ctx.fillStyle = currentTeal;
+    ctx.beginPath(); ctx.arc(currX, currGatewayY, 6, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = getThemeVar('--danger', '#f87171');
+    ctx.beginPath(); ctx.arc(currX, currMppY, 6, 0, Math.PI * 2); ctx.fill();
+
+    ctx.font = "12px 'IBM Plex Sans', sans-serif";
+    ctx.fillStyle = currentTeal;
+    ctx.fillText("■ Smart Gateway (Linear Scale / β = 0)", 75, 45);
+    ctx.fillStyle = getThemeVar('--danger', '#f87171');
+    ctx.fillText("■ Monolith Coherency Stall (β > 0)", 75, 65);
+  }
+
+  [concurrencySlider, uslAlphaSlider, cacheSlider, betaSlider].forEach(el => el.addEventListener('input', drawSimulation));
+  window.addEventListener('resize', () => { initCanvas(); drawSimulation(); });
+  initCanvas();
+  drawSimulation();
+  window.redrawSimCanvas = drawSimulation;
+})();
+
+// Simulator 4: Markov Chain Cache Model
+(function () {
+  const canvas = document.getElementById('markovCanvas');
+  if (!canvas) return;
+  const cacheSlider = document.getElementById('cacheGBSlider');
+  const valCacheGB = document.getElementById('valCacheGB');
+
+  let canvasCtx, canvasW, canvasH;
+  function initCanvas() {
+    const res = setupHiDPICanvas(canvas, 340);
+    canvasCtx = res.ctx; canvasW = res.w; canvasH = res.h;
+  }
+
+  function buildMatrix(cacheGB) {
+    const p = Math.min(0.6, Math.max(0.02, 24 / cacheGB));
+    const recover = Math.max(0.05, 0.4 * (1 - p));
+    return [
+      [1 - p * 0.4, p * 0.4, 0, 0],
+      [0.15, 0.85 - p * 0.5, p * 0.5, 0],
+      [0.10, 0.30, 0.60 - p * 0.7, p * 0.7],
+      [0, recover * 0.3, recover * 0.7, 1 - recover]
+    ];
+  }
+  function multiply(vec, mat) {
+    const out = [0, 0, 0, 0];
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) out[j] += vec[i] * mat[i][j];
+    return out;
+  }
+
+  function run() {
+    if (!canvasCtx) initCanvas();
+    const cacheGB = parseInt(cacheSlider.value);
+    valCacheGB.innerText = cacheGB;
+    const P = buildMatrix(cacheGB);
+    let state = [1, 0, 0, 0];
+    const steps = 48;
+    const history = [state.slice()];
+    for (let t = 0; t < steps; t++) { state = multiply(state, P); history.push(state.slice()); }
+
+    const margin = { left: 55, right: 20, top: 20, bottom: 40 };
+    drawFrame(canvasCtx, canvasW, canvasH, margin);
+
+    const colors = [
+        getThemeVar('--teal', '#2dd4bf'), 
+        getThemeVar('--success', '#4ade80'), 
+        getThemeVar('--amber', '#fbbf24'), 
+        getThemeVar('--danger', '#f87171')
+    ];
+    for (let s = 0; s < 4; s++) {
+      plotSeries(canvasCtx, history.map((st, t) => ({ x: t, y: st[s] })), colors[s], margin, canvasW, canvasH, 0, steps, 0, 1);
+    }
+    axisLabel(canvasCtx, 'Hours elapsed (0–24) →', canvasW / 2 - 55, canvasH - 8);
+    canvasCtx.save(); canvasCtx.translate(14, canvasH / 2 + 30); canvasCtx.rotate(-Math.PI / 2);
+    axisLabel(canvasCtx, 'State probability', 0, 0); canvasCtx.restore();
+
+    const final = history[history.length - 1];
+    const thrashPct = final[3] * 100;
+    document.getElementById('markovThrash').innerText = thrashPct.toFixed(2) + '%';
+    document.getElementById('markovThrash').style.color = thrashPct < 1 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('markovHealthy').innerText = ((final[0] + final[1]) * 100).toFixed(1) + '%';
+    const verdict = document.getElementById('markovVerdict');
+    verdict.innerText = thrashPct < 1 ? 'Yes' : 'No';
+    verdict.style.color = thrashPct < 1 ? 'var(--success)' : 'var(--danger)';
+  }
+  cacheSlider.addEventListener('input', run);
+  window.addEventListener('resize', () => { initCanvas(); run(); });
+  initCanvas();
+  run();
+  window.redrawMarkovCanvas = run;
+})();
+
+// Simulator 5: FinOps Cost Distribution Histogram (Area Chart)
+(function () {
+  const canvas = document.getElementById('finopsCanvas');
+  if (!canvas) return;
+  const spikeRateSlider = document.getElementById('finopsSpikeRate');
+  const spikeDurSlider = document.getElementById('finopsSpikeDur');
+  const cacheHitSlider = document.getElementById('finopsCacheHit');
+  const nodeRateSlider = document.getElementById('finopsNodeRate');
+  const valSpikeRate = document.getElementById('valFinopsSpikeRate');
+  const valSpikeDur = document.getElementById('valFinopsSpikeDur');
+  const valCacheHit = document.getElementById('valCacheHit');
+  const valNodeRate = document.getElementById('valFinopsNodeRate');
+
+  let canvasCtx, canvasW, canvasH;
+  function initCanvas() {
+    const res = setupHiDPICanvas(canvas, 340);
+    canvasCtx = res.ctx; canvasW = res.w; canvasH = res.h;
+  }
+
+  function poissonSample(lambda) {
+    const L = Math.exp(-lambda);
+    let k = 0, p = 1;
+    do { k++; p *= Math.random(); } while (p > L);
+    return k - 1;
+  }
+  function percentile(sortedArr, p) {
+    const idx = Math.min(sortedArr.length - 1, Math.max(0, Math.ceil((p / 100) * sortedArr.length) - 1));
+    return sortedArr[idx];
+  }
+
+  function run() {
+    if (!canvasCtx) initCanvas();
+    const spikeRate = parseFloat(spikeRateSlider.value);
+    const spikeDur = parseFloat(spikeDurSlider.value);
+    const cacheHit = parseInt(cacheHitSlider.value) / 100;
+    const nodeRate = parseFloat(nodeRateSlider.value);
+    
+    valSpikeRate.innerText = spikeRate.toFixed(1);
+    valSpikeDur.innerText = spikeDur.toFixed(1);
+    valCacheHit.innerText = cacheHitSlider.value;
+    valNodeRate.innerText = nodeRate.toFixed(2);
+
+    const MONTHS = 3000, baselineNodes = 6;
+    const baseTransactions = 1000000000;
+    const txnCostPer10k = 0.05; 
+
+    const bills = new Array(MONTHS);
+    for (let m = 0; m < MONTHS; m++) {
+      const numSpikes = poissonSample(spikeRate);
+      let spikeCost = 0;
+      for (let i = 0; i < numSpikes; i++) {
+        const extraNodes = 3 + Math.floor(Math.random() * 8);
+        const durationHrs = spikeDur * (0.5 + Math.random());
+        spikeCost += extraNodes * nodeRate * durationHrs;
+      }
+      
+      let actualHit = Math.max(0, Math.min(1, cacheHit + (Math.random() * 0.1 - 0.05)));
+      const missTx = baseTransactions * (1 - actualHit);
+      const missCost = (missTx / 10000) * txnCostPer10k;
+      bills[m] = (baselineNodes * nodeRate * 730) + spikeCost + missCost;
+    }
+    bills.sort((a, b) => a - b);
+
+    const minBill = bills[0];
+    const maxBill = bills[bills.length - 1];
+    const span = maxBill - minBill;
+    const safeSpan = span === 0 ? maxBill * 0.1 : span;
+    const xMin = Math.max(0, minBill - safeSpan * 0.1);
+    const xMax = maxBill + safeSpan * 0.1;
+
+    const buckets = 40;
+    const bucketSize = safeSpan / buckets;
+    const hist = new Array(buckets).fill(0);
+    if (span > 0) {
+        for (let b of bills) {
+            let idx = Math.min(buckets - 1, Math.floor((b - minBill) / bucketSize));
+            hist[idx]++;
+        }
+    } else {
+        hist[Math.floor(buckets/2)] = bills.length;
+    }
+
+    const margin = { left: 65, right: 20, top: 30, bottom: 40 };
+    drawFrame(canvasCtx, canvasW, canvasH, margin);
+
+    const yMax = Math.max(...hist) * 1.15;
+    const px = x => margin.left + ((x - xMin) / (xMax - xMin)) * (canvasW - margin.left - margin.right);
+    const py = y => (canvasH - margin.bottom) - ((y - 0) / (yMax - 0)) * (canvasH - margin.top - margin.bottom);
+
+    // Draw Histogram Area
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(px(xMin), py(0));
+    for(let i=0; i<buckets; i++) {
+        let binCenter = minBill + (i + 0.5) * bucketSize;
+        canvasCtx.lineTo(px(binCenter), py(hist[i]));
+    }
+    canvasCtx.lineTo(px(xMax), py(0));
+    
+    let isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    canvasCtx.fillStyle = isLight ? 'rgba(15, 118, 110, 0.15)' : 'rgba(45, 212, 191, 0.15)';
+    canvasCtx.fill();
+    canvasCtx.strokeStyle = getThemeVar('--teal', '#2dd4bf');
+    canvasCtx.lineWidth = 2;
+    canvasCtx.stroke();
+
+    // Draw SLA Markers
+    const p50 = percentile(bills, 50);
+    const p90 = percentile(bills, 90);
+    const p99 = percentile(bills, 99);
+
+    function drawVLine(val, color, lbl) {
+        canvasCtx.strokeStyle = color;
+        canvasCtx.setLineDash([4, 4]);
+        canvasCtx.lineWidth = 1.5;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(px(val), py(0));
+        canvasCtx.lineTo(px(val), py(yMax));
+        canvasCtx.stroke();
+        canvasCtx.setLineDash([]);
+        axisLabel(canvasCtx, lbl, px(val) - 10, margin.top - 10);
+    }
+
+    drawVLine(p50, getThemeVar('--teal', '#2dd4bf'), 'P50');
+    drawVLine(p90, getThemeVar('--amber', '#fbbf24'), 'P90');
+    drawVLine(p99, getThemeVar('--danger', '#f87171'), 'P99');
+
+    axisLabel(canvasCtx, 'Monthly Cost ($) →', canvasW / 2 - 45, canvasH - 8);
+    canvasCtx.save(); canvasCtx.translate(16, canvasH / 2 + 40); canvasCtx.rotate(-Math.PI / 2);
+    axisLabel(canvasCtx, 'Frequency (Months)', 0, 0); canvasCtx.restore();
+
+    document.getElementById('finopsP50').innerText = '$' + Math.round(p50).toLocaleString();
+    document.getElementById('finopsP90').innerText = '$' + Math.round(p90).toLocaleString();
+    document.getElementById('finopsP99').innerText = '$' + Math.round(p99).toLocaleString();
+  }
+  [spikeRateSlider, spikeDurSlider, cacheHitSlider, nodeRateSlider].forEach(el => el.addEventListener('input', run));
+  window.addEventListener('resize', () => { initCanvas(); run(); });
+  initCanvas();
+  run();
+  window.redrawFinopsCanvas = run;
+})();
+
+// Re-render canvases on theme change
+document.addEventListener('theme-changed', () => {
+    setTimeout(() => {
+        if (window.redrawSimCanvas) window.redrawSimCanvas();
+        if (window.redrawHedgeCanvas) window.redrawHedgeCanvas();
+        if (window.redrawQueueCanvas) window.redrawQueueCanvas();
+        if (window.redrawMarkovCanvas) window.redrawMarkovCanvas();
+        if (window.redrawFinopsCanvas) window.redrawFinopsCanvas();
+    }, 60);
+});
+
+// KaTeX Auto-Render Guard
+document.addEventListener("DOMContentLoaded", function () {
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+      throwOnError: false
+    });
+  }
+});
+</script>
+
+</body>
+</html>

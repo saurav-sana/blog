@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Smart Iceberg Data Gateway: Rethinking Analytical Serving for the 95% Case</title>
+    
+    <!-- Mermaid.js for diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#1f232b',
+                primaryTextColor: '#e2e8f0',
+                primaryBorderColor: '#4fb8a6',
+                lineColor: '#a1a1aa',
+                secondaryColor: '#5B4FE0',
+                tertiaryColor: '#1D9E75'
+            }
+        });
+    </script>
+
+    <!-- MathJax for LaTeX formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0F1115;
+            --surface-color: #1f232b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #a1a1aa;
+            --accent-primary: #4fb8a6;
+            --accent-danger: #d9645c;
+            --accent-purple: #5B4FE0;
+            --border-color: #3b4252;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .hero-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #222;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        .hero-container svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        article {
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+
+        h1, h2, h3, h4 {
+            color: #ffffff;
+            margin-top: 2em;
+            margin-bottom: 0.75em;
+            font-weight: 700;
+        }
+
+        h1 { font-size: 2.5rem; line-height: 1.2; margin-top: 1em; }
+        h2 { font-size: 1.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        h3 { font-size: 1.25rem; color: var(--accent-primary); }
+
+        p, li { font-size: 1.1rem; color: var(--text-secondary); }
+        ul, ol { margin-bottom: 1.5em; }
+        li { margin-bottom: 0.5em; }
+
+        strong { color: var(--text-primary); }
+
+        a { color: var(--accent-primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        blockquote {
+            margin: 2em 0;
+            padding: 1em 1.5em;
+            border-left: 4px solid var(--accent-primary);
+            background: rgba(79, 184, 166, 0.05);
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+        }
+
+        pre {
+            background: var(--surface-color);
+            padding: 1.5em;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            color: #e2e8f0;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            background: var(--surface-color);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: var(--accent-primary);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2em 0;
+            background: var(--surface-color);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 1em;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        th {
+            background: rgba(255,255,255,0.02);
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        .mermaid {
+            background: var(--surface-color);
+            padding: 2em;
+            border-radius: 8px;
+            margin: 2em 0;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SVG Hero Image Adapted for the Smart Data Gateway -->
+    <div class="hero-container">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" style="background-color: #0F1115; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <!-- Subtle Background Grid -->
+            <path d="M 700 100 L 700 530 M 800 100 L 800 530 M 900 100 L 900 530 M 1000 100 L 1000 530 M 1100 100 L 1100 530" stroke="#1f232b" stroke-width="2"/>
+            <path d="M 650 150 L 1150 150 M 650 250 L 1150 250 M 650 350 L 1150 350 M 650 450 L 1150 450" stroke="#1f232b" stroke-width="2"/>
+
+            <!-- USL Curve (Throughput vs Nodes) -->
+            <!-- Ideal Linear Scaling -->
+            <path d="M 650 530 L 1100 80" fill="none" stroke="#a1a1aa" stroke-width="4" stroke-dasharray="8 8" stroke-linecap="round"/>
+            <!-- Gateway Stateless Scaling (Near Linear) -->
+            <path d="M 650 530 Q 950 230 1100 110" fill="none" stroke="#4fb8a6" stroke-width="8" stroke-linecap="round"/>
+            <!-- MPP Coherency Penalty Curve -->
+            <path d="M 650 530 Q 850 150 1050 450" fill="none" stroke="#d9645c" stroke-width="8" stroke-linecap="round"/>
+
+            <!-- Mathematical Labels for the Chart -->
+            <text x="1060" y="100" fill="#4fb8a6" font-size="20" font-weight="bold" font-family="monospace">β ≈ 0 (Gateway)</text>
+            <text x="1000" y="490" fill="#d9645c" font-size="20" font-weight="bold" font-family="monospace">β > 0 (MPP Coherency Drop)</text>
+            <text x="1080" y="60" fill="#a1a1aa" font-size="18" font-family="monospace">Ideal Scaling</text>
+
+            <!-- Chart Axes -->
+            <line x1="650" y1="530" x2="1150" y2="530" stroke="#3b4252" stroke-width="4" stroke-linecap="round"/>
+            <line x1="650" y1="100" x2="650" y2="530" stroke="#3b4252" stroke-width="4" stroke-linecap="round"/>
+            <text x="900" y="575" fill="#a1a1aa" font-size="22" text-anchor="middle" font-weight="600" letter-spacing="1">Nodes (N)</text>
+            <text x="610" y="315" fill="#a1a1aa" font-size="22" text-anchor="middle" font-weight="600" letter-spacing="1" transform="rotate(-90 610 315)">Throughput X(N)</text>
+
+            <!-- Left Side Typography -->
+            <text x="80" y="200" fill="#4fb8a6" font-size="24" font-family="monospace" font-weight="bold" letter-spacing="3">SAURAV SANA | FIELD NOTES</text>
+            
+            <text x="75" y="300" fill="#ffffff" font-size="80" font-weight="900" letter-spacing="-2">The Smart</text>
+            <text x="75" y="390" fill="#ffffff" font-size="80" font-weight="900" letter-spacing="-2">Iceberg</text>
+            
+            <text x="80" y="470" fill="#a1a1aa" font-size="28" font-weight="500">Rethinking Analytical Serving</text>
+            <text x="80" y="515" fill="#a1a1aa" font-size="28" font-weight="500">For the 95% Case.</text>
+        </svg>
+    </div>
+
+    <article>
+        <h1>The Smart Iceberg Data Gateway: Rethinking Analytical Serving for the 95% Case</h1>
+        <p><em>How a $55k/month monolithic OLAP bill led to a stateless, DuckDB-powered gateway architecture for AI agents, multi-tenant APIs, and operational dashboards — and why the industry's own usage data says most of us have been over-buying compute for years.</em></p>
+
+        <h2>Executive summary</h2>
+        <p>Most organizations do not have a Big Data problem. They have a serving problem: petabytes of history sitting in an open lakehouse, and a stream of operational queries that each touch a few megabytes to a few gigabytes of it. Forcing that traffic through a Massively Parallel Processing (MPP) engine — Dremio, Trino, Databricks, Snowflake — buys distributed-shuffle capability nobody is using, at a licensing and infrastructure cost nobody enjoys paying.</p>
+        <p>This post documents the design of a Smart Iceberg Data Gateway (SIDG): a stateless, horizontally scalable serving layer that sits in front of an Apache Iceberg lakehouse, executes the ~95% of queries that are small and simple using embedded DuckDB workers, and falls back to a real MPP engine only for the long tail that genuinely needs distributed compute. It covers the motivating cost and latency problem, the industry data that validates the "95% case," the technology selection process, the theoretical grounding (queueing theory, USL, Amdahl, Gustafson), a phase-by-phase architectural evolution from a naive embedded client to a production multi-region system, and the reliability/cost modeling used to size it.</p>
+        <p><em>A companion whitepaper (forthcoming) will present the same architecture with a formal TLA+/PlusCal specification for the routing, backpressure, and cache-coherence invariants.</em></p>
+
+        <h2>TL;DR</h2>
+        <ul>
+            <li>Most organizations route nearly all of their analytical traffic through MPP infrastructure (Trino/Dremio/Databricks/Snowflake) sized for terabyte-scale queries almost nobody actually runs.</li>
+            <li>Public usage data from Redshift, BigQuery, and Microsoft's internal Cosmos lake all show the same shape: roughly 75% of queries scan under 1 GB, and queries over 10 TB are about 3 in 10,000 (§2).</li>
+            <li>A stateless gateway — SQLGlot for AST rewriting and tenant isolation, PyIceberg for lazy metadata pruning, DuckDB for embedded execution, Arrow/Arrow Flight for zero-copy transport, NGINX/Redis for caching — can serve that 95% directly off an open Iceberg lakehouse at a fraction of the cost and latency, routing only the genuine long tail to a real MPP engine.</li>
+            <li>This is a systems-engineering account of building that gateway: the failures that shaped each design decision, the theory behind it, and the reliability/cost numbers used to size it — not a product pitch.</li>
+        </ul>
+
+        <h3>Who this is for</h3>
+        <p>Data platform engineers, SRE/infra teams operating a lakehouse, and anyone evaluating whether their organization's Trino/Dremio/Databricks bill actually matches its query patterns. Sections 6 (theory) and 9 (reliability/cost modeling) assume some familiarity with queueing theory and Kubernetes; the glossary immediately below is for readers who know SQL and distributed systems in general terms but haven't necessarily worked with Iceberg, Arrow, or DuckDB specifically — skip it if that's already familiar territory.</p>
+
+        <h2>A field guide to the ecosystem, for readers new to this stack</h2>
+        <p>This design leans on a handful of relatively young (2019–2024) open-source projects that don't yet have the name recognition of Spark or Postgres. A short glossary, roughly in the order the terms show up:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Term</th>
+                    <th>Plain-English definition</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Data lakehouse</strong></td>
+                    <td>Storing data as plain files (usually Parquet) in cheap object storage (S3 / Azure ADLS / GCS), with a metadata layer on top that provides database-like guarantees — schema, snapshots, transactions — without a database server owning the files.</td>
+                </tr>
+                <tr>
+                    <td><strong>Apache Parquet</strong></td>
+                    <td>A columnar file format. Instead of storing a table row by row, it stores it column by column, so an engine can read only the columns a query needs and compress similar values together. This is why analytical engines are fast at aggregation and structurally bad at single-row updates.</td>
+                </tr>
+                <tr>
+                    <td><strong>Apache Iceberg</strong></td>
+                    <td>An open table format layered on top of Parquet files. It tracks a versioned history of "snapshots", partition metadata, and schema evolution, so multiple different engines (Spark, Trino, DuckDB) can safely read and write the same tables without one shared, always-on database process owning them.</td>
+                </tr>
+                <tr>
+                    <td><strong>Iceberg REST Catalog</strong></td>
+                    <td>The standard HTTP API other engines call to ask "where are table X's files right now, and what's its current schema?" — vendor-neutral, so nobody's locked into one company's proprietary catalog.</td>
+                </tr>
+                <tr>
+                    <td><strong>PyIceberg</strong></td>
+                    <td>The Python library that talks to the Iceberg catalog and answers, before any engine touches actual data, "given this query's filters, which specific Parquet files can I skip entirely?" — called partition pruning.</td>
+                </tr>
+                <tr>
+                    <td><strong>Apache Arrow</strong></td>
+                    <td>An in-memory columnar data format, not a file format — a way for different programs (a Python process, a C++ engine, a network stream) to share tabular data without converting it to JSON or CSV in between. This is what "zero-copy" means everywhere in this post.</td>
+                </tr>
+                <tr>
+                    <td><strong>Apache Arrow Flight / Flight SQL</strong></td>
+                    <td>A network protocol (built on gRPC/HTTP/2) for streaming Arrow data directly between processes — the wire-format sibling of Arrow, purpose-built to move large tabular results fast, as an alternative to REST/JSON.</td>
+                </tr>
+                <tr>
+                    <td><strong>DuckDB</strong></td>
+                    <td>An embedded (in-process, SQLite-style) analytical SQL engine — no server to install or manage, just a library you import — that's very good at exactly the query shapes (filters, aggregations, joins on denormalized data) this design routes to it.</td>
+                </tr>
+                <tr>
+                    <td><strong>MPP</strong></td>
+                    <td>Massively Parallel Processing. The traditional architecture behind "big data" query engines (Trino, Dremio, Presto, Snowflake): a query is split into pieces that run in parallel across many networked worker machines, then partial results are shuffled and combined. Powerful for genuinely huge scans; expensive and comparatively slow for small ones.</td>
+                </tr>
+                <tr>
+                    <td><strong>OLAP vs. OLTP</strong></td>
+                    <td>OLAP = read-heavy, aggregation-heavy queries over historical data. OLTP = write-heavy, row-level, "update this one customer's balance right now" queries — a fundamentally different workload Section 11 explains this architecture is not built for.</td>
+                </tr>
+                <tr>
+                    <td><strong>"Gateway"</strong></td>
+                    <td>Not an API gateway in the Kong/Apigee sense — here it specifically means the layer between clients and the compute engine that handles routing, caching, and protocol translation, distinct from the engine itself.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>1. The problem: architectural misalignment in data serving</h2>
+        
+        <h3>1.1 The monolith problem</h3>
+        <p>Traditional MPP engines were built for analysts running ad-hoc BI reports, where waiting 15–30 seconds for a result was fine. That assumption is baked into their architecture:</p>
+        <ul>
+            <li><strong>They're black boxes.</strong> Dremio, Snowflake, Trino, and Databricks own the entire lifecycle — parsing, planning, caching, execution — end to end. You cannot tell their cache to proactively warm a partition because your ETL job just landed, and you cannot inject a deterministic result cache keyed to your own data-versioning scheme.</li>
+            <li><strong>Noisy neighbors.</strong> Shared JVM executor fleets (Dremio's "Fat Executors," Trino workers) mean one tenant's heavy aggregation can trigger a GC pause or OOM crash that takes down every other tenant's in-flight query on that node.</li>
+            <li><strong>Concurrency ceilings, not throughput ceilings.</strong> These engines are tuned for a small number of analysts running large scans, not hundreds of concurrent operational API callers doing small point lookups.</li>
+        </ul>
+
+        <h3>1.2 The financial reality</h3>
+        <p>A concrete before/after from a production reporting platform ("Report Hub") running on Dremio:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cost driver</th>
+                    <th>Monthly cost</th>
+                    <th>Root cause</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Proprietary licensing</td>
+                    <td>~$38k</td>
+                    <td>~3x the underlying compute cost, on top of already-open Iceberg/Parquet</td>
+                </tr>
+                <tr>
+                    <td>JVM over-provisioning</td>
+                    <td>~$13k</td>
+                    <td>20 executors + 8 coordinator/catalog nodes at 16 vCores / 128 GB each, sized to survive GC pauses</td>
+                </tr>
+                <tr>
+                    <td>Stateful disk overhead</td>
+                    <td>~$5k</td>
+                    <td>NVMe/SSD attached directly to stateful executors</td>
+                </tr>
+                <tr>
+                    <td><strong>Total</strong></td>
+                    <td><strong>~$55k/mo</strong></td>
+                    <td><em>excluding baseline storage</em></td>
+                </tr>
+            </tbody>
+        </table>
+        <p>Because the cache is physically coupled to stateful executor nodes, the cluster can't scale to zero overnight — every executor stays powered on 24/7 regardless of load. A multi-year enterprise agreement compounds this: Year 1 at a flat $384k, Year 2 at a $333k base (capped at 16 production nodes) plus $66.5k for non-production, with each additional node at roughly $24k/year.</p>
+
+        <h3>1.3 The other failure mode: exposing raw compute</h3>
+        <p>The opposite extreme — stripping away the gateway entirely and pointing clients straight at a bare DuckDB or DataFusion process — fails just as badly, for different reasons:</p>
+        <ul>
+            <li><strong>Thundering herd.</strong> Fifty dashboard users opening the app in the same second means fifty engines independently issuing fifty identical HTTP range requests to object storage, which storage answers with 429 Too Many Requests at scale.</li>
+            <li><strong>Cold-start latency.</strong> Compute engines are built to crunch numbers in local RAM, not manage TCP keep-alives or HTTP range headers against remote cloud storage — every query pays full network latency with no local cache.</li>
+            <li><strong>Zero tenant isolation.</strong> A compute engine has no concept of <code>WHERE tenant_id = 'X'</code>. Without a gateway inspecting the query at the AST level, cross-tenant data exposure is a matter of when, not if.</li>
+            <li><strong>Protocol mismatch.</strong> Clients speak HTTP/REST/gRPC; compute engines speak internal execution vectors. Something has to bridge that gap.</li>
+        </ul>
+
+        <h3>1.4 The AI agent bottleneck</h3>
+        <p>Autonomous agents using the Model Context Protocol (MCP) make this worse, not better, if pointed at either extreme:</p>
+        <ul>
+            <li><strong>Context bloat.</strong> A raw SQL tool call can return thousands of rows, instantly consuming an LLM's context window.</li>
+            <li><strong>Unbounded scans from hallucinated SQL.</strong> Agents routinely emit unpartitioned <code>SELECT *</code> queries; against a shared MPP cluster this can crash executors for every other tenant.</li>
+            <li><strong>Latency-loop mismatch.</strong> A ReAct-style agent making 3–5 sequential tool calls turns a 10–30 second-per-query cold-storage read into a multi-minute round trip that blows through client timeouts.</li>
+            <li><strong>Prompt injection and data bleed.</strong> Agents are susceptible to indirect prompt injection; without AST-level tenant-predicate injection, a manipulated agent can read across tenant boundaries.</li>
+            <li><strong>Retry storms.</strong> An agent's default response to a SQL error is to rewrite and immediately retry — 20 failing queries in a few seconds is enough to monopolize a shared thread pool.</li>
+        </ul>
+
+        <h2>2. The data: is the "95% case" real, or wishful thinking?</h2>
+        <p>This is the load-bearing empirical claim of the whole design, so it's worth grounding in public data rather than intuition.</p>
+        <p>Query size distribution (Redshift usage analysis, via MotherDuck):</p>
+        <ul>
+            <li>Three-quarters of all queries scan less than a gigabyte, and queries over 10 TB — the workload MPP clusters are actually built for — are 3 in 10,000 and consume just 5.6% of total compute time.</li>
+            <li>Rolling the top two size tiers together: just 0.25% of queries ever scan more than 1 TB, yet that sliver still accounts for 16.6% of all elapsed compute time — a massively disproportionate cost-to-volume ratio, and exactly the shape of workload a routing layer should isolate rather than provision every node for.</li>
+            <li>Put differently: the industry is spending a large share of its query-dollars on infrastructure sized for a workload that's a rounding error of its actual traffic.</li>
+        </ul>
+        <p>Per-user scan ceilings tell the same story: 93% of users never exceed 10 GB in their heaviest query — comfortably within what a single embedded engine handles on a laptop-class machine — and 67% never exceed 1 GB. Only 1 user in 600 has ever scanned more than 10 TB.</p>
+        <p>Even inside organizations that do own petabyte-scale data, day-to-day queries overwhelmingly hit small, pre-aggregated tables: in one analysis, 99% of queries inside "Big Data" organizations targeted tables under 1 TB, because medallion-style architectures summarize raw data into clean serving layers before anyone queries it interactively.</p>
+        
+        <p>Independent corroboration exists across the industry, not just from one vendor's marketing blog:</p>
+        <ul>
+            <li><strong>Microsoft's internal Cosmos/SCOPE data lake</strong> (SIGMOD '18) documents heavy, systematic overlap across recurring production queries — the same underlying pattern of small, repetitive, locality-driven traffic.</li>
+            <li><strong>"Scalability! But at what COST?"</strong> (HotOS 2015) showed that for the data sizes many published "Big Data" benchmarks actually used, a well-written single-threaded implementation outperformed distributed systems using hundreds of cores.</li>
+            <li>Recent work on GPU-accelerated distributed query engines (VLDB 2025) shows the opposite trend at the very top end. That doesn't contradict the argument here; it reinforces a broader one: hardware has moved faster than most query-engine architectures have adapted to, at both the single-node and the distributed-cluster end.</li>
+        </ul>
+
+        <p><strong>Why this distribution isn't a coincidence.</strong> The pattern is explained by several well-known models stacking together, not one lucky observation:</p>
+        <ul>
+            <li><strong>Power-law / Zipfian access</strong> — a small head of hot, recent data absorbs almost all traffic; a long tail of historical data is rarely touched at once.</li>
+            <li><strong>Temporal and spatial locality</strong> — a tenant's request today is about today's data, in their region, for their account.</li>
+            <li><strong>Denormalization as an economic strategy</strong> — engineering teams flatten and pre-join data into wide serving tables specifically so queries only ever touch a narrow byte range.</li>
+            <li><strong>Bounded human/API attention</strong> — a UI grid shows 20 rows at a time; an API call serves one transaction context. Neither queries out of idle curiosity.</li>
+        </ul>
+        <blockquote>
+            The conclusion: the "95% case" is not a quirk of one application's workload — it's the expected shape of operational query traffic anywhere humans or bounded API clients are the ones asking the questions.
+        </blockquote>
+
+        <h2>3. Why the gateway, not the engine, is the product</h2>
+        
+        <h3>3.0 Current state vs. proposed, side by side</h3>
+        <p>Before the abstract argument, here's the concrete before/after. First, the shape of a request through a conventional MPP query engine:</p>
+
+        <pre class="mermaid">
+        flowchart LR
+            C["Client / UI<br/>SQL, REST, Arrow Flight"] -->|"1 request"| CO
+            subgraph MPP["MPP query engine"]
+                direction TB
+                CO["Coordinator<br/>authenticate, parse, plan"]
+                CAT[("Catalog<br/>metadata, snapshots")]
+                CO <-->|"2 metadata"| CAT
+                CO -->|"3 plan & distribute"| EA["Executor A<br/>scan & filter"]
+                CO -->|"3 plan & distribute"| EB["Executor B<br/>scan & filter"]
+                CO -->|"3 plan & distribute"| EC["Executor C<br/>scan & filter"]
+                EA <-->|"5 shuffle"| EB
+                EB <-->|"5 shuffle"| EC
+                EA -->|"6 join & roll-up"| CO
+                EB -->|"6 join & roll-up"| CO
+                EC -->|"6 join & roll-up"| CO
+            end
+            EA -->|"4 scan"| ST[("Open storage<br/>S3 / ADLS, Parquet")]
+            EB -->|"4 scan"| ST
+            EC -->|"4 scan"| ST
+            CO -->|"result"| C
+            style CO fill:#5B4FE0,color:#fff
+        </pre>
+
+        <p>Six stages, every one of them paid on every query regardless of size: request, metadata resolution, plan and distribute, scan and filter, a network shuffle to co-locate matching keys, and a final join/roll-up back at the coordinator. For a query touching 5 MB that's six stages of coordination overhead around a few milliseconds of actual work.</p>
+        
+        <p>The proposed gateway keeps the same storage and the same catalog, but removes the coordinator, the executor fan-out, and the shuffle entirely for the 95% case:</p>
+
+        <pre class="mermaid">
+        flowchart LR
+            RC["REST client<br/>UI / API / AI agent"] --> LB
+            FC["Flight client<br/>gRPC streaming"] --> LB
+            LB["Load balancer<br/>gRPC-aware L7"] --> GW
+
+            subgraph SDG["Smart data gateway"]
+                direction TB
+                GW["Gateway server<br/>(replicated, scales on connections)"]
+                WM["Workload management<br/>REST queue only"]
+                EX["Stateless executors<br/>thin DuckDB, scale on queue depth"]
+                RP["Reverse proxy / CDN<br/>catalog + pruning + hot data"]
+                CW["Cache warmer<br/>polls metadata, keeps hot data warm"]
+                GW -->|"REST path: queued"| WM --> EX
+                GW -->|"Flight path: direct"| EX
+                EX --> RP
+                CW -.-> RP
+                RC2[("Shared result cache<br/>hot data + finished results for every executor")]
+            end
+
+            RP --> CAT["Catalog service<br/>latest snapshot"]
+            RP --> ST[("Open storage<br/>S3 / ADLS / GCS, Parquet, Iceberg")]
+            GW --> RC
+
+            style GW fill:#5B4FE0,color:#fff
+            style RC2 fill:#1D9E75,color:#fff
+        </pre>
+
+        <p>Two details worth calling out: the REST and Flight paths are asymmetric on purpose — REST traffic goes through workload management (a queue) because it's the path async exports use and can tolerate the extra hop, while Flight traffic bypasses the queue entirely and goes straight to an executor. And the result cache lives inside the gateway boundary as shared state, not per-executor.</p>
+
+        <p>A useful mental model: a query engine is the brain (semantic understanding, planning, math); a data gateway is the nervous system (routing, caching, protocol bridging, traffic shaping). Compute engines — DuckDB, DataFusion, Spark, Trino — are increasingly interchangeable commodities. What doesn't commoditize is application-aware caching, query-aware routing, AST-level tenant isolation, and the MCP surface for AI agents.</p>
+
+        <h2>4. Surveying the market: does this already exist?</h2>
+        
+        <h3>4.1 The big three, and why they share the same flaws</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Noisy-neighbor risk</th>
+                    <th>Caching</th>
+                    <th>Customization / cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Trino</strong></td>
+                    <td>High — JVM heap exhaustion on one heavy tenant query OOM-kills shared workers</td>
+                    <td>Tightly coupled to worker-local SSD; scale-down destroys it</td>
+                    <td>No hook for proactive cache warming; requires a 24/7 baseline fleet</td>
+                </tr>
+                <tr>
+                    <td><strong>Databricks</strong></td>
+                    <td>Medium — thread contention on shared clusters; isolation means separate clusters</td>
+                    <td>Delta Cache tied to specific NVMe drives; scaling starts cold</td>
+                    <td>Serverless abstracts infra at a steep premium; no room for a custom proxy layer</td>
+                </tr>
+                <tr>
+                    <td><strong>Snowflake</strong></td>
+                    <td>Solved via cost — isolated Virtual Warehouses, paid for individually</td>
+                    <td>Local disk cache tied to the warehouse; suspending wipes it</td>
+                    <td>Fully closed; no application-aware cache warming or bypass path</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>4.2 Off-the-shelf gateways & Build vs. Buy</h3>
+        <p>The market has recognized the gap: Hasura v3 does edge-native GraphQL federation but leans on backend compute; Cube provides a strong semantic-layer caching API but isn't built around autonomous agent traffic; Spice.ai is the closest match — Rust, Apache Arrow, embedded DuckDB, explicitly AI- and edge-caching-oriented.</p>
+        <p>Adopting a managed dependency runs into three walls for a regulated, multi-tenant environment: (1) black-box caching policies that can't be tied to deterministic events; (2) 100+ tenant RLS enforcement that needs deep integration with an existing auth framework; (3) the desire to run the entire stack locally for development. The verdict: build, synthesizing modern primitives into a proprietary layer.</p>
+
+        <h2>5. Technology selection</h2>
+        
+        <h3>5.1 Compute engine shortlist</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Engine</th>
+                    <th>Strengths</th>
+                    <th>Trade-off</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Apache DataFusion</strong></td>
+                    <td>Rust, Arrow-native, zero persistent daemons, highly extensible</td>
+                    <td>Framework, not a ready product — more integration work upfront</td>
+                </tr>
+                <tr>
+                    <td><strong>DuckDB</strong></td>
+                    <td>World-class Parquet reader, native Iceberg extension, graceful out-of-core spill</td>
+                    <td>C++ embedded in Python introduces memory-safety edge cases</td>
+                </tr>
+                <tr>
+                    <td><strong>Daft</strong></td>
+                    <td>Arrow-native, Python-first, scales out via Arrow Flight shuffle</td>
+                    <td>Best fit if you expect to outgrow single-node</td>
+                </tr>
+            </tbody>
+        </table>
+        <p><strong>Why DuckDB won:</strong> its Parquet reader pairs perfectly with PyIceberg-driven metadata pruning and an NVMe byte-slice cache; it exports Arrow RecordBatches directly into an Arrow Flight server; and it runs entirely in-process.</p>
+
+        <h3>5.2 The building-block stack, by tier</h3>
+        <ul>
+            <li><strong>Tier 1 (Primitives):</strong> DuckDB (execution), Apache Arrow (in-memory substrate), PyIceberg (lazy metadata evaluation), Iceberg REST Catalog.</li>
+            <li><strong>Tier 2 (Nervous System):</strong> L7 load balancer (Envoy), NGINX (NVMe byte-range caching), Redis (shared control-plane cache), SQLGlot (AST-level parsing and RLS), HTTP range requests.</li>
+            <li><strong>Tier 3 (Protocols):</strong> Arrow Flight SQL (gRPC), FastAPI (REST), FastMCP (AI agents).</li>
+            <li><strong>Tier 4 (Ops):</strong> Kubernetes Operator, Celery, OpenTelemetry, Prometheus, Grafana, Locust, Chaos Mesh.</li>
+        </ul>
+
+        <h2>6. Does theory actually back this up?</h2>
+
+        <h3>6.1 Laws favoring the local gateway (the 95% case)</h3>
+        <ul>
+            <li><strong>Universal Scalability Law:</strong> $$C(N) = \frac{N}{1 + \alpha(N-1) + \beta N(N-1)}$$ The $\beta N^2$ coherency-penalty term is what kills MPP throughput at scale. A stateless gateway hitting local NVMe has $\beta \approx 0$: the scaling curve stays linear.</li>
+            <li><strong>Amdahl's Law:</strong> Self-contained workers reading immutable storage directly shrink the serial fraction toward zero.</li>
+            <li><strong>Little's Law ($N = X \times R$):</strong> Keeping response time low via local NVMe caching keeps backlog from ever forming.</li>
+            <li><strong>Kingman's Formula:</strong> A single-node embedded engine has no stragglers to wait on, avoiding non-linear queue wait time explosions.</li>
+            <li><strong>PACELC:</strong> Reading immutable object storage with atomic snapshot updates sidesteps latency-vs-consistency trade-offs.</li>
+        </ul>
+
+        <h3>6.2 Laws favoring MPP (the remaining 5%)</h3>
+        <ul>
+            <li><strong>Gustafson's Law:</strong> For genuinely petabyte-scale, embarrassingly parallel jobs, pooling the memory and CPU of dozens of MPP nodes is mathematically necessary.</li>
+            <li><strong>The out-of-core wall:</strong> Every single-node engine is capped by local RAM. MPP horizontally partitions memory itself.</li>
+            <li><strong>Aggregate I/O bandwidth scaling:</strong> A single NVMe drive tops out around 7 GB/s. For billions of rows, only aggregating I/O channels gets you real throughput.</li>
+        </ul>
+
+        <h2>7. Architectural evolution: from naive embedded client to production system</h2>
+
+        <h3>7.1 Phase 1 — Embedded mode: solving network latency</h3>
+        <p><strong>Step A — the fat client:</strong> Embed DuckDB directly inside the application process. Result: Cross-language serialization tax, zero caching (full cold network latency), and shared fate (a runaway query OOM-kills the host application).</p>
+        <p><strong>Step B — add an NGINX proxy CDN:</strong> 5x latency reduction, but OOM crashes on large tables persist because the bottleneck was memory, not network.</p>
+
+        <h3>7.2 Phase 2 — Decoupling execution: solving memory and metadata exhaustion</h3>
+        <p><strong>Step C — pull DuckDB into a Python/Arrow service.</strong></p>
+        <p><strong>Step D — introduce PyIceberg for lazy metadata evaluation.</strong> DuckDB's native Iceberg extension eagerly loads the entire manifest tree. PyIceberg streams and filters metadata lazily. This fully resolves the OOM crashes.</p>
+        <p><strong>Step E — introduce SQLGlot to bridge SQL to PyIceberg.</strong> SQLGlot parses the AST, extracts predicates for PyIceberg's pruning, and rewrites the query template for DuckDB.</p>
+
+        <h3>7.3 Phase 3 — Scaling with load: solving concurrency</h3>
+        <p><strong>Step F — scale NGINX to a 3-node cluster</strong> behind consistent hashing.</p>
+        <p><strong>Step G — move to an async Arrow Flight server.</strong> Returns a Ticket instantly while execution is dispatched to a separate OS process (`ProcessPoolExecutor`).</p>
+        <p><strong>Step H — Redis/Celery task queue, and the "claim check" pattern.</strong> Pushing multi-hundred-MB Arrow results into Redis will OOM the broker. The worker streams Arrow IPC output to blob storage and writes only a tiny JSON pointer into Redis. The Gateway subscribes to Redis Pub/Sub instead of polling.</p>
+
+        <h3>7.4 Phase 4 — the enterprise end state: dual-protocol routing</h3>
+        <p>REST and Arrow Flight are optimized for opposite delivery paradigms:</p>
+        <ul>
+            <li><strong>REST's natural shape is async polling</strong> — a good match for the decoupled Redis/Celery/Blob path, absorbing long-running exports without holding a synchronous connection past a load balancer timeout.</li>
+            <li><strong>Arrow Flight's purpose is zero-copy streaming</strong> — decoupling it through Redis/Blob defeats the point. It belongs on a co-located, stateless-monolith path where DuckDB hands Arrow batches to the API thread via local IPC.</li>
+        </ul>
+
+        <h2>8. System architecture and request flows</h2>
+
+        <h3>8.0 Component architecture at a glance</h3>
+        <pre class="mermaid">
+        flowchart TB
+            subgraph clients["Clients"]
+                direction LR
+                C1["Dashboard / API client"]
+                C2["AI Agent<br/>(LangGraph / AutoGen)"]
+            end
+
+            subgraph edge["Edge — Protocol Routing"]
+                LB["L7 Gateway API<br/>(Envoy — gRPC-aware)"]
+            end
+
+            subgraph gw["Gateway Nervous System"]
+                direction TB
+                AUTH["AuthN/AuthZ<br/>(OIDC / JWT)"]
+                SQLG["SQLGlot<br/>AST parse + RLS injection"]
+                CLASS["Classifier<br/>size / complexity / fanout"]
+                AUTH --> SQLG --> CLASS
+            end
+
+            subgraph flight["Flight Monolith Path"]
+                FM["Flight Server + DuckDB<br/>(co-located)"]
+                PYICE1["PyIceberg<br/>lazy metadata pruning"]
+                FM <--> PYICE1
+            end
+
+            subgraph rest["Decoupled REST Path"]
+                REST["REST API"]
+                REDIS[("Redis")]
+                CELERY["Celery Workers"]
+                BLOB[("Blob Storage")]
+                REST --> REDIS --> CELERY --> BLOB
+            end
+
+            subgraph mcp["AI Agent Path"]
+                MCPS["FastMCP Server"]
+                GUARD["AST Guardrails"]
+                MCPS --> GUARD
+            end
+
+            subgraph cache["Shared Caching Tier"]
+                direction LR
+                NGINXM[("NGINX metadata")]
+                NGINXD[("NGINX Parquet")]
+                WARM["Background Warmer"]
+                WARM -.pre-fetch.-> NGINXD
+            end
+
+            subgraph storage["Source of Truth"]
+                CAT["Iceberg REST Catalog"]
+                DLH[("Iceberg Tables (ADLS/S3)")]
+            end
+
+            C1 --> LB
+            C2 --> LB
+            LB --> AUTH
+            CLASS -->|SYNC| FM
+            CLASS -->|ASYNC| REST
+            CLASS -->|agent tool| MCPS
+            GUARD --> FM
+            PYICE1 --> CAT
+            FM --> NGINXM
+            FM --> NGINXD
+            CELERY --> NGINXD
+            NGINXD -. miss .-> DLH
+        </pre>
+
+        <h2>9. Reliability, scaling, and cost engineering</h2>
+
+        <h3>9.1 Load balancer layer selection: Envoy vs. a managed ingress</h3>
+        <p>A managed Layer-7 ingress (e.g., Azure Application Gateway for Containers) is excellent for north–south traffic but is the wrong tool for east–west routing because it lacks <strong>Hedged requests</strong> and <strong>Passive outlier detection</strong>. The recommendation is a split: managed ingress at the edge, and in-cluster Envoy Gateway for internal routing, using LEAST_REQUEST and Maglev hashing.</p>
+
+        <h3>9.3 Sizing the worker pool: the Kubernetes math trap</h3>
+        <p>Requesting a pod at exactly <code>cpu: "8"</code> against an 8-vCPU node fails to schedule. <strong>Option C wins:</strong> Refactoring to smaller pods (3.5 vCPU / 14 GiB) on <code>D4s_v5</code> nodes packs tightly, scales in finer increments, and spreads evenly across zones.</p>
+
+        <h3>9.4 The caching-tier hardware decision</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>D4s_v5 + Premium SSD v2</th>
+                    <th>L4s_v4 (chosen)</th>
+                    <th>L8s_v3</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Storage</strong></td>
+                    <td>Network-attached, 145 MB/s cap</td>
+                    <td>Local NVMe, 1,500 MB/s</td>
+                    <td>Local NVMe, ~2,000 MB/s</td>
+                </tr>
+                <tr>
+                    <td><strong>Latency</strong></td>
+                    <td>~1–2ms</td>
+                    <td>~0.05ms</td>
+                    <td>~0.05ms</td>
+                </tr>
+                <tr>
+                    <td><strong>Compute fit</strong></td>
+                    <td>4 vCPU (matches proxy need)</td>
+                    <td>4 vCPU (matches proxy need)</td>
+                    <td>8 vCPU (over-provisioned)</td>
+                </tr>
+                <tr>
+                    <td><strong>HA cost</strong></td>
+                    <td>~$540/mo</td>
+                    <td>~$750/mo</td>
+                    <td>~$1,380/mo</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>The L4s_v4 hits the sizing sweet spot: a 42x IOPS improvement over the D-series for roughly $210/month more, avoiding the compute waste of the L8.</p>
+
+        <h2>10. Implementation details: from design to code</h2>
+        
+        <h3>10.1 Metadata pruning handoff: PyIceberg feeding DuckDB</h3>
+<pre><code class="language-python">from pyiceberg.catalog import load_catalog
+from pyiceberg.expressions import And, GreaterThanOrEqual, EqualTo
+import duckdb
+
+catalog = load_catalog("rest_catalog", uri=CATALOG_URI, token=CATALOG_TOKEN)
+table = catalog.load_table("lakehouse.trades")
+
+# Lazy, statistics-driven pruning
+scan = table.scan(
+    row_filter=And(
+        EqualTo("tenant_id", tenant_id),
+        GreaterThanOrEqual("trade_date", start_date),
+    )
+)
+file_uris = [task.file.file_path for task in scan.plan_files()]
+
+# DuckDB only ever touches the pruned file list
+con = duckdb.connect(":memory:")
+con.execute(f"""
+    SELECT * FROM read_parquet({file_uris})
+    WHERE trade_date >= ?
+""", [start_date])
+</code></pre>
+
+        <h3>10.2 AST rewriting and mandatory tenant isolation</h3>
+<pre><code class="language-python">import sqlglot
+from sqlglot import exp
+
+def enforce_tenant_isolation(sql: str, tenant_id: str) -> str:
+    tree = sqlglot.parse_one(sql, read="duckdb")
+    tenant_predicate = exp.condition(f"tenant_id = '{tenant_id}'")
+
+    if tree.find(exp.Select) and not tree.find(exp.Where):
+        raise ValueError("unbounded scan rejected: no WHERE clause present")
+
+    where = tree.find(exp.Where)
+    where.set("this", exp.And(this=where.this, expression=tenant_predicate))
+    return tree.sql(dialect="duckdb")
+</code></pre>
+
+        <h3>10.3 DuckDB worker resource limits</h3>
+<pre><code class="language-sql">PRAGMA memory_limit='6GB';
+PRAGMA temp_directory='/tmp/duckdb_spill';
+PRAGMA threads=2;
+SET enable_progress_bar=false;
+</code></pre>
+
+        <h2>11. Results: what the proof of concept actually showed</h2>
+        <ul>
+            <li><strong>Infrastructure:</strong> retired 6 "fat" Dremio executors (96 vCores, 768 GB RAM combined) in favor of 2 gateway nodes + 3 reverse-proxy nodes (28 vCores, 56 GB RAM total) — a >50% reduction in CPU and >80% reduction in RAM footprint.</li>
+            <li><strong>Performance:</strong> matched legacy performance on the most complex production queries without horizontally scaling the new stack at all.</li>
+            <li><strong>Cost:</strong> the gateway handles over 95% of standard reporting natively, letting the proprietary engine be run on a bare-minimum footprint, eliminating several executor licenses.</li>
+        </ul>
+
+        <h2>12. Where this architecture is the wrong tool</h2>
+        <p>This design is a poor fit when the workload needs:</p>
+        <ul>
+            <li><strong>High-frequency row mutation (UPDATE/DELETE):</strong> Parquet is immutable; frequent edits trigger a compaction storm.</li>
+            <li><strong>Pessimistic row locking:</strong> Iceberg is optimistic-concurrency only.</li>
+            <li><strong>Full-text / fuzzy search:</strong> Columnar min/max statistics are not an inverted index.</li>
+            <li><strong>B-tree cursor pagination:</strong> No index to seek into at \(O(\log N)\).</li>
+            <li><strong>Sub-10ms read-after-write:</strong> Streaming ingestion commits in micro-batches.</li>
+        </ul>
+        <p>For those, the better patterns are a transactional-outbox dual-store, Elasticsearch/OpenSearch, or Redis.</p>
+
+        <h2>13. Where this goes next</h2>
+        <p>Beyond the initial Iceberg-and-Flight scope, natural extensions are: zero-trust governance (OPA-driven dynamic AST masking, WORM audit vaults), multi-catalog federation (Polaris, Unity Catalog, Glue), cost-based tiered routing, autonomous SecOps, and DuckDB-WASM at the edge.</p>
+
+        <h2>14. References and further reading</h2>
+        <ul>
+            <li>Tigani, J. — "Redshift Files: The Hunt for Big Data", MotherDuck (2024).</li>
+            <li>McSherry, F. et al. — "Scalability! But at what COST?", HotOS XV (2015).</li>
+            <li>Jindal, A. et al. — "Computation Reuse in Analytics Job Service at Microsoft", SIGMOD 2018.</li>
+            <li>Wu, B. et al. — "Terabyte-Scale Analytics in the Blink of an Eye", VLDB 2025.</li>
+        </ul>
+
+        <h2>Frequently asked questions</h2>
+        <ul>
+            <li><strong>Do most companies actually have a "big data" problem?</strong> No. Analysis of AWS's Redshift fleet found roughly 75% of queries scan under 1 GB, and queries over 10 TB account for about 3 in every 10,000.</li>
+            <li><strong>Is DuckDB a replacement for Trino, Spark, or Snowflake?</strong> No — it's a complement. This design routes the ~95% of queries that are small and simple to embedded workers, and sends the genuine long tail to an MPP engine.</li>
+            <li><strong>Why not just expose DuckDB directly?</strong> A compute engine has no concept of tenant isolation, caching, or protocol translation — doing so causes thundering-herd storage meltdowns and cross-tenant data exposure.</li>
+            <li><strong>What happens to AI agent queries that hallucinate bad SQL?</strong> They're intercepted at the AST level before execution: unbounded scans and missing tenant predicates are rejected outright.</li>
+        </ul>
+
+    </article>
+</body>
+</html>

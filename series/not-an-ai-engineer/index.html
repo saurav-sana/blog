@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+    
+    <title>You're Not an AI Engineer. You're a Systems Janitor. | Saurav Sana</title>
+
+    <!-- Open Graph & Twitter Cards -->
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="You're Not an AI Engineer. You're a Systems Janitor. | Saurav Sana">
+    <meta property="og:description" content="GPU memory, KV cache, continuous batching, TLA+ formal verification, and the surprisingly expensive art of setting money on fire one token at a time.">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Fonts & Math -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+    <style>
+        :root {
+            /* Base Theme Colors - Saurav Sana Field Notes Theme */
+            --bg: #030508;
+            --page: #06090f;
+            --panel: #0b1018;
+            --panel-2: rgba(255, 255, 255, 0.03);
+            --surface: rgba(15, 22, 35, 0.7);
+            
+            --border: rgba(148, 163, 184, 0.15);
+            --line: rgba(148, 163, 184, 0.2);
+            --line-soft: rgba(148, 163, 184, 0.1);
+            
+            --text: #cbd5e1;
+            --strong: #f8fafc;
+            --muted: #8b99b0;
+            --muted-2: #5c6a80;
+            --dim: #475569;
+            
+            --teal: #4fb8a6;
+            --blue: #38bdf8;
+            --violet: #a78bfa;
+            --amber: #f5b14c;
+            --red: #d9645c;
+            
+            --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+            --font-sans: "IBM Plex Sans", "Libre Franklin", sans-serif;
+            --font-serif: "IBM Plex Serif", Georgia, serif;
+            --maxw: 1400px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; scroll-padding-top: 100px; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: var(--font-serif); font-size: 17.5px; line-height: 1.78;
+            -webkit-font-smoothing: antialiased; overflow-x: hidden;
+        }
+        
+        /* Ambient Background */
+        body::before {
+            content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background: radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.04), transparent 50%),
+                        radial-gradient(circle at 85% 30%, rgba(167, 139, 250, 0.04), transparent 50%);
+        }
+        body::after {
+            content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 40px 40px; mask-image: linear-gradient(to bottom, #000 20%, transparent 90%);
+        }
+        ::selection { background: rgba(79, 184, 166, 0.3); color: #fff; }
+
+        /* Typography */
+        h1, h2, h3, h4, h5 { font-family: 'Libre Franklin', sans-serif; color: var(--strong); position: relative; z-index: 2; }
+        h1 { font-size: clamp(34px, 5vw, 50px); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 1rem; }
+        h2 { font-size: 26px; font-weight: 700; margin: 60px 0 20px; border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; display: flex; gap: 12px; align-items: baseline; }
+        h2 .num { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--teal); opacity: 0.8; }
+        h3 { font-size: 20px; font-weight: 600; margin: 40px 0 16px; }
+        h4 { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 30px 0 12px; }
+        p { margin: 0 0 20px; position: relative; z-index: 2; }
+        strong { font-weight: 600; }
+        em { color: var(--teal); font-style: italic; }
+        a { color: var(--teal); text-decoration: none; border-bottom: 1px solid rgba(79,184,166,0.3); transition: 0.2s; position: relative; z-index: 2; }
+        a:hover { border-bottom-color: var(--teal); }
+        ul, ol { margin: 0 0 24px; padding-left: 24px; position: relative; z-index: 2; }
+        li { margin-bottom: 10px; }
+        li::marker { color: var(--muted); }
+        hr { border: 0; border-top: 1px solid var(--line); margin: 50px 0; position: relative; z-index: 2; }
+        blockquote { margin: 30px 0; padding-left: 20px; border-left: 3px solid var(--teal); font-style: italic; color: var(--muted); position: relative; z-index: 2; }
+
+        .byline { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.15em; color: var(--violet); text-transform: uppercase; margin-bottom: 16px; font-weight: 600; position: relative; z-index: 2;}
+        .deck { font-family: var(--font-sans); font-size: 19px; color: var(--muted); line-height: 1.6; margin-bottom: 40px; font-weight: 400; position: relative; z-index: 2;}
+
+        /* Layout */
+        .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 5; }
+        .site-header { padding: 20px 0; margin-bottom: 20px; border-bottom: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: baseline; }
+        .site-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; color: var(--strong); text-decoration: none; border: none; display: flex; align-items: center; gap: 10px; }
+        .site-title__badge { background: var(--teal); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .site-nav { display: flex; gap: 24px; font-family: var(--font-sans); font-size: 14px; }
+        .site-nav a { color: var(--muted); border: none; }
+        .site-nav a:hover { color: var(--text); }
+        
+        main { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 60px; align-items: start; margin-top: 40px; }
+        .article { max-width: 860px; min-width: 0; }
+        @media(max-width: 1100px){ main { grid-template-columns: 1fr; } }
+
+        /* TOC Sidebar */
+        .toc { position: sticky; top: 100px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; max-height: calc(100vh - 120px); overflow-y: auto; }
+        .toc-title { font-size: 10px; letter-spacing: 0.2em; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; font-weight: 700; }
+        .toc ol { list-style: none; padding: 0; margin: 0; }
+        .toc li { margin-bottom: 8px; }
+        .toc a { display: block; color: var(--dim); border: none; transition: 0.2s; padding-left: 10px; border-left: 2px solid transparent; }
+        .toc a:hover { color: var(--text); border-left-color: var(--dim); }
+        @media(max-width: 1100px){ .toc { display: none; } }
+
+        /* Structural Elements & Callouts */
+        .pull { margin: 40px 0; padding: 24px 28px; border-left: 3px solid var(--amber); background: linear-gradient(90deg, rgba(245,177,76,0.08), transparent 80%); border-radius: 0 8px 8px 0; font-family: var(--font-sans); font-size: 20px; line-height: 1.5; color: #fef3c7; position: relative; z-index: 2;}
+        .pull.teal { border-left-color: var(--teal); background: linear-gradient(90deg, rgba(79,184,166,0.08), transparent 80%); color: #ccfbf1; }
+        .pull.violet { border-left-color: var(--violet); background: linear-gradient(90deg, rgba(167,139,250,0.08), transparent 80%); color: #ede9fe; }
+
+        .callout { margin: 30px 0; padding: 20px 24px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); position: relative; z-index: 2;}
+        .callout .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--teal); margin-bottom: 8px; font-weight: 600; }
+        .callout.warn { border-color: rgba(245,177,76,0.3); background: rgba(245,177,76,0.05); }
+        .callout.warn .lbl { color: var(--amber); }
+
+        /* Code & ASCII Diagrams */
+        code { font-family: var(--font-mono); font-size: 0.85em; background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: var(--teal); padding: 2px 6px; border-radius: 4px; }
+        pre { margin: 0; padding: 20px; overflow-x: auto; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--text); scrollbar-width: thin; }
+        pre::-webkit-scrollbar { height: 6px; }
+        pre::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .code-block { margin: 24px 0; border-radius: 8px; border: 1px solid var(--line); background: #05080c; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); position: relative; z-index: 2;}
+        .code-bar { display: flex; justify-content: space-between; padding: 8px 16px; background: var(--panel-2); border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        .code-bar .dots { display: flex; gap: 5px; }
+        .code-bar .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+        .code-bar .dots i:nth-child(1) { background: rgba(217,100,92,0.6); }
+        .code-bar .dots i:nth-child(2) { background: rgba(245,177,76,0.6); }
+        .code-bar .dots i:nth-child(3) { background: rgba(79,184,166,0.6); }
+        
+        .diagram { font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: var(--muted); background: #05080c; border: 1px solid var(--line); border-radius: 8px; padding: 20px; overflow-x: auto; margin: 30px 0; position: relative; z-index: 2;}
+        .diagram b { color: var(--blue); font-weight: 600; }
+        .diagram .r { color: var(--red); }
+        .diagram .g { color: var(--teal); }
+
+        .table-wrap { overflow-x: auto; margin: 30px 0; border: 1px solid var(--line); border-radius: 8px; position: relative; z-index: 2;}
+        table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 14px; background: rgba(15,22,35,0.4); }
+        th { text-align: left; padding: 12px 16px; background: rgba(255,255,255,0.03); font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--line); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+        td:first-child { font-weight: 600; color: var(--strong); }
+
+        /* TLA+ Syntax */
+        .tk-k { color: #c4b5fd; font-weight: 600; }
+        .tk-o { color: #7dd3fc; }
+        .tk-c { color: #64748b; font-style: italic; }
+
+        /* Interactive Panels (Saurav Sana Theme) */
+        .inst-header { margin-bottom:6px; margin-top:2.5rem; position: relative; z-index: 2;}
+        .inst-eyebrow { font-family: var(--font-mono); font-size:10.5px; color:var(--teal); letter-spacing:0.03em; margin-bottom:4px; text-transform:uppercase; }
+        .panel { background:var(--panel); border:1px solid var(--line); font-family:var(--font-sans); border-radius:8px; overflow:hidden; margin-bottom: 2rem; position: relative; z-index: 2;}
+        .panel-head { padding:16px 20px 12px; border-bottom:1px solid var(--line-soft); display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--panel-2); }
+        .panel-head h4 { font-family:'Libre Franklin',sans-serif; font-size:15px; font-weight:700; margin:0 0 4px 0; color:var(--text); }
+        .panel-head .desc { font-size:12.5px; color:var(--muted); max-width:540px; line-height:1.5; margin:0; }
+        .readout { text-align:right; flex-shrink:0; }
+        .readout .val { font-family: var(--font-mono); font-size:24px; font-weight:600; line-height:1; }
+        .readout .lbl { font-size:11px; color:var(--muted-2); margin-top:5px; }
+        .val.amber { color:var(--amber); } .val.teal { color:var(--teal); } .val.red { color:var(--red); }
+        
+        .panel-body { padding: 20px; display: flex; flex-direction: column; gap: 24px; }
+        .controls { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; background: var(--panel-2); padding: 16px 20px; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .control { flex: 1 1 130px; min-width: 130px; }
+        .control label { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-bottom: 8px; }
+        .control .cval { font-family: var(--font-mono); color: var(--text); font-weight: 600; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--line); border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--teal); cursor:pointer; box-shadow:0 0 0 2px var(--panel); }
+        .controls .note { flex: 1 1 100%; font-size: 11.5px; color: var(--muted-2); margin: 4px 0 0; line-height: 1.5; border-top: 1px dashed var(--line-soft); padding-top: 12px; }
+
+        /* SVGs */
+        svg.chart { width:100%; max-width:640px; height:auto; display:block; margin:0 auto; }
+        .grid-line { stroke:var(--line-soft); stroke-width:1; } .axis-line { stroke:var(--line); stroke-width:1; }
+        .axis-text { fill:var(--muted-2); font-family:var(--font-mono); font-size:10px; }
+        .curve { fill:none; stroke:var(--teal); stroke-width:2; }
+        .curve-warn { fill:none; stroke:var(--red); stroke-width:1.4; stroke-dasharray:4 3; }
+        .curve-ideal { fill:none; stroke:var(--red); stroke-width:1.2; stroke-dasharray:4 3; }
+        .marker { fill:var(--amber); } .marker-line { stroke:var(--amber); stroke-width:1; stroke-dasharray:3 3; }
+
+        /* Animated Hero Architecture */
+        .arch { margin: 40px 0 60px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, #0b1018, #06090f); overflow: hidden; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.8); font-family: var(--font-sans); position: relative; z-index: 2; }
+        .arch-head { display: flex; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+        .arch-head .t { font-family: var(--font-mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+        .arch-head .t .live { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 8px var(--teal); animation: blink 2s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .arch-ctl { display: flex; gap: 8px; }
+        .arch-ctl button { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: var(--muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .arch-ctl button:hover { color: var(--teal); border-color: var(--teal); }
+        .arch-ctl button.off { opacity: 0.5; }
+        
+        .arch-body { display: grid; grid-template-columns: 1fr 280px; }
+        @media(max-width: 900px){ .arch-body { grid-template-columns: 1fr; } }
+        .pipeline { position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 30px 16px; overflow: hidden; }
+        .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+        .row { display: flex; gap: 12px; justify-content: center; z-index: 2; width: 100%; position: relative; }
+        
+        .node { background: #111827; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; text-align: center; min-width: 110px; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .node .title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--accent, #cbd5e1); letter-spacing: 0.1em; }
+        .node .sub { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-top: 4px; }
+        .node.wide { min-width: min(100%, 460px); }
+        .node.active { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 0 15px -2px var(--accent); }
+        
+        .packet { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #fff; z-index: 6; pointer-events: none; transform: translate(-50%,-50%); box-shadow: 0 0 15px 5px rgba(79,184,166,0.6); transition: left 0.3s ease, top 0.3s ease, opacity 0.2s; }
+        .packet.bad { background: #fecdd3; box-shadow: 0 0 15px 5px rgba(217,100,92,0.8); }
+        .packet.warn { background: #fef3c7; box-shadow: 0 0 15px 5px rgba(245,177,76,0.8); }
+        .packet.hidden { opacity: 0; }
+
+        .arch-side { border-left: 1px solid var(--line); padding: 20px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 20px; }
+        .panel-box h4 { font-family: var(--font-mono); font-size: 10px; color: var(--text); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.1em;}
+        .panel-box h4::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 8px var(--dot); }
+        .metric { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; padding: 3px 0; }
+        .metric .k { color: var(--muted); }
+        .metric .v { color: #fff; font-weight: 600; }
+        .metric .v.bad { color: var(--red); }
+        .metric .v.warn { color: var(--amber); }
+        .bar { height: 3px; background: var(--line); border-radius: 2px; margin: 4px 0 10px; overflow: hidden; }
+        .bar i { display: block; height: 100%; transition: 0.5s; background: var(--dot); }
+        .eqbox { font-family: var(--font-mono); font-size: 9.8px; line-height: 1.72; color: var(--muted); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 8px 10px; }
+        .eqbox b { color: var(--amber); font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div id="progress"></div>
+    <div class="container">
+        <!-- Global Header -->
+        <header class="site-header">
+            <a href="#" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+            <nav class="site-nav">
+                <a href="#">Home</a>
+                <a href="#">Blog</a>
+                <a href="#">Contact</a>
+            </nav>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main>
+            <!-- Sidebar TOC -->
+            <aside class="toc" id="toc">
+                <div class="toc-title">PREVIOUSLY</div>
+                <ol style="color: var(--dim); margin-bottom: 24px; font-style: italic;">
+                    <li>Part I: The Core Model</li>
+                    <li>Part II: Generation Math</li>
+                    <li>Part III: KV Cache Memory</li>
+                    <li>Part IV: Batching Dynamics</li>
+                    <li>Part V: Quantization</li>
+                    <li>Part VI: Serving Engines</li>
+                </ol>
+                <div class="toc-title">CURRENT: PART VII</div>
+                <ol>
+                    <li><a href="#s64">More Than a Model on a GPU</a></li>
+                    <li><a href="#s65">The Pre-Inference Layer</a></li>
+                    <li><a href="#s67">Tokens Are Resource Limits</a></li>
+                    <li><a href="#s68">Rate Limits & Concurrency</a></li>
+                    <li><a href="#s71">Pre-Flight Cost Estimation</a></li>
+                    <li><a href="#s82">Real-World Architectures</a></li>
+                    <li><a href="#s87">Optimization Hierarchy</a></li>
+                    <li><a href="#s87b">Continuous Batching Internals</a></li>
+                    <li><a href="#s88">Speculative Decoding</a></li>
+                    <li><a href="#s92">The Cold Start Delusion</a></li>
+                    <li><a href="#s97">Formal Verification (TLA+)</a></li>
+                    <li><a href="#s106">The Closing Argument</a></li>
+                </ol>
+            </aside>
+
+            <!-- Article Content -->
+            <article class="article">
+                <div class="byline">Systems Engineering · LLM Infrastructure</div>
+                <h1>You're Not an AI Engineer.<br>You're a Systems Janitor.</h1>
+                <p class="deck">GPU memory, KV cache, continuous batching, queueing, guardrails, rate limits, cost per token, Kubernetes, TLA+ formal verification, and the surprisingly expensive art of setting VC money on fire one token at a time.</p>
+
+                <figure style="margin: 30px 0; text-align: center; position: relative; z-index: 2;">
+                    <img src="https://imgs.xkcd.com/comics/machine_learning.png" alt="XKCD: Machine Learning" style="max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 10px;">
+                    <figcaption style="font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 10px;">
+                        "Just stir the pile until they start looking right." — <a href="https://xkcd.com/1838/" target="_blank">xkcd #1838</a>
+                    </figcaption>
+                </figure>
+
+                <!-- Animated Architecture Diagram -->
+                <div class="arch" id="arch">
+                    <div class="arch-head">
+                        <div class="t"><span class="live"></span> Figure 1 — target architecture · a tragedy in multiple parts</div>
+                        <div class="arch-ctl">
+                            <button id="btn-pause">Pause</button>
+                            <button id="btn-replay">Replay</button>
+                        </div>
+                    </div>
+                    <div class="arch-body">
+                        <div class="pipeline" id="pipeline">
+                            <svg class="overlay" id="overlay"></svg>
+                            <div class="packet hidden" id="packet"></div>
+
+                            <div class="row">
+                                <div class="node" data-node="clients" style="--accent:#94a3b8"><div class="title">CLIENTS</div><div class="sub">apps · agents · chaos monkeys</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="gateway" style="--accent:#38bdf8"><div class="title">API GATEWAY</div><div class="sub">TLS · auth · authz</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node wide" data-node="pre" style="--accent:#a78bfa">
+                                    <div class="title">PRE-INFERENCE CONTROL PLANE</div>
+                                    <div class="sub" style="margin-top: 8px; color: #a78bfa;">validation · token est. · guardrails · rate limit · quotas · cost est.</div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="admission" style="--accent:#e879f9"><div class="title">ADMISSION</div><div class="sub">admit / defer / reject</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="reject" style="--accent:#fb7185"><div class="title">REJECT</div><div class="sub">429 / 503</div></div>
+                                <div class="node" data-node="queue" style="--accent:#fbbf24"><div class="title">QUEUE</div><div class="sub">purgatory</div></div>
+                                <div class="node" data-node="route" style="--accent:#34d399"><div class="title">ROUTE</div><div class="sub">admit now</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="router" style="--accent:#22d3ee"><div class="title">MODEL ROUTER</div><div class="sub">load · context · locality</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="vllm1" style="--accent:#818cf8"><div class="title">vLLM Node 1</div></div>
+                                <div class="node" data-node="vllm2" style="--accent:#818cf8"><div class="title">vLLM Node 2</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="gpu1" style="--accent:#fb923c"><div class="title">GPU 1</div><div class="sub">HBM · KV Cache</div></div>
+                                <div class="node" data-node="gpu2" style="--accent:#fb923c"><div class="title">GPU 2</div><div class="sub">HBM · KV Cache</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node wide" data-node="post" style="--accent:#4ade80"><div class="title">POST-INFERENCE VALIDATION</div><div class="sub" style="margin-top: 8px; color:#4ade80;">output validation · usage accounting · cost accounting</div></div>
+                            </div>
+                            <div class="row">
+                                <div class="node" data-node="out" style="--accent:#94a3b8"><div class="title">CLIENT</div><div class="sub">tokens delivered</div></div>
+                            </div>
+                        </div>
+
+                        <div class="arch-side">
+                            <div class="panel-box" style="--dot:#38bdf8">
+                                <h4>Observability</h4>
+                                <div class="metric"><span class="k">requests / min</span><span class="v" id="m-rpm">1,240</span></div>
+                                <div class="metric"><span class="k">input tok / s</span><span class="v" id="m-in">4,820</span></div>
+                                <div class="metric"><span class="k">output tok / s</span><span class="v" id="m-out">1,910</span></div>
+                                <div class="metric"><span class="k">queue depth</span><span class="v warn" id="m-q">3</span></div>
+                                <div class="metric"><span class="k">TTFT p99</span><span class="v" id="m-ttft">340 ms</span></div>
+                            </div>
+                            <div class="panel-box" style="--dot:#fb923c">
+                                <h4>GPU & Memory</h4>
+                                <div class="metric"><span class="k">GPU utilization</span><span class="v" id="m-gpu">74%</span></div>
+                                <div class="bar"><i id="b-gpu" style="width:74%"></i></div>
+                                <div class="metric"><span class="k">KV cache pressure</span><span class="v" id="m-kv">61%</span></div>
+                                <div class="bar"><i id="b-kv" style="width:61%; --dot:var(--amber);"></i></div>
+                                <div class="metric"><span class="k">active sequences</span><span class="v" id="m-seq">42</span></div>
+                            </div>
+                            <div class="panel-box" style="--dot:#f5b14c">
+                                <h4>Economics</h4>
+                                <div class="metric"><span class="k">$/1M input</span><span class="v">$0.42</span></div>
+                                <div class="metric"><span class="k">$/1M output</span><span class="v">$2.18</span></div>
+                                <div class="metric"><span class="k">fully loaded /1M</span><span class="v bad">$3.04</span></div>
+                                <div class="eqbox" style="margin-top:8px">
+                                  C<sub>token</sub> = <b>GPU·h + CPU + net + obs</b><br>
+                                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;÷ tokens<sub>useful</sub><br>
+                                  break-even util ≈ <b>61%</b>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h2 id="s64"><span class="num">64</span> Production Inference Is More Than "Put a Model on a GPU"</h2>
+                <p>At this point in the series, we have a "working" inference service. You wrap a model in a FastAPI shell, shove it into Kubernetes, point vLLM at a GPU, and text streams back.</p>
+                <div class="diagram">Client  →  Gateway  →  Kubernetes  →  vLLM  →  GPU  →  Tokens</div>
+                <p>That is enough for a demo. It is enough to trick a Product Manager who doesn't know any better.</p>
+                <p>It is nowhere near enough for production. A production system needs a bouncer. It needs a layer around the inference engine that decides, before a single byte reaches the GPU, whether this client deserves to consume the most excruciatingly expensive resource in your corporate estate.</p>
+
+                <div class="pull violet">It is where you stop a $40,000 piece of hardware from becoming the victim of a malformed $0.0001 HTTP request.</div>
+
+                <h2 id="s65"><span class="num">65</span> The Pre-Inference Layer</h2>
+                <p>Before a request reaches a GPU, the platform must answer four questions:</p>
+                <ul>
+                    <li><strong>Is the caller allowed?</strong> (Authentication, authorization, tenant identity).</li>
+                    <li><strong>Is the request legal?</strong> (Payload size, model access, context window bounds).</li>
+                    <li><strong>Can we afford it?</strong> (Estimated input tokens, max output tokens, tenant budget).</li>
+                    <li><strong>Can the platform serve it?</strong> (Queue depth, active sequences, KV-cache pressure).</li>
+                </ul>
+                <p>Only then do you decide: <em>Should it be admitted?</em></p>
+                <p>That last question is the difference between active capacity management and "Jesus take the wheel."</p>
+
+                <div class="callout warn">
+                    <div class="lbl">Rule 1 of Inference</div>
+                    <p>Relying on the Linux OOM (Out Of Memory) killer for capacity planning is like using a landmine as a speedbump. It works exactly once, and it leaves a massive mess.</p>
+                </div>
+
+                <h2 id="s66"><span class="num">66</span> Guardrails Before the GPU</h2>
+                <p>A guardrail is a constraint that prevents a request from creating unacceptable operational or financial consequences. Think of it as concentric circles of paranoia.</p>
+
+                <div class="code-block">
+<div class="code-bar"><span>guardrails.yaml</span></div><pre>
+guardrails:
+  max_input_tokens: 16000
+  max_output_tokens: 4096
+  max_total_tokens: 20000
+
+tenant:
+  max_concurrent_requests: 20
+  max_tokens_per_minute: 100000
+
+global:
+  max_queued_requests: 5000
+</pre></div>
+                <p>These numbers are examples. The correct values come from your workload, your SLO, and how much you hate waking up at 3 AM to manually reset a frozen node.</p>
+
+                <h2 id="s67"><span class="num">67</span> Tokens Are Resource Limits</h2>
+                <p>For a standard REST API, request payload size is a decent approximation of resource cost. For an LLM, <strong>tokens</strong> are the true resource approximation.</p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Request</th><th>Payload Size</th><th>Actual Infrastructure Cost</th></tr></thead>
+                        <tbody>
+                            <tr><td>A</td><td>2 KB</td><td>Small prefill phase, trivial KV cache allocation.</td></tr>
+                            <tr><td>B</td><td>2 MB (Codebase)</td><td>Catastrophic prefill, massive KV allocation, memory squatting until the heat death of the universe.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p>Therefore, your API Gateway cannot just be a dumb pipe. A request should not simply say <code>POST /generate</code> and disappear into the void. The control plane must calculate: <em>"This request could consume 18K input tokens and up to 4K generated tokens."</em></p>
+
+                <!-- INTERACTIVE: KV CACHE -->
+                <div id="panel-kv"></div>
+
+                <h2 id="s68"><span class="num">68</span> Rate Limiting & Concurrency</h2>
+                <p>A single <code>100 requests/sec</code> rate limit is spectacularly useless for LLMs. You must rate-limit the dimensions that actually cost blood and treasure.</p>
+                
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Protects</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Requests Per Min (RPM)</strong></td><td>Control plane, gateway routing, authentication systems.</td></tr>
+                            <tr><td><strong>Input Tokens / Min (ITPM)</strong></td><td>Prefill compute boundary and initial KV cache allocation.</td></tr>
+                            <tr><td><strong>Output Tokens / Min (OTPM)</strong></td><td>Sequential decode compute, sustained memory bandwidth limits.</td></tr>
+                            <tr><td><strong>Concurrency (C)</strong></td><td>Active sequences, scheduler slots, and absolute VRAM footprint.</td></tr>
+                            <tr><td><strong>Spend ($)</strong></td><td>Your job, the company's runway.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 id="s69"><span class="num">69</span> The Token Bucket</h2>
+                <p>A useful mechanism is a token bucket. For inference, a tenant receives a <em>token budget</em>: say, <code>100,000 input tokens / minute</code>. Every request consumes <code>estimated_input_tokens</code>. If the bucket cannot cover the request, you return a <code>429</code> or route to a lower-priority garbage tier. This is much more meaningful than slapping them with a 429 because they sent 100 empty payloads.</p>
+
+                <h2 id="s70"><span class="num">70</span> Concurrency Is Memory Control</h2>
+                <p>Rate limiting controls <em>arrival rate</em>. Concurrency controls the number of requests <em>simultaneously squatting in VRAM</em>. Without concurrency limits, your GPU becomes a subsidized housing project for zombified requests.</p>
+                <div class="diagram">Long requests → More active sequences → More KV Cache → Less Memory → Latency Spike</div>
+                <p>Enforcing concurrency is effectively enforcing Little's Law physically on the GPU scheduler.</p>
+
+                <h2 id="s71"><span class="num">71</span> Economics: Pre-Flight Cost Estimation</h2>
+                <p>Before submitting a request, estimate its maximum possible cost. If you are using a hosted API (OpenAI, Anthropic, Gemini), the math is trivial:</p>
+                <div class="diagram">Cost<sub>req</sub> = (InputTokens / 1M) · P<sub>in</sub> + (OutputTokens / 1M) · P<sub>out</sub></div>
+                
+                <p>But if you are self-hosting your inference platform, the cost per token is entirely derived from hardware utilization:</p>
+                <div class="diagram">Cost<sub>token</sub> = GPU hourly cost / (3600 × useful tokens/sec)</div>
+                <p>And there is the catch. Real infrastructure rarely runs at 100% useful utilization. It runs closer to 30%, while your CFO hyperventilates.</p>
+
+                <!-- INTERACTIVE: COST VS UTILIZATION -->
+                <div id="panel-cost"></div>
+
+                <h2 id="s76"><span class="num">76</span> Why Input ≠ Output Tokens</h2>
+                <p>Input and output are not symmetric workloads. Input processing (Prefill) is highly parallelizable and compute-bound. Output generation (Decode) is strictly sequential and entirely memory-bandwidth bound.</p>
+                <p>Therefore, 1M input tokens does not incur the same infrastructure cost as 1M output tokens. This is why commercial providers charge radically different rates for them.</p>
+
+                <h2 id="s77"><span class="num">77</span> Prefix Caching Effects</h2>
+                <p>If you have a 10K-token system prompt and a 500-token user question, recomputing the system prompt every time burns 10,500 tokens of compute. Reusing it from a Radix Tree KV cache burns 500 tokens of compute.</p>
+                <div class="pull teal">Caching isn't merely a latency optimization. It is a cost optimization.</div>
+
+                <h2 id="s79"><span class="num">79</span> The Self-Hosted Break-Even Equation</h2>
+                <p>To accurately compare self-hosting against a managed API, you cannot just look at the $5/hour sticker price of a GPU. You must use the fully-loaded cost equation:</p>
+                
+                <div class="diagram">              N<sub>GPU</sub>·C<sub>GPU/hr</sub> + C<sub>CPU</sub> + C<sub>mem</sub> + C<sub>storage</sub> + C<sub>platform</sub>
+C<sub>token</sub> = ─────────────────────────────────────────────────────────────
+                       Tokens<sub>generated</sub> × Availability × SLO-compliance</div>
+
+                <p>A system that produces 1 Billion tokens, but delivers half of them after the Time-To-First-Token (TTFT) SLO expires, is not cheaper. It is just a highly optimized engine for disappointing users.</p>
+
+                <h2 id="s82"><span class="num">82</span> Real-World Architecture Implementations</h2>
+                <p>We don't have to guess how to build this; we can steal the homework from the providers. While no one publishes their exact source code, public engineering disclosures reveal a remarkably consistent architecture.</p>
+
+                <ul>
+                    <li><strong>OpenAI:</strong> Has previously detailed global routing by geography, intra-cluster routing based on KV-cache locality, and speculative decoding to increase token-generation efficiency by double digits.</li>
+                    <li><strong>Google Gemini:</strong> Employs explicit workload tiering (Standard, Priority, Batch processing) and separate pricing for cached vs. uncached input tokens, directly reflecting the compute realities discussed in Section 77.</li>
+                    <li><strong>DeepSeek:</strong> In DeepSeek-V2 and V3, they explicitly attacked the memory bottleneck with Multi-head Latent Attention (MLA), massively compressing the KV cache footprint to fit larger batches onto fewer GPUs.</li>
+                    <li><strong>Anthropic:</strong> Treats the inference server as a strict security boundary, isolating trusted model weights and invokers from untrusted routing/API layers.</li>
+                </ul>
+
+                <h2 id="s87"><span class="num">87</span> The Optimization Hierarchy</h2>
+                <p>When the platform becomes too expensive, engineers instinctively want to buy newer hardware. Do not do this. Optimize in this strict order:</p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Level</th><th>Lever</th><th>Action</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td><strong>Avoid Work</strong></td><td>Semantic caching, prompt truncating, fixing duplicate API calls.</td></tr>
+                            <tr><td>2</td><td><strong>Admission</strong></td><td>Enforce strict concurrency and rate limits to protect the queue.</td></tr>
+                            <tr><td>3</td><td><strong>Scheduling</strong></td><td>Implement Continuous Batching (vLLM) and chunked prefill.</td></tr>
+                            <tr><td>4</td><td><strong>Memory</strong></td><td>PagedAttention, KV Cache prefix sharing, quantization (FP8).</td></tr>
+                            <tr><td>5</td><td><strong>Compute</strong></td><td>Speculative decoding, optimized CUDA/Triton kernels.</td></tr>
+                            <tr><td>6</td><td><strong>Routing</strong></td><td>Load-aware, cache-aware, geographic routing.</td></tr>
+                            <tr><td>7</td><td><strong>Scale</strong></td><td>Add more GPUs. (Notice this is last).</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 id="s87b"><span class="num">87.5</span> Continuous Batching Internals</h2>
+                <p>Static batching treats a group of requests as a single unit: they start together and the GPU waits for the slowest sequence to finish before the next batch can begin. That works for training. It is a disaster for interactive LLM traffic, where output lengths vary by orders of magnitude.</p>
+                
+                <p>Continuous batching (iteration-level scheduling) changes the unit of scheduling from the <em>request</em> to the <em>forward pass</em>. The scheduler regains control after every model step, evicts finished sequences, admits new ones, and rebuilds the batch. The GPU almost never sits idle.</p>
+
+                <div class="code-block">
+<div class="code-bar"><span>continuous-batching-loop</span></div><pre>
+while True:
+    scheduled = scheduler.step(running, waiting, kv_budget)
+    outputs = model.forward(scheduled)  # one iteration
+    
+    for seq in scheduled:
+        append_token(seq, sample(outputs[seq]))
+        if finished(seq):
+            free_kv_blocks(seq)
+            return_to_client(seq)
+            
+    admit_new_requests_into_freed_slots()
+</pre></div>
+
+                <div class="pull teal">
+                    “If your first optimization is buying more GPUs, eventually someone else will optimise the software and make your hardware purchase look like a charitable donation to NVIDIA.”
+                </div>
+
+                <figure style="margin: 30px 0; text-align: center; position: relative; z-index: 2;">
+                    <img src="https://imgs.xkcd.com/comics/automation.png" alt="XKCD: Automation" style="max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 10px;">
+                    <figcaption style="font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 10px;">
+                        The continuous-batching engineer after spending three weeks tuning <code>max_num_batched_tokens</code> instead of just ordering another GPU. — <a href="https://xkcd.com/1319/" target="_blank">xkcd #1319</a>
+                    </figcaption>
+                </figure>
+
+                <p>This relies entirely on <strong>PagedAttention</strong>. Naïve contiguous KV-cache allocation cannot support continuous batching without brutal fragmentation. PagedAttention treats the KV cache like virtual memory: fixed-size blocks (commonly 16 tokens), allocated on demand. Blocks are freed the moment a sequence finishes and can be reused by a newly admitted request in the very same iteration.</p>
+                
+                <p>Furthermore, because long <em>prefills</em> (compute-bound) stall active <em>decodes</em> (memory-bound), <strong>chunked prefill</strong> is the standard mitigation. The scheduler splits a long prompt into smaller token chunks and interleaves them with ongoing decode steps to prevent head-of-line blocking.</p>
+
+                <h2 id="s88"><span class="num">88</span> Speculative Decoding & Amdahl's Law</h2>
+                <p>Speculative decoding uses a tiny draft model to quickly guess tokens, which the massive target model verifies in parallel. But how much does this actually speed up your system? Enter Amdahl's Law:</p>
+
+                <!-- INTERACTIVE: AMDAHL -->
+                <div id="panel-amdahl"></div>
+                <p>If generating tokens is only 60% of your system's latency (because networking, guardrails, and prefill take 40%), making decoding infinitely fast will only yield a 1.6x overall speedup. Math sets a hard ceiling on hype.</p>
+
+                <h2 id="s92"><span class="num">92</span> The Cold Start Delusion & Enterprise Policy</h2>
+                <p>If you look at idle GPU costs and announce, <em>"We'll just auto-scale pods to zero!"</em>, you are lying to yourself. Auto-scaling a 40GB weights file into VRAM takes minutes. By the time your node is ready, the user has closed the tab.</p>
+                <p>Instead, implement priority classes (P0, P1, P2) as documented in our internal runbooks:</p>
+                <div class="diagram">P0 (Interactive Chat) → Strict SLO, reserved capacity.
+P1 (Standard API)     → Shared capacity.
+P2 (Batch Processing) → Preemptible, runs only on idle GPUs to push utilization to 90%.</div>
+
+                <h2 id="s97"><span class="num">97</span> Can You Prove It? Formal Verification with TLA+</h2>
+                <p>Everything above is a design argument. But in a distributed system, arguments don't prevent deadlocks. We assert that <em>"A GPU is never over-committed on KV cache"</em> and <em>"No tenant exceeds their budget."</em></p>
+                <p>Unit tests only check the happy path. To prove the admission controller logic works, we must write a formal specification using <strong>TLA+</strong> (Temporal Logic of Actions), allowing the TLC model checker to exhaustively explore the entire reachable state space.</p>
+
+                <div class="code-block">
+<div class="code-bar"><span>LLMInferencePlatform.tla</span></div><pre>
+------------------------------ MODULE LLMInferencePlatform ------------------------------
+EXTENDS Naturals, Sequences, TLC
+
+CONSTANTS GPUs,                 \* number of GPU workers
+          MaxConcurrentPerGPU,  \* max concurrent sequences per GPU
+          MaxQueueDepth,        \* global queue capacity
+          MaxTokensPerRequest,  \* per-request token budget
+          MaxCostPerTenant,     \* per-tenant budget
+          ReservedGPUs,         \* GPUs reserved for P0 traffic
+          Priorities,           \* {"P0","P1","P2"}
+          Tenants, Requests
+
+VARIABLES reqState, reqTokens, reqTenant, reqPriority, reqGPU,
+          gpuActive, gpuKVUsage, gpuMaxKV, queue,
+          tenantConcurrent, tenantTokensUsed, tenantSpend,
+          totalAdmitted, totalRejected, totalCompleted
+
+\* ... [Initialization and State mappings omitted for brevity] ...
+
+CanAdmit(r) ==
+    /\ reqState[r] = "queued"
+    /\ reqTokens[r] <= MaxTokensPerRequest
+    /\ tenantSpend[reqTenant[r]] + reqTokens[r] <= MaxCostPerTenant
+    /\ Len(queue) < MaxQueueDepth
+    /\ \E g \in 0..GPUs-1:
+           /\ (reqPriority[r] = "P0" \/ g >= ReservedGPUs)
+           /\ gpuActive[g] < MaxConcurrentPerGPU
+           /\ gpuKVUsage[g] + reqTokens[r] <= gpuMaxKV[g]
+
+Admit(r) ==
+    /\ CanAdmit(r)
+    /\ LET g == CHOOSE x \in 0..GPUs-1: (gpuActive[x] < MaxConcurrentPerGPU /\ gpuKVUsage[x] + reqTokens[r] <= gpuMaxKV[x]) IN
+        /\ reqState'   = [reqState EXCEPT ![r] = "admitted"]
+        /\ reqGPU'     = [reqGPU EXCEPT ![r] = g]
+        /\ gpuActive'  = [gpuActive EXCEPT ![g] = gpuActive[g] + 1]
+        /\ gpuKVUsage' = [gpuKVUsage EXCEPT ![g] = gpuKVUsage[g] + reqTokens[r]]
+        /\ tenantSpend' = [tenantSpend EXCEPT ![reqTenant[r]] = tenantSpend[reqTenant[r]] + reqTokens[r]]
+        /\ queue' = SelectSeq(queue, LAMBDA x: x # r)
+        /\ UNCHANGED <<reqTokens, reqTenant, reqPriority, gpuMaxKV, totalRejected, totalCompleted>>
+
+\* Next state relation combines Enqueue, Admit, Preempt, Reject, Inference, Complete
+Next == \/ \E r \in Requests: Admit(r) 
+        \/ \E r \in Requests: CompleteInference(r)
+        \* ...
+</pre></div>
+
+                <p>We then define the <strong>Invariants</strong>—the properties the universe is not allowed to violate:</p>
+
+                <div class="code-block">
+<div class="code-bar"><span>Invariants & Theorems</span></div><pre>
+\* 1. No GPU ever exceeds KV cache capacity (The OOM Killer invariant)
+NoKVCacheOverflow == \A g \in 0..GPUs-1: gpuKVUsage[g] <= gpuMaxKV[g]
+
+\* 2. No tenant exceeds their budget
+NoTenantBudgetViolation == \A t \in Tenants: tenantSpend[t] <= MaxCostPerTenant
+
+\* 3. P0 Reserved Capacity is respected
+ReservedCapacityRespected == \A r \in Requests:
+    reqState[r] \in {"admitted","inference"} =>
+        (reqGPU[r] < ReservedGPUs => reqPriority[r] = "P0")
+
+THEOREM Safety == Spec => [](NoKVCacheOverflow /\ NoTenantBudgetViolation /\ ReservedCapacityRespected)
+</pre></div>
+
+                <h3 id="s100">What the Model Checker Finds</h3>
+                <p>If you write the budget check guard as <code>tenantSpend[reqTenant[r]] &lt; MaxCostPerTenant</code> (checking <em>before</em> the request tokens are added, rather than after), the TLC model checker will spit out an error trace in seconds:</p>
+
+                <div class="diagram">State 1:  tenantSpend["A"] = 6      (Limit is 8. Guard passes: 6 < 8)
+State 2:  Admit(r) where reqTokens = 4
+          tenantSpend'["A"] = 6 + 4 = 10    <span class="r">← EXCEEDS MAX COST OF 8</span>
+
+<span class="r">Invariant NoTenantBudgetViolation is violated.</span></div>
+                
+                <p>That trace is the formal mathematical proof that <strong>admission control must evaluate the state a transition leads to, not just the state it starts from.</strong> Unit tests miss this. Formal verification does not.</p>
+
+                <hr>
+
+                <h2 id="s106"><span class="num">106</span> The Closing Argument</h2>
+                <p>There are people whose job is to build and train models. That is a deep and highly specialized research discipline.</p>
+                <p>This article is about a different problem. The model already exists. Now someone has to make it run.</p>
+                
+                <div class="diagram">Someone has to put it behind an API.
+Someone has to provision GPUs.
+Someone has to calculate whether the KV cache fits.
+Someone has to decide whether 32K context is operationally sane.
+Someone has to build the queue.
+Someone has to enforce rate limits.
+Someone has to prevent one noisy tenant from consuming the entire fleet.
+Someone has to calculate cost per million tokens.
+Someone has to explain why GPU utilization is 97% but TTFT p99 is 8 seconds.
+Someone has to decide whether another GPU is actually the answer.
+Someone has to prove the admission controller can’t deadlock — or silently blow through a tenant’s budget.
+Someone has to survive the next traffic spike.
+Someone has to make Kubernetes do all of this without accidentally scheduling the world’s most expensive CronJob.</div>
+
+                <p>That person doesn't need to be an AI Researcher. They need to be an engineer.</p>
+                <p>Because once the model enters production, it obeys the same wonderfully inconvenient laws of physics as every other distributed system: memory is finite, bandwidth is capped, queues grow, and capacity costs money.</p>
+                <p>And eventually, someone gets paged at 3 AM. Spoiler alert: it's you.</p>
+
+                <div class="pull violet" style="font-size: 22px; text-align: center;">
+                    That's not artificial intelligence.<br>That's engineering.
+                </div>
+
+            </article>
+        </main>
+
+        <!-- Global Footer -->
+        <footer class="site-footer" style="margin-top: 80px; padding: 40px 0; border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; position: relative; z-index: 2;">
+            <div>© 2026 Saurav Sana</div>
+            <div style="display: flex; gap: 20px;">
+                <a href="#" style="color: var(--muted); text-decoration: none;">Github</a>
+                <a href="#" style="color: var(--muted); text-decoration: none;">X / Twitter</a>
+                <a href="#" style="color: var(--muted); text-decoration: none;">LinkedIn</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts for Interactivity -->
+    <script>
+        /* ---------------------------------------------------------------
+           SVG Chart Rendering Helpers
+        --------------------------------------------------------------- */
+        const _NS = "http://www.w3.org/2000/svg";
+        function _el(t,a){const e=document.createElementNS(_NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+        function _clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+        function _frame(svg,o,H=210){
+          _clearSvg(svg);
+          const W=640,padL=50,padR=20,padT=20,padB=30,plotW=W-padL-padR,plotH=H-padT-padB;
+          const {xMin,xMax,yMin,yMax,xTicks=5,yTicks=4,xFmt=v=>v.toFixed(1),yFmt=v=>v.toFixed(1)}=o;
+          
+          for(let i=0;i<=yTicks;i++){
+            const y=padT+plotH-(i/yTicks)*plotH;
+            svg.appendChild(_el("line",{x1:padL,x2:W-padR,y1:y,y2:y,class:"grid-line"}));
+            const val=yMin+(i/yTicks)*(yMax-yMin);
+            const t=_el("text",{x:padL-10,y:y+4,class:"axis-text","text-anchor":"end"});
+            t.textContent=yFmt(val); svg.appendChild(t);
+          }
+          for(let i=0;i<=xTicks;i++){
+            const x=padL+(i/xTicks)*plotW;
+            const val=xMin+(i/xTicks)*(xMax-xMin);
+            const t=_el("text",{x:x,y:H-padB+18,class:"axis-text","text-anchor":"middle"});
+            t.textContent=xFmt(val); svg.appendChild(t);
+          }
+          svg.appendChild(_el("line",{x1:padL,x2:W-padR,y1:padT+plotH,y2:padT+plotH,class:"axis-line"}));
+          svg.appendChild(_el("line",{x1:padL,x2:padL,y1:padT,y2:padT+plotH,class:"axis-line"}));
+          
+          const sx=v=>padL+((v-xMin)/(xMax-xMin))*plotW;
+          const sy=v=>padT+plotH-((Math.max(yMin,Math.min(yMax,v))-yMin)/(yMax-yMin))*plotH;
+          return {sx,sy,padL,padR,padT,padB,plotW,plotH,W,H};
+        }
+        function _pathFor(pts,sx,sy){return pts.map((p,i)=>(i===0?"M":"L")+sx(p[0]).toFixed(1)+","+sy(p[1]).toFixed(1)).join(" ");}
+        function _mount(id, html){ document.getElementById(id).innerHTML = html; }
+
+        /* ---------------------------------------------------------------
+           1) KV CACHE PANEL
+        --------------------------------------------------------------- */
+        (function(){
+          _mount('panel-kv', `
+            <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · KV CACHE</div></div>
+            <section class="panel">
+              <div class="panel-head">
+                <div><h4>KV Cache Memory Scaling</h4><p class="desc">Adjust concurrent sequences and context length to see how fast VRAM is consumed (7B model, FP16).</p></div>
+                <div class="readout"><div class="val amber" id="kv-readout">0 GB</div><div class="lbl">VRAM Required</div></div>
+              </div>
+              <div class="panel-body">
+                <div class="controls">
+                  <div class="control"><label>Concurrent Sequences <span class="cval" id="kv-seq-val">32</span></label><input type="range" id="kv-seq" min="1" max="128" step="1" value="32"></div>
+                  <div class="control"><label>Context Length <span class="cval" id="kv-ctx-val">4096</span></label><input type="range" id="kv-ctx" min="512" max="32768" step="512" value="4096"></div>
+                  <p class="note">Dashed red = 24GB consumer GPU limit. Concurrency scales linearly; context scales linearly. Combined, they destroy VRAM.</p>
+                </div>
+                <svg class="chart" id="kv-svg" viewBox="0 0 640 210"></svg>
+              </div>
+            </section>
+          `);
+          const seqEl=document.getElementById('kv-seq'), ctxEl=document.getElementById('kv-ctx');
+          function calcMem(seq, ctx){ return (seq * ctx * 1.0) / 1024; } 
+          function draw(){
+            const seq=parseFloat(seqEl.value), ctx=parseFloat(ctxEl.value);
+            document.getElementById('kv-seq-val').textContent=seq;
+            document.getElementById('kv-ctx-val').textContent=ctx;
+            const svg=document.getElementById('kv-svg');
+            const f=_frame(svg,{xMin:1,xMax:128,yMin:0,yMax:120,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(0)+"GB"});
+            const pts=[]; for(let r=1;r<=128;r+=1){pts.push([r,Math.min(120,calcMem(r,ctx))]);}
+            svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+            svg.appendChild(_el("path",{d:_pathFor([[1,24],[128,24]],f.sx,f.sy),class:"curve-warn"}));
+            const val=calcMem(seq,ctx), cx=f.sx(seq), cy=f.sy(Math.min(120,val));
+            svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+            svg.appendChild(_el("circle",{cx:cx,cy:cy,r:5,class:"marker"}));
+            document.getElementById('kv-readout').textContent=val.toFixed(1)+" GB";
+          }
+          seqEl.addEventListener('input',draw); ctxEl.addEventListener('input',draw); draw();
+        })();
+
+        /* ---------------------------------------------------------------
+           2) COST VS UTILIZATION PANEL
+        --------------------------------------------------------------- */
+        (function(){
+          _mount('panel-cost', `
+            <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · ECONOMICS</div></div>
+            <section class="panel">
+              <div class="panel-head">
+                <div><h4>Cost Per Token vs. Utilization</h4><p class="desc">As your GPU sits idle waiting for spikes, effective cost per token diverges toward infinity.</p></div>
+                <div class="readout"><div class="val red" id="c-readout">$0.00</div><div class="lbl">Cost / 1M Tokens</div></div>
+              </div>
+              <div class="panel-body">
+                <div class="controls">
+                  <div class="control"><label>Cluster Utilization <span class="cval" id="c-rho-val">0.50</span></label><input type="range" id="c-rho" min="0.05" max="1.0" step="0.05" value="0.50"></div>
+                  <div class="control"><label>GPU Cost ($/hr) <span class="cval" id="c-cost-val">$5.00</span></label><input type="range" id="c-cost" min="1" max="20" step="1" value="5"></div>
+                  <p class="note">Assuming a baseline peak throughput of 2,000 output tokens/sec. Lower utilization severely punishes self-hosting.</p>
+                </div>
+                <svg class="chart" id="c-svg" viewBox="0 0 640 210"></svg>
+              </div>
+            </section>
+          `);
+          const rhoEl=document.getElementById('c-rho'), costEl=document.getElementById('c-cost');
+          function cost(rho, hr){ return (hr / (2000 * 3600 * rho)) * 1000000; }
+          function draw(){
+            const rho=parseFloat(rhoEl.value), hr=parseFloat(costEl.value);
+            document.getElementById('c-rho-val').textContent=(rho*100).toFixed(0)+"%";
+            document.getElementById('c-cost-val').textContent="$"+hr.toFixed(2);
+            const svg=document.getElementById('c-svg');
+            const f=_frame(svg,{xMin:0.05,xMax:1.0,yMin:0,yMax:15,xFmt:v=>(v*100).toFixed(0)+"%",yFmt:v=>"$"+v.toFixed(0)});
+            const pts=[]; for(let r=0.05;r<=1.0;r+=0.01){pts.push([r,Math.min(15,cost(r,hr))]);}
+            svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+            const val=cost(rho,hr), cx=f.sx(rho), cy=f.sy(Math.min(15,val));
+            svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+            svg.appendChild(_el("circle",{cx:cx,cy:cy,r:5,class:"marker"}));
+            document.getElementById('c-readout').textContent="$"+val.toFixed(2);
+          }
+          rhoEl.addEventListener('input',draw); costEl.addEventListener('input',draw); draw();
+        })();
+
+        /* ---------------------------------------------------------------
+           3) AMDAHL'S LAW PANEL
+        --------------------------------------------------------------- */
+        (function(){
+          _mount('panel-amdahl', `
+            <div class="inst-header"><div class="inst-eyebrow">INTERACTIVE · SPECULATIVE DECODING</div></div>
+            <section class="panel">
+              <div class="panel-head">
+                <div><h4>Amdahl's Law: The Ceiling on Speed</h4><p class="desc">A draft model speeds up the decode phase (s), but prefill, networking, and safety filters (1-p) act as an anchor.</p></div>
+                <div class="readout"><div class="val teal" id="a-readout">1.5&times;</div><div class="lbl">Total Pipeline Speedup</div></div>
+              </div>
+              <div class="panel-body">
+                <div class="controls">
+                  <div class="control"><label>Fraction spent decoding (p) <span class="cval" id="a-p-val">0.60</span></label><input type="range" id="a-p" min="0.10" max="0.95" step="0.05" value="0.60"></div>
+                  <div class="control"><label>Draft model speedup (s) <span class="cval" id="a-s-val">4&times;</span></label><input type="range" id="a-s" min="1" max="20" step="1" value="4"></div>
+                  <p class="note">Dashed red = ideal linear speedup (marketing claims). Solid teal = actual mathematical asymptote.</p>
+                </div>
+                <svg class="chart" id="a-svg" viewBox="0 0 640 210"></svg>
+              </div>
+            </section>
+          `);
+          const pEl=document.getElementById('a-p'), sEl=document.getElementById('a-s');
+          function amdahl(p,s){ return 1/((1-p)+p/s); }
+          function draw(){
+            const p=parseFloat(pEl.value), s=parseFloat(sEl.value);
+            document.getElementById('a-p-val').textContent=p.toFixed(2);
+            document.getElementById('a-s-val').textContent=s.toFixed(0)+"\u00D7";
+            const svg=document.getElementById('a-svg');
+            const yMax=Math.min(10, (1/(1-p))*1.2);
+            const f=_frame(svg,{xMin:1,xMax:20,yMin:0,yMax:yMax,xFmt:v=>v.toFixed(0),yFmt:v=>v.toFixed(1)});
+            const pts=[], ptsIdeal=[];
+            for(let sv=1; sv<=20; sv+=0.5){ pts.push([sv, Math.min(yMax, amdahl(p,sv))]); ptsIdeal.push([sv, Math.min(yMax, sv)]); }
+            svg.appendChild(_el("path",{d:_pathFor(ptsIdeal,f.sx,f.sy),class:"curve-ideal"}));
+            svg.appendChild(_el("path",{d:_pathFor(pts,f.sx,f.sy),class:"curve"}));
+            const cx=f.sx(s), cy=f.sy(Math.min(yMax,amdahl(p,s)));
+            svg.appendChild(_el("line",{x1:cx,x2:cx,y1:f.padT,y2:f.padT+f.plotH,class:"marker-line"}));
+            svg.appendChild(_el("circle",{cx:cx,cy:cy,r:5,class:"marker"}));
+            document.getElementById('a-readout').textContent=amdahl(p,s).toFixed(2)+"\u00D7";
+          }
+          pEl.addEventListener('input',draw); sEl.addEventListener('input',draw); draw();
+        })();
+
+        /* ---------------------------------------------------------------
+           4) ARCHITECTURE ANIMATION ENGINE
+        --------------------------------------------------------------- */
+        (function(){
+            const pipeline = document.getElementById('pipeline');
+            const overlay  = document.getElementById('overlay');
+            const packet   = document.getElementById('packet');
+            if(!pipeline || !overlay || !packet) return;
+
+            const nodes = {};
+            pipeline.querySelectorAll('[data-node]').forEach(el => nodes[el.dataset.node] = el);
+
+            const links = [
+                ['clients','gateway'], ['gateway','pre'], ['pre','admission'],
+                ['admission','reject'], ['admission','queue'], ['admission','route'],
+                ['queue','router'], ['route','router'],
+                ['router','vllm1'], ['router','vllm2'],
+                ['vllm1','gpu1'], ['vllm2','gpu2'],
+                ['gpu1','post'], ['gpu2','post'],
+                ['post','out']
+            ];
+
+            function center(el){
+                const r = el.getBoundingClientRect(), c = pipeline.getBoundingClientRect();
+                return { x: r.left - c.left + r.width/2, y: r.top - c.top + r.height/2, top: r.top - c.top, bottom: r.bottom - c.top };
+            }
+
+            function drawConnectors(){
+                _clearSvg(overlay);
+                links.forEach(pair => {
+                    if(!nodes[pair[0]] || !nodes[pair[1]]) return;
+                    const A = center(nodes[pair[0]]), B = center(nodes[pair[1]]);
+                    const dy = Math.max(16, Math.abs(B.y - A.y) * 0.4);
+                    const d = `M ${A.x} ${A.bottom} C ${A.x} ${A.bottom+dy}, ${B.x} ${B.top-dy}, ${B.x} ${B.top}`;
+                    overlay.appendChild(_el("path", {d: d, fill: "none", stroke: "rgba(148,163,184,0.15)", "stroke-width": 2}));
+                });
+            }
+            window.addEventListener('resize', drawConnectors);
+            setTimeout(drawConnectors, 100);
+
+            let isPlaying = true;
+            let timer;
+            function trigger(id, dur=300){
+                if(nodes[id]){ nodes[id].classList.add('active'); setTimeout(()=>nodes[id].classList.remove('active'), dur); }
+            }
+            function movePacket(from, to, dur, cb, badClass=""){
+                if(!nodes[from] || !nodes[to]) { if(cb) cb(); return; }
+                const A = center(nodes[from]), B = center(nodes[to]);
+                packet.className = 'packet ' + badClass;
+                packet.style.transition = 'none';
+                packet.style.left = A.x + 'px'; packet.style.top = A.y + 'px';
+                packet.offsetHeight; // reflow
+                packet.style.transition = `left ${dur}ms ease-in-out, top ${dur}ms ease-in-out`;
+                packet.style.left = B.x + 'px'; packet.style.top = B.y + 'px';
+                setTimeout(()=>{ packet.classList.add('hidden'); if(cb) cb(); }, dur);
+            }
+
+            function simulateReq(){
+                if(!isPlaying) return;
+                const bad = Math.random() < 0.15;
+                const route = bad ? 'reject' : (Math.random() < 0.25 ? 'queue' : 'route');
+                const vidx = Math.random() > 0.5 ? '1' : '2';
+
+                trigger('clients', 200);
+                setTimeout(() => {
+                    movePacket('clients','gateway', 300, () => {
+                        trigger('gateway', 200);
+                        movePacket('gateway','pre', 300, () => {
+                            trigger('pre', 300);
+                            movePacket('pre','admission', 200, () => {
+                                trigger('admission', 200);
+                                if(bad){
+                                    movePacket('admission','reject', 300, ()=>trigger('reject',300), 'bad');
+                                } else if(route === 'queue'){
+                                    movePacket('admission','queue', 300, ()=>{
+                                        trigger('queue', 400);
+                                        setTimeout(()=> movePacket('queue','router', 300, continueRoute, 'warn'), 400);
+                                    }, 'warn');
+                                } else {
+                                    movePacket('admission','route', 300, ()=>{
+                                        trigger('route', 200); movePacket('route','router', 300, continueRoute);
+                                    });
+                                }
+                                function continueRoute(){
+                                    trigger('router', 200);
+                                    movePacket('router', 'vllm'+vidx, 300, ()=>{
+                                        trigger('vllm'+vidx, 400);
+                                        movePacket('vllm'+vidx, 'gpu'+vidx, 200, ()=>{
+                                            trigger('gpu'+vidx, 600);
+                                            setTimeout(()=>{
+                                                movePacket('gpu'+vidx, 'post', 300, ()=>{
+                                                    trigger('post', 300);
+                                                    movePacket('post', 'out', 300, ()=>trigger('out', 300));
+                                                });
+                                            }, 500);
+                                        });
+                                    });
+                                }
+                            });
+                        });
+                    });
+                }, 200);
+            }
+
+            function loop(){ if(isPlaying){ simulateReq(); timer = setTimeout(loop, Math.random()*2000 + 1500); } }
+            
+            const btnPause = document.getElementById('btn-pause');
+            const btnReplay = document.getElementById('btn-replay');
+            if(btnPause) {
+                btnPause.addEventListener('click', ()=>{
+                    isPlaying = !isPlaying;
+                    btnPause.textContent = isPlaying ? "Pause" : "Resume";
+                    btnPause.classList.toggle('off', !isPlaying);
+                    if(isPlaying) loop(); else clearTimeout(timer);
+                });
+            }
+            if(btnReplay) {
+                btnReplay.addEventListener('click', ()=>{
+                    clearTimeout(timer);
+                    if(!isPlaying){ isPlaying=true; btnPause.textContent="Pause"; btnPause.classList.remove('off'); }
+                    simulateReq(); timer = setTimeout(loop, 2000);
+                });
+            }
+
+            // Metrics Jitter
+            function jitter(base, spread){ return Math.max(0, Math.round(base + (Math.random()-0.5)*spread)); }
+            setInterval(()=>{
+                if(!isPlaying) return;
+                const rpm = jitter(1240, 160), inn = jitter(4820, 500), gpu = Math.min(99, jitter(74, 10)), kv = Math.min(99, jitter(61, 14));
+                const rpmEl = document.getElementById('m-rpm'); if(rpmEl) rpmEl.textContent = rpm.toLocaleString();
+                const innEl = document.getElementById('m-in'); if(innEl) innEl.textContent = inn.toLocaleString();
+                const gpuEl = document.getElementById('m-gpu'); if(gpuEl) gpuEl.textContent = gpu + '%';
+                const kvEl = document.getElementById('m-kv'); if(kvEl) kvEl.textContent = kv + '%';
+                const bgpuEl = document.getElementById('b-gpu'); if(bgpuEl) bgpuEl.style.width = gpu + '%';
+                const bkvEl = document.getElementById('b-kv'); if(bkvEl) bkvEl.style.width = kv + '%';
+            }, 2000);
+
+            setTimeout(loop, 1000);
+        })();
+
+        /* ============================================================
+           Initialize KaTeX
+           ============================================================ */
+        document.addEventListener("DOMContentLoaded", function() {
+            if (window.renderMathInElement) {
+                renderMathInElement(document.body, {
+                    delimiters: [ { left: "$$", right: "$$", display: true }, { left: "$", right: "$", display: false } ],
+                    throwOnError: false
+                });
+            }
+        });
+    </script>
+</body>
+</html>

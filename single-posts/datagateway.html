@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytical Query Execution: Classic MPP vs. Smart Data Gateway</title>
+  <style>
+    :root {
+      --bg-page: #EFECE6;
+      --bg-card: #E5E1D8;
+      --bg-card-inner: #DCD7CD;
+      --teal-primary: #0E5447;
+      --teal-deep: #08372E;
+      --teal-light: #2B6B5E;
+      --teal-soft: #E1EBE8;
+      --amber-primary: #B48A1E;
+      --amber-accent: #EEC75D;
+      --amber-soft: #FAF3E0;
+      --text-dark: #181818;
+      --text-muted: #65635E;
+      --border-soft: #C8C3B8;
+      --alert-red: #9B1C1C;
+      --alert-bg: #FDE8E8;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-dark);
+      font-family: var(--font-sans);
+      line-height: 1.45;
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1140px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+    }
+
+    /* Header & View Toggle */
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .header-titles {
+      flex: 1;
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: var(--teal-light);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h1 { font-size: 24px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: var(--text-muted); }
+
+    .view-toggle {
+      display: inline-flex;
+      background: var(--bg-card-inner);
+      border-radius: 8px;
+      padding: 4px;
+      border: 1px solid var(--border-soft);
+    }
+    .view-toggle button {
+      background: transparent;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-toggle button.active {
+      background: var(--teal-primary);
+      color: #FFF;
+      box-shadow: 0 2px 8px rgba(14, 84, 71, 0.2);
+    }
+
+    /* Controls Panel */
+    .control-deck {
+      background: var(--bg-card-inner);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid var(--border-soft);
+    }
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-group {
+      display: inline-flex;
+      background: var(--bg-page);
+      border-radius: 6px;
+      padding: 3px;
+      border: 1px solid var(--border-soft);
+    }
+    button.ctrl-btn {
+      background: transparent;
+      border: none;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dark);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button.ctrl-btn:hover { background: rgba(0,0,0,0.05); }
+    button.ctrl-btn.active { background: var(--teal-primary); color: #FFF; }
+    button.ctrl-btn:focus-visible { outline: 2px solid var(--amber-primary); }
+
+    .view-specific-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      background: rgba(255,255,255,0.4);
+      padding: 12px 16px;
+      border-radius: 6px;
+    }
+    .slider-group { display: flex; flex-direction: column; gap: 4px; }
+    .slider-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+    .slider-header span.val { font-family: var(--font-mono); color: var(--teal-deep); }
+    input[type="range"] { accent-color: var(--teal-primary); height: 5px; cursor: pointer; }
+
+    .toggle-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .toggle-label input[type="checkbox"] { accent-color: var(--teal-primary); width: 16px; height: 16px; cursor: pointer; }
+
+    /* Live Stat Bar */
+    .metrics-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .metric-card {
+      background: var(--bg-card-inner);
+      border-radius: 6px;
+      padding: 10px 14px;
+      border: 1px solid var(--border-soft);
+      border-left: 4px solid var(--teal-primary);
+    }
+    .metric-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; }
+    .metric-val { font-size: 18px; font-weight: 700; color: var(--text-dark); font-family: var(--font-mono); margin-top: 2px; }
+
+    /* Step Rail */
+    .step-rail {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin-bottom: 16px;
+      background: var(--bg-card-inner);
+      border-radius: 20px;
+      padding: 4px;
+      border: 1px solid var(--border-soft);
+    }
+    .step-node {
+      flex: 1; text-align: center; padding: 6px 4px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); cursor: pointer; border-radius: 16px; transition: all 0.2s;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .step-node:hover { color: var(--text-dark); }
+    .step-node.active { background: var(--teal-primary); color: #FFF; }
+
+    /* SVG Canvas Area */
+    .viewport-box {
+      background: #FBF9F4; border-radius: 8px; border: 1px solid var(--border-soft);
+      padding: 12px; overflow-x: auto; position: relative; min-height: 470px;
+    }
+    svg#diagram-canvas { width: 100%; height: auto; min-width: 980px; display: block; }
+    
+    /* Hiding SVG groups based on mode */
+    .svg-group { transition: opacity 0.3s ease; }
+    .svg-group.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+
+    /* Callouts */
+    .callout-deck {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px; margin-top: 16px;
+    }
+    .callout-card {
+      background: var(--bg-card-inner); border: 1px solid var(--border-soft);
+      border-radius: 6px; padding: 10px; cursor: pointer; transition: transform 0.15s, background 0.15s;
+    }
+    .callout-card:hover { background: #D5D0C5; transform: translateY(-2px); }
+    .callout-card.highlighted { border: 1.5px solid var(--teal-primary); background: var(--teal-soft); }
+    .callout-num { font-size: 10px; font-family: var(--font-mono); font-weight: bold; color: var(--teal-light); margin-bottom: 2px; }
+    .callout-title { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+    .callout-desc { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+
+    /* Tooltip */
+    #tooltip {
+      position: absolute; background: #181818; color: #FFF; padding: 8px 12px;
+      border-radius: 4px; font-size: 12px; max-width: 250px; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s; z-index: 100;
+    }
+    #tooltip strong { display: block; color: var(--amber-accent); margin-bottom: 2px; }
+
+    /* Transcript */
+    .transcript-box { margin-top: 20px; padding: 16px; background: var(--bg-card-inner); border-radius: 8px; font-size: 13px; }
+    .transcript-box summary { cursor: pointer; font-weight: bold; }
+    .transcript-box ol { margin-left: 20px; margin-top: 8px; color: var(--text-muted); }
+
+    /* SVG Utilities */
+    .glow-active { filter: drop-shadow(0px 0px 8px rgba(238, 199, 93, 0.9)); transition: filter 0.2s ease; }
+    .node-base { transition: transform 0.2s ease, opacity 0.2s ease; cursor: pointer; }
+    .node-base:hover { opacity: 0.92; }
+    .packet-pill { font-family: var(--font-mono); font-size: 10px; font-weight: bold; pointer-events: none; }
+    .mpp-exec-box { transition: opacity 0.3s; }
+  </style>
+</head>
+<body>
+
+<div class="container" role="main">
+  <div class="header-row">
+    <div class="header-titles">
+      <div class="eyebrow" id="dynamic-eyebrow">Interactive System Architecture</div>
+      <h1 id="dynamic-title">Smart Data Gateway (SIDG)</h1>
+      <div class="subtitle" id="dynamic-subtitle">Configurable, customizable, cost- and latency-optimized serving</div>
+    </div>
+    <div class="view-toggle" role="group" aria-label="Architecture View Toggle">
+      <button id="btn-view-mpp" aria-pressed="false">Classic MPP Monolith</button>
+      <button id="btn-view-sidg" class="active" aria-pressed="true">Smart Data Gateway</button>
+    </div>
+  </div>
+
+  <div class="control-deck">
+    <div class="control-row">
+      <div class="btn-group">
+        <button id="btn-play" class="ctrl-btn active">❚❚ Pause</button>
+        <button id="btn-prev" class="ctrl-btn">◀ Prev</button>
+        <button id="btn-next" class="ctrl-btn">Next ▶</button>
+        <button id="btn-restart" class="ctrl-btn">↺ Reset</button>
+      </div>
+      <div class="btn-group" id="speed-controls">
+        <button class="ctrl-btn speed-btn" data-speed="0.5">0.5×</button>
+        <button class="ctrl-btn speed-btn active" data-speed="1.0">1.0×</button>
+        <button class="ctrl-btn speed-btn" data-speed="2.0">2.0×</button>
+      </div>
+    </div>
+    
+    <!-- Dynamic View Controls inserted via JS -->
+    <div id="dynamic-controls" class="view-specific-controls"></div>
+  </div>
+
+  <!-- Dynamic Metrics inserted via JS -->
+  <div id="dynamic-metrics" class="metrics-strip"></div>
+
+  <!-- Dynamic Step Rail inserted via JS -->
+  <nav id="dynamic-step-rail" class="step-rail"></nav>
+
+  <div class="viewport-box">
+    <svg id="diagram-canvas" viewBox="0 0 1020 450" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-teal" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#0E5447" /></marker>
+        <marker id="arrow-amber" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#B48A1E" /></marker>
+        <marker id="arrow-green" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2B6B5E" /></marker>
+        <marker id="arrow-grey" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#727272" /></marker>
+      </defs>
+
+      <!-- ========================================== -->
+      <!-- VIEW 1: SMART DATA GATEWAY (SIDG)          -->
+      <!-- ========================================== -->
+      <g id="svg-group-sidg" class="svg-group">
+        <rect x="175" y="45" width="675" height="345" rx="8" fill="#F4F1EA" stroke="#0E5447" stroke-width="2.5" />
+        <text x="512" y="62" text-anchor="middle" fill="#0E5447" font-size="12" font-weight="800" letter-spacing="1.5">SMART DATA GATEWAY</text>
+
+        <!-- Clients -->
+        <g id="node-sidg-rest" class="node-base" data-tip="REST Client: UI, Microservice, or AI Agent making async queries.">
+          <rect x="35" y="115" width="125" height="65" rx="4" fill="#EFECE6" stroke="#B48A1E" stroke-width="2" />
+          <text x="97" y="137" text-anchor="middle" font-size="12" font-weight="700" fill="#0E5447">REST CLIENT</text>
+          <text x="97" y="152" text-anchor="middle" font-size="10" fill="#65635E">HTTP / REST · async</text>
+        </g>
+        <g id="node-sidg-flight" class="node-base" data-tip="Flight Client: Stream analytical payloads over Arrow Flight.">
+          <rect x="35" y="200" width="125" height="65" rx="4" fill="#EFECE6" stroke="#B48A1E" stroke-width="2" />
+          <text x="97" y="222" text-anchor="middle" font-size="12" font-weight="700" fill="#B48A1E">FLIGHT CLIENT</text>
+          <text x="97" y="238" text-anchor="middle" font-size="10" fill="#65635E">gRPC Arrow Flight</text>
+        </g>
+
+        <!-- Load Balancer -->
+        <g id="node-sidg-lb" class="node-base" data-tip="L7 Load Balancer: Envoy-based gRPC-aware stream splitter.">
+          <rect x="188" y="75" width="100" height="255" rx="4" fill="#0E5447" stroke="#08372E" />
+          <text x="238" y="98" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="700">Load Balancer</text>
+        </g>
+        <!-- Gateway Server -->
+        <g id="node-sidg-gw" class="node-base" data-tip="Gateway Server: AST parsing and tenant isolation.">
+          <rect x="306" y="75" width="130" height="255" rx="4" fill="#0E5447" stroke="#B48A1E" stroke-width="2" />
+          <text x="371" y="96" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="700">Gateway Server</text>
+          <rect id="sidg-gw-pod1" x="318" y="115" width="106" height="26" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <rect id="sidg-gw-pod2" x="318" y="152" width="106" height="26" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <rect id="sidg-gw-pod3" x="318" y="189" width="106" height="26" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <text x="371" y="310" text-anchor="middle" fill="#EEC75D" font-size="8.5">scales on connections</text>
+        </g>
+        <!-- Workload Management -->
+        <g id="node-sidg-wm" class="node-base" data-tip="Workload Management: Async queue for REST requests.">
+          <rect x="456" y="115" width="95" height="80" rx="4" fill="#0E5447" stroke="#08372E" />
+          <text x="503" y="135" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="700">Workload Mgmt</text>
+        </g>
+        <text x="503" y="235" text-anchor="middle" font-size="11" font-weight="700" fill="#B48A1E">Streaming bypass</text>
+        
+        <!-- Executors -->
+        <g id="node-sidg-exec" class="node-base" data-tip="Stateless Executors: Thin DuckDB workers.">
+          <rect x="585" y="75" width="130" height="255" rx="4" fill="#0E5447" stroke="#B48A1E" stroke-width="2" />
+          <text x="650" y="96" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="700">Stateless Executors</text>
+          <rect id="sidg-ex-pod1" x="595" y="115" width="110" height="24" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <rect id="sidg-ex-pod2" x="595" y="146" width="110" height="24" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <rect id="sidg-ex-pod3" x="595" y="177" width="110" height="24" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <rect id="sidg-ex-pod4" x="595" y="208" width="110" height="24" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <text x="650" y="310" text-anchor="middle" fill="#EEC75D" font-size="8.5">scales on queue</text>
+        </g>
+        
+        <!-- CDN / Cache Warmer -->
+        <g id="node-sidg-cdn" class="node-base" data-tip="CDN & Cache Warmer: Local NVMe cache for hot partitions.">
+          <rect x="733" y="75" width="105" height="255" rx="4" fill="#0E5447" stroke="#08372E" />
+          <text x="785" y="96" text-anchor="middle" fill="#FFFFFF" font-size="11" font-weight="700">Reverse Proxy</text>
+          <rect x="740" y="242" width="91" height="78" rx="3" fill="#FAF9F6" stroke="#0E5447" />
+          <text x="785" y="258" text-anchor="middle" font-size="9" font-weight="700" fill="#0E5447">CACHE WARMER</text>
+        </g>
+
+        <!-- Result Cache -->
+        <g id="node-sidg-result" class="node-base" data-tip="Shared Result Cache: Keyed to tenant ID.">
+          <rect x="188" y="340" width="650" height="36" rx="4" fill="#FAF9F6" stroke="#0E5447" stroke-width="2" />
+          <text x="513" y="362" text-anchor="middle" fill="#0E5447" font-size="11" font-weight="800">SHARED RESULT CACHE</text>
+        </g>
+
+        <!-- Catalog / Storage -->
+        <g id="node-sidg-catalog" class="node-base" data-tip="Catalog Service: Iceberg REST catalog.">
+          <rect x="860" y="75" width="120" height="50" rx="4" fill="#E1EBE8" stroke="#2B6B5E" stroke-width="2" />
+          <text x="920" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#0E5447">CATALOG SERVICE</text>
+        </g>
+        <g id="node-sidg-storage" class="node-base" data-tip="Open Storage: Immutable Parquet on ADLS/S3.">
+          <rect x="860" y="140" width="120" height="190" rx="4" fill="#FAF9F6" stroke="#B48A1E" stroke-width="2" />
+          <text x="920" y="175" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0E5447">OPEN STORAGE</text>
+        </g>
+
+        <!-- Wires -->
+        <path d="M 160 148 L 188 148" stroke="#0E5447" stroke-width="2" fill="none" marker-end="url(#arrow-teal)" />
+        <path d="M 288 128 L 318 128" stroke="#0E5447" stroke-width="2" fill="none" marker-end="url(#arrow-teal)" />
+        <path d="M 424 128 L 456 128" stroke="#0E5447" stroke-width="2" fill="none" marker-end="url(#arrow-teal)" />
+        <path d="M 551 128 L 595 128" stroke="#0E5447" stroke-width="2" fill="none" marker-end="url(#arrow-teal)" />
+        <path d="M 160 232 L 188 232" stroke="#B48A1E" stroke-width="2" fill="none" marker-end="url(#arrow-amber)" />
+        <path d="M 288 202 L 318 202" stroke="#B48A1E" stroke-width="2" fill="none" marker-end="url(#arrow-amber)" />
+        <path d="M 424 202 L 595 202" stroke="#B48A1E" stroke-width="2" fill="none" marker-end="url(#arrow-amber)" />
+        <path d="M 715 130 L 733 130" stroke="#0E5447" stroke-width="2" fill="none" />
+        <path d="M 838 180 L 860 180" stroke="#B48A1E" stroke-width="2" fill="none" marker-end="url(#arrow-amber)" />
+        <path d="M 795 75 L 795 65 L 920 65 L 920 75" stroke="#2B6B5E" stroke-width="2" stroke-dasharray="3 3" fill="none" marker-end="url(#arrow-green)" />
+        <path d="M 831 290 L 860 290" stroke="#2B6B5E" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+
+        <!-- SIDG Packets -->
+        <g id="sidg-pkt-q-rest" class="packet-wrapper"><rect x="-10" y="-10" width="20" height="20" rx="3" fill="#EEC75D" stroke="#B48A1E" /><text x="0" y="4" text-anchor="middle" class="packet-pill" fill="#181818">Q</text></g>
+        <g id="sidg-pkt-q-flight" class="packet-wrapper"><rect x="-10" y="-10" width="20" height="20" rx="3" fill="#EEC75D" stroke="#B48A1E" /><text x="0" y="4" text-anchor="middle" class="packet-pill" fill="#181818">Q</text></g>
+        <g id="sidg-pkt-meta" class="packet-wrapper"><rect x="-10" y="-10" width="20" height="20" rx="3" fill="#E1EBE8" stroke="#2B6B5E" /><text x="0" y="4" text-anchor="middle" class="packet-pill" fill="#0E5447">M</text></g>
+        <g id="sidg-pkt-data" class="packet-wrapper"><rect x="-10" y="-10" width="20" height="20" rx="3" fill="#FAF3E0" stroke="#B48A1E" /><text x="0" y="4" text-anchor="middle" class="packet-pill" fill="#B48A1E">D</text></g>
+        <g id="sidg-pkt-result" class="packet-wrapper"><rect x="-10" y="-10" width="20" height="20" rx="3" fill="#EEC75D" stroke="#08372E" stroke-width="1.5" /><text x="0" y="4" text-anchor="middle" class="packet-pill" fill="#08372E">R</text></g>
+      </g>
+
+
+      <!-- ========================================== -->
+      <!-- VIEW 2: CLASSIC MPP ARCHITECTURE           -->
+      <!-- ========================================== -->
+      <g id="svg-group-mpp" class="svg-group hidden">
+        
+        <!-- Client -->
+        <g id="node-mpp-client" class="node-base" data-tip="Client / UI: Initiates the query.">
+          <rect x="40" y="160" width="120" height="80" rx="4" fill="#EFECE6" stroke="#0E5447" stroke-width="2" />
+          <text x="100" y="185" text-anchor="middle" font-size="12" font-weight="700" fill="#0E5447">CLIENT / UI</text>
+          <text x="100" y="205" text-anchor="middle" font-size="10" fill="#65635E">SQL • REST</text>
+          <text x="100" y="220" text-anchor="middle" font-size="10" fill="#65635E">Arrow Flight</text>
+        </g>
+
+        <!-- Coordinator -->
+        <g id="node-mpp-coord" class="node-base" data-tip="Coordinator Node: Global query parser, optimizer, and task dispatcher. Single point of bottleneck.">
+          <rect x="250" y="120" width="140" height="160" rx="6" fill="#0E5447" stroke="#B48A1E" stroke-width="2" />
+          <text x="320" y="145" text-anchor="middle" font-size="12" font-weight="700" fill="#FFF">COORDINATOR</text>
+          <rect x="260" y="160" width="120" height="22" rx="3" fill="#08372E" />
+          <text x="320" y="175" text-anchor="middle" font-size="9" fill="#FFF">Authenticate</text>
+          <rect x="260" y="190" width="120" height="22" rx="3" fill="#08372E" />
+          <text x="320" y="205" text-anchor="middle" font-size="9" fill="#FFF">Parse & Plan</text>
+          <rect x="260" y="220" width="120" height="22" rx="3" fill="#08372E" />
+          <text x="320" y="235" text-anchor="middle" font-size="9" fill="#FFF">Global Optimizer</text>
+        </g>
+
+        <!-- Catalog -->
+        <g id="node-mpp-catalog" class="node-base" data-tip="Catalog: Validates table schemas and locates partition files.">
+          <rect x="250" y="320" width="140" height="60" rx="4" fill="#E1EBE8" stroke="#2B6B5E" stroke-width="2" />
+          <text x="320" y="345" text-anchor="middle" font-size="12" font-weight="700" fill="#0E5447">CATALOG</text>
+          <text x="320" y="365" text-anchor="middle" font-size="10" fill="#2B6B5E">Metadata / Snapshots</text>
+        </g>
+
+        <!-- Executors Panel -->
+        <g id="node-mpp-execs" class="node-base" data-tip="MPP Executor Fleet: Stateful JVM/C++ nodes demanding high CPU & RAM. Cross-node network shuffle occurs here.">
+          <rect x="480" y="40" width="240" height="360" rx="6" fill="#FAF9F6" stroke="#0E5447" stroke-width="2" stroke-dasharray="4 4" />
+          <text x="600" y="65" text-anchor="middle" font-size="12" font-weight="700" fill="#0E5447">PARALLEL EXECUTORS</text>
+          
+          <!-- 6 Dynamic Executors -->
+          <g id="mpp-e1" class="mpp-exec-box">
+            <rect x="495" y="80" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="105" font-size="11" font-weight="bold" fill="#FFF">Executor A</text>
+            <text x="690" y="105" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+          <g id="mpp-e2" class="mpp-exec-box">
+            <rect x="495" y="130" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="155" font-size="11" font-weight="bold" fill="#FFF">Executor B</text>
+            <text x="690" y="155" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+          <g id="mpp-e3" class="mpp-exec-box">
+            <rect x="495" y="180" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="205" font-size="11" font-weight="bold" fill="#FFF">Executor C</text>
+            <text x="690" y="205" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+          <g id="mpp-e4" class="mpp-exec-box">
+            <rect x="495" y="230" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="255" font-size="11" font-weight="bold" fill="#FFF">Executor D</text>
+            <text x="690" y="255" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+          <g id="mpp-e5" class="mpp-exec-box">
+            <rect x="495" y="280" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="305" font-size="11" font-weight="bold" fill="#FFF">Executor E</text>
+            <text x="690" y="305" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+          <g id="mpp-e6" class="mpp-exec-box">
+            <rect x="495" y="330" width="210" height="40" rx="4" fill="#0E5447" />
+            <text x="520" y="355" font-size="11" font-weight="bold" fill="#FFF">Executor F</text>
+            <text x="690" y="355" text-anchor="end" font-size="9" fill="#A4C4BD">High CPU/RAM</text>
+          </g>
+        </g>
+
+        <!-- Storage -->
+        <g id="node-mpp-storage" class="node-base" data-tip="Open Storage: Holds raw blocks A, B, C.">
+          <rect x="800" y="100" width="140" height="240" rx="6" fill="#FAF9F6" stroke="#B48A1E" stroke-width="2" />
+          <text x="870" y="130" text-anchor="middle" font-size="12" font-weight="700" fill="#0E5447">OPEN STORAGE</text>
+          <text x="870" y="150" text-anchor="middle" font-size="10" fill="#65635E">S3 / ADLS / GCS</text>
+          <rect x="815" y="170" width="110" height="25" rx="2" fill="#EFECE6" stroke="#B48A1E" />
+          <text x="870" y="186" text-anchor="middle" font-size="9">Block A</text>
+          <rect x="815" y="205" width="110" height="25" rx="2" fill="#EFECE6" stroke="#B48A1E" />
+          <text x="870" y="221" text-anchor="middle" font-size="9">Block B</text>
+          <rect x="815" y="240" width="110" height="25" rx="2" fill="#EFECE6" stroke="#B48A1E" />
+          <text x="870" y="256" text-anchor="middle" font-size="9">Block C</text>
+        </g>
+
+        <!-- MPP Wires -->
+        <path d="M 160 200 L 250 200" stroke="#0E5447" stroke-width="2" fill="none" marker-end="url(#arrow-teal)" />
+        <path d="M 320 280 L 320 320" stroke="#2B6B5E" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+        <path d="M 340 320 L 340 280" stroke="#2B6B5E" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+        
+        <!-- Coord to Execs base wires -->
+        <path d="M 390 180 Q 430 180 495 100" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+        <path d="M 390 190 Q 430 190 495 150" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+        <path d="M 390 200 Q 430 200 495 200" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+        <path d="M 390 210 Q 430 210 495 250" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+        <path d="M 390 220 Q 430 220 495 300" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+        <path d="M 390 230 Q 430 230 495 350" stroke="#727272" stroke-width="1" fill="none" marker-end="url(#arrow-grey)" />
+
+        <!-- Execs to Storage base wires -->
+        <path d="M 705 100 Q 750 100 800 180" stroke="#727272" stroke-width="1" fill="none" />
+        <path d="M 705 150 Q 750 150 800 190" stroke="#727272" stroke-width="1" fill="none" />
+        <path d="M 705 200 Q 750 200 800 220" stroke="#727272" stroke-width="1" fill="none" />
+        <path d="M 705 250 Q 750 250 800 240" stroke="#727272" stroke-width="1" fill="none" />
+        <path d="M 705 300 Q 750 300 800 250" stroke="#727272" stroke-width="1" fill="none" />
+        <path d="M 705 350 Q 750 350 800 260" stroke="#727272" stroke-width="1" fill="none" />
+
+        <!-- MPP Packets injected dynamically via JS based on active executors -->
+        <g id="mpp-packets-layer"></g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Dynamic Callouts inserted via JS -->
+  <div id="dynamic-callouts" class="callout-deck"></div>
+
+  <!-- Dynamic Transcript inserted via JS -->
+  <details class="transcript-box">
+    <summary>View Complete Step-by-Step Execution Transcript</summary>
+    <ol id="dynamic-transcript"></ol>
+  </details>
+</div>
+
+<!-- Floating Hover Tooltip -->
+<div id="tooltip" role="tooltip"></div>
+
+<script>
+  (function() {
+    // --- Data Models for the Two Views ---
+    
+    const SIDG_DATA = {
+      title: "Smart Data Gateway (SIDG)",
+      subtitle: "Configurable, customizable, cost- and latency-optimized serving for the 95% analytical case",
+      steps: ["1 Request", "2 Balance", "3 Admit", "4 Cache Check", "5 Catalog Plan", "6 Execute", "7 Return", "8 Auto-Scale"],
+      controlsHTML: `
+        <div class="slider-group">
+          <div class="slider-header"><span>Active Connections</span><span class="val" id="val-conn">32</span></div>
+          <input type="range" id="rng-conn" min="1" max="200" value="32" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Async Queue Depth</span><span class="val" id="val-queue">4</span></div>
+          <input type="range" id="rng-queue" min="0" max="40" value="4" />
+        </div>
+        <div class="slider-group" style="justify-content: center;">
+          <label class="toggle-label"><input type="checkbox" id="chk-hit" /> <span id="lbl-hit">Cache Miss (Full Path)</span></label>
+        </div>
+      `,
+      metricsHTML: `
+        <div class="metric-card"><div class="metric-title">Gateway Replicas</div><div class="metric-val" id="disp-gw">3 Pods</div></div>
+        <div class="metric-card"><div class="metric-title">Executors</div><div class="metric-val" id="disp-ex">4 Thin Pods</div></div>
+        <div class="metric-card"><div class="metric-title">P95 Latency</div><div class="metric-val" id="disp-lat">52 ms</div></div>
+        <div class="metric-card"><div class="metric-title">Cost / 10k Queries</div><div class="metric-val" id="disp-cst">$0.18</div></div>
+      `,
+      callouts: [
+        { title: "Independent Tiers", desc: "Network routing and worker pools scale without interlock." },
+        { title: "Gateway Elasticity", desc: "Proxies scale on active gRPC/HTTP sockets." },
+        { title: "Queue-Driven", desc: "Executors spawn dynamically based on queue depth." },
+        { title: "Sub-Millisecond", desc: "Identical queries short-circuit execution entirely." },
+        { title: "Cache Warmer", desc: "Warmer syncs latest Iceberg snapshots." },
+        { title: "NVMe Caching", desc: "Proxy keeps hot byte ranges on SSD, cutting latency." },
+        { title: "Zero Monoliths", desc: "No coordinator locks, no distributed shuffle tax." },
+        { title: "Scale-to-Zero", desc: "Idle workers terminate, driving baseline costs down." }
+      ],
+      transcript: [
+        "REQUEST: REST clients send async queries; Flight clients open streams.",
+        "BALANCE: L7 Load Balancer spreads streams across stateless gateways.",
+        "ADMIT: REST queries queue; Flight streams bypass directly to DuckDB.",
+        "CACHE CHECK: Cache hit returns immediately; miss proceeds to storage.",
+        "CATALOG PLAN: Metadata resolved, pruning irrelevant file manifests.",
+        "EXECUTE: DuckDB pulls columnar bytes via local NVMe proxy and filters.",
+        "RETURN: Results stream via zero-copy IPC and cache is updated.",
+        "AUTO-SCALE: Gateway scales on sockets, executors scale on queue."
+      ]
+    };
+
+    const MPP_DATA = {
+      title: "Classic MPP Monolith",
+      subtitle: "Coordinator-based distributed execution (e.g., Trino, Dremio, Spark SQL)",
+      steps: ["1 Request", "2 Metadata", "3 Plan & Distribute", "4 Scan & Filter", "5 Shuffle", "6 Join & Roll-Up"],
+      controlsHTML: `
+        <div class="slider-group">
+          <div class="slider-header"><span>Parallel Executors</span><span class="val" id="val-execs">3</span></div>
+          <input type="range" id="rng-execs" min="1" max="6" value="3" />
+        </div>
+        <div class="slider-group" style="justify-content: center;">
+          <label class="toggle-label"><input type="checkbox" id="chk-seq" /> <span>Run Sequentially (1 Node)</span></label>
+        </div>
+      `,
+      metricsHTML: `
+        <div class="metric-card"><div class="metric-title">Bytes Scanned</div><div class="metric-val" id="disp-bytes">4.5 GB</div></div>
+        <div class="metric-card"><div class="metric-title">Rows (Post-Filter)</div><div class="metric-val" id="disp-rows">120K</div></div>
+        <div class="metric-card"><div class="metric-title">Rows Shuffled</div><div class="metric-val" id="disp-shuf">60K</div></div>
+        <div class="metric-card"><div class="metric-title">Elapsed Time</div><div class="metric-val" id="disp-ms">1250 ms</div></div>
+      `,
+      callouts: [
+        { title: "Single Entry Point", desc: "Coordinator parses and plans every query." },
+        { title: "Global Metadata", desc: "Catalog resolution happens serially at the head node." },
+        { title: "Task Dispatch", desc: "Query split into fragments and broadcast to cluster." },
+        { title: "Distributed Scan", desc: "Each worker reads from cloud storage independently." },
+        { title: "Network Shuffle", desc: "Massive N×N data exchange over network for joins/aggregations." },
+        { title: "Straggler Risk", desc: "Final rollup waits for the slowest JVM to complete." }
+      ],
+      transcript: [
+        "REQUEST: Client sends a single SQL query to the Coordinator node.",
+        "METADATA: Coordinator synchronously fetches table schemas from the Catalog.",
+        "PLAN & DISTRIBUTE: Coordinator splits the plan and dispatches tasks to JVM workers.",
+        "SCAN & FILTER: Executors pull raw blocks from object storage in parallel.",
+        "SHUFFLE: Executors exchange massive volumes of intermediate rows over the network.",
+        "JOIN & ROLL-UP: Final aggregations occur; result is routed back through the Coordinator."
+      ]
+    };
+
+    // --- State & DOM References ---
+    let currentMode = 'sidg'; // 'sidg' or 'mpp'
+    let currentStep = 0;
+    let isPlaying = true;
+    let speed = 1.0;
+    let stepStartTime = 0;
+    const baseDuration = 2400; // ms per step
+    let animationTimer = null;
+
+    // Layout coordinates for SVG packets
+    const C_SIDG = {
+      cl: {x: 140, y: 148}, lb: {x: 238, y: 128}, gw: {x: 371, y: 128},
+      wm: {x: 503, y: 155}, ex: {x: 650, y: 127}, cdn: {x: 785, y: 160},
+      cat: {x: 920, y: 100}, st: {x: 920, y: 235}, res: {x: 512, y: 358}
+    };
+    const C_MPP = {
+      cl: {x: 100, y: 200}, co: {x: 320, y: 200}, cat: {x: 320, y: 320},
+      st: {x: 800, y: 200},
+      exY: [100, 150, 200, 250, 300, 350], // y coords for 6 executors (x=495)
+      stY: [180, 190, 220, 240, 250, 260]  // approx storage attach points
+    };
+
+    // UI Elements
+    const btnSidg = document.getElementById('btn-view-sidg');
+    const btnMpp = document.getElementById('btn-view-mpp');
+    const title = document.getElementById('dynamic-title');
+    const subtitle = document.getElementById('dynamic-subtitle');
+    const dynControls = document.getElementById('dynamic-controls');
+    const dynMetrics = document.getElementById('dynamic-metrics');
+    const dynStepRail = document.getElementById('dynamic-step-rail');
+    const dynCallouts = document.getElementById('dynamic-callouts');
+    const dynTranscript = document.getElementById('dynamic-transcript');
+    const svgSidg = document.getElementById('svg-group-sidg');
+    const svgMpp = document.getElementById('svg-group-mpp');
+    const mppPacketLayer = document.getElementById('mpp-packets-layer');
+    const tooltip = document.getElementById('tooltip');
+
+    // Control buttons
+    const btnPlay = document.getElementById('btn-play');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const btnRestart = document.getElementById('btn-restart');
+    const speedBtns = document.querySelectorAll('.speed-btn');
+
+    // --- Core Functions ---
+
+    function initMode(mode) {
+      currentMode = mode;
+      currentStep = 0;
+      stepStartTime = 0;
+      
+      const data = mode === 'sidg' ? SIDG_DATA : MPP_DATA;
+      
+      // Update Headers
+      title.textContent = data.title;
+      subtitle.textContent = data.subtitle;
+      
+      // Update Toggles
+      btnSidg.classList.toggle('active', mode === 'sidg');
+      btnSidg.setAttribute('aria-pressed', mode === 'sidg');
+      btnMpp.classList.toggle('active', mode === 'mpp');
+      btnMpp.setAttribute('aria-pressed', mode === 'mpp');
+      
+      // Update SVG Visibility
+      if (mode === 'sidg') {
+        svgSidg.classList.remove('hidden');
+        svgMpp.classList.add('hidden');
+      } else {
+        svgMpp.classList.remove('hidden');
+        svgSidg.classList.add('hidden');
+      }
+
+      // Inject HTML components
+      dynControls.innerHTML = data.controlsHTML;
+      dynMetrics.innerHTML = data.metricsHTML;
+      
+      dynStepRail.innerHTML = data.steps.map((s, i) => 
+        `<div class="step-node ${i===0?'active':''}" data-step="${i}">${s}</div>`
+      ).join('');
+      
+      dynCallouts.innerHTML = data.callouts.map((c, i) => 
+        `<div class="callout-card" data-step="${i}">
+           <div class="callout-title">${c.title}</div>
+           <div class="callout-desc">${c.desc}</div>
+         </div>`
+      ).join('');
+      
+      dynTranscript.innerHTML = data.transcript.map(t => `<li>${t}</li>`).join('');
+
+      // Bind dynamic listeners
+      bindDynamicListeners();
+      updateMetrics();
+      syncUI(0);
+      
+      // Setup MPP Packets if needed
+      if(mode === 'mpp') setupMPPPackets();
+    }
+
+    function bindDynamicListeners() {
+      // Step Rail & Callouts
+      document.querySelectorAll('.step-node').forEach(node => {
+        node.addEventListener('click', () => jumpToStep(parseInt(node.dataset.step, 10)));
+      });
+      document.querySelectorAll('.callout-card').forEach(card => {
+        card.addEventListener('click', () => jumpToStep(parseInt(card.dataset.step, 10)));
+      });
+
+      // Mode-specific inputs
+      if (currentMode === 'sidg') {
+        document.getElementById('rng-conn').addEventListener('input', updateMetrics);
+        document.getElementById('rng-queue').addEventListener('input', updateMetrics);
+        document.getElementById('chk-hit').addEventListener('change', updateMetrics);
+      } else {
+        document.getElementById('rng-execs').addEventListener('input', updateMetrics);
+        document.getElementById('chk-seq').addEventListener('change', updateMetrics);
+      }
+    }
+
+    function updateMetrics() {
+      if (currentMode === 'sidg') {
+        const conns = parseInt(document.getElementById('rng-conn').value, 10);
+        const queue = parseInt(document.getElementById('rng-queue').value, 10);
+        const isHit = document.getElementById('chk-hit').checked;
+        
+        document.getElementById('val-conn').textContent = conns;
+        document.getElementById('val-queue').textContent = queue;
+        document.getElementById('lbl-hit').textContent = isHit ? 'Cache Hit (Immediate)' : 'Cache Miss (Full Path)';
+
+        const gw = Math.max(2, Math.ceil(conns / 40));
+        const ex = Math.max(2, Math.min(12, 2 + Math.ceil(queue / 6)));
+        
+        document.getElementById('disp-gw').textContent = `${gw} Pods`;
+        document.getElementById('disp-ex').textContent = `${ex} Thin Pods`;
+        
+        let p95 = isHit ? 4 : (140 + queue * 4.5);
+        let cost = isHit ? 0.01 : (0.18 + queue * 0.012);
+        
+        document.getElementById('disp-lat').textContent = `${Math.round(p95)} ms`;
+        document.getElementById('disp-cst').textContent = `$${cost.toFixed(2)}`;
+
+      } else { // MPP
+        const chkSeq = document.getElementById('chk-seq').checked;
+        const rng = document.getElementById('rng-execs');
+        if(chkSeq) {
+          rng.disabled = true; rng.value = 1;
+        } else {
+          rng.disabled = false;
+        }
+        const execs = parseInt(rng.value, 10);
+        document.getElementById('val-execs').textContent = execs;
+
+        // Visual executor box opacity
+        for(let i=1; i<=6; i++) {
+          document.getElementById(`mpp-e${i}`).style.opacity = i <= execs ? '1' : '0.15';
+        }
+
+        // Calcs
+        const bytes = (execs * 1.5).toFixed(1);
+        const rows = execs * 40;
+        const shuf = execs > 1 ? (execs * 20) : 0;
+        
+        // Non-linear scaling: adding nodes decreases base compute time but increases shuffle overhead
+        const baseTime = 3000;
+        const computeTime = baseTime / execs;
+        const shuffleTax = execs > 1 ? (execs * 150) : 0;
+        const ms = 200 + computeTime + shuffleTax; // 200 coord overhead
+
+        document.getElementById('disp-bytes').textContent = `${bytes} GB`;
+        document.getElementById('disp-rows').textContent = `${rows}K`;
+        document.getElementById('disp-shuf').textContent = `${shuf}K`;
+        document.getElementById('disp-ms').textContent = `${Math.round(ms)} ms`;
+        
+        setupMPPPackets(); // rebuild packets for active execs
+      }
+    }
+
+    // --- Packet Generators ---
+    function createPacket(id, text, bg, border, txtCol) {
+      return `<g id="${id}" class="packet-wrapper" opacity="0">
+                <rect x="-10" y="-10" width="20" height="20" rx="3" fill="${bg}" stroke="${border}" />
+                <text x="0" y="4" text-anchor="middle" class="packet-pill" fill="${txtCol}">${text}</text>
+              </g>`;
+    }
+    
+    function setupMPPPackets() {
+      const execs = parseInt(document.getElementById('rng-execs').value, 10);
+      let html = createPacket('pkt-mpp-q', 'Q', '#EEC75D', '#B48A1E', '#181818');
+      html += createPacket('pkt-mpp-meta', 'M', '#E1EBE8', '#2B6B5E', '#0E5447');
+      html += createPacket('pkt-mpp-sig', 'Σ', '#EEC75D', '#08372E', '#08372E');
+      
+      for(let i=1; i<=execs; i++) {
+        html += createPacket(`pkt-mpp-q${i}`, `Q${i}`, '#EEC75D', '#B48A1E', '#181818');
+        html += createPacket(`pkt-mpp-d${i}`, `D${i}`, '#FAF3E0', '#B48A1E', '#B48A1E');
+        if(execs > 1) {
+          html += createPacket(`pkt-mpp-s${i}`, `S${i}`, '#FDE8E8', '#9B1C1C', '#9B1C1C');
+        }
+      }
+      mppPacketLayer.innerHTML = html;
+    }
+
+    // --- Animation Helpers ---
+    function lerp(start, end, t) { return start + (end - start) * t; }
+    function setPos(id, x, y, visible=true) {
+      const el = document.getElementById(id);
+      if(!el) return;
+      if(visible) { el.setAttribute('opacity', '1'); el.setAttribute('transform', `translate(${x},${y})`); }
+      else { el.setAttribute('opacity', '0'); }
+    }
+    function clearGlow() { document.querySelectorAll('.glow-active').forEach(el => el.classList.remove('glow-active')); }
+    function glow(id) { const el = document.getElementById(id); if(el) el.classList.add('glow-active'); }
+
+    // --- Render Loop ---
+    function renderFrame(now) {
+      if(!stepStartTime) stepStartTime = now;
+      const elapsed = (now - stepStartTime) * speed;
+      const progress = Math.min(elapsed / baseDuration, 1.0);
+      const data = currentMode === 'sidg' ? SIDG_DATA : MPP_DATA;
+      
+      clearGlow();
+
+      if (currentMode === 'sidg') {
+        renderSIDG(progress);
+      } else {
+        renderMPP(progress);
+      }
+
+      if (progress >= 1.0 && isPlaying) {
+        currentStep = (currentStep + 1) % data.steps.length;
+        stepStartTime = now;
+        syncUI(currentStep);
+      }
+      animationTimer = requestAnimationFrame(renderFrame);
+    }
+
+    function renderSIDG(p) {
+      // Hide all SIDG packets
+      const pkts = ['sidg-pkt-q-rest','sidg-pkt-q-flight','sidg-pkt-meta','sidg-pkt-data','sidg-pkt-result'];
+      pkts.forEach(id => setPos(id,0,0,false));
+
+      const isHit = document.getElementById('chk-hit').checked;
+
+      switch(currentStep) {
+        case 0: // REQ
+          setPos('sidg-pkt-q-rest', lerp(C_SIDG.cl.x, C_SIDG.lb.x, p), C_SIDG.cl.y, true);
+          glow('node-sidg-rest');
+          break;
+        case 1: // BAL
+          glow('node-sidg-lb');
+          setPos('sidg-pkt-q-rest', lerp(C_SIDG.lb.x, C_SIDG.gw.x, p), C_SIDG.lb.y, true);
+          break;
+        case 2: // ADMIT
+          glow('node-sidg-gw');
+          setPos('sidg-pkt-q-rest', lerp(C_SIDG.gw.x, C_SIDG.wm.x, p), C_SIDG.gw.y, true);
+          glow('node-sidg-wm');
+          break;
+        case 3: // CACHE
+          glow('node-sidg-result');
+          if(isHit) {
+            setPos('sidg-pkt-result', lerp(C_SIDG.res.x, C_SIDG.cl.x, p), C_SIDG.res.y, true);
+          } else {
+            setPos('sidg-pkt-q-rest', lerp(C_SIDG.wm.x, C_SIDG.ex.x, p), C_SIDG.wm.y, true);
+            glow('node-sidg-exec');
+          }
+          break;
+        case 4: // CAT
+          glow('node-sidg-catalog'); glow('node-sidg-cdn');
+          setPos('sidg-pkt-meta', lerp(C_SIDG.cat.x, C_SIDG.cdn.x, p), lerp(C_SIDG.cat.y, C_SIDG.cdn.y, p), true);
+          break;
+        case 5: // EXEC
+          glow('node-sidg-exec'); glow('node-sidg-storage');
+          setPos('sidg-pkt-data', lerp(C_SIDG.st.x, C_SIDG.ex.x, p), C_SIDG.ex.y, true);
+          break;
+        case 6: // RET
+          glow('node-sidg-gw'); glow('node-sidg-result');
+          setPos('sidg-pkt-result', lerp(C_SIDG.ex.x, C_SIDG.cl.x, p), C_SIDG.ex.y, true);
+          break;
+        case 7: // SCALE
+          glow('node-sidg-gw'); glow('node-sidg-exec');
+          break;
+      }
+    }
+
+    function renderMPP(p) {
+      // Hide all dynamic MPP packets first
+      document.querySelectorAll('#mpp-packets-layer g').forEach(el => el.setAttribute('opacity', '0'));
+      const execs = parseInt(document.getElementById('rng-execs').value, 10);
+
+      switch(currentStep) {
+        case 0: // REQ
+          setPos('pkt-mpp-q', lerp(C_MPP.cl.x, C_MPP.co.x, p), C_MPP.co.y, true);
+          glow('node-mpp-client'); glow('node-mpp-coord');
+          break;
+        case 1: // META
+          const catP = p < 0.5 ? (p * 2) : (2 - p*2); // Down then up
+          setPos('pkt-mpp-meta', C_MPP.co.x, lerp(C_MPP.co.y, C_MPP.cat.y, catP), true);
+          glow('node-mpp-catalog'); glow('node-mpp-coord');
+          break;
+        case 2: // PLAN & DIST
+          glow('node-mpp-coord'); glow('node-mpp-execs');
+          for(let i=1; i<=execs; i++) {
+            setPos(`pkt-mpp-q${i}`, lerp(C_MPP.co.x+40, 495, p), lerp(C_MPP.co.y, C_MPP.exY[i-1], p), true);
+          }
+          break;
+        case 3: // SCAN
+          glow('node-mpp-storage'); glow('node-mpp-execs');
+          for(let i=1; i<=execs; i++) {
+            setPos(`pkt-mpp-d${i}`, lerp(C_MPP.st.x, 705, p), lerp(C_MPP.stY[i-1], C_MPP.exY[i-1], p), true);
+          }
+          break;
+        case 4: // SHUFFLE
+          glow('node-mpp-execs');
+          if(execs > 1) {
+            for(let i=1; i<=execs; i++) {
+              let nextI = (i % execs) + 1; // 1->2, 2->3 ...
+              setPos(`pkt-mpp-s${i}`, 600, lerp(C_MPP.exY[i-1], C_MPP.exY[nextI-1], p), true);
+            }
+          }
+          break;
+        case 5: // ROLLUP
+          glow('node-mpp-execs'); glow('node-mpp-coord'); glow('node-mpp-client');
+          // Sigma flows back from Executor 1 to Coord to Client
+          let sigX, sigY;
+          if(p < 0.5) {
+             const tp = p * 2;
+             sigX = lerp(495, C_MPP.co.x+40, tp);
+             sigY = lerp(C_MPP.exY[0], C_MPP.co.y, tp);
+          } else {
+             const tp = (p - 0.5) * 2;
+             sigX = lerp(C_MPP.co.x, C_MPP.cl.x, tp);
+             sigY = C_MPP.co.y;
+          }
+          setPos('pkt-mpp-sig', sigX, sigY, true);
+          break;
+      }
+    }
+
+    // --- Controls & UI Sync ---
+    function jumpToStep(step) {
+      currentStep = step; stepStartTime = 0; syncUI(step);
+    }
+    
+    function syncUI(step) {
+      document.querySelectorAll('.step-node').forEach((n, i) => n.classList.toggle('active', i === step));
+      document.querySelectorAll('.callout-card').forEach((c, i) => c.classList.toggle('highlighted', i === step));
+    }
+
+    // Event Bindings
+    btnSidg.addEventListener('click', () => initMode('sidg'));
+    btnMpp.addEventListener('click', () => initMode('mpp'));
+
+    btnPlay.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      btnPlay.innerHTML = isPlaying ? '❚❚ Pause' : '▶ Play';
+      btnPlay.classList.toggle('active', isPlaying);
+    });
+    btnNext.addEventListener('click', () => {
+      const len = currentMode === 'sidg' ? SIDG_DATA.steps.length : MPP_DATA.steps.length;
+      jumpToStep((currentStep + 1) % len);
+    });
+    btnPrev.addEventListener('click', () => {
+      const len = currentMode === 'sidg' ? SIDG_DATA.steps.length : MPP_DATA.steps.length;
+      jumpToStep((currentStep - 1 + len) % len);
+    });
+    btnRestart.addEventListener('click', () => jumpToStep(0));
+
+    speedBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        speedBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        speed = parseFloat(btn.dataset.speed);
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if(e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+      if(e.code === 'ArrowRight') btnNext.click();
+      if(e.code === 'ArrowLeft') btnPrev.click();
+    });
+
+    // Tooltips
+    document.querySelectorAll('.node-base').forEach(el => {
+      el.addEventListener('mouseenter', (e) => {
+        const tip = el.getAttribute('data-tip');
+        if(tip) {
+          const parts = tip.split(':');
+          tooltip.innerHTML = `<strong>${parts[0]}</strong>${parts[1] || ''}`;
+          tooltip.style.opacity = '1';
+        }
+      });
+      el.addEventListener('mousemove', (e) => {
+        tooltip.style.left = (e.pageX + 15) + 'px'; tooltip.style.top = (e.pageY + 15) + 'px';
+      });
+      el.addEventListener('mouseleave', () => tooltip.style.opacity = '0');
+    });
+
+    // Reduced Motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      speed = 0.5; isPlaying = false; btnPlay.innerHTML = '▶ Play'; btnPlay.classList.remove('active');
+    }
+
+    // Boot
+    initMode('sidg');
+    animationTimer = requestAnimationFrame(renderFrame);
+  })();
+</script>
+</body>
+</html>

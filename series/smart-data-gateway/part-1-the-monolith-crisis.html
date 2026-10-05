@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Primary SEO Meta Tags -->
+    <title>Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana</title>
+    <meta name="title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta name="description" content="Why distributed MPP data engines encounter structural coordination overhead on operational serving workloads, and why telemetry from corpus datasets like AWS Redset reveals over 90% of queries scan under 1 GB.">
+    <meta name="keywords" content="Data Architecture, Apache Iceberg, DuckDB, MPP Engines, Trino, Snowflake, Databricks, Data Gateway, Analytical Workloads, Distributed Systems, JVM Allocation Rates, FinOps">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+
+    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+    <meta property="og:title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta property="og:description" content="Analyzing execution overhead in operational serving workloads and understanding the true distribution of analytical query footprints.">
+    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/monolith-crisis-preview.png">
+
+    <!-- Twitter / X Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html">
+    <meta name="twitter:title" content="Part 1: The Monolith Crisis & The 95% Reality | Saurav Sana">
+    <meta name="twitter:description" content="Analyzing execution overhead in operational serving workloads and understanding the true distribution of analytical query footprints.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/monolith-crisis-preview.png">
+
+    <!-- Structured Data (JSON-LD for AIO / Search Engines) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Part 1: The Monolith Crisis & The 95% Reality",
+      "description": "Characterizing analytical query workloads and evaluating the execution boundary between distributed MPP engines and embedded serving gateways.",
+      "author": {
+        "@type": "Person",
+        "name": "Saurav Sana",
+        "url": "https://sauravsana.github.io/blog/"
+      },
+      "datePublished": "2026-10-09",
+      "dateModified": "2026-10-09",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Saurav Sana | Field Notes",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://sauravsana.github.io/blog/assets/img/logo.png"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-1-the-monolith-crisis.html"
+      }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+    <script src="../../assets/js/theme-toggle.js"></script>
+
+    <style>
+        /* =======================================================================
+           DARK MODE OVERRIDES
+           ======================================================================= */
+        [data-theme="dark"], .dark, .dark-mode, .theme-dark {
+            --panel: rgba(255, 255, 255, 0.06) !important;
+            --panel-2: rgba(255, 255, 255, 0.095) !important;
+            --line: rgba(255, 255, 255, 0.18) !important;
+            --line-soft: rgba(255, 255, 255, 0.1) !important;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]):not(.light):not(.theme-light) {
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel-2: rgba(255, 255, 255, 0.095);
+                --line: rgba(255, 255, 255, 0.18);
+                --line-soft: rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        .byline {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            font-size: 0.75rem;
+            color: var(--teal);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .deck {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 1.15rem;
+            color: var(--muted);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        /* --- Quote Styling --- */
+        .snarky-quote {
+            border-left: 3px solid var(--amber, #D4A72C);
+            padding: 0.1rem 0 0.1rem 1.25rem;
+            margin: 3rem 0;
+            background: transparent;
+        }
+        .snarky-quote-text {
+            font-family: 'Georgia', serif;
+            font-size: 1.15rem;
+            font-style: italic;
+            color: var(--muted);
+            line-height: 1.6;
+            margin: 0 0 0.6rem 0;
+        }
+        .snarky-quote-author {
+            font-family: 'Georgia', serif;
+            font-size: 1.05rem;
+            color: var(--muted);
+            margin: 0;
+        }
+        .snarky-quote-author strong {
+            font-weight: 700;
+            font-style: italic;
+            color: var(--text);
+        }
+
+        /* --- Callout & Law Grid Styles --- */
+        .callout { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--teal); padding: 1.25rem 1.4rem; border-radius: 8px; margin: 2rem 0; }
+        .callout strong { color: var(--teal); }
+        .warning { border-left-color: var(--amber); }
+
+        .law-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 2rem 0; }
+        .law { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem; }
+        .law-num { font: 700 .75rem 'IBM Plex Mono', monospace; color: var(--amber); }
+        .law h3 { margin: .35rem 0 .5rem; color: var(--text); font-size: 1rem; font-family: 'Libre Franklin', sans-serif; }
+        .law p { font-size: .92rem; margin: 0; color: var(--muted); }
+
+        @media(max-width: 700px) {
+            .law-grid { grid-template-columns: 1fr; }
+        }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+
+        .toc { background: var(--panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line); margin: 2.5rem 0; }
+        .toc-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted-2); letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc a { color: var(--teal); text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; }
+        .toc a:hover { text-decoration: underline; }
+
+        /* --- Custom Table Styling --- */
+        .mpp-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: var(--panel);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+        .mpp-table th, .mpp-table td {
+            padding: 1.25rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--line-soft);
+            vertical-align: top;
+        }
+        .mpp-table th {
+            background: var(--panel-2);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--teal);
+            font-weight: 600;
+        }
+        .mpp-table td {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--text);
+        }
+        .mpp-table tr:last-child td { border-bottom: none; }
+        .engine-name { font-weight: 700; color: var(--text); display: block; margin-bottom: 0.3rem; font-size: 1.05rem;}
+        .engine-type { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--amber); }
+        .source-link { color: var(--teal); text-decoration: none; }
+        .source-link:hover { text-decoration: underline; }
+
+        /* --- CSS Bar Chart for Survey Data --- */
+        .chart-container {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2.5rem 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .chart-title {
+            font-family: 'Libre Franklin', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        .chart-desc {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 120px 1fr auto;
+            gap: 1.5rem;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--line-soft);
+            transition: background 150ms ease;
+        }
+        .chart-row:last-child { border-bottom: none; }
+        .chart-row:hover { background: rgba(255,255,255,0.02); }
+        .chart-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            text-align: right;
+            color: var(--muted);
+        }
+        .bar-track {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .bar-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .bar {
+            height: 14px;
+            border-radius: 2px;
+            min-width: 2px;
+        }
+        .bar.vol { background: var(--teal); }
+        .bar.time { background: var(--amber); opacity: 0.9; }
+        .bar.single { background: var(--teal); }
+        .bar-val {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text);
+            min-width: 45px;
+        }
+        .chart-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--amber);
+            background: rgba(212, 167, 44, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .chart-takeaway {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--line);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .chart-takeaway strong { color: var(--teal); }
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        .source-caption { text-align:right; font-family:'IBM Plex Mono', monospace; font-size:0.7rem; color:var(--muted-2); margin-top:1rem; }
+
+        /* --- Compact Design Goals Layout --- */
+        .design-chart-layout {
+            display: grid;
+            grid-template-columns: 1fr 1.1fr;
+            gap: 2rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.75rem 1.5rem;
+            margin: 2.5rem 0;
+            align-items: stretch;
+        }
+        @media (max-width: 768px) {
+            .design-chart-layout { grid-template-columns: 1fr; gap: 1.5rem; }
+        }
+
+        .v-chart-wrapper { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+        .v-chart-title { font-family: 'Libre Franklin', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; text-align: center; }
+
+        .v-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 130px;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--line-soft);
+        }
+        .v-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 30%; height: 100%; }
+        .v-bar { width: 45px; border-radius: 3px 3px 0 0; }
+        .v-bar.teal { background: var(--teal); }
+        .v-bar.amber { background: var(--amber); }
+        .v-bar.grey { background: #64748b; }
+        .v-val { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.3rem; }
+        .v-bar-col.teal .v-val { color: var(--teal); }
+        .v-bar-col.amber .v-val { color: var(--amber); }
+        .v-bar-col.grey .v-val { color: #94a3b8; }
+
+        .v-label-area { display: flex; justify-content: space-around; margin-top: 0.75rem; text-align: center; align-items: flex-start; }
+        .v-label-col { width: 32%; }
+        .v-size { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--text); }
+        .v-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.68rem; color: var(--muted); line-height: 1.3; margin-top: 0.2rem; }
+
+        .v-domains { display: flex; margin-top: 1rem; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .v-domain-left { width: 66%; color: var(--teal); border-top: 2px solid var(--teal); padding-top: 0.4rem; }
+        .v-domain-right { width: 34%; color: var(--muted); border-top: 2px solid #64748b; padding-top: 0.4rem; }
+
+        .design-goals-list { display: flex; flex-direction: column; gap: 0.75rem; justify-content: space-between; }
+        .dg-header-title { font-family: 'Libre Franklin', sans-serif; font-size: 1rem; font-weight: 700; color: var(--teal); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .dg-item {
+            background: var(--panel-2);
+            border: 1px solid var(--line-soft);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+        }
+        .dg-header { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.15rem; }
+        .dg-num { font-family: 'IBM Plex Mono', monospace; color: var(--amber); font-weight: 700; font-size: 0.8rem; }
+        .dg-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; color: var(--text); font-size: 0.9rem; }
+        .dg-text { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.82rem; color: var(--muted); line-height: 1.4; margin: 0; padding-left: 1.6rem; }
+
+        .decision-rule {
+            background: var(--panel-2);
+            border: 1px solid var(--teal);
+            color: var(--text);
+            padding: 0.85rem 1rem;
+            border-radius: 6px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            margin-top: 1.25rem;
+            grid-column: 1 / -1;
+        }
+        .decision-rule strong { color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.5rem; }
+
+        /* =======================================================================
+           MPP QUERY LIFECYCLE — ENLARGED, HIGH-CONTRAST ENGINEERING THEME
+           ======================================================================= */
+
+        /* 1. Base Variables: LIGHT THEME DEFAULT (Clean Technical Paper) */
+        .mpp-wrap {
+            --mp-bg: #ffffff;
+            --mp-stage-bg: #f8fafc;
+            --mp-border: #cbd5e1;
+            --mp-line: #94a3b8;
+            --mp-line-soft: #e2e8f0;
+            
+            --mp-text-primary: #0f172a;
+            --mp-text-muted: #475569;
+            --mp-text-muted-2: #64748b;
+
+            --mp-teal: var(--teal, #0d9488);
+            --mp-amber: var(--amber, #d97706);
+            --mp-data: #0284c7;
+            --mp-shuffle: #7c3aed;
+            --mp-result: #059669;
+
+            --mp-zone-bg: #f1f5f9;
+            --mp-zone-stroke: #cbd5e1;
+            
+            --mp-node-fill: #ffffff;
+            --mp-node-stroke: #94a3b8;
+            --mp-disk-fill: #f1f5f9;
+            --mp-disk-stroke: #cbd5e1;
+
+            --mp-active-teal-fill: #ccfbf1;
+            --mp-active-amber-fill: #fef3c7;
+            --mp-active-data-fill: #e0f2fe;
+
+            --mp-pkt-req-bg: #ccfbf1;
+            --mp-pkt-req-fg: #0f766e;
+            --mp-pkt-meta-bg: #fef3c7;
+            --mp-pkt-meta-fg: #92400e;
+            --mp-pkt-data-bg: #e0f2fe;
+            --mp-pkt-data-fg: #0369a1;
+            --mp-pkt-shuf-bg: #ede9fe;
+            --mp-pkt-shuf-fg: #5b21b6;
+            --mp-pkt-res-bg: #d1fae5;
+            --mp-pkt-res-fg: #065f46;
+
+            --mp-caption-bg: #f8fafc;
+            --mp-caption-border: #cbd5e1;
+            --mp-btn-bg: #f1f5f9;
+            --mp-btn-fg: #0f172a;
+            --mp-btn-border: #cbd5e1;
+            --mp-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+
+            max-width: 640px;
+            margin: 2.5rem auto;
+            background: var(--mp-bg);
+            border: 1px solid var(--mp-border);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: var(--mp-shadow);
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            color: var(--mp-text-primary);
+            box-sizing: border-box;
+            transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+        }
+
+        /* 2. DARK THEME OVERRIDES (Deep Console Obsidian) */
+        html[data-theme="dark"] .mpp-wrap,
+        html.dark .mpp-wrap,
+        html.dark-mode .mpp-wrap,
+        html.theme-dark .mpp-wrap,
+        body[data-theme="dark"] .mpp-wrap,
+        body.dark .mpp-wrap,
+        body.dark-mode .mpp-wrap,
+        body.theme-dark .mpp-wrap {
+            --mp-bg: #0b1020;
+            --mp-stage-bg: #070b16;
+            --mp-border: #222f49;
+            --mp-line: #334366;
+            --mp-line-soft: #1a233a;
+            
+            --mp-text-primary: #f8fafc;
+            --mp-text-muted: #94a3b8;
+            --mp-text-muted-2: #64748b;
+
+            --mp-teal: var(--teal, #2dd4bf);
+            --mp-amber: var(--amber, #fbbf24);
+            --mp-data: #38bdf8;
+            --mp-shuffle: #c084fc;
+            --mp-result: #34d399;
+
+            --mp-zone-bg: rgba(255, 255, 255, 0.015);
+            --mp-zone-stroke: #222f49;
+            
+            --mp-node-fill: #11182c;
+            --mp-node-stroke: #2d3d5f;
+            --mp-disk-fill: #090e1c;
+            --mp-disk-stroke: #1e2b45;
+
+            --mp-active-teal-fill: rgba(45, 212, 191, 0.14);
+            --mp-active-amber-fill: rgba(251, 191, 36, 0.14);
+            --mp-active-data-fill: rgba(56, 189, 248, 0.14);
+
+            --mp-pkt-req-bg: #115e59;
+            --mp-pkt-req-fg: #ccfbf1;
+            --mp-pkt-meta-bg: #78350f;
+            --mp-pkt-meta-fg: #fef3c7;
+            --mp-pkt-data-bg: #075985;
+            --mp-pkt-data-fg: #e0f2fe;
+            --mp-pkt-shuf-bg: #581c87;
+            --mp-pkt-shuf-fg: #f3e8ff;
+            --mp-pkt-res-bg: #064e3b;
+            --mp-pkt-res-fg: #d1fae5;
+
+            --mp-caption-bg: #0e1526;
+            --mp-caption-border: #222f49;
+            --mp-btn-bg: #141d33;
+            --mp-btn-fg: #f1f5f9;
+            --mp-btn-border: #283857;
+            --mp-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 3. System preference fallback when no explicit attribute is set */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]):not(.light):not(.theme-light) .mpp-wrap {
+                --mp-bg: #0b1020;
+                --mp-stage-bg: #070b16;
+                --mp-border: #222f49;
+                --mp-line: #334366;
+                --mp-line-soft: #1a233a;
+                --mp-text-primary: #f8fafc;
+                --mp-text-muted: #94a3b8;
+                --mp-text-muted-2: #64748b;
+                --mp-teal: var(--teal, #2dd4bf);
+                --mp-amber: var(--amber, #fbbf24);
+                --mp-data: #38bdf8;
+                --mp-shuffle: #c084fc;
+                --mp-result: #34d399;
+                --mp-zone-bg: rgba(255, 255, 255, 0.015);
+                --mp-zone-stroke: #222f49;
+                --mp-node-fill: #11182c;
+                --mp-node-stroke: #2d3d5f;
+                --mp-disk-fill: #090e1c;
+                --mp-disk-stroke: #1e2b45;
+                --mp-active-teal-fill: rgba(45, 212, 191, 0.14);
+                --mp-active-amber-fill: rgba(251, 191, 36, 0.14);
+                --mp-active-data-fill: rgba(56, 189, 248, 0.14);
+                --mp-pkt-req-bg: #115e59;
+                --mp-pkt-req-fg: #ccfbf1;
+                --mp-pkt-meta-bg: #78350f;
+                --mp-pkt-meta-fg: #fef3c7;
+                --mp-pkt-data-bg: #075985;
+                --mp-pkt-data-fg: #e0f2fe;
+                --mp-pkt-shuf-bg: #581c87;
+                --mp-pkt-shuf-fg: #f3e8ff;
+                --mp-pkt-res-bg: #064e3b;
+                --mp-pkt-res-fg: #d1fae5;
+                --mp-caption-bg: #0e1526;
+                --mp-caption-border: #222f49;
+                --mp-btn-bg: #141d33;
+                --mp-btn-fg: #f1f5f9;
+                --mp-btn-border: #283857;
+                --mp-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        .mpp-wrap * { box-sizing: border-box; }
+
+        .mpp-head {
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 8px; margin-bottom: 8px;
+        }
+        .mpp-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px; font-weight: 700; letter-spacing: .12em;
+            text-transform: uppercase; color: var(--mp-text-muted); margin: 0;
+        }
+        .mpp-controls { display: flex; gap: 4px; flex-wrap: wrap; }
+        .mpp-btn {
+            background: var(--mp-btn-bg); border: 1px solid var(--mp-btn-border);
+            color: var(--mp-btn-fg); padding: 4px 9px; border-radius: 4px;
+            font: 600 9.5px/1 'IBM Plex Mono', monospace; letter-spacing: .02em; cursor: pointer;
+            transition: border-color .15s, color .15s, background .15s;
+        }
+        .mpp-btn:hover { border-color: var(--mp-teal); color: var(--mp-teal); }
+        .mpp-btn.active {
+            background: var(--mp-teal); color: #fff; border-color: var(--mp-teal);
+        }
+        .mpp-btn:focus-visible { outline: 2px solid var(--mp-teal); outline-offset: 2px; }
+
+        .mpp-legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; font-size: 9px; color: var(--mp-text-muted); font-family: 'IBM Plex Sans', sans-serif; font-weight: 500; }
+        .mpp-legend span { display: inline-flex; align-items: center; gap: 4px; }
+        .mpp-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
+
+        .mpp-stage {
+            position: relative; width: 100%; aspect-ratio: 580 / 330;
+            background:
+                radial-gradient(ellipse at 50% 40%, rgba(62, 88, 145, .05), transparent 50%),
+                var(--mp-stage-bg);
+            border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--mp-border);
+            transition: background 0.25s ease, border-color 0.25s ease;
+        }
+        .mpp-stage svg { width: 100%; height: 100%; display: block; }
+
+        /* SVG Element Theme Bindings */
+        .mpp-wrap .zone { fill: var(--mp-zone-bg); stroke: var(--mp-zone-stroke); stroke-width: 1; }
+        .mpp-wrap .zone-label {
+            fill: var(--mp-text-muted-2); font-family: 'IBM Plex Mono', monospace;
+            font-size: 8px; font-weight: 700; letter-spacing: .08em;
+        }
+
+        .mpp-wrap .node { opacity: 0.35; transition: opacity 0.35s ease, filter 0.35s ease; }
+        .mpp-wrap .node.active, .mpp-wrap .node.pulse { opacity: 1; }
+
+        .mpp-wrap .node rect {
+            fill: var(--mp-node-fill); stroke: var(--mp-node-stroke); stroke-width: 1.1;
+            transition: stroke .25s, fill .25s, filter .25s;
+        }
+        .mpp-wrap .node.active rect {
+            stroke: var(--mp-teal); fill: var(--mp-active-teal-fill); filter: url(#mpGlow);
+        }
+        .mpp-wrap .node.pulse rect {
+            stroke: var(--mp-amber); fill: var(--mp-active-amber-fill); filter: url(#mpGlow);
+        }
+        .mpp-wrap .node.storage rect { fill: var(--mp-node-fill); stroke: var(--mp-node-stroke); }
+        .mpp-wrap .node.storage.active rect {
+            stroke: var(--mp-data); fill: var(--mp-active-data-fill);
+        }
+        .mpp-wrap .node.catalog rect, .mpp-wrap .node.metablock rect {
+            fill: var(--mp-node-fill); stroke: var(--mp-node-stroke);
+        }
+        .mpp-wrap .node.catalog.active rect, .mpp-wrap .node.metablock.active rect {
+            stroke: var(--mp-amber); fill: var(--mp-active-amber-fill); filter: url(#mpGlow);
+        }
+
+        .mpp-wrap .disk-rect {
+            fill: var(--mp-disk-fill); stroke: var(--mp-disk-stroke); stroke-width: 1.1;
+            transition: stroke .25s, fill .25s, filter .25s;
+        }
+        .mpp-wrap .node.active .disk-rect {
+            stroke: var(--mp-data); fill: var(--mp-active-data-fill);
+        }
+        .mpp-wrap .node.disk-pulse .disk-rect {
+            stroke: var(--mp-amber); fill: var(--mp-active-amber-fill); filter: url(#mpGlow);
+        }
+
+        .mpp-wrap .node-title {
+            fill: var(--mp-text-primary); font-family: 'Libre Franklin', sans-serif;
+            font-size: 9.5px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+        }
+        .mpp-wrap .node-sub {
+            fill: var(--mp-text-muted); font-family: 'IBM Plex Mono', monospace;
+            font-size: 7.5px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; pointer-events: none; transition: fill .25s;
+        }
+        .mpp-wrap .node.active .node-sub { fill: var(--mp-teal); }
+        .mpp-wrap .node.pulse .node-sub { fill: var(--mp-amber); }
+        .mpp-wrap .node.storage.active .node-sub { fill: var(--mp-data); }
+        .mpp-wrap .node.catalog.active .node-sub, .mpp-wrap .node.metablock.active .node-sub { fill: var(--mp-amber); }
+
+        .mpp-wrap .disk-label {
+            fill: var(--mp-text-muted-2); font-family: 'IBM Plex Mono', monospace;
+            font-size: 7.5px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+        }
+
+        .mpp-wrap .static-line { fill: none; stroke: var(--mp-line); stroke-width: 1.2; opacity: .85; }
+        .mpp-wrap .static-line.thin { stroke-width: 1; opacity: .6; }
+
+        .mpp-wrap .flow {
+            fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+            opacity: 0; transition: opacity .35s ease;
+        }
+        .mpp-wrap .flow.visible { opacity: .95; }
+        .mpp-wrap .flow.request { stroke: var(--mp-teal); }
+        .mpp-wrap .flow.compute { stroke: var(--mp-data); }
+        .mpp-wrap .flow.shuffle { stroke: var(--mp-shuffle); }
+        .mpp-wrap .flow.result  { stroke: var(--mp-result); }
+        .mpp-wrap .flow.meta    { stroke: var(--mp-amber); stroke-width: 1.8; }
+
+        .mpp-wrap .packet {
+            opacity: 0; filter: url(#mpPktShadow);
+            pointer-events: none; will-change: transform, opacity;
+        }
+        .mpp-wrap .packet rect { rx: 4; ry: 4; }
+        .mpp-wrap .packet text {
+            font: 700 7.5px 'IBM Plex Mono', ui-monospace, monospace;
+            letter-spacing: .02em; text-anchor: middle; dominant-baseline: middle;
+        }
+        .mpp-wrap .packet.request rect { fill: var(--mp-pkt-req-bg); stroke: var(--mp-teal); stroke-width: 1.2; }
+        .mpp-wrap .packet.request text { fill: var(--mp-pkt-req-fg); }
+        .mpp-wrap .packet.compute rect { fill: var(--mp-pkt-data-bg); stroke: var(--mp-data); stroke-width: 1.2; }
+        .mpp-wrap .packet.compute text { fill: var(--mp-pkt-data-fg); }
+        .mpp-wrap .packet.shuffle rect { fill: var(--mp-pkt-shuf-bg); stroke: var(--mp-shuffle); stroke-width: 1.2; }
+        .mpp-wrap .packet.shuffle text { fill: var(--mp-pkt-shuf-fg); }
+        .mpp-wrap .packet.result rect  { fill: var(--mp-pkt-res-bg); stroke: var(--mp-result); stroke-width: 1.2; }
+        .mpp-wrap .packet.result text  { fill: var(--mp-pkt-res-fg); }
+        .mpp-wrap .packet.meta rect    { fill: var(--mp-pkt-meta-bg); stroke: var(--mp-amber); stroke-width: 1.2; }
+        .mpp-wrap .packet.meta text    { fill: var(--mp-pkt-meta-fg); }
+
+        .mpp-wrap .partition {
+            fill: var(--mp-node-fill); stroke: var(--mp-node-stroke);
+            stroke-width: 1; opacity: 0.55; transition: stroke .25s, fill .25s, filter .25s, opacity .35s ease;
+        }
+        .mpp-wrap .partition.active {
+            stroke: var(--mp-data); fill: var(--mp-active-data-fill); filter: url(#mpGlow); opacity: 1;
+        }
+        .mpp-wrap .partition-label {
+            fill: var(--mp-text-primary); font-family: 'IBM Plex Mono', monospace;
+            font-size: 8px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+        }
+
+        .mpp-wrap .step-line { stroke: var(--mp-line); stroke-width: 1; }
+        .mpp-wrap .step-dot { fill: var(--mp-line); transition: fill .25s, r .2s; cursor: pointer; }
+        .mpp-wrap .step-dot.active { fill: var(--mp-teal); filter: url(#mpGlow); r: 4; }
+        .mpp-wrap .step-label {
+            fill: var(--mp-text-muted-2); font-family: 'IBM Plex Mono', monospace;
+            font-size: 7.5px; font-weight: 700; letter-spacing: .02em; text-anchor: middle; dominant-baseline: middle;
+            transition: fill .25s; cursor: pointer;
+        }
+        .mpp-wrap .step-label.active { fill: var(--mp-text-primary); }
+
+        .mpp-wrap .mpp-caption {
+            margin-top: 10px; padding: 8px 14px;
+            background: var(--mp-caption-bg);
+            border: 1px solid var(--mp-caption-border);
+            border-left: 4px solid var(--mp-caption-border);
+            border-radius: 6px; font-size: 12px; line-height: 1.5;
+            color: var(--mp-text-muted); min-height: 36px;
+            display: flex; align-items: center; transition: border-color .3s;
+        }
+        .mpp-wrap .mpp-caption strong { color: var(--mp-text-primary); margin-right: 6px; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+        .mpp-wrap .mpp-caption.phase-request { border-left-color: var(--mp-teal); }
+        .mpp-wrap .mpp-caption.phase-compute { border-left-color: var(--mp-data); }
+        .mpp-wrap .mpp-caption.phase-shuffle { border-left-color: var(--mp-shuffle); }
+        .mpp-wrap .mpp-caption.phase-pulse   { border-left-color: var(--mp-amber); }
+        .mpp-wrap .mpp-caption.phase-result  { border-left-color: var(--mp-result); }
+        .mpp-wrap .mpp-caption.phase-meta    { border-left-color: var(--mp-amber); }
+
+        .mpp-wrap .mpp-note {
+            margin-top: 8px; font-size: 10.5px; color: var(--mp-text-muted);
+            line-height: 1.45; padding: 0 2px;
+        }
+        .mpp-wrap .mpp-note b { color: var(--mp-text-primary); }
+
+        /* Marker arrow colors */
+        .mpp-wrap #mpArrowTeal path   { stroke: var(--mp-teal); }
+        .mpp-wrap #mpArrowAmber path  { stroke: var(--mp-amber); }
+        .mpp-wrap #mpArrowData path   { stroke: var(--mp-data); }
+        .mpp-wrap #mpArrowPurple path { stroke: var(--mp-shuffle); }
+        .mpp-wrap #mpArrowGreen path  { stroke: var(--mp-result); }
+
+        @media (max-width: 640px) {
+            .mpp-wrap { padding: 10px; border-radius: 10px; }
+            .mpp-btn { padding: 3px 6px; font-size: 9px; }
+            .mpp-caption { font-size: 10.5px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Global Header -->
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="#" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+
+        <!-- Article Content -->
+        <main>
+            <article class="article">
+
+                <!-- Back Navigation -->
+                <div style="margin-bottom: 1rem; margin-top: 0;">
+                    <a href="index.html" style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--teal); text-decoration: none;">&larr; Back to Series Index</a>
+                </div>
+
+                <div class="byline">PART 1 · DATA ENGINEERING &amp; ARCHITECTURE</div>
+
+                <h1 style="margin-top: 0.5rem; font-family: 'Libre Franklin', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem;">The Monolith Crisis &amp; The 95% Reality</h1>
+                <p class="deck">Characterizing Analytical Query Footprints and Defining the Operational Serving Boundary</p>
+
+                <!-- PUBLICATION DATES -->
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); margin-bottom: 2rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                    September 26, 2026
+                </div>
+
+                <!-- Snarky Quote -->
+                <div class="snarky-quote">
+                    <p class="snarky-quote-text">“Data engineering is the only profession where we respond to a request for a 50-row UI grid by spinning up a 40-node distributed cluster, orchestrating a terabyte of memory over the network, and presenting a $50,000 monthly cloud bill with an absolutely straight face.”</p>
+                    <p class="snarky-quote-author">— <strong><em>Anonymous Platform Architect</em></strong></p>
+                </div>
+
+                <nav class="toc">
+                    <div class="toc-title">ON THIS PAGE</div>
+                    <ol>
+                        <li><a href="#s1">The Motivation: Trading One Bottleneck for Another</a></li>
+                        <li><a href="#s2">The Realization: The Four Laws of Operational Workloads</a></li>
+                        <li><a href="#s3">The Validation: The 95% Reality in Numbers</a></li>
+                        <li><a href="#s4">The Architectural Pathology of Legacy MPP: The "Fat Executor" Fallacy</a></li>
+                        <li><a href="#s5">The Landscape Breakdown: Do All MPP Engines Suffer Alike?</a></li>
+                        <li><a href="#s6">The Design North Star: What Must Be Built</a></li>
+                    </ol>
+                </nav>
+
+                <h2 id="s1">1. The Motivation: Trading One Bottleneck for Another</h2>
+
+                <p>The journey away from massive monolithic architectures rarely starts with a clever insight. It usually starts with pain.</p>
+
+                <p>For years, our multi-tenant regulatory reporting platform ran on legacy OLTP databases. Without aggressive data purging, multi-tenant event data grew unchecked. Suboptimal indexing, rising volume, and heavy client search patterns eventually made the system both slow and expensive. UI response times collapsed, export pipelines timed out, and basic SLAs became aspirational.</p>
+
+                <p>To solve this, we executed the classic enterprise maneuver: a massive transformation project migrating our architecture from OLTP to a modern lakehouse. Real-time event streams were ingested continuously via Spark clusters directly into open table formats (Apache Iceberg), successfully achieving sub-200ms ingestion latency at the 95th percentile. On paper, it was a triumph. By centralizing everything into a single lakehouse, we completely bypassed the dreaded dual-store architecture—no more fragile CDC pipelines syncing operational data to analytical stores, and no more endless engineering tax of out-of-band reconciliation scripts trying to resolve data drift.</p>
+                 
+                <!-- =======================================================
+     TABLE FORMAT AGNOSTICISM & COMPARISON MATRIX
+     ======================================================= -->
+<div class="callout" style="margin: 2rem 0 1.5rem 0;">
+    <strong>Architecture Note: Table-Format Agnosticism &amp; Ingestion Drivers</strong>
+    <p style="margin: 0.5rem 0 0 0; font-size: 0.95rem; line-height: 1.6;">
+        While this series implements the gateway pattern using <strong>Apache Iceberg</strong>, the gateway design itself is <em>table-format agnostic</em>. The architecture requires only two runtime primitives: a metadata parser capable of resolving snapshot manifests into Parquet split locations, and an embedded vectorized compute engine (such as DuckDB) to execute queries over those files.
+    </p>
+    <p style="margin: 0.75rem 0 0 0; font-size: 0.95rem; line-height: 1.6;">
+        Our production platform committed to Iceberg specifically because of our ingestion profile: high-velocity regulatory event streams with massive append throughput and virtually zero in-place updates. For teams evaluating storage formats, the choice depends heavily on mutation patterns, catalog independence, and engine diversity:
+    </p>
+</div>
+
+<table class="mpp-table">
+    <thead>
+        <tr>
+            <th>Format</th>
+            <th>Primary Architecture Sweet Spot</th>
+            <th>Best-Fit Workload</th>
+            <th>Gateway / Embedded Serving Trade-Off</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <span class="engine-name">Apache Iceberg</span>
+                <span class="engine-type">Manifest Tree · Open Spec</span>
+            </td>
+            <td>Engine-neutral metadata architecture; hierarchical manifest tree separating catalog snapshots from physical files; seamless partition and schema evolution.</td>
+            <td><strong>High-throughput append-only event stores</strong>, analytical lakehouses queried concurrently by heterogeneous engines (Spark, Trino, Flink, DuckDB).</td>
+            <td>Lightweight REST catalog integration; hierarchical manifest lists allow single-node gateways to prune metadata in milliseconds without distributed workers.</td>
+        </tr>
+        <tr>
+            <td>
+                <span class="engine-name">Delta Lake</span>
+                <span class="engine-type">Transaction Log · Spark-Centric</span>
+            </td>
+            <td>ACID transaction log (Delta Log) with native Spark and Databricks runtime optimizations; Liquid Clustering; robust CDC merging.</td>
+            <td><strong>Spark/Databricks-first lakehouses</strong>, structured streaming pipelines, and environments needing uniform cross-format reading via UniForm.</td>
+            <td>Native embedded Rust and C++ reader kernels (Delta-RS) exist, but historical dependency on Spark-native extensions requires careful catalog synchronization.</td>
+        </tr>
+        <tr>
+            <td>
+                <span class="engine-name">Apache Hudi</span>
+                <span class="engine-type">Timeline Index · Streaming MoR</span>
+            </td>
+            <td>Record-level indexing (Bloom, HFile), granular Merge-on-Read (MoR), and commit timelines designed specifically for database CDC upsert streams.</td>
+            <td><strong>Frequent row-level mutations</strong>, high-churn CDC ingestion from operational OLTP databases, and incremental streaming consumption.</td>
+            <td>Heavier metadata complexity and runtime indexing overhead; resolving merge-on-read log deltas outside of dedicated JVM engines adds execution weight to lightweight gateways.</td>
+        </tr>
+    </tbody>
+</table>
+<!-- =======================================================
+     /TABLE FORMAT AGNOSTICISM & COMPARISON MATRIX
+     ======================================================= -->
+
+                <p><strong>Then the structural overhead of operational dashboards caught up with us.</strong></p>
+
+                <p>While the lakehouse elegantly solved our ingestion and storage scaling bottlenecks, it created a severe serving mismatch. Because operators and client consumers depended on real-time operational dashboards backed directly by the lakehouse, our Spark and MPP compute clusters had to remain powered on 24/7. We were forced to pay a massive baseline infrastructure cost simply to keep heavy, distributed compute idling, waiting for an interactive user to click a dashboard filter or request a modest 50-row UI grid.</p>
+
+                <div class="callout warning"><strong>The architectural mismatch:</strong> The underlying dataset was immense, but the individual interactive query was small. Distributed MPP architectures are optimized for batch throughput and massive parallel scans rather than high-concurrency, low-latency point queries. The platform was being sized for the former while users were paying for the structural coordination overhead of the latter.</div>
+
+                <p>The architecture did not fail operationally—it scaled smoothly with massive data ingestion. But the economics were deeply inefficient. Distributed query engines introduce structural execution overhead (coordinator plan generation, driver dispatch, distributed task scheduling, stage barrier synchronization, and state tracking) that makes sense when amortized across a 10 TB scan, but represents pure waste on bounded, sub-second reads. We had eliminated dual-store data drift, but we had traded it for a cloud-compute billing inferno.</p>
+
+                <h2 id="s2">2. The Realization: The Four Laws of Operational Workloads</h2>
+
+                <p>When we examined our production query telemetry, a clear pattern appeared. Over 90% of interactive user requests were targeted reads against recent event partitions, tenant-scoped filters, and on-demand aggregations inspecting data well under 10 GB.</p>
+
+                <p>At first we assumed this was unique to our regulatory domain. It was not. Across production systems, interactive analytical access routinely adheres to four durable empirical properties:</p>
+
+                <div class="law-grid">
+                    <div class="law">
+                        <div class="law-num">LAW 01</div>
+                        <h3>Temporal locality</h3>
+                        <p>Operational traffic is heavily skewed toward recent partitions. Queries inspecting the "last hour", "current business day", or "trailing 30 days" vastly outnumber arbitrary full-history scans. Partition and manifest pruning can eliminate the vast majority of physical data before execution planning finishes.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 02</div>
+                        <h3>Tenant and predicate locality</h3>
+                        <p>Serving requests commonly contain highly selective predicates: tenant LEI, account ID, device identifier, region, or explicit status codes. A query executed against a multi-petabyte lakehouse table is frequently a sub-gigabyte operation at physical evaluation time.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 03</div>
+                        <h3>Bounded attention</h3>
+                        <p>Downstream consumers impose strict operational contracts. An interactive AG Grid UI requests a 50-row page, an API enforces a 500 ms SLA timeout, and an export endpoint paginates cursors. The final consumed result contract is orders of magnitude smaller than the underlying dataset.</p>
+                    </div>
+                    <div class="law">
+                        <div class="law-num">LAW 04</div>
+                        <h3>Long-tail coexistence</h3>
+                        <p>The dominance of small operational queries does not eliminate the long tail. A single platform simultaneously experiences thousands of bounded reads alongside multi-terabyte cross-regulatory reconciliations. This demands a workload-aware routing tier, not a dogmatic claim that distributed MPP is obsolete.</p>
+                    </div>
+                </div>
+
+                <p><strong>Crucial Clarification: Disentangling Bytes Scanned from Execution Cost.</strong> Data scan volume is merely a first-order workload filter, not a complete proxy for query complexity. A 50 MB scan featuring unindexed cartesian joins, high-cardinality nested aggregations, or skewed window functions over millions of intermediate tuples can easily saturate executor CPU and memory far beyond a linear 100 GB sequential table scan over sorted Parquet blocks. Scan size indicates suitability for single-node execution, but plan topology determines whether it stays there.</p>
+
+                <p>The initial conclusion remained striking: we were running distributed clusters sized for worst-case shuffle joins to serve queries whose physical data footprint and computational graph fit comfortably within a single modern multi-core server.</p>
+
+                <h2 id="s3">3. The Validation: The 95% Reality in Numbers</h2>
+
+                <p>Internal telemetry from a single enterprise platform can always be dismissed as domain-specific bias. However, large-scale fleet telemetry across production data warehouses corroborates this exact distribution.</p>
+
+                <p>In analyzed enterprise analytical workloads—most notably demonstrated in the published analysis of the AWS Redshift "Redset" corpus (Jordan Tigani / MotherDuck, 2024)—query volume is overwhelmingly dominated by small scans:</p>
+                <ul>
+                    <li><strong>Small Scans Dominate Fleet Volume:</strong> Over 75% of submitted queries scan under 1 GB, and over 94% scan under 10 GB.</li>
+                    <li><strong>Individual User Workflow Footprints:</strong> Across the fleet, over 93% of active users never submit a query exceeding 10 GB in their largest single analytical invocation.</li>
+                    <li><strong>The Extreme Compute Imbalance:</strong> Queries scanning more than 1 TB represent only 0.25% of submitted volume, yet those extreme outliers account for 16.6% of cumulative compute time across the cluster fleet. Queries over 10 TB account for a minuscule 0.03% of volume.</li>
+                </ul>
+
+                <!-- PRO CHART 1: Query Volume vs Elapsed Time -->
+                <div class="chart-container">
+                    <div class="chart-title">Query Share vs. Elapsed-Time Share by Scan Size</div>
+                    <div class="chart-desc">Empirical telemetry from the AWS Redset warehouse corpus: query frequency vs. total compute consumption.</div>
+
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-color bar-vol"></div> Query Volume (%)</div>
+                        <div class="legend-item"><div class="legend-color bar-time"></div> Elapsed Time (%)</div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 75%;"></div><div class="bar-val">75%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 31%;"></div><div class="bar-val">31%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 19%;"></div><div class="bar-val">19%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 14%;"></div><div class="bar-val">14%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 4.1%;"></div><div class="bar-val">4.1%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 20%;"></div><div class="bar-val">20%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 1.1%;"></div><div class="bar-val">1.1%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 18%;"></div><div class="bar-val">18%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 0.21%;"></div><div class="bar-val">0.2%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 11%;"></div><div class="bar-val">11%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&gt; 10 TB</div>
+                        <div class="bar-track">
+                            <div class="bar-group"><div class="bar vol" style="width: 0.03%;"></div><div class="bar-val">0.03%</div></div>
+                            <div class="bar-group"><div class="bar time" style="width: 5.6%;"></div><div class="bar-val">5.6%</div></div>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> In analyzed enterprise populations, 75% of queries scan less than 1 GB, while queries exceeding 10 TB represent 0.03% of volume. Sizing baseline operational serving infrastructure around the tail means paying full distributed coordination costs on the median read.
+                    </div>
+                    <div class="source-caption">Source: Jordan Tigani, "Redshift Files: The Hunt for Big Data," MotherDuck (telemetry on AWS Redset corpus)</div>
+                </div>
+
+                <!-- PRO CHART 2: Max User Scan Size -->
+                <div class="chart-container">
+                    <div class="chart-title">Fleet Workflow Limits: Max Scan Size Per User</div>
+                    <div class="chart-desc">Maximum data scale touched by individual users across the analyzed corpus.</div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 67%;"></div><div class="bar-val">67%</div></div></div>
+                        <div class="chart-tag">Single-Node Bounded</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 26%;"></div><div class="bar-val">26%</div></div></div>
+                        <div class="chart-tag">Single-Node Bounded</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 5.4%;"></div><div class="bar-val">5.4%</div></div></div>
+                        <div class="chart-tag">High-Memory Worker</div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 0.9%;"></div><div class="bar-val">0.91%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 0.36%;"></div><div class="bar-val">0.36%</div></div></div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> 93% of active analysts and downstream applications never trigger a query exceeding 10 GB. Their regular day-to-day operational scope operates well below the scale where multi-node distributed shuffles provide net speedups.
+                    </div>
+                </div>
+
+                <!-- PRO CHART 3: Big Data Orgs -->
+                <div class="chart-container">
+                    <div class="chart-title">Query Slices Inside Multi-Petabyte Organizations</div>
+                    <div class="chart-desc">The physical data size scanned per query within organizations maintaining multi-petabyte datasets.</div>
+
+                    <div class="chart-row">
+                        <div class="chart-label">&lt; 1 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 68%;"></div><div class="bar-val">68%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">1&ndash;10 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 23%;"></div><div class="bar-val">23%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">10&ndash;100 GB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 4.7%;"></div><div class="bar-val">4.7%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">100 GB&ndash;1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 2%;"></div><div class="bar-val">2.0%</div></div></div>
+                        <div></div>
+                    </div>
+                    <div class="chart-row">
+                        <div class="chart-label">&gt; 1 TB</div>
+                        <div class="bar-track"><div class="bar-group"><div class="bar single" style="width: 1.9%;"></div><div class="bar-val">1.9%</div></div></div>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-takeaway">
+                        <strong>Takeaway:</strong> Even within enterprises possessing petabytes of raw data, 91% of day-to-day queries scan under 10 GB. Organizations achieve this by pre-aggregating, partitioning, and modeling raw event logs into denormalized serving tiers.
+                    </div>
+                </div>
+
+                <p><strong>The Engineering Reality of Pre-Aggregated Serving Tiers.</strong> Why do queries against petabyte lakes touch small volumes? Because sensible architectures do not scan raw bronze tables at serving time. However, pre-aggregating or maintaining denormalized gold tables introduces non-trivial architectural trade-offs: significant storage amplification (storing the same entity across bronze, silver, and gold states), heavy write amplification on high-frequency commit streams, continuous metadata compaction overhead in Iceberg table maintenance, and unavoidable data staleness windows. Balancing fast serving scans against pipeline write overhead is an architectural tension every platform must navigate.</p>
+
+                <h2 id="s4">4. The Architectural Pathology of Legacy MPP: The "Fat Executor" Fallacy</h2>
+
+                <p>If the median operational query footprint is compact, why do enterprise data platforms universally provision clusters of 10 to 50 giant worker nodes with 64 GB to 256 GB of RAM?</p>
+
+                <p>The standard architectural justification is: <em>"We need massive distributed memory and parallelism for complex join execution."</em> While true for large batch jobs, applying this footprint universally introduces severe structural inefficiencies when serving high-frequency, bounded operational queries.</p>
+
+                <h3>The Anatomy of Runtime Execution Overhead</h3>
+                <p>Foundational distributed engines (Trino, Presto, Spark) were engineered on the Java Virtual Machine. While Java enabled rapid distributed systems engineering and rich connector ecosystems, executing high-concurrency, sub-second operational serving workloads introduces distinct runtime challenges:</p>
+
+                <ul>
+                    <li><strong>Allocation Rates and Memory Pressure:</strong> Modern garbage collectors (G1, ZGC, Shenandoah) have evolved tremendously, routinely achieving sub-millisecond to single-digit millisecond pause times for steady-state workloads. However, when hundreds of concurrent operational queries churn through millions of temporary intermediate tuples per second, the JVM Eden allocation rate explodes. Under extreme allocation spikes, thread mutators can experience pacing delays, and CPU cycles are diverted from vectorized execution to memory reclamation.</li>
+                    <li><strong>Object Boxing and Off-Heap Cache Boundaries:</strong> In-memory Java representations carry object headers, pointer indirection, and 64-bit alignment padding. Boxed representations can expand columnar data memory footprints by 3× to 6× relative to dense contiguous formats like Apache Arrow. While modern engines rely extensively on off-heap memory allocators for row-pages and exchange buffers, crossing off-heap/on-heap boundaries introduces serialization and memory-copy overhead.</li>
+                    <li><strong>Noisy-Neighbor Heap Contention:</strong> In shared multi-tenant deployments, queries from multiple tenants execute concurrently across the same worker JVM process. If Tenant A issues an unconstrained aggregation that consumes disproportionate intermediate memory, the resulting memory pressure and cache eviction ripples across all co-located tenant threads on that node.</li>
+                </ul>
+
+                <h3>The Real Sizing Rationale for "Fat Executors"</h3>
+                <p>It is tempting to claim that 128 GB+ worker nodes exist solely as defensive buffers against runtime overhead. In reality, large executor allocations are an engineering necessity for distributed analytical engines handling arbitrary SQL:</p>
+                <ul>
+                    <li><strong>In-Memory Hash Join Tables:</strong> Building hash tables for high-cardinality broadcast or distributed shuffle joins requires substantial continuous memory.</li>
+                    <li><strong>Vectorized Sort and Window Buffers:</strong> Multi-column ordering and windowing functions require intermediate memory blocks to prevent pipeline stalls.</li>
+                    <li><strong>Columnar Block Caching:</strong> Allocating tens of gigabytes to executor-local disk and memory caches (e.g., Alluxio, local SSD block stores) accelerates repeated scans.</li>
+                    <li><strong>Spill Prevention:</strong> Preventing intermediate partitions from spilling to network-attached block storage (EBS) or NVMe scratch space is paramount, as out-of-core spilling degrades query execution times by an order of magnitude.</li>
+                </ul>
+                <p>The dilemma is not that fat executors are ill-designed; it is that they are sized for the worst-case join, yet kept running 24/7 to serve lightweight, point-read operational traffic.</p>
+
+                <h3>The Scatter-Gather and Coordination Penalty</h3>
+                <p>Distributed engines are structurally bound to coordinated multi-stage execution plans. The coordinator parses the AST, resolves metadata catalog snapshots, analyzes partition stats, optimizes logical plans, splits tasks across workers, schedules network exchanges, and aggregates scattered results.</p>
+
+                <p><strong>Modern Optimizations:</strong> To their credit, modern distributed engines incorporate sophisticated execution optimizations. Trino and Presto support dynamic partition pruning (DPP) and broadcast joins to minimize data movement. Spark's Adaptive Query Execution (AQE) dynamically coalesces shuffle partitions, handles data skew, and switches join strategies at runtime. When queries contain highly selective partition filters, coordinator planning can collapse execution to single-worker paths.</p>
+
+                <p>Yet even with these optimizations, the fixed coordination overhead—driver dispatch, network RPC handshakes, scheduler barrier synchronization, and result gathering—typically imposes a structural floor of 200 ms to 1,500 ms of latency. When an operational SLA requires sub-50ms or sub-100ms dashboard refreshes, distributed coordination latency alone consumes the entire latency budget before the first vectorized byte is read.</p>
+
+                <!-- =======================================================
+                     MPP QUERY LIFECYCLE ANIMATION
+                     ======================================================= -->
+                <h3>The Anatomy of Distributed Execution Overhead</h3>
+
+                <p>The interactive architectural model below illustrates the full lifecycle of an analytical query through a stateful, multi-node MPP system. It tracks coordinator admission, metadata snapshot resolution, task fan-out, vectorized scanning, intermediate hash partitioning, network shuffle exchange, and final coordinator result gathering.</p>
+
+                <p>Notice how every coordination phase—the catalog resolution, the scheduler fan-out, the network exchange, the root gather—executes even if the predicate filters the scan down to a single micro-partition. That fixed mechanical pipeline represents the execution boundary our gateway addresses.</p>
+
+                <div class="mpp-wrap">
+                  <div class="mpp-head">
+                    <h3 class="mpp-title">MPP Query Lifecycle · Distributed Execution Pipeline</h3>
+                    <div class="mpp-controls">
+                      <button class="mpp-btn" id="mp-btn-prev">← Prev</button>
+                      <button class="mpp-btn active" id="mp-btn-play">Pause</button>
+                      <button class="mpp-btn" id="mp-btn-next">Next →</button>
+                      <button class="mpp-btn" id="mp-btn-restart">Restart</button>
+                    </div>
+                  </div>
+
+                  <div class="mpp-legend">
+                    <span><i style="background:var(--mp-teal)"></i> Request / Plan / WLM</span>
+                    <span><i style="background:var(--mp-amber)"></i> Catalog / Metadata</span>
+                    <span><i style="background:var(--mp-data)"></i> Scan / Compute</span>
+                    <span><i style="background:var(--mp-shuffle)"></i> Shuffle</span>
+                    <span><i style="background:var(--mp-result)"></i> Result</span>
+                  </div>
+
+                  <div class="mpp-stage">
+                    <svg id="mp-svg" viewBox="0 0 580 330" preserveAspectRatio="xMidYMid meet">
+                      <defs>
+                        <filter id="mpGlow" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur stdDeviation="2.5" result="b"/>
+                          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                        <filter id="mpPktShadow" x="-60%" y="-60%" width="220%" height="220%">
+                          <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity=".35"/>
+                        </filter>
+                        <marker id="mpArrowTeal" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto">
+                          <path d="M0,0.5 L4,2.5 L0,4.5" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                        </marker>
+                        <marker id="mpArrowData" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto">
+                          <path d="M0,0.5 L4,2.5 L0,4.5" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                        </marker>
+                        <marker id="mpArrowPurple" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto">
+                          <path d="M0,0.5 L4,2.5 L0,4.5" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                        </marker>
+                        <marker id="mpArrowGreen" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto">
+                          <path d="M0,0.5 L4,2.5 L0,4.5" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                        </marker>
+                        <marker id="mpArrowAmber" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto">
+                          <path d="M0,0.5 L4,2.5 L0,4.5" fill="none" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                        </marker>
+                      </defs>
+
+                      <!-- Architecture Zones -->
+                      <rect class="zone" x="12"  y="32" width="76"  height="236" rx="6"/>
+                      <rect class="zone" x="96"  y="32" width="96"  height="236" rx="6"/>
+                      <rect class="zone" x="200" y="32" width="180" height="236" rx="6"/>
+                      <rect class="zone" x="388" y="32" width="180" height="236" rx="6"/>
+
+                      <text class="zone-label" x="18"  y="44">CLIENT TIER</text>
+                      <text class="zone-label" x="102" y="44">COORDINATOR &amp; WLM</text>
+                      <text class="zone-label" x="206" y="44">CATALOG &amp; EXECUTORS</text>
+                      <text class="zone-label" x="394" y="44">STORAGE &amp; LAKEHOUSE</text>
+
+                      <!-- Catalog Service -->
+                      <g class="node catalog" id="mp-node-catalog">
+                        <rect x="206" y="52" width="168" height="32" rx="5"/>
+                        <text class="node-title" x="290" y="64">Catalog Service</text>
+                        <text class="node-sub"   x="290" y="76">Iceberg Snapshots</text>
+                      </g>
+
+                      <!-- Client Tier Node -->
+                      <g class="node" id="mp-node-client">
+                        <rect x="18" y="118" width="64" height="64" rx="6"/>
+                        <text class="node-title" x="50" y="142">Application</text>
+                        <text class="node-sub"   x="50" y="158">SQL Client</text>
+                      </g>
+
+                      <!-- Coordinator & WLM Nodes -->
+                      <g class="node" id="mp-node-coord">
+                        <rect x="102" y="106" width="84" height="66" rx="6"/>
+                        <text class="node-title" x="144" y="125">Coordinator</text>
+                        <text class="node-sub"   x="144" y="140">Parse · Plan</text>
+                        <text class="node-sub"   x="144" y="154">Task Scheduler</text>
+                      </g>
+
+                      <g class="node wlm" id="mp-node-wlm">
+                        <rect x="102" y="184" width="84" height="50" rx="6"/>
+                        <text class="node-title" x="144" y="202">Workload Mgmt</text>
+                        <text class="node-sub"   x="144" y="218">Admission · Limits</text>
+                      </g>
+
+                      <!-- Compact Stateful Executors -->
+                      <g class="node" id="mp-node-e1">
+                        <rect x="206" y="96" width="112" height="32" rx="4"/><text class="node-title" x="262" y="108">Executor 1</text><text class="node-sub" x="262" y="120" id="mp-sub-e1">Ready</text>
+                        <rect class="disk-rect" x="318" y="96" width="56" height="32" rx="4"/><text class="disk-label" x="346" y="108">NVMe Disk</text><text class="disk-label" x="346" y="120" style="fill:var(--mp-text-muted-2);">Spill</text>
+                      </g>
+                      <g class="node" id="mp-node-e2">
+                        <rect x="206" y="138" width="112" height="32" rx="4"/><text class="node-title" x="262" y="150">Executor 2</text><text class="node-sub" x="262" y="162" id="mp-sub-e2">Ready</text>
+                        <rect class="disk-rect" x="318" y="138" width="56" height="32" rx="4"/><text class="disk-label" x="346" y="150">NVMe Disk</text><text class="disk-label" x="346" y="162" style="fill:var(--mp-text-muted-2);">Spill</text>
+                      </g>
+                      <g class="node" id="mp-node-e3">
+                        <rect x="206" y="180" width="112" height="32" rx="4"/><text class="node-title" x="262" y="192">Executor 3</text><text class="node-sub" x="262" y="204" id="mp-sub-e3">Ready</text>
+                        <rect class="disk-rect" x="318" y="180" width="56" height="32" rx="4"/><text class="disk-label" x="346" y="192">NVMe Disk</text><text class="disk-label" x="346" y="204" style="fill:var(--mp-text-muted-2);">Spill</text>
+                      </g>
+                      <g class="node" id="mp-node-e4">
+                        <rect x="206" y="222" width="112" height="32" rx="4"/><text class="node-title" x="262" y="234">Executor 4</text><text class="node-sub" x="262" y="246" id="mp-sub-e4">Ready</text>
+                        <rect class="disk-rect" x="318" y="222" width="56" height="32" rx="4"/><text class="disk-label" x="346" y="234">NVMe Disk</text><text class="disk-label" x="346" y="246" style="fill:var(--mp-text-muted-2);">Spill</text>
+                      </g>
+
+                      <!-- Object Storage & Partitions -->
+                      <g class="node storage" id="mp-node-storage">
+                        <rect x="394" y="46" width="168" height="216" rx="6"/>
+                      </g>
+
+                      <!-- Metadata & Manifest Lists -->
+                      <g class="node metablock" id="mp-node-storage-meta">
+                        <rect x="400" y="52" width="156" height="32" rx="4"/>
+                        <text class="node-title" x="478" y="64">Metadata &amp; Manifests</text>
+                        <text class="node-sub"   x="478" y="76">Snapshots · Split Pointers</text>
+                      </g>
+
+                      <g id="mp-partitions">
+                        <rect class="partition" id="mp-p1" x="400" y="96" width="156" height="32" rx="4"/><text class="partition-label" x="478" y="112">Partition 1 (P1 · Split A)</text>
+                        <rect class="partition" id="mp-p2" x="400" y="138" width="156" height="32" rx="4"/><text class="partition-label" x="478" y="154">Partition 2 (P2 · Split B)</text>
+                        <rect class="partition" id="mp-p3" x="400" y="180" width="156" height="32" rx="4"/><text class="partition-label" x="478" y="196">Partition 3 (P3 · Split C)</text>
+                        <rect class="partition" id="mp-p4" x="400" y="222" width="156" height="32" rx="4"/><text class="partition-label" x="478" y="238">Partition 4 (P4 · Split D)</text>
+                      </g>
+
+                      <!-- Static Structural Topology Lines -->
+                      <path class="static-line" d="M82 150 H102"/>
+                      <path class="static-line thin" d="M132 172 V184"/>
+                      <path class="static-line thin" d="M156 184 V172"/>
+                      <path class="static-line thin" d="M144 106 C 144 76, 172 68, 206 68"/>
+                      <path class="static-line" d="M374 68 H400"/>
+
+                      <path class="static-line" d="M186 126 C 194 118, 198 112, 206 112"/>
+                      <path class="static-line" d="M186 144 C 194 150, 198 154, 206 154"/>
+                      <path class="static-line" d="M186 158 C 194 176, 198 196, 206 196"/>
+                      <path class="static-line" d="M186 166 C 194 206, 198 238, 206 238"/>
+
+                      <path class="static-line" d="M374 112 H400"/>
+                      <path class="static-line" d="M374 154 H400"/>
+                      <path class="static-line" d="M374 196 H400"/>
+                      <path class="static-line" d="M374 238 H400"/>
+
+                      <!-- Dynamic Data Flows -->
+                      <g id="mp-flows">
+                        <path id="mp-f-request" class="flow request" d="M82 150 H102" marker-end="url(#mpArrowTeal)"/>
+                        <path id="mp-f-wlm-req" class="flow request" d="M132 172 V184" marker-end="url(#mpArrowTeal)"/>
+                        <path id="mp-f-wlm-resp" class="flow request" d="M156 184 V172" marker-end="url(#mpArrowTeal)"/>
+
+                        <!-- Metadata Resolution Flows -->
+                        <path id="mp-f-meta-req" class="flow meta" d="M144 106 C 144 76, 172 68, 206 68" marker-end="url(#mpArrowAmber)"/>
+                        <path id="mp-f-catalog-storage" class="flow meta" d="M374 68 H400" marker-end="url(#mpArrowAmber)"/>
+                        <path id="mp-f-storage-catalog" class="flow meta" d="M400 68 H374" marker-end="url(#mpArrowAmber)"/>
+                        <path id="mp-f-meta-resp" class="flow meta" d="M206 68 C 172 68, 144 76, 144 106" marker-end="url(#mpArrowAmber)"/>
+
+                        <!-- Plan Dispatch Flows -->
+                        <path id="mp-f-plan1" class="flow request" d="M186 126 C 194 118, 198 112, 206 112" marker-end="url(#mpArrowTeal)"/>
+                        <path id="mp-f-plan2" class="flow request" d="M186 144 C 194 150, 198 154, 206 154" marker-end="url(#mpArrowTeal)"/>
+                        <path id="mp-f-plan3" class="flow request" d="M186 158 C 194 176, 198 196, 206 196" marker-end="url(#mpArrowTeal)"/>
+                        <path id="mp-f-plan4" class="flow request" d="M186 166 C 194 206, 198 238, 206 238" marker-end="url(#mpArrowTeal)"/>
+
+                        <!-- Scan Compute Flows -->
+                        <path id="mp-f-data1" class="flow compute" d="M400 112 H374" marker-end="url(#mpArrowData)"/>
+                        <path id="mp-f-data2" class="flow compute" d="M400 154 H374" marker-end="url(#mpArrowData)"/>
+                        <path id="mp-f-data3" class="flow compute" d="M400 196 H374" marker-end="url(#mpArrowData)"/>
+                        <path id="mp-f-data4" class="flow compute" d="M400 238 H374" marker-end="url(#mpArrowData)"/>
+
+                        <!-- Interconnect Shuffle Paths -->
+                        <path id="mp-f-shuffle13" class="flow shuffle" d="M 285 128 C 300 148, 300 178, 285 196" marker-end="url(#mpArrowPurple)"/>
+                        <path id="mp-f-shuffle24" class="flow shuffle" d="M 298 170 C 312 190, 312 218, 298 238" marker-end="url(#mpArrowPurple)"/>
+                        <path id="mp-f-shuffle42" class="flow shuffle" d="M 230 238 C 216 218, 216 190, 230 170" marker-end="url(#mpArrowPurple)"/>
+                        <path id="mp-f-shuffle31" class="flow shuffle" d="M 245 196 C 228 178, 228 148, 245 128" marker-end="url(#mpArrowPurple)"/>
+
+                        <!-- Gather Flows -->
+                        <path id="mp-f-gather1" class="flow result" d="M206 112 C 198 112, 194 126, 186 126" marker-end="url(#mpArrowGreen)"/>
+                        <path id="mp-f-gather2" class="flow result" d="M206 154 C 198 154, 194 144, 186 144" marker-end="url(#mpArrowGreen)"/>
+                        <path id="mp-f-gather3" class="flow result" d="M206 196 C 198 196, 194 158, 186 158" marker-end="url(#mpArrowGreen)"/>
+                        <path id="mp-f-gather4" class="flow result" d="M206 238 C 198 238, 194 166, 186 166" marker-end="url(#mpArrowGreen)"/>
+                        <path id="mp-f-response" class="flow result" d="M102 150 H82" marker-end="url(#mpArrowGreen)"/>
+                      </g>
+
+                      <!-- Animated Data Packets -->
+                      <g id="mp-packets">
+                        <g id="mp-pkt-request" class="packet request"><rect x="-24" y="-8.5" width="48" height="17"/><text>SQL</text></g>
+                        <g id="mp-pkt-wlm-q"   class="packet request"><rect x="-27" y="-8.5" width="54" height="17"/><text>CHECK</text></g>
+                        <g id="mp-pkt-wlm-a"   class="packet request"><rect x="-27" y="-8.5" width="54" height="17"/><text>ADMIT</text></g>
+                        <g id="mp-pkt-meta-c"   class="packet meta"><rect x="-25" y="-8.5" width="50" height="17"/><text>SNAP</text></g>
+                        <g id="mp-pkt-meta-scan" class="packet meta"><rect x="-27" y="-8.5" width="54" height="17"/><text>MANIF</text></g>
+                        <g id="mp-pkt-meta-data" class="packet meta"><rect x="-27" y="-8.5" width="54" height="17"/><text>SPLITS</text></g>
+                        <g id="mp-pkt-meta-resp" class="packet meta"><rect x="-27" y="-8.5" width="54" height="17"/><text>SPLITS</text></g>
+                        <g id="mp-pkt-plan-1"  class="packet request"><rect x="-25" y="-8.5" width="50" height="17"/><text>TSK-1</text></g>
+                        <g id="mp-pkt-plan-2"  class="packet request"><rect x="-25" y="-8.5" width="50" height="17"/><text>TSK-2</text></g>
+                        <g id="mp-pkt-plan-3"  class="packet request"><rect x="-25" y="-8.5" width="50" height="17"/><text>TSK-3</text></g>
+                        <g id="mp-pkt-plan-4"  class="packet request"><rect x="-25" y="-8.5" width="50" height="17"/><text>TSK-4</text></g>
+                        <g id="mp-pkt-rows-1"  class="packet compute"><rect x="-28" y="-8.5" width="56" height="17"/><text>BATCH-1</text></g>
+                        <g id="mp-pkt-rows-2"  class="packet compute"><rect x="-28" y="-8.5" width="56" height="17"/><text>BATCH-2</text></g>
+                        <g id="mp-pkt-rows-3"  class="packet compute"><rect x="-28" y="-8.5" width="56" height="17"/><text>BATCH-3</text></g>
+                        <g id="mp-pkt-rows-4"  class="packet compute"><rect x="-28" y="-8.5" width="56" height="17"/><text>BATCH-4</text></g>
+                        <g id="mp-pkt-shuf-1"  class="packet shuffle"><rect x="-26" y="-8.5" width="52" height="17"/><text>HASH-1</text></g>
+                        <g id="mp-pkt-shuf-2"  class="packet shuffle"><rect x="-26" y="-8.5" width="52" height="17"/><text>HASH-2</text></g>
+                        <g id="mp-pkt-shuf-3"  class="packet shuffle"><rect x="-26" y="-8.5" width="52" height="17"/><text>HASH-3</text></g>
+                        <g id="mp-pkt-shuf-4"  class="packet shuffle"><rect x="-26" y="-8.5" width="52" height="17"/><text>HASH-4</text></g>
+                        <g id="mp-pkt-gather-1" class="packet result"><rect x="-24" y="-8.5" width="48" height="17"/><text>RES-1</text></g>
+                        <g id="mp-pkt-gather-2" class="packet result"><rect x="-24" y="-8.5" width="48" height="17"/><text>RES-2</text></g>
+                        <g id="mp-pkt-gather-3" class="packet result"><rect x="-24" y="-8.5" width="48" height="17"/><text>RES-3</text></g>
+                        <g id="mp-pkt-gather-4" class="packet result"><rect x="-24" y="-8.5" width="48" height="17"/><text>RES-4</text></g>
+                        <g id="mp-pkt-response" class="packet result"><rect x="-28" y="-8.5" width="56" height="17"/><text>RESULT</text></g>
+                      </g>
+
+                      <!-- Step Timeline Rail -->
+                      <line class="step-line" x1="24" y1="304" x2="556" y2="304"/>
+                      <g id="mp-rail"></g>
+                    </svg>
+                  </div>
+
+                  <div class="mpp-caption" id="mp-caption">
+                    <strong>1 · REQUEST</strong> Client application submits SQL query directly to the Coordinator endpoint.
+                  </div>
+                  <div class="mpp-note">
+                    <b>Key Architecture Insights:</b> The Catalog Service queries storage manifest lists directly to resolve file split locations. Executors stream vectorized columnar batches directly from object storage and stage intermediate hash partitions during network exchange.
+                  </div>
+                </div>
+                <!-- =======================================================
+                     /MPP QUERY LIFECYCLE ANIMATION
+                     ======================================================= -->
+
+                <p>Distributed clusters incur baseline idle costs and structural scheduling latencies because executors remain provisioned to absorb unpredictable join topologies. Paying for that continuous coordination overhead to serve bounded operational reads is what motivates a dedicated, workload-aware serving boundary.</p>
+
+                <h2 id="s5">5. MPP Landscape: Strengths, Trade-offs, and the Serving Gap</h2>
+
+                <p>The comparative analysis between distributed query engines and embedded serving layers should not be framed as "which engine is flawed." Modern distributed platforms are engineering marvels that solve immense, distributed analytics challenges exceptionally well.</p>
+
+                <p>The rigorous systems question is:</p>
+
+                <p><strong>What workload domain is each platform optimized to execute, and what structural trade-offs emerge when that execution engine is applied to high-concurrency, bounded operational serving?</strong></p>
+
+                <table class="mpp-table">
+                    <thead>
+                        <tr>
+                            <th>Platform / family</th>
+                            <th>Where it is strong</th>
+                            <th>Serving trade-off for this workload shape</th>
+                            <th>Why it still belongs in the architecture</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Trino / Presto</span>
+                                <span class="engine-type">Distributed SQL</span>
+                            </td>
+                            <td>Federated SQL across multi-catalog object stores, enterprise databases, and Iceberg/Delta lakehouses; exceptional for interactive ad-hoc exploration, large distributed joins, and complex analytical aggregations.</td>
+                            <td>Coordinator planning, stage scheduling, and distributed task barriers impose a fixed 200–500 ms floor. Running 24/7 clusters to serve high-concurrency 50-row point lookups introduces excessive idle cost and coordinator queuing under concurrency.</td>
+                            <td>Indispensable for cross-source federated queries, large-scale analytical scans, and exploratory joins whose computational graph benefits from multi-node parallelism. <a class="source-link" href="https://trino.io/docs/current/overview.html" target="_blank" rel="noopener noreferrer">Docs</a></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Dremio</span>
+                                <span class="engine-type">Lakehouse analytics</span>
+                            </td>
+                            <td>Native Apache Arrow execution, semantic layer governance, Reflections (automated materialization), and aggressive executor-local columnar caching over data lakes.</td>
+                            <td>Maintains a distributed execution plane. While Reflections accelerate repetitive queries, maintaining stateful distributed engines for simple bounded API reads incurs higher operational and compute footprints than stateless embedded gateways.</td>
+                            <td>Powerful acceleration and semantic tier for enterprise business intelligence, ad-hoc lakehouse SQL, and self-service reporting environments. <a class="source-link" href="https://docs.dremio.com/dremio-cloud/about/architecture" target="_blank" rel="noopener noreferrer">Architecture</a></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Spark / Databricks</span>
+                                <span class="engine-type">Distributed compute platform</span>
+                            </td>
+                            <td>Large-scale batch ETL, streaming pipelines, ML training pipelines, open table format management, and Photon-accelerated analytical transformations.</td>
+                            <td>Spinning up distributed execution contexts for synchronous, low-latency UI queries exhibits poor latency and cost economics. Spark is engineered for high-throughput batch and stream transformations, not sub-100ms API endpoints.</td>
+                            <td>The authoritative foundation for heavy transformations, data engineering pipelines, raw ingestion, and heavy multi-table reconciliations. Never judge Spark as a UI serving engine.</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Snowflake</span>
+                                <span class="engine-type">Cloud warehouse</span>
+                            </td>
+                            <td>Complete separation of storage and compute, seamless auto-scaling, mature governance, ACID guarantees, workload isolation, and virtually zero operational maintenance.</td>
+                            <td>Virtual warehouses billing operates on credit allocation with minimum billing increments. Keeping warehouses warm 24/7 for low-QPS periodic UI clicks generates continuous idle cost; auto-suspending introduces cold-start latency and evicts local warehouse disk caches.</td>
+                            <td>Elite managed warehouse for enterprise reporting, multi-department data warehousing, and deep regulatory reconciliations. The gateway complements Snowflake by intercepting operational point lookups. <a class="source-link" href="https://docs.snowflake.com/en/user-guide/performance-query-warehouse-cache" target="_blank" rel="noopener noreferrer">Warehouse cache</a></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">StarRocks / Apache Doris</span>
+                                <span class="engine-type">Native real-time OLAP</span>
+                            </td>
+                            <td>C++ vectorized SIMD execution, cost-based optimizer, real-time mutable streaming ingestion, and ultra-fast distributed sub-second aggregations.</td>
+                            <td>Peak performance typically relies on ingesting data into the engine's internal, proprietary columnar storage format. If the authoritative enterprise single source of truth is Apache Iceberg, maintaining an external OLAP cluster reintroduces dual-store pipelines and storage duplication.</td>
+                            <td>Exceptional when ultra-low-latency real-time OLAP with sub-second aggregations over massive mutable streams justifies running a dedicated real-time analytical cluster. <a class="source-link" href="https://docs.starrocks.io/docs/sql-reference/sql-statements/Catalog/CREATE_EXTERNAL_CATALOG/" target="_blank" rel="noopener noreferrer">External catalogs</a></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="engine-name">Athena / BigQuery</span>
+                                <span class="engine-type">Serverless query services</span>
+                            </td>
+                            <td>Zero infrastructure management, elastic on-demand scaling, pay-per-scan or capacity models, and seamless integration with cloud object stores.</td>
+                            <td>Per-query submission APIs, job queue scheduling, and polling patterns introduce a 1–3 second baseline latency floor, making them structurally incompatible with interactive sub-second synchronous API serving loops.</td>
+                            <td>Ideal for ad-hoc exploration, bursty data analysis, asynchronous reporting jobs, and audit queries where operational simplicity outweighs strict tail latency SLAs.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p><strong>The Architectural Conclusion:</strong> None of these distributed platforms is fundamentally flawed. Each is specialized for a distinct region of the data processing spectrum. The architectural failure occurs when engineering teams default to using a heavy distributed execution model across the entire query workload spectrum, ignoring the lightweight, high-concurrency operational boundary.</p>
+
+                <h2 id="s6">6. The Design North Star: What Must Be Built</h2>
+
+                <p>The enterprise data industry has spent twenty years perfecting distributed engines for the rare, complex, multi-terabyte query. Meanwhile, real-world operational user traffic remains bounded, selective, and high-frequency.</p>
+
+                <p><strong>Clear Gateway Positioning:</strong> We do not propose an "MPP replacement engine." What we need is a <strong>Smart Data Gateway</strong>—a lightweight, stateless, application-aware execution boundary and routing tier. The gateway intercepts bounded, sub-second operational queries, executing them directly against open lakehouse formats (Apache Iceberg) using an embedded vectorized C++ engine (DuckDB). Crucially, the gateway shields the primary distributed compute infrastructure (e.g., Spark, Trino) and lakehouse storage from concurrent query lock contention and scheduling saturation, while transparently passing long-tail, unconstrained queries upstream to the full MPP cluster.</p>
+
+                <p>To establish this execution boundary cleanly, the gateway architecture is governed by four uncompromising design goals:</p>
+
+                <!-- Re-engineered Compact Design Goals Layout -->
+                <div class="design-chart-layout">
+
+                    <!-- Left Side: Vertical Bar Chart -->
+                    <div class="v-chart-wrapper">
+                        <div class="v-chart-title">Target Serving Slices: Gateway vs. MPP Domain</div>
+
+                        <div class="v-chart">
+                            <div class="v-bar-col teal">
+                                <div class="v-val">75%</div>
+                                <div class="v-bar teal" style="height: 75%;"></div>
+                            </div>
+                            <div class="v-bar-col amber">
+                                <div class="v-val">19%</div>
+                                <div class="v-bar amber" style="height: 19%;"></div>
+                            </div>
+                            <div class="v-bar-col grey">
+                                <div class="v-val">~5%</div>
+                                <div class="v-bar grey" style="height: 12%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="v-label-area">
+                            <div class="v-label-col">
+                                <div class="v-size">&lt; 1 GB</div>
+                                <div class="v-desc">UI grids served instantly</div>
+                            </div>
+                            <div class="v-label-col">
+                                <div class="v-size">1 - 10 GB</div>
+                                <div class="v-desc">Local cache &amp; pruning</div>
+                            </div>
+                            <div class="v-label-col">
+                                <div class="v-size">&gt; 10 GB</div>
+                                <div class="v-desc">Routed to MPP Engine</div>
+                            </div>
+                        </div>
+
+                        <div class="v-domains">
+                            <div class="v-domain-left">Gateway Domain (Embedded Engine)</div>
+                            <div class="v-domain-right">MPP Domain</div>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: Compact Goals List -->
+                    <div class="design-goals-list">
+                        <div class="dg-header-title">Design North Star</div>
+
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">01</span><span class="dg-title">Optimize the 90%+ Bounded Read Path</span>
+                            </div>
+                            <p class="dg-text">Sub-100ms p95 latencies via in-process, vectorized execution over Parquet without distributed cluster boot delays.</p>
+                        </div>
+
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">02</span><span class="dg-title">Eliminate Coordination Overhead</span>
+                            </div>
+                            <p class="dg-text">Completely avoid multi-node task scheduling, driver dispatch, and network shuffles for queries fitting single-node RAM budgets.</p>
+                        </div>
+
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">03</span><span class="dg-title">Enforce Explicit Operational Boundaries</span>
+                            </div>
+                            <p class="dg-text">Read-only serving tier. The gateway performs zero mutations, avoiding distributed transaction coordination and locking.</p>
+                        </div>
+
+                        <div class="dg-item">
+                            <div class="dg-header">
+                                <span class="dg-num">04</span><span class="dg-title">Workload Routing &amp; Distributed Fallback</span>
+                            </div>
+                            <p class="dg-text">Intelligently evaluate query scan size and plan complexity; route bounded reads locally while offloading large-scale joins to MPP.</p>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Span: Decision Rule -->
+                    <div class="decision-rule">
+                        <strong>Architectural Routing Rule:</strong> Shield distributed engines by serving bounded operational reads via local vectorized compute; delegate complex unconstrained joins to the MPP cluster.
+                    </div>
+                </div>
+
+                <p>Reaching this operational boundary was not a straightforward linear implementation. In <strong>Part 2 (Architectural Evolution)</strong>, we trace the iterative progression of this serving layer—from our initial client-side browser WebAssembly (WASM) experiments and reverse-proxy caching layers to the standalone containerized gateway. We unpack the telemetry, benchmark harness data, and critical failure modes (browser memory exhaustion, cache stampedes, metadata latency) that forced each architectural pivot and shaped the production serving tier.</p>
+
+                <div style="margin-top: 3rem; padding-top: 1rem; border-top:0px solid var(--line-soft); display: flex; justify-content: space-between;">
+                    <a href="index.html" style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--muted); text-decoration: none;">&larr; Series Index</a>
+                    <a href="part-2-architectural-evolution.html" style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Next: Part 2 (Architectural Evolution) &rarr;</a>
+                </div>
+
+            </article>
+        </main>
+
+        <!-- Global Footer -->
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ==================== MPP QUERY LIFECYCLE ANIMATION SCRIPT ==================== -->
+    <script>
+    (() => {
+      'use strict';
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const $ = id => document.getElementById(id);
+
+      if (!$('mp-svg')) return;
+
+      const flows = {
+        request: $('mp-f-request'),
+        wlmReq: $('mp-f-wlm-req'), wlmResp: $('mp-f-wlm-resp'),
+        metaReq: $('mp-f-meta-req'),
+        catalogStorage: $('mp-f-catalog-storage'),
+        storageCatalog: $('mp-f-storage-catalog'),
+        metaResp: $('mp-f-meta-resp'),
+        plan1: $('mp-f-plan1'), plan2: $('mp-f-plan2'), plan3: $('mp-f-plan3'), plan4: $('mp-f-plan4'),
+        data1: $('mp-f-data1'), data2: $('mp-f-data2'), data3: $('mp-f-data3'), data4: $('mp-f-data4'),
+        shuffle13: $('mp-f-shuffle13'), shuffle24: $('mp-f-shuffle24'),
+        shuffle42: $('mp-f-shuffle42'), shuffle31: $('mp-f-shuffle31'),
+        gather1: $('mp-f-gather1'), gather2: $('mp-f-gather2'),
+        gather3: $('mp-f-gather3'), gather4: $('mp-f-gather4'),
+        response: $('mp-f-response'),
+      };
+
+      const nodes = {
+        client: $('mp-node-client'), coord: $('mp-node-coord'), wlm: $('mp-node-wlm'),
+        catalog: $('mp-node-catalog'),
+        e1: $('mp-node-e1'), e2: $('mp-node-e2'), e3: $('mp-node-e3'), e4: $('mp-node-e4'),
+        storage: $('mp-node-storage'), storageMeta: $('mp-node-storage-meta'),
+      };
+
+      const subtexts = {
+        e1: $('mp-sub-e1'), e2: $('mp-sub-e2'), e3: $('mp-sub-e3'), e4: $('mp-sub-e4')
+      };
+
+      const partitions = ['mp-p1','mp-p2','mp-p3','mp-p4'].map($);
+
+      const packets = {
+        request: $('mp-pkt-request'),
+        wlmQ: $('mp-pkt-wlm-q'), wlmA: $('mp-pkt-wlm-a'),
+        metaC: $('mp-pkt-meta-c'), metaScan: $('mp-pkt-meta-scan'),
+        metaData: $('mp-pkt-meta-data'), metaResp: $('mp-pkt-meta-resp'),
+        plan1: $('mp-pkt-plan-1'), plan2: $('mp-pkt-plan-2'), plan3: $('mp-pkt-plan-3'), plan4: $('mp-pkt-plan-4'),
+        rows1: $('mp-pkt-rows-1'), rows2: $('mp-pkt-rows-2'), rows3: $('mp-pkt-rows-3'), rows4: $('mp-pkt-rows-4'),
+        shuf1: $('mp-pkt-shuf-1'), shuf2: $('mp-pkt-shuf-2'), shuf3: $('mp-pkt-shuf-3'), shuf4: $('mp-pkt-shuf-4'),
+        gather1: $('mp-pkt-gather-1'), gather2: $('mp-pkt-gather-2'),
+        gather3: $('mp-pkt-gather-3'), gather4: $('mp-pkt-gather-4'),
+        response: $('mp-pkt-response'),
+      };
+
+      const captionEl = $('mp-caption');
+      const btnPlay = $('mp-btn-play'), btnPrev = $('mp-btn-prev');
+      const btnNext = $('mp-btn-next'), btnRestart = $('mp-btn-restart');
+      const rail = $('mp-rail');
+
+      const setExecutorSubtext = (text) => {
+        Object.values(subtexts).forEach(el => { if (el) el.textContent = text; });
+      };
+
+      const packetBounds = new WeakMap();
+      requestAnimationFrame(() => {
+        Object.values(packets).forEach(p => {
+          if (!p) return;
+          try {
+            const b = p.getBBox();
+            packetBounds.set(p, { ox: b.x + b.width / 2, oy: b.y + b.height / 2 });
+          } catch (e) {
+            packetBounds.set(p, { ox: 0, oy: 0 });
+          }
+        });
+      });
+
+      const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+      function movePacket(key, path, duration, signal, delayMs = 0) {
+        return new Promise(resolve => {
+          const packet = packets[key];
+          if (!packet || !path) return resolve();
+          const pathLen = path.getTotalLength();
+          const { ox, oy } = packetBounds.get(packet) || { ox: 0, oy: 0 };
+          const startAt = performance.now() + delayMs;
+
+          function frame(now) {
+            if (signal.cancelled) { packet.style.opacity = 0; return resolve(); }
+            if (now < startAt) { packet.style.opacity = 0; requestAnimationFrame(frame); return; }
+            const raw = Math.min((now - startAt) / duration, 1);
+            const t = easeInOut(raw);
+            let op = 1;
+            if (raw < 0.12) op = raw / 0.12;
+            else if (raw > 0.88) op = Math.max(0, (1 - raw) / 0.12);
+            packet.style.opacity = op;
+            const pt = path.getPointAtLength(pathLen * t);
+            packet.setAttribute('transform', `translate(${pt.x - ox}, ${pt.y - oy})`);
+            if (raw < 1) requestAnimationFrame(frame);
+            else { packet.style.opacity = 0; resolve(); }
+          }
+          requestAnimationFrame(frame);
+        });
+      }
+
+      const showFlow = k => flows[k] && flows[k].classList.add('visible');
+      const clearFlows = () => Object.values(flows).forEach(f => f && f.classList.remove('visible'));
+      const clearNodes = () => {
+        Object.values(nodes).forEach(n => {
+          if (n) n.classList.remove('active', 'pulse', 'disk-pulse');
+        });
+        partitions.forEach(p => p && p.classList.remove('active'));
+      };
+      const highlight = keys => keys.forEach(k => nodes[k] && nodes[k].classList.add('active'));
+      const pulse = keys => keys.forEach(k => nodes[k] && nodes[k].classList.add('pulse'));
+      const diskPulse = keys => keys.forEach(k => nodes[k] && nodes[k].classList.add('disk-pulse'));
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+      const EXECS = ['e1', 'e2', 'e3', 'e4'];
+
+      const steps = [
+        {
+          label: 'REQUEST', phase: 'request',
+          caption: 'Client application submits SQL query directly to the Coordinator endpoint.',
+          run: async (sig) => {
+            setExecutorSubtext('Standby');
+            highlight(['client', 'coord']);
+            showFlow('request');
+            await movePacket('request', flows.request, 800, sig);
+          }
+        },
+        {
+          label: 'WLM ADMISSION', phase: 'request',
+          caption: 'Coordinator validates query and evaluates Workload Management queues and concurrency limits.',
+          run: async (sig) => {
+            setExecutorSubtext('Standby');
+            highlight(['coord', 'wlm']);
+            showFlow('wlmReq');
+            await movePacket('wlmQ', flows.wlmReq, 550, sig);
+            pulse(['wlm']);
+            showFlow('wlmResp');
+            await movePacket('wlmA', flows.wlmResp, 550, sig);
+          }
+        },
+        {
+          label: 'METADATA', phase: 'meta',
+          caption: 'Coordinator requests snapshot from Catalog. Catalog inspects manifest lists in Storage to resolve split pointers (Executors bypassed).',
+          run: async (sig) => {
+            setExecutorSubtext('Standby');
+            highlight(['coord', 'catalog']);
+            showFlow('metaReq');
+            await movePacket('metaC', flows.metaReq, 700, sig);
+
+            highlight(['catalog', 'storageMeta']);
+            showFlow('catalogStorage');
+            await movePacket('metaScan', flows.catalogStorage, 550, sig);
+
+            showFlow('storageCatalog');
+            await movePacket('metaData', flows.storageCatalog, 550, sig);
+
+            showFlow('metaResp');
+            await movePacket('metaResp', flows.metaResp, 700, sig);
+          }
+        },
+        {
+          label: 'PLAN DISPATCH', phase: 'request',
+          caption: 'Coordinator compiles physical execution fragments with partition split locations and dispatches tasks to Executors.',
+          run: async (sig) => {
+            setExecutorSubtext('Task Assigned');
+            highlight(['coord', ...EXECS]);
+            ['plan1', 'plan2', 'plan3', 'plan4'].forEach(showFlow);
+            await Promise.all([
+              movePacket('plan1', flows.plan1, 750, sig),
+              movePacket('plan2', flows.plan2, 750, sig, 40),
+              movePacket('plan3', flows.plan3, 750, sig, 80),
+              movePacket('plan4', flows.plan4, 750, sig, 120),
+            ]);
+          }
+        },
+        {
+          label: 'SCAN', phase: 'compute',
+          caption: 'Executors stream vectorized columnar batches directly from object storage in parallel, caching hot blocks to NVMe disks.',
+          run: async (sig) => {
+            setExecutorSubtext('Scan & Filter');
+            highlight([...EXECS, 'storage']);
+            partitions.forEach(p => p.classList.add('active'));
+            ['data1', 'data2', 'data3', 'data4'].forEach(showFlow);
+            await Promise.all([
+              movePacket('rows1', flows.data1, 800, sig),
+              movePacket('rows2', flows.data2, 800, sig, 40),
+              movePacket('rows3', flows.data3, 800, sig, 80),
+              movePacket('rows4', flows.data4, 800, sig, 120),
+            ]);
+          }
+        },
+        {
+          label: 'PRE-AGG', phase: 'pulse',
+          caption: 'Executors compute local partial aggregations, staging in-memory hash tables and spilling to NVMe disks under memory pressure.',
+          run: async (sig) => {
+            setExecutorSubtext('Local Hash Agg');
+            pulse(EXECS);
+            diskPulse(EXECS);
+            await delay(650);
+          }
+        },
+        {
+          label: 'SHUFFLE', phase: 'shuffle',
+          caption: 'Intermediate hash partitions cross-exchange between executors across the cluster network; local NVMe buffers handle spillover.',
+          run: async (sig) => {
+            setExecutorSubtext('Network Shuffle');
+            highlight(EXECS);
+            diskPulse(EXECS);
+            ['shuffle13', 'shuffle24', 'shuffle42', 'shuffle31'].forEach(showFlow);
+            await Promise.all([
+              movePacket('shuf1', flows.shuffle13, 850, sig),
+              movePacket('shuf2', flows.shuffle24, 850, sig, 60),
+              movePacket('shuf3', flows.shuffle42, 850, sig, 120),
+              movePacket('shuf4', flows.shuffle31, 850, sig, 180),
+            ]);
+          }
+        },
+        {
+          label: 'FINALIZE', phase: 'pulse',
+          caption: 'Executors merge received hash-partitioned streams into final grouped aggregations and join outputs.',
+          run: async (sig) => {
+            setExecutorSubtext('Merge Aggregates');
+            pulse(EXECS);
+            await delay(650);
+          }
+        },
+        {
+          label: 'GATHER', phase: 'result',
+          caption: 'Executors stream finalized partition result sets back to the Coordinator root aggregator.',
+          run: async (sig) => {
+            setExecutorSubtext('Stream Result');
+            highlight([...EXECS, 'coord']);
+            ['gather1', 'gather2', 'gather3', 'gather4'].forEach(showFlow);
+            await Promise.all([
+              movePacket('gather1', flows.gather1, 750, sig),
+              movePacket('gather2', flows.gather2, 750, sig, 40),
+              movePacket('gather3', flows.gather3, 750, sig, 80),
+              movePacket('gather4', flows.gather4, 750, sig, 120),
+            ]);
+          }
+        },
+        {
+          label: 'RESPONSE', phase: 'result',
+          caption: 'Coordinator streams complete dataset response back to client application. Query finished.',
+          run: async (sig) => {
+            setExecutorSubtext('Complete');
+            highlight(['coord', 'client']);
+            showFlow('response');
+            await movePacket('response', flows.response, 850, sig);
+          }
+        },
+      ];
+
+      const railStart = 24, railEnd = 556;
+      const railStep = (railEnd - railStart) / (steps.length - 1);
+      const railDots = [], railLabels = [];
+
+      steps.forEach((s, i) => {
+        const cx = railStart + railStep * i;
+        const dot = document.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('class', 'step-dot');
+        dot.setAttribute('cx', cx); dot.setAttribute('cy', 304); dot.setAttribute('r', 3);
+        dot.addEventListener('click', () => { isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play'; playFrom(i); });
+        rail.appendChild(dot); railDots.push(dot);
+
+        const lb = document.createElementNS(SVG_NS, 'text');
+        lb.setAttribute('class', 'step-label');
+        lb.setAttribute('x', cx); lb.setAttribute('y', 292);
+        lb.textContent = s.label;
+        lb.addEventListener('click', () => { isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play'; playFrom(i); });
+        rail.appendChild(lb); railLabels.push(lb);
+      });
+
+      let currentRun = null;
+      let isPlaying = true;
+
+      async function playFrom(index) {
+        if (currentRun) currentRun.cancelled = true;
+        const signal = { cancelled: false, currentIndex: index };
+        currentRun = signal;
+
+        clearFlows(); clearNodes();
+        railDots.forEach(d => d.classList.remove('active'));
+        railLabels.forEach(l => l.classList.remove('active'));
+        Object.values(packets).forEach(p => p && (p.style.opacity = 0));
+        captionEl.className = 'mpp-caption';
+
+        let i = index;
+        while (i < steps.length) {
+          if (signal.cancelled) return;
+          signal.currentIndex = i;
+          const step = steps[i];
+          clearFlows(); clearNodes();
+          Object.values(packets).forEach(p => p && (p.style.opacity = 0));
+          railDots[i].classList.add('active');
+          railLabels[i].classList.add('active');
+          captionEl.className = 'mpp-caption phase-' + step.phase;
+          captionEl.innerHTML = `<strong>${i + 1} · ${step.label}</strong> ${step.caption}`;
+          await step.run(signal);
+          if (signal.cancelled) return;
+          await delay(500);
+          i++;
+        }
+        if (isPlaying && !signal.cancelled) {
+          await delay(900);
+          if (!signal.cancelled) playFrom(0);
+        }
+      }
+
+      btnPlay.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        btnPlay.classList.toggle('active', isPlaying);
+        btnPlay.textContent = isPlaying ? 'Pause' : 'Play';
+        if (isPlaying) {
+          const next = currentRun && currentRun.currentIndex != null ? currentRun.currentIndex : 0;
+          playFrom(next);
+        } else if (currentRun) { currentRun.cancelled = true; }
+      });
+
+      btnRestart.addEventListener('click', () => {
+        isPlaying = true; btnPlay.classList.add('active'); btnPlay.textContent = 'Pause';
+        playFrom(0);
+      });
+
+      btnPrev.addEventListener('click', () => {
+        const next = Math.max(0, (currentRun && currentRun.currentIndex || 0) - 1);
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+        playFrom(next);
+      });
+
+      btnNext.addEventListener('click', () => {
+        const next = Math.min(steps.length - 1, (currentRun ? currentRun.currentIndex : -1) + 1);
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+        playFrom(next);
+      });
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+      }
+
+      playFrom(0);
+    })();
+    </script>
+    <!-- ==================== /MPP QUERY LIFECYCLE ANIMATION SCRIPT ==================== -->
+
+</body>
+</html>

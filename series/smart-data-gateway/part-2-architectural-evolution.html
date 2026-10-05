@@ -1,0 +1,2972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Primary SEO Meta Tags -->
+    <title>Part 2: Architectural Evolution | Saurav Sana</title>
+    <meta name="title" content="Part 2: Architectural Evolution | Saurav Sana">
+    <meta name="description" content="A candid, battle-tested journey of building a stateless Smart Data Gateway. Discover the trial-and-error evolution from fat client OOMKills to Arrow Flight, consistent-hash caching, and dual-protocol execution.">
+    <meta name="keywords" content="Data Architecture, Apache Iceberg, Delta Lake, DuckDB, Arrow Flight, System Design, FinOps, PyIceberg, OpenTelemetry, SQLglot, Distributed Caching, OpenResty, NGINX Lua">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html">
+    <link rel="prev" href="part-1-the-monolith-crisis.html">
+    <link rel="next" href="part-3-the-production-reality-check.html">
+
+    <!-- Open Graph / Facebook / LinkedIn -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html">
+    <meta property="og:title" content="Part 2: Architectural Evolution — From Fat Client OOMKills to an Enterprise Data Gateway">
+    <meta property="og:description" content="A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing low-copy columnar streams, and scaling multi-tenant Iceberg reads.">
+    <meta property="og:image" content="https://sauravsana.github.io/assets/images/smart-data-gateway-part2-banner.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Smart Data Gateway Part 2 — Architectural Evolution banner">
+    <meta property="og:site_name" content="Saurav Sana | Field Notes">
+    <meta property="og:locale" content="en_US">
+    <meta property="article:author" content="Saurav Sana">
+    <meta property="article:published_time" content="2026-09-27">
+    <meta property="article:modified_time" content="2026-09-27">
+    <meta property="article:section" content="Data Engineering">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:creator" content="@sauravsana">
+    <meta name="twitter:title" content="Part 2: Architectural Evolution | Saurav Sana">
+    <meta name="twitter:description" content="From in-process DuckDB OOMKills to Arrow Flight and dual-protocol execution over Apache Iceberg.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/assets/images/smart-data-gateway-part2-banner.png">
+    <meta name="twitter:image:alt" content="Smart Data Gateway Part 2 — Architectural Evolution banner">
+
+    <meta name="theme-color" content="#0e1424" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f8f9fb" media="(prefers-color-scheme: light)">
+    <meta name="color-scheme" dark light>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="preload" href="../../assets/css/blog-theme.css" as="style">
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+    
+    <!-- Non-blocking script deferral -->
+    <script src="../../assets/js/theme-toggle.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js" defer></script>
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "@id": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html#article",
+      "headline": "Part 2: Architectural Evolution",
+      "alternativeHeadline": "From Fat Client OOMKills to an Enterprise Dual-Protocol Smart Data Gateway",
+      "description": "A battle-tested breakdown of designing a stateless Smart Data Gateway over Lakehouse storage: bypassing OOM crashes, serializing format-aligned columnar streams, and scaling multi-tenant Iceberg reads.",
+      "author": {
+        "@type": "Person",
+        "name": "Saurav Sana",
+        "url": "https://sauravsana.github.io/"
+      },
+      "publisher": {
+        "@type": "Person",
+        "name": "Saurav Sana"
+      },
+      "datePublished": "2026-09-27",
+      "dateModified": "2026-09-27",
+      "inLanguage": "en",
+      "isPartOf": {
+        "@type": "CreativeWorkSeries",
+        "name": "Smart Data Gateway Architecture Series"
+      },
+      "articleSection": [
+        "Data Engineering",
+        "System Architecture",
+        "Distributed Systems",
+        "Lakehouse Architecture"
+      ],
+      "keywords": [
+        "Smart Data Gateway",
+        "Apache Iceberg",
+        "DuckDB",
+        "PyIceberg",
+        "Arrow Flight",
+        "NGINX",
+        "OpenResty Lua",
+        "Redis",
+        "Celery",
+        "Azure Data Lake",
+        "Claim Check Pattern",
+        "SQLglot"
+      ]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://sauravsana.github.io/" },
+        { "@type": "ListItem", "position": 2, "name": "Smart Data Gateway", "item": "https://sauravsana.github.io/blog/series/smart-data-gateway/index.html" },
+        { "@type": "ListItem", "position": 3, "name": "Architectural Evolution", "item": "https://sauravsana.github.io/blog/series/smart-data-gateway/part-2-architectural-evolution.html" }
+      ]
+    }
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            function isDarkTheme() {
+                const html = document.documentElement;
+                const body = document.body;
+                const explicit = html.getAttribute('data-theme') || body.getAttribute('data-theme');
+                if (explicit === 'dark') return true;
+                if (explicit === 'light') return false;
+                if (html.classList.contains('dark') || body.classList.contains('dark')) return true;
+                if (html.classList.contains('dark-mode') || body.classList.contains('dark-mode')) return true;
+                if (html.classList.contains('theme-dark') || body.classList.contains('theme-dark')) return true;
+                return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+
+            function getMermaidTheme() {
+                const isDark = isDarkTheme();
+                return {
+                    theme: 'base',
+                    themeVariables: {
+                        fontFamily: "'IBM Plex Sans', sans-serif",
+                        fontSize: '15px',
+                        primaryColor: isDark ? '#11182c' : '#f8fafc',
+                        primaryTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        primaryBorderColor: isDark ? '#2dd4bf' : '#0d9488',
+                        lineColor: isDark ? '#38bdf8' : '#334155',
+                        signalColor: isDark ? '#38bdf8' : '#334155',
+                        signalTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        actorTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        actorLineColor: isDark ? '#475569' : '#94a3b8',
+                        boxTextColor: isDark ? '#2dd4bf' : '#0d9488',
+                        boxBorderColor: isDark ? '#334366' : '#cbd5e1',
+                        labelTextColor: isDark ? '#fbbf24' : '#d97706',
+                        loopTextColor: isDark ? '#f8fafc' : '#0f172a',
+                        secondaryColor: isDark ? '#11182c' : '#ffffff',
+                        tertiaryColor: isDark ? '#11182c' : '#ffffff',
+                        noteBkgColor: isDark ? '#1e293b' : '#fef3c7',
+                        noteTextColor: isDark ? '#fef3c7' : '#78350f',
+                        noteBorderColor: isDark ? '#fbbf24' : '#d97706',
+                        actorBkg: isDark ? '#11182c' : '#ffffff',
+                        actorBorder: isDark ? '#2dd4bf' : '#0d9488',
+                        sequenceNumberColor: '#ffffff',
+                        activationBorderColor: isDark ? '#2dd4bf' : '#0d9488',
+                        activationBkgColor: isDark ? '#134e4a' : '#ccfbf1'
+                    },
+                    sequence: {
+                        useMaxWidth: false,
+                        rightAngles: true,
+                        actorMargin: 55,
+                        messageMargin: 38,
+                        boxMargin: 12,
+                        mirrorActors: false,
+                        messageFontFamily: "'IBM Plex Sans', sans-serif",
+                        actorFontFamily: "'Libre Franklin', sans-serif",
+                        noteFontFamily: "'IBM Plex Mono', monospace"
+                    }
+                };
+            }
+
+            document.querySelectorAll('.mermaid').forEach(el => {
+                el.setAttribute('data-mermaid-src', el.textContent.trim());
+            });
+
+            if (window.mermaid) {
+                mermaid.initialize({ startOnLoad: true, ...getMermaidTheme() });
+            }
+
+            // Reading progress bar
+            const progressBar = document.getElementById('reading-progress');
+            const articleEl = document.querySelector('article');
+            function updateProgress() {
+                if (!articleEl || !progressBar) return;
+                const rect = articleEl.getBoundingClientRect();
+                const total = rect.height - window.innerHeight;
+                const scrolled = Math.min(Math.max(-rect.top, 0), Math.max(total, 1));
+                const pct = (scrolled / Math.max(total, 1)) * 100;
+                progressBar.style.width = pct + '%';
+            }
+            window.addEventListener('scroll', updateProgress, { passive: true });
+            window.addEventListener('resize', updateProgress);
+            updateProgress();
+
+            // Code Copy Buttons
+            document.querySelectorAll('pre').forEach(pre => {
+                if (pre.parentElement && pre.parentElement.classList.contains('code-wrap')) return;
+                const wrap = document.createElement('div');
+                wrap.className = 'code-wrap';
+                pre.parentNode.insertBefore(wrap, pre);
+                wrap.appendChild(pre);
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'copy-btn';
+                btn.textContent = 'Copy';
+                btn.setAttribute('aria-label', 'Copy code snippet');
+
+                btn.addEventListener('click', async () => {
+                    const code = pre.querySelector('code') || pre;
+                    try {
+                        await navigator.clipboard.writeText(code.innerText);
+                        btn.textContent = 'Copied';
+                        btn.classList.add('copied');
+                        setTimeout(() => {
+                            btn.textContent = 'Copy';
+                            btn.classList.remove('copied');
+                        }, 1600);
+                    } catch (e) {
+                        btn.textContent = 'Failed';
+                        setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+                    }
+                });
+                wrap.appendChild(btn);
+            });
+
+            // Fit-First Overview: Mode Switcher & Inline Zoom Handling
+            document.querySelectorAll('.diagram-panel').forEach(panel => {
+                const summaryEl = panel.querySelector('.diagram-view-summary');
+                const detailEl = panel.querySelector('.diagram-view-detail');
+                const badge = panel.querySelector('.mode-badge');
+                const btnSummary = panel.querySelector('[data-view="summary"]');
+                const btnDetail = panel.querySelector('[data-view="detail"]');
+
+                let currentScale = 1.0;
+
+                function applyScale(scale) {
+                    currentScale = Math.max(0.65, Math.min(scale, 1.8));
+                    const activeView = panel.querySelector('.diagram-view:not([style*="display: none"]) .mermaid');
+                    if (activeView) {
+                        activeView.style.transform = currentScale === 1.0 ? 'none' : `scale(${currentScale})`;
+                        activeView.style.transformOrigin = 'top center';
+                    }
+                }
+
+                if (btnSummary && btnDetail) {
+                    btnSummary.addEventListener('click', () => {
+                        btnSummary.classList.add('active');
+                        btnDetail.classList.remove('active');
+                        if (summaryEl) summaryEl.style.display = 'block';
+                        if (detailEl) detailEl.style.display = 'none';
+                        if (badge) badge.textContent = 'Overview';
+                        applyScale(1.0);
+                    });
+
+                    btnDetail.addEventListener('click', () => {
+                        btnDetail.classList.add('active');
+                        btnSummary.classList.remove('active');
+                        if (summaryEl) summaryEl.style.display = 'none';
+                        if (detailEl) detailEl.style.display = 'block';
+                        if (badge) badge.textContent = 'Detailed';
+                        applyScale(1.0);
+                    });
+                }
+
+                const btnZoomIn = panel.querySelector('.inline-zoomin');
+                const btnZoomOut = panel.querySelector('.inline-zoomout');
+                const btnZoomFit = panel.querySelector('.inline-zoomfit');
+
+                if (btnZoomIn) {
+                    btnZoomIn.addEventListener('click', () => {
+                        if (btnDetail && !btnDetail.classList.contains('active')) {
+                            btnDetail.click();
+                        }
+                        applyScale(currentScale + 0.15);
+                    });
+                }
+                if (btnZoomOut) btnZoomOut.addEventListener('click', () => applyScale(currentScale - 0.15));
+                if (btnZoomFit) btnZoomFit.addEventListener('click', () => applyScale(1.0));
+            });
+
+            // Lightbox Modal System with Theme-Aware Container and Zoom/Pan
+            const modal = document.getElementById('diagram-modal');
+            const modalBody = document.getElementById('diagram-modal-body');
+            const modalTitle = document.getElementById('diagram-modal-title');
+            const btnClose = document.getElementById('modal-btn-close');
+            const btnZoomIn = document.getElementById('modal-btn-zoomin');
+            const btnZoomOut = document.getElementById('modal-btn-zoomout');
+            const btnReset = document.getElementById('modal-btn-reset');
+
+            let modalScale = 1;
+            let isPanning = false, startX, startY, scrollLeft, scrollTop;
+            let lastFocusedTrigger = null;
+
+            function updateModalZoom(newScale) {
+                modalScale = Math.max(0.6, Math.min(newScale, 2.5));
+                const canvas = modalBody.querySelector('.modal-canvas');
+                if (canvas) {
+                    canvas.style.transform = `scale(${modalScale})`;
+                    canvas.style.transformOrigin = 'top center';
+                }
+            }
+
+            function openModal(panel, triggerEl) {
+                lastFocusedTrigger = triggerEl;
+                const title = panel.querySelector('.diagram-title')?.textContent || 'Architecture Sequence Flow';
+                const detailSvg = panel.querySelector('.diagram-view-detail .mermaid svg') || panel.querySelector('.mermaid svg');
+                if (!detailSvg) return;
+
+                modalTitle.textContent = title;
+                modalBody.innerHTML = '';
+
+                const canvas = document.createElement('div');
+                canvas.className = 'modal-canvas mermaid';
+
+                const clonedSvg = detailSvg.cloneNode(true);
+                clonedSvg.style.maxWidth = 'none';
+                clonedSvg.style.width = '100%';
+                clonedSvg.style.minWidth = '1050px';
+                clonedSvg.style.height = 'auto';
+
+                canvas.appendChild(clonedSvg);
+                modalBody.appendChild(canvas);
+
+                modalScale = 1.05;
+                updateModalZoom(modalScale);
+
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                btnClose.focus();
+            }
+
+            function closeModal() {
+                modal.classList.remove('active');
+                modalBody.innerHTML = '';
+                document.body.style.overflow = '';
+                if (lastFocusedTrigger) lastFocusedTrigger.focus();
+            }
+
+            document.querySelectorAll('.diagram-panel').forEach(panel => {
+                const btn = panel.querySelector('.fullscreen-btn');
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openModal(panel, btn);
+                    });
+                }
+            });
+
+            if (btnClose) btnClose.addEventListener('click', closeModal);
+            if (btnZoomIn) btnZoomIn.addEventListener('click', () => updateModalZoom(modalScale + 0.2));
+            if (btnZoomOut) btnZoomOut.addEventListener('click', () => updateModalZoom(modalScale - 0.2));
+            if (btnReset) btnReset.addEventListener('click', () => updateModalZoom(1.0));
+
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.classList.contains('active')) {
+                    closeModal();
+                }
+            });
+
+            modalBody.addEventListener('mousedown', (e) => {
+                isPanning = true;
+                modalBody.style.cursor = 'grabbing';
+                startX = e.pageX - modalBody.offsetLeft;
+                startY = e.pageY - modalBody.offsetTop;
+                scrollLeft = modalBody.scrollLeft;
+                scrollTop = modalBody.scrollTop;
+            });
+            window.addEventListener('mouseup', () => {
+                isPanning = false;
+                if (modalBody) modalBody.style.cursor = 'grab';
+            });
+            modalBody.addEventListener('mousemove', (e) => {
+                if (!isPanning) return;
+                e.preventDefault();
+                const x = e.pageX - modalBody.offsetLeft;
+                const y = e.pageY - modalBody.offsetTop;
+                modalBody.scrollLeft = scrollLeft - (x - startX);
+                modalBody.scrollTop = scrollTop - (y - startY);
+            });
+
+            function rerenderMermaid() {
+                if (!window.mermaid) return;
+                mermaid.initialize({ startOnLoad: false, ...getMermaidTheme() });
+                document.querySelectorAll('.mermaid').forEach(el => {
+                    const originalCode = el.getAttribute('data-mermaid-src');
+                    if (originalCode) {
+                        el.removeAttribute('data-processed');
+                        el.innerHTML = originalCode;
+                    }
+                });
+                try { mermaid.run({ querySelector: '.mermaid' }); } catch (e) {}
+            }
+
+            document.querySelector('.theme-toggle')?.addEventListener('click', () => {
+                setTimeout(rerenderMermaid, 100);
+            });
+            document.addEventListener('theme-changed', rerenderMermaid);
+            new MutationObserver(() => {
+                clearTimeout(window.__mermaidRenderTimer);
+                window.__mermaidRenderTimer = setTimeout(rerenderMermaid, 100);
+            }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+        });
+    </script>
+
+    <style>
+        /* =======================================================================
+           CORE BLOG TYPOGRAPHY & THEME SYSTEM
+           ======================================================================= */
+        :root {
+            --font-mono: 'IBM Plex Mono', Consolas, monospace;
+            --muted-2: #64748b;
+            --line-soft: #e2e8f0;
+            --outcome-fail-text: #b91c1c;
+            --outcome-warn-text: #b45309;
+            --outcome-success-text: #047857;
+
+            /* SDG Widget Theme Variables */
+            --sdg-bg: #ffffff;
+            --sdg-stage-bg: #f8fafc;
+            --sdg-border: #cbd5e1;
+            --sdg-line: #94a3b8;
+            --sdg-line-soft: #e2e8f0;
+
+            --sdg-text: #0f172a;
+            --sdg-muted: #475569;
+            --sdg-muted-2: #64748b;
+
+            --sdg-blue: #0284c7;
+            --sdg-cyan: var(--teal, #0d9488);
+            --sdg-amber: var(--amber, #d97706);
+            --sdg-green: #059669;
+            --sdg-purple: #7c3aed;
+            --sdg-scale: #db2777;
+
+            --sdg-zone-fill: #f8fafc;
+            --sdg-zone-head: #f1f5f9;
+            --sdg-zone-stroke: #cbd5e1;
+
+            --sdg-node-fill: #ffffff;
+            --sdg-node-stroke: #94a3b8;
+            --sdg-active-fill: rgba(13, 148, 136, 0.12);
+            --sdg-pulse-fill: rgba(217, 119, 6, 0.12);
+            --sdg-scale-fill: rgba(219, 39, 119, 0.12);
+
+            --sdg-pkt-rest-bg: #ccfbf1;
+            --sdg-pkt-rest-fg: #0f766e;
+            --sdg-pkt-flight-bg: #fef3c7;
+            --sdg-pkt-flight-fg: #92400e;
+            --sdg-pkt-meta-bg: #ede9fe;
+            --sdg-pkt-meta-fg: #5b21b6;
+            --sdg-pkt-res-bg: #d1fae5;
+            --sdg-pkt-res-fg: #065f46;
+            --sdg-pkt-scale-bg: #fce7f3;
+            --sdg-pkt-scale-fg: #9d174d;
+
+            --sdg-caption-bg: #f8fafc;
+            --sdg-caption-border: #cbd5e1;
+            --sdg-btn-bg: #f1f5f9;
+            --sdg-btn-fg: #0f172a;
+            --sdg-btn-border: #cbd5e1;
+            --sdg-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+
+            /* Universal Mermaid Theme Variables */
+            --mermaid-bg: #f8fafc;
+            --mermaid-actor-fill: #ffffff;
+            --mermaid-actor-border: var(--teal, #0d9488);
+            --mermaid-actor-text: #0f172a;
+            --mermaid-line: #334155;
+            --mermaid-text: #0f172a;
+            --mermaid-note-fill: #fef3c7;
+            --mermaid-note-border: #d97706;
+            --mermaid-note-text: #78350f;
+            --mermaid-box-fill: rgba(13, 148, 136, 0.04);
+            --mermaid-box-border: #cbd5e1;
+            --mermaid-box-title: var(--teal, #0d9488);
+        }
+
+        /* Responsive Dark Mode Defaults via prefers-color-scheme */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --mermaid-bg: #070b16;
+                --mermaid-actor-fill: #11182c;
+                --mermaid-actor-border: #2dd4bf;
+                --mermaid-actor-text: #f8fafc;
+                --mermaid-line: #38bdf8;
+                --mermaid-text: #f8fafc;
+                --mermaid-note-fill: #141d33;
+                --mermaid-note-border: #fbbf24;
+                --mermaid-note-text: #fef3c7;
+                --mermaid-box-fill: rgba(45, 212, 191, 0.07);
+                --mermaid-box-border: #334366;
+                --mermaid-box-title: #2dd4bf;
+            }
+        }
+
+        [data-theme="dark"], .dark, .dark-mode, .theme-dark {
+            --panel: rgba(255, 255, 255, 0.06) !important;
+            --panel-2: rgba(255, 255, 255, 0.095) !important;
+            --line: rgba(255, 255, 255, 0.18) !important;
+            --line-soft: rgba(255, 255, 255, 0.1) !important;
+            --muted-2: #94a3b8 !important;
+            --outcome-fail-text: #fca5a5 !important;
+            --outcome-warn-text: #fcd34d !important;
+            --outcome-success-text: #99e8bd !important;
+
+            --sdg-bg: #0b1020;
+            --sdg-stage-bg: #070b16;
+            --sdg-border: #222f49;
+            --sdg-line: #334366;
+            --sdg-line-soft: #1a233a;
+
+            --sdg-text: #f8fafc;
+            --sdg-muted: #94a3b8;
+            --sdg-muted-2: #64748b;
+
+            --sdg-blue: #38bdf8;
+            --sdg-cyan: var(--teal, #2dd4bf);
+            --sdg-amber: var(--amber, #fbbf24);
+            --sdg-green: #34d399;
+            --sdg-purple: #c084fc;
+            --sdg-scale: #f472b6;
+
+            --sdg-zone-fill: rgba(255, 255, 255, 0.015);
+            --sdg-zone-head: rgba(255, 255, 255, 0.04);
+            --sdg-zone-stroke: #222f49;
+
+            --sdg-node-fill: #11182c;
+            --sdg-node-stroke: #2d3d5f;
+            --sdg-active-fill: rgba(45, 212, 191, 0.16);
+            --sdg-pulse-fill: rgba(251, 191, 36, 0.16);
+            --sdg-scale-fill: rgba(244, 114, 182, 0.16);
+
+            --sdg-pkt-rest-bg: #115e59;
+            --sdg-pkt-rest-fg: #ccfbf1;
+            --sdg-pkt-flight-bg: #78350f;
+            --sdg-pkt-flight-fg: #fef3c7;
+            --sdg-pkt-meta-bg: #581c87;
+            --sdg-pkt-meta-fg: #f3e8ff;
+            --sdg-pkt-res-bg: #d1fae5;
+            --sdg-pkt-res-fg: #065f46;
+            --sdg-pkt-scale-bg: #831843;
+            --sdg-pkt-scale-fg: #fce7f3;
+
+            --sdg-caption-bg: #0e1526;
+            --sdg-caption-border: #222f49;
+            --sdg-btn-bg: #141d33;
+            --sdg-btn-fg: #f1f5f9;
+            --sdg-btn-border: #283857;
+            --sdg-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+
+            --mermaid-bg: #070b16 !important;
+            --mermaid-actor-fill: #11182c !important;
+            --mermaid-actor-border: #2dd4bf !important;
+            --mermaid-actor-text: #f8fafc !important;
+            --mermaid-line: #38bdf8 !important;
+            --mermaid-text: #f8fafc !important;
+            --mermaid-note-fill: #141d33 !important;
+            --mermaid-note-border: #fbbf24 !important;
+            --mermaid-note-text: #fef3c7 !important;
+            --mermaid-box-fill: rgba(45, 212, 191, 0.07) !important;
+            --mermaid-box-border: #334366 !important;
+            --mermaid-box-title: #2dd4bf !important;
+        }
+
+        /* Reading Progress Bar */
+        .reading-progress {
+            position: fixed;
+            top: 0; left: 0;
+            height: 3px;
+            width: 0%;
+            background: var(--teal, #0d9488);
+            z-index: 9998;
+            transition: width 100ms linear;
+            box-shadow: 0 0 8px rgba(13, 148, 136, 0.5);
+        }
+
+        /* Copy Code Buttons */
+        .code-wrap { position: relative; }
+        .copy-btn {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.6rem;
+            background: var(--panel, rgba(0,0,0,0.04));
+            border: 1px solid var(--line);
+            color: var(--muted);
+            padding: 4px 10px;
+            border-radius: 5px;
+            font: 600 0.7rem var(--font-mono);
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+            z-index: 2;
+        }
+        .code-wrap:hover .copy-btn,
+        .copy-btn:focus-visible { opacity: 1; }
+        .copy-btn:hover { color: var(--teal); border-color: var(--teal); }
+        .copy-btn.copied {
+            color: var(--outcome-success-text);
+            border-color: var(--outcome-success-text);
+            opacity: 1;
+        }
+
+        /* Article Layout */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 860px; margin-left: auto; margin-right: auto; }
+
+        .byline { font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600; }
+        .deck { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.18rem; color: var(--muted); margin-top: 0; margin-bottom: 1.5rem; line-height: 1.55; }
+        .meta-line {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .meta-line span { color: var(--muted-2); }
+
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.65rem; margin-top: 3.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--line-soft); color: var(--text); font-weight: 700; scroll-margin-top: 1.5rem; }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.3rem; color: var(--teal); margin-top: 2.4rem; font-weight: 700; }
+        h4 { font-family: var(--font-mono); font-size: 0.95rem; color: var(--amber); margin-top: 2.2rem; margin-bottom: 0.5rem; text-transform: uppercase; border-bottom: 1px dashed var(--line-soft); padding-bottom: 0.4rem; font-weight: 600; letter-spacing: 0.04em; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.75; color: var(--text); }
+        ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+
+        .callout { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--teal); padding: 1.25rem 1.4rem; border-radius: 8px; margin: 2rem 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; line-height: 1.6; }
+        .callout.danger { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.06); }
+        .callout.warn { border-left-color: var(--amber); background: rgba(212, 167, 44, 0.06); }
+        .callout.success { border-left-color: var(--outcome-success-text); background: rgba(5, 150, 105, 0.06); }
+        .callout strong { color: var(--teal); font-family: 'Libre Franklin', sans-serif; }
+        .callout.danger strong { color: #ef4444; }
+        .callout.warn strong { color: var(--outcome-warn-text); }
+        .callout.success strong { color: var(--outcome-success-text); }
+
+        .toc { background: var(--panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line); margin: 2.5rem 0; }
+        .toc-title { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted-2); letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600; text-transform: uppercase; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc a { color: var(--teal); text-decoration: none; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; }
+        .toc a:hover { text-decoration: underline; }
+
+        .tier-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin: 2rem 0; }
+        .tier-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.4rem; }
+        .tier-header { font-family: var(--font-mono); font-size: 0.8rem; color: var(--teal); font-weight: 700; text-transform: uppercase; margin-bottom: 0.6rem; border-bottom: 1px dashed var(--line-soft); padding-bottom: 0.5rem; }
+        .tier-card ul { padding-left: 1.2rem; margin-bottom: 0; }
+        .tier-card li { font-size: 0.92rem; margin-bottom: 0.4rem; }
+        .tier-card li:last-child { margin-bottom: 0; }
+        .tier-card strong { color: var(--text); }
+        @media(max-width: 720px) { .tier-grid { grid-template-columns: 1fr; } }
+
+        .lead { font-size: 1.15rem; color: var(--muted); line-height: 1.6; font-family: 'IBM Plex Serif', serif; }
+
+        .experiment-contract { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 2rem 0; }
+        .contract-item { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 6px; padding: 1.25rem; }
+        .contract-number { display: block; font-family: var(--font-mono); color: var(--teal); font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .contract-item strong { display: block; font-family: 'Libre Franklin', sans-serif; margin-bottom: 0.4rem; color: var(--text); font-size: 1rem; }
+        .contract-item p { font-size: 0.9rem; margin: 0; color: var(--muted); line-height: 1.5; }
+        @media(max-width: 720px) { .experiment-contract { grid-template-columns: 1fr; } }
+
+        /* Data Matrix Table */
+        .matrix-table-wrap { overflow-x: auto; margin: 2.5rem 0; border: 1px solid var(--line); border-radius: 8px; }
+        .matrix-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.9rem; text-align: left; }
+        .matrix-table th { background: var(--panel-2); color: var(--teal); font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+        .matrix-table td { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--text); line-height: 1.5; }
+        .matrix-table tr:last-child td { border-bottom: none; }
+        .matrix-table tr:hover td { background: var(--panel); }
+
+        /* Code snippets */
+        pre { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1.1rem 1.3rem; overflow-x: auto; font-family: var(--font-mono); font-size: 0.88rem; color: var(--text); margin: 1.5rem 0; }
+        code { font-family: var(--font-mono); font-size: 0.88em; color: var(--teal); background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+        pre code { color: inherit; background: transparent; padding: 0; }
+
+        /* =======================================================================
+           FIT-FIRST OVERVIEW SEQUENCE PANELS (SUMMARY ZERO-SCROLL + DETAIL SCROLL)
+           ======================================================================= */
+        .diagram-panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            margin: 2.5rem 0;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .diagram-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--panel-2);
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid var(--line-soft);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .diagram-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .diagram-title {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+        }
+        .mode-badge {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(13, 148, 136, 0.15);
+            color: var(--teal);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .diagram-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .view-switcher {
+            display: flex;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-right: 4px;
+        }
+        .view-btn {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            padding: 4px 9px;
+            font: 600 0.72rem var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .view-btn.active {
+            background: var(--teal);
+            color: #ffffff;
+            font-weight: 700;
+        }
+        .diag-btn {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font: 600 0.72rem var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .diag-btn:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+        .fullscreen-btn {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+        }
+        .fullscreen-btn:hover {
+            background: var(--teal);
+            color: #ffffff;
+            border-color: var(--teal);
+        }
+
+        .diagram-tooltip {
+            background: rgba(13, 148, 136, 0.08);
+            border-bottom: 1px dashed var(--line-soft);
+            padding: 6px 14px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.8rem;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .diagram-tooltip strong { color: var(--teal); }
+
+        .diagram-viewport {
+            padding: 1.25rem 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--mermaid-bg) !important;
+            position: relative;
+        }
+
+        /* Summary View: Strictly fits available space, zero horizontal scrolling */
+        .diagram-view-summary {
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden !important;
+            display: block;
+            margin: 0 auto;
+        }
+        .diagram-view-summary .mermaid {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            display: block !important;
+            margin: 0 auto !important;
+            text-align: center !important;
+            transform: none !important;
+        }
+        .diagram-view-summary .mermaid svg {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+
+        /* Summary view font sizes: balanced, sharp */
+        .diagram-view-summary .mermaid text.actor > tspan {
+            font-size: 13.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-summary .mermaid .messageText,
+        .diagram-view-summary .mermaid text.messageText,
+        .diagram-view-summary .mermaid .messageText > tspan {
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+        }
+        .diagram-view-summary .mermaid .noteText,
+        .diagram-view-summary .mermaid .noteText > tspan {
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+        }
+        .diagram-view-summary .mermaid circle.sequenceNumber {
+            r: 10px !important;
+        }
+        .diagram-view-summary .mermaid text.sequenceNumber {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+        }
+        .diagram-view-summary .mermaid .messageLine0,
+        .diagram-view-summary .mermaid .messageLine1 {
+            stroke-width: 1.6px !important;
+        }
+
+        /* Detail View: Fully unconstrained for deep horizontal scroll inspection */
+        .diagram-view-detail {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            text-align: left;
+            -webkit-overflow-scrolling: touch;
+            padding: 1rem 0.5rem;
+            box-sizing: border-box;
+        }
+        .diagram-view-detail .mermaid {
+            display: inline-block;
+            min-width: 1020px !important;
+            text-align: left;
+            margin: 0;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .diagram-view-detail .mermaid svg {
+            display: block;
+            min-width: 1020px !important;
+            height: auto !important;
+            margin: 0;
+        }
+
+        /* Detail view fonts: large, high-legibility */
+        .diagram-view-detail .mermaid text.actor > tspan {
+            font-size: 17.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-detail .mermaid .messageText,
+        .diagram-view-detail .mermaid text.messageText,
+        .diagram-view-detail .mermaid .messageText > tspan {
+            font-size: 17.5px !important;
+            font-weight: 700 !important;
+        }
+        .diagram-view-detail .mermaid .noteText,
+        .diagram-view-detail .mermaid .noteText > tspan {
+            font-size: 14px !important;
+        }
+        .diagram-view-detail .mermaid circle.sequenceNumber {
+            r: 13.5px !important;
+        }
+        .diagram-view-detail .mermaid text.sequenceNumber {
+            font-size: 12.5px !important;
+        }
+        .diagram-view-detail .mermaid .messageLine0,
+        .diagram-view-detail .mermaid .messageLine1 {
+            stroke-width: 2.2px !important;
+        }
+
+        /* =======================================================================
+           DYNAMIC THEMED MERMAID RENDERING (BOUND TO CSS VARIABLES WITH !IMPORTANT)
+           ======================================================================= */
+        .mermaid .actor, .modal-canvas .actor {
+            fill: var(--mermaid-actor-fill) !important;
+            stroke: var(--mermaid-actor-border) !important;
+            stroke-width: 2px !important;
+            rx: 5px; ry: 5px;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.12));
+        }
+        .mermaid text.actor, .mermaid text.actor > tspan,
+        .modal-canvas text.actor, .modal-canvas text.actor > tspan,
+        .mermaid .actor-man text, .mermaid g[class*="actor"] text {
+            fill: var(--mermaid-actor-text) !important;
+            font-family: 'Libre Franklin', sans-serif !important;
+            font-weight: 700 !important;
+        }
+        .mermaid .actor-line, .modal-canvas .actor-line {
+            stroke: var(--mermaid-line) !important;
+            stroke-width: 1.8px !important;
+            stroke-dasharray: 4 4 !important;
+            opacity: 0.65 !important;
+        }
+        .mermaid .messageLine0, .mermaid .messageLine1,
+        .modal-canvas .messageLine0, .modal-canvas .messageLine1 {
+            stroke: var(--mermaid-line) !important;
+        }
+        .mermaid marker path, .mermaid #arrowhead path,
+        .modal-canvas marker path, .modal-canvas #arrowhead path {
+            fill: var(--mermaid-line) !important;
+            stroke: var(--mermaid-line) !important;
+        }
+
+        /* Crucial Text Visibility Rule: Overrides any dark default styles */
+        .mermaid .messageText, .mermaid text.messageText, .mermaid .messageText > tspan,
+        .modal-canvas .messageText, .modal-canvas text.messageText, .modal-canvas .messageText > tspan {
+            fill: var(--mermaid-text) !important;
+            color: var(--mermaid-text) !important;
+            font-family: 'IBM Plex Sans', sans-serif !important;
+            font-weight: 700 !important;
+            line-height: 1.4 !important;
+        }
+
+        .mermaid circle.sequenceNumber, .modal-canvas circle.sequenceNumber {
+            fill: var(--teal) !important;
+            stroke: var(--teal) !important;
+        }
+        .mermaid text.sequenceNumber, .modal-canvas text.sequenceNumber {
+            fill: #ffffff !important;
+            font-family: var(--font-mono) !important;
+            dominant-baseline: central !important;
+            text-anchor: middle !important;
+        }
+        .mermaid .note, .modal-canvas .note {
+            fill: var(--mermaid-note-fill) !important;
+            stroke: var(--mermaid-note-border) !important;
+            stroke-width: 1.6px !important;
+            rx: 5px; ry: 5px;
+        }
+        .mermaid .noteText, .mermaid .noteText > tspan,
+        .modal-canvas .noteText, .modal-canvas .noteText > tspan {
+            fill: var(--mermaid-note-text) !important;
+            font-family: var(--font-mono) !important;
+            line-height: 1.4 !important;
+        }
+        .mermaid .labelBox, .modal-canvas .labelBox {
+            fill: #f1f5f9 !important;
+            stroke: #cbd5e1 !important;
+            stroke-width: 1.5px !important;
+            rx: 4px;
+        }
+        .mermaid .labelText, .mermaid .labelText > tspan,
+        .modal-canvas .labelText, .modal-canvas .labelText > tspan {
+            fill: #d97706 !important;
+            font-family: var(--font-mono) !important;
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            text-transform: uppercase;
+        }
+        .mermaid .loopText, .mermaid .loopText > tspan,
+        .modal-canvas .loopText, .modal-canvas .loopText > tspan {
+            fill: var(--mermaid-text) !important;
+            font-family: 'IBM Plex Sans', sans-serif !important;
+            font-size: 14.5px !important;
+            font-weight: 600 !important;
+        }
+        .mermaid .box rect, .mermaid rect.box,
+        .modal-canvas .box rect, .modal-canvas rect.box {
+            fill: var(--mermaid-box-fill) !important;
+            stroke: var(--mermaid-box-border) !important;
+            stroke-width: 1.5px !important;
+            stroke-dasharray: 5 4 !important;
+            rx: 6px !important;
+        }
+        .mermaid text.boxTitle, .mermaid .box text, .mermaid .boxTitle,
+        .modal-canvas text.boxTitle, .modal-canvas .box text, .modal-canvas .boxTitle {
+            fill: var(--mermaid-box-title) !important;
+            font-family: var(--font-mono) !important;
+            font-weight: 800 !important;
+            font-size: 14px !important;
+        }
+
+        .diagram-view-detail::-webkit-scrollbar { height: 8px; }
+        .diagram-view-detail::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+        .diagram-view-detail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+        .diagram-view-detail::-webkit-scrollbar-thumb:hover { background: var(--teal); }
+
+        /* Fullscreen Lightbox Modal */
+        .diagram-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100vw; height: 100vh;
+            z-index: 2147483647;
+            background: rgba(10, 16, 28, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .diagram-modal.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--sdg-bg);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--line);
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        .modal-title {
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 0;
+        }
+        .modal-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-btn {
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font: 600 0.75rem var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .modal-btn:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+            background: var(--panel);
+        }
+        .modal-btn.close {
+            background: var(--teal);
+            color: #ffffff;
+            border-color: var(--teal);
+            font-weight: 700;
+        }
+        .modal-btn.close:hover { background: #0f766e; }
+        
+        .modal-viewport {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 3rem 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            cursor: grab;
+            user-select: none;
+            background: var(--sdg-stage-bg, #f8fafc);
+        }
+        [data-theme="dark"] .modal-viewport,
+        .dark .modal-viewport,
+        .dark-mode .modal-viewport,
+        .theme-dark .modal-viewport {
+            background: #070b16 !important;
+        }
+
+        .modal-canvas {
+            background: var(--mermaid-bg) !important;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 2.8rem 2.8rem;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+            min-width: 1050px;
+            margin: auto;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        [data-theme="dark"] .modal-canvas,
+        .dark .modal-canvas,
+        .dark-mode .modal-canvas,
+        .theme-dark .modal-canvas {
+            border-color: #222f49 !important;
+            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        /* ==================== RESPONSIVE SMART DATA GATEWAY EMBEDDED WIDGET ==================== */
+        .sdg-wrap {
+            max-width: 100%;
+            margin: 2.5rem auto;
+            background: var(--sdg-bg);
+            border: 1px solid var(--sdg-border);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: var(--sdg-shadow);
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            color: var(--sdg-text);
+            box-sizing: border-box;
+            transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+        }
+        .sdg-wrap * { box-sizing: border-box; }
+
+        .sdg-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--sdg-border);
+        }
+        .sdg-title {
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--sdg-muted);
+            margin: 0;
+            font-family: var(--font-mono);
+        }
+        .sdg-controls { display: flex; gap: 4px; align-items: center; }
+        .sdg-btn {
+            background: var(--sdg-btn-bg);
+            border: 1px solid var(--sdg-btn-border);
+            color: var(--sdg-btn-fg);
+            padding: 4px 9px;
+            border-radius: 4px;
+            font: 600 9.5px/1 var(--font-mono);
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .sdg-btn:hover { border-color: var(--sdg-cyan); color: var(--sdg-cyan); }
+        .sdg-btn.active { background: var(--sdg-cyan); color: #fff; border-color: var(--sdg-cyan); font-weight: 700; }
+        .sdg-btn:focus-visible { outline: 2px solid var(--sdg-cyan); outline-offset: 2px; }
+
+        .sdg-legend {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            font-size: 8.5px;
+            color: var(--sdg-muted);
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+        .sdg-legend span { display: inline-flex; align-items: center; gap: 4px; }
+        .sdg-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
+
+        /* Responsive Stage without fixed horizontal overflow on mobile */
+        .sdg-stage {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 920 / 400;
+            background: radial-gradient(ellipse at 50% 30%, rgba(13, 148, 136, 0.05), transparent 60%), var(--sdg-stage-bg);
+            border: 1px solid var(--sdg-border);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: background 0.25s ease, border-color 0.25s ease;
+        }
+        .sdg-stage svg { width: 100%; height: 100%; display: block; }
+
+        .sdg-zone { fill: var(--sdg-zone-fill) !important; stroke: var(--sdg-zone-stroke) !important; stroke-width: 1; }
+        .sdg-zone-head { fill: var(--sdg-zone-head) !important; stroke: var(--sdg-zone-stroke) !important; stroke-width: 1; }
+        .sdg-zone-label { fill: var(--sdg-muted-2) !important; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; font-family: var(--font-mono); }
+
+        .sdg-node { opacity: 0.35; transition: opacity 0.35s ease, filter 0.35s ease; }
+        .sdg-node.spotlight { opacity: 1; }
+        .sdg-node rect { fill: var(--sdg-node-fill) !important; stroke: var(--sdg-node-stroke) !important; stroke-width: 1.1; transition: all 0.25s ease; }
+        .sdg-node.active rect { stroke: var(--sdg-cyan) !important; fill: var(--sdg-active-fill) !important; filter: url(#sdgGlow); }
+        .sdg-node.pulse rect { stroke: var(--sdg-amber) !important; fill: var(--sdg-pulse-fill) !important; filter: url(#sdgGlow); }
+        .sdg-node.scaling rect { stroke: var(--sdg-scale) !important; fill: var(--sdg-scale-fill) !important; filter: url(#sdgGlowScale); }
+
+        .sdg-node-title { fill: var(--sdg-text) !important; font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; font-family: 'Libre Franklin', sans-serif; }
+        .sdg-node-sub { fill: var(--sdg-muted) !important; font-size: 7px; font-weight: 500; text-anchor: middle; pointer-events: none; font-family: var(--font-mono); }
+        .sdg-node-badge { fill: var(--sdg-muted-2) !important; font-size: 6.5px; font-weight: 600; text-anchor: middle; pointer-events: none; font-family: var(--font-mono); }
+
+        .sdg-static-line { fill: none; stroke: var(--sdg-line); stroke-width: 1.2; opacity: 0.7; }
+        .sdg-static-scale { fill: none; stroke: var(--sdg-scale); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: 0.5; }
+
+        .sdg-flow { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity 0.35s ease; }
+        .sdg-flow.visible { opacity: 0.95; }
+        .sdg-flow.rest { stroke: var(--sdg-cyan); }
+        .sdg-flow.flight { stroke: var(--sdg-amber); }
+        .sdg-flow.meta { stroke: var(--sdg-purple); stroke-width: 1.8; }
+        .sdg-flow.result { stroke: var(--sdg-green); }
+        .sdg-flow.scale { stroke: var(--sdg-scale); stroke-width: 1.8; stroke-dasharray: 4 3; }
+
+        .sdg-packet { opacity: 0; filter: url(#sdgPktShadow); pointer-events: none; will-change: transform, opacity; }
+        .sdg-packet rect { rx: 4; ry: 4; }
+        .sdg-packet text { font: 700 7px var(--font-mono); letter-spacing: 0.03em; text-anchor: middle; dominant-baseline: middle; }
+        .sdg-packet.rest rect { fill: var(--sdg-pkt-rest-bg); stroke: var(--sdg-cyan); stroke-width: 1.2; }
+        .sdg-packet.rest text { fill: var(--sdg-pkt-rest-fg); }
+        .sdg-packet.flight rect { fill: var(--sdg-pkt-flight-bg); stroke: var(--sdg-amber); stroke-width: 1.2; }
+        .sdg-packet.flight text { fill: var(--sdg-pkt-flight-fg); }
+        .sdg-packet.meta rect { fill: var(--sdg-pkt-meta-bg); stroke: var(--sdg-purple); stroke-width: 1.2; }
+        .sdg-packet.meta text { fill: var(--sdg-pkt-meta-fg); }
+        .sdg-packet.result rect { fill: var(--sdg-pkt-res-bg); stroke: var(--sdg-green); stroke-width: 1.2; }
+        .sdg-packet.result text { fill: var(--sdg-pkt-res-fg); }
+        .sdg-packet.scale rect { fill: var(--sdg-pkt-scale-bg); stroke: var(--sdg-scale); stroke-width: 1.2; }
+        .sdg-packet.scale text { fill: var(--sdg-pkt-scale-fg); }
+
+        .sdg-step-line { stroke: var(--sdg-line); stroke-width: 1; }
+        .sdg-step-dot { fill: var(--sdg-line); transition: fill 0.25s, r 0.25s; cursor: pointer; }
+        .sdg-step-dot.active { fill: var(--sdg-cyan); filter: url(#sdgGlow); r: 4; }
+        .sdg-step-label { fill: var(--sdg-muted-2); font-size: 7px; font-weight: 700; letter-spacing: 0.02em; text-anchor: middle; pointer-events: none; transition: fill 0.25s; font-family: var(--font-mono); }
+        .sdg-step-label.active { fill: var(--sdg-text); font-weight: 800; }
+
+        .sdg-caption {
+            margin-top: 10px;
+            padding: 8px 14px;
+            background: var(--sdg-caption-bg);
+            border: 1px solid var(--sdg-caption-border);
+            border-left: 4px solid var(--sdg-cyan);
+            border-radius: 6px;
+            font-size: 11.5px;
+            line-height: 1.5;
+            color: var(--sdg-muted);
+            min-height: 38px;
+            display: flex;
+            align-items: center;
+            font-family: 'IBM Plex Sans', sans-serif;
+            transition: border-color 0.3s;
+        }
+        .sdg-caption strong { color: var(--sdg-text); margin-right: 6px; font-size: 11px; font-family: var(--font-mono); white-space: nowrap; }
+        .sdg-caption.phase-flow { border-left-color: var(--sdg-cyan); }
+        .sdg-caption.phase-pulse { border-left-color: var(--sdg-amber); }
+        .sdg-caption.phase-meta { border-left-color: var(--sdg-purple); }
+        .sdg-caption.phase-scale { border-left-color: var(--sdg-scale); }
+
+        /* Marker arrow colors */
+        .sdg-wrap #sdgArrowCyan path   { stroke: var(--sdg-cyan); }
+        .sdg-wrap #sdgArrowAmber path  { stroke: var(--sdg-amber); }
+        .sdg-wrap #sdgArrowScale path  { stroke: var(--sdg-scale); }
+        .sdg-wrap #sdgArrowPurple path { stroke: var(--sdg-purple); }
+        .sdg-wrap #sdgArrowGreen path  { stroke: var(--sdg-green); }
+
+        .sdg-step-dot:focus, .sdg-step-label:focus { outline: none; }
+        .sdg-step-dot:focus-visible {
+            stroke: var(--sdg-cyan) !important;
+            stroke-width: 3px !important;
+        }
+        .sdg-step-label:focus-visible {
+            fill: var(--sdg-cyan) !important;
+            font-weight: 800;
+        }
+
+        @media (max-width: 768px) {
+            .sdg-wrap { padding: 10px; border-radius: 8px; }
+            .sdg-btn { padding: 3px 6px; font-size: 9px; }
+            .sdg-caption { font-size: 10.5px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="reading-progress" id="reading-progress" aria-hidden="true"></div>
+    <div class="container">
+
+        <!-- Global Header -->
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="index.html" style="color:var(--teal); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none; font-weight:600;">Series</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
+            </nav>
+        </header>
+
+        <main>
+            <article class="article">
+
+                <div style="margin-bottom: 1rem;">
+                    <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Back to Series Index</a>
+                </div>
+
+                <div class="byline">PART 2 · DATA ENGINEERING &amp; ARCHITECTURE</div>
+                <h1 style="margin-top: 0.5rem; font-family: 'Libre Franklin', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem;">Architectural Evolution</h1>
+                <p class="deck">From Fat Client OOMKills to an Enterprise Dual-Protocol Smart Data Gateway</p>
+
+                <div class="meta-line">
+                    September 27, 2026 
+                </div>
+
+                <!-- Section 0: Philosophy -->
+      
+
+                            <blockquote class="epigraph">
+            <p>
+                “Good judgment comes from experience, and experience comes from bad judgment.”
+            </p>
+            <footer>
+                —<strong> Fred Brooks </strong>, <cite>The Mythical Man-Month</cite>
+            </footer>
+        </blockquote>
+                    <h2>
+                        We All Believe in Learning from Failure.
+                        <span class="accent">Until it Fails.</span>
+                    </h2>
+                    <p class="lead">
+                        Every clean architecture diagram on LinkedIn conceals a graveyard of crashed pods, deadlocked threads, and frantic 2 AM incident calls. <strong>We definitely did not know the final architecture when we wrote line one.</strong>
+                    </p>
+                    <p>
+                        In <em>Creativity, Inc.</em>, Pixar co-founder Ed Catmull observed that experiments are <em>"great in retrospect but not in prospect,"</em> noting that <em>“Failure isn't a necessary evil. In fact, it isn't evil at all. It is a necessary consequence of doing something new.”</em> In enterprise engineering, however, failure sends an immediate invoice: frozen browser tabs, angry regulatory consumers asking why daily trade summaries aren't ready, and cloud egress bills that make your FinOps team send calendar invites with no agenda.
+                    </p>
+                    <p>
+                        Engineers have an impressive survival instinct: when a prototype works, we call it "intentional system design"; when it implodes, we call it "research." But failure only hardens into true architectural insight when held to an empirical contract:
+                    </p>
+
+                    <div class="experiment-contract">
+                        <div class="contract-item">
+                            <span class="contract-number">01</span>
+                            <strong>What are we trying to prove?</strong>
+                            <p>State the mechanical hypothesis cleanly (e.g., lazy metadata pruning isolates query planning RAM from data-scan memory limits).</p>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-number">02</span>
+                            <strong>What will we measure?</strong>
+                            <p>Identify hard metrics: candidate split counts, p99 latency, cgroup memory watermarks, and interop serialization CPU ticks.</p>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-number">03</span>
+                            <strong>What result changes the design?</strong>
+                            <p>Define the discard threshold beforehand so sunk-cost fallacy cannot keep broken prototypes on life support.</p>
+                        </div>
+                        <div class="contract-item">
+                            <span class="contract-number">04</span>
+                            <strong>What did we learn when it broke?</strong>
+                            <p>Every failure must definitively expose a physical bottleneck—whether it is the Linux page cache, the Python GIL, or TCP head-of-line blocking.</p>
+                        </div>
+                    </div>
+
+                    <p>
+                        What follows is not a victory lap. It is the raw chronicle of five successive architectural failure modes that were measured, dismantled, and permanently engineered out of our data platform.
+                    </p>
+                </section>
+
+                <hr class="article-separator" style="border: none; border-top: 1px solid var(--line-soft); margin: 2.5rem 0;">
+
+                <!-- Table of Contents -->
+                <nav class="toc">
+                    <div class="toc-title">ON THIS PAGE</div>
+                    <ol>
+                        <li><a href="#s1">Why Now? The Convergence of Primitives</a></li>
+                        <li><a href="#s2">Technology Selection &amp; Format Agnosticism</a></li>
+                        <li><a href="#s3">Phase 1: Embedded Mode &amp; Network Bottlenecks (Steps A &amp; B)</a></li>
+                        <li><a href="#s4">Phase 2: Decoupled Execution &amp; Metadata Isolation (Steps C, D, &amp; E)</a></li>
+                        <li><a href="#s5">Phase 3: Scaling Concurrency &amp; Task Orchestration (Steps F, G, H, &amp; I)</a></li>
+                        <li><a href="#s6">Phase 4: Enterprise Dual-Protocol Serving &amp; Zero-Trust (Steps J, K, L, &amp; M)</a></li>
+                        <li><a href="#s7">System in Motion: Interactive Simulation</a></li>
+                        <li><a href="#s8">The Architectural Evolution Matrix</a></li>
+                    </ol>
+                </nav>
+
+                <!-- Section 1 -->
+                <h2 id="s1">1. Why Now? The Convergence of Primitives</h2>
+                <p>
+                    Why wasn't a lightweight, stateless data gateway built like this a decade ago?
+                </p>
+                <p>
+                    Historically, Big Data infrastructure was optimized exclusively for <strong>batch throughput</strong> rather than <strong>interactive operational concurrency</strong>. Massively Parallel Processing (MPP) engines—Hadoop, Hive, Spark, Trino, and early cloud data warehouses—were designed for workloads where waiting 15 to 45 seconds for query compilation, driver scheduling, and shuffle staging was an acceptable tax. There was neither the technical tooling nor the economic incentive to place sub-second, application-aware query gateways at the lakehouse storage edge.
+                </p>
+                <p>
+                    Furthermore, database compute was inextricably bound to proprietary storage formats. You could not point a lightweight external engine at Snowflake micro-partitions or Redshift blocks. This stateless gateway paradigm only became viable through the simultaneous maturity of three open-source primitives:
+                </p>
+                <ul>
+                    <li><strong>Open Table Formats (Apache Iceberg, Delta Lake):</strong> Decoupled physical Parquet files from proprietary database engines. For the first time, immutable manifest trees, snapshot trees, and column statistics became open specifications accessible over standard HTTP REST interfaces.</li>
+                    <li><strong>Apache Arrow &amp; Arrow Flight:</strong> Standardized a columnar, in-memory format that eliminates serialization penalties. While Arrow provides true zero-copy sharing across in-process threads and local shared-memory IPC, network transport via Arrow Flight incurs HTTP/2 framing, serialization, and socket buffer copies. Arrow Flight is properly understood as <strong>low-copy, format-aligned columnar transport</strong> that streams columnar memory buffers across network boundaries without row-to-object deserialization.</li>
+                    <li><strong>Embedded Vectorized Engines (DuckDB, DataFusion):</strong> Vectorized analytical compute engines running directly in C++ with SIMD optimizations proved they could execute analytical queries across millions of rows in milliseconds—completely bypassing JVM garbage collection pauses and distributed network shuffle overhead.</li>
+                </ul>
+
+                <!-- Section 2 -->
+                <h2 id="s2">2. Technology Selection &amp; Open Storage Format Agnosticism</h2>
+                <p>
+                    To build the gateway, we needed an execution engine with a specific profile: a lightweight memory footprint, native Parquet reader optimization, late materialization, and seamless in-memory Arrow integration.
+                </p>
+                <p>
+                    We evaluated <strong>Apache DataFusion</strong>, <strong>Daft</strong>, and <strong>DuckDB</strong>. While DataFusion offers brilliant Rust-level extensibility, <strong>DuckDB</strong> stood out with its mature Parquet reader, comprehensive SQL dialect coverage, and native zero-copy Arrow memory sharing across in-process threads.
+                </p>
+
+                <h3>DuckDB Concurrency &amp; Reader/Writer Isolation Contract</h3>
+                <p>
+                    Designing a multi-tenant gateway required engineering around DuckDB's underlying concurrency model:
+                </p>
+                <div class="callout warn">
+                    <strong>The DuckDB Concurrency Constraint:</strong> DuckDB natively supports <strong>concurrent readers</strong> on an in-memory database instance or read-only attached database file. However, writing or attaching a database file in read-write mode blocks on a <strong>single-writer exclusive lock</strong>.
+                </div>
+                <p>
+                    To ensure concurrent query requests never block on engine locks, the Smart Data Gateway enforces a strict operational contract:
+                </p>
+                <ul>
+                    <li><strong>Stateless, Read-Only Consumer Instances:</strong> Every Gateway worker node instantiates DuckDB strictly as an in-memory, read-only query processor (<code>duckdb.connect(":memory:")</code>). It never writes back to lakehouse storage, modifies tables, or participates in snapshot commits.</li>
+                    <li><strong>Out-of-Band Lakehouse Writes:</strong> Ingestion, compaction, snapshot commits, and schema changes are strictly delegated to independent external ETL pipelines (such as PySpark or Flink). Because Gateway engine instances operate exclusively as read-only analytical consumers, they are completely isolated from write locks and table contention.</li>
+                </ul>
+
+                <h3>Why Apache Iceberg — And Why the Pattern Transcends Format</h3>
+                <p>
+                    In our regulatory trade reporting systems, we standardized on <strong>Apache Iceberg</strong> due to our append-heavy event-sourcing model, where high-frequency event streams demand low-latency event-driven commits and deterministic snapshot isolation.
+                </p>
+                <div class="callout">
+                    <strong>The Open Storage Format Principle:</strong> The gateway architecture is strictly format-agnostic. Whether your lakehouse is cataloged using <strong>Apache Iceberg, Delta Lake, or Apache Hudi</strong>, the gateway pipeline operates identically: it evaluates catalog metadata lazily, prunes candidate file manifests using client predicates, and hands the resulting Parquet URIs to DuckDB for physical execution.
+                </div>
+
+                <div class="tier-grid">
+                    <div class="tier-card">
+                        <div class="tier-header">Tier 1: Core Execution Primitives</div>
+                        <ul>
+                            <li><strong>DuckDB C++ Core:</strong> Vectorized execution engine executing SIMD query kernels without JVM runtime overhead.</li>
+                            <li><strong>Apache Arrow:</strong> Zero-copy in-memory IPC format enabling format-aligned streaming to network sockets.</li>
+                            <li><strong>Format SDKs (PyIceberg / Delta-RS):</strong> Evaluates partition metadata and file-level min/max statistics prior to physical scan.</li>
+                            <li><strong>Open Catalogs:</strong> REST catalogs (Iceberg REST, Polaris, Nessie) providing authoritative snapshot versions.</li>
+                        </ul>
+                    </div>
+                    <div class="tier-card">
+                        <div class="tier-header">Tier 2: Ingress &amp; Security Layer</div>
+                        <ul>
+                            <li><strong>Kubernetes Gateway API:</strong> Layer 7 ingress (Envoy/AGFC) handling per-stream HTTP/2 multiplexing.</li>
+                            <li><strong>NGINX Edge Proxy:</strong> Consistent-hashed SSD byte-range cache mitigating cloud storage WAN latency.</li>
+                            <li><strong>Redis Cluster:</strong> Fast result-fingerprint store and data-version cache invalidation bus.</li>
+                            <li><strong>SQLglot AST Engine:</strong> Query transpilation and mandatory Row-Level Security (RLS) predicate injection.</li>
+                        </ul>
+                    </div>
+                    <div class="tier-card">
+                        <div class="tier-header">Tier 3: Dual Serving Interfaces</div>
+                        <ul>
+                            <li><strong>Arrow Flight SQL Server:</strong> High-throughput gRPC streaming service for programmatic pipelines and notebooks.</li>
+                            <li><strong>FastAPI (REST Engine):</strong> Low-latency JSON HTTP endpoint optimized for interactive operational dashboard widgets.</li>
+                            <li><strong>Model Context Protocol (MCP):</strong> Governed tool boundary exposing bounded analytical reads to LLM agents.</li>
+                        </ul>
+                    </div>
+                    <div class="tier-card">
+                        <div class="tier-header">Tier 4: Orchestration &amp; Observability</div>
+                        <ul>
+                            <li><strong>Celery &amp; Redis:</strong> Asynchronous task queue offloading long-running exports via the Claim-Check pattern.</li>
+                            <li><strong>KEDA Autoscaler:</strong> Event-driven pod scaling driven by queue backlog depth and active connections.</li>
+                            <li><strong>OpenTelemetry:</strong> End-to-end W3C trace context propagation linking HTTP/gRPC ingress to DuckDB spans.</li>
+                            <li><strong>Azure Data Explorer (ADX):</strong> High-scale log and trace analytics querying distributed execution via KQL.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Section 3 -->
+                <h2 id="s3">3. Phase 1: Embedded Mode &amp; Network Bottlenecks</h2>
+
+                <h4>Step A: In-Process Fat Client (The "Zero-Infrastructure" Delusion)</h4>
+                <p>
+                    Our initial prototype was guided by an enticing dream: <em>Why deploy microservices when you can just embed an analytical database right into your application?</em> Because our primary platform was written in .NET, we used the <code>DuckDB.NET</code> bindings to run DuckDB's C++ core directly inside the client process. The fat client reached out over the WAN directly to Azure Data Lake Storage (ADLS Gen2) via HTTP range requests, evaluated Iceberg Parquet files in-process, and handed results to the dashboard grid.
+                </p>
+                <p>
+                    We felt like architectural geniuses for about five minutes. Then we actually ran queries against production datasets.
+                </p>
+                <div class="callout danger">
+                    <strong>Failure Mode: The CLR Interop Tax &amp; The Kernel's Wrath</strong>
+                    <ul>
+                        <li><strong>The Boxing/Unboxing Penalty:</strong> DuckDB's vectorized execution runs in native C++. But shoving gigabytes of computed records through the C# P/Invoke boundary required massive memory copying, boxing, and unboxing. Our CPU cores spent more time converting C++ native pointers into managed .NET objects than actually computing aggregates.</li>
+                        <li><strong>Cold WAN Latency:</strong> ADLS Gen2 is optimized for massive throughput, not per-request low latency. Even running <code>SELECT * FROM trades LIMIT 10</code> on a small table required multiple HTTP round-trips to read Parquet footers across the internet, turning a trivial query into a 4-second spinner.</li>
+                        <li><strong>Shared Fate &amp; OOMKill:</strong> Compute and UI threads shared the exact same memory space. When a query scanned a wider table, DuckDB pulled large Parquet byte ranges into RAM to evaluate joins. Once the process exceeded the client machine's physical memory limit, the OS kernel stepped in: an ungraceful <strong>OOMKill (SIGKILL)</strong> that terminated the entire user application without so much as an unhandled exception dialog.</li>
+                    </ul>
+                </div>
+
+                <!-- Diagram Step A: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-a">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 1 · Step A: In-Process Fat Client (OOMKill Reality)</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Fat Client Process (.NET)
+        participant App as Application UI (.NET)
+        participant Duck as DuckDB C++ Core
+    end
+    participant Storage as Azure Storage (ADLS Gen2)
+
+    Client->>App: Run Analytical Query
+    App->>Duck: P/Invoke Execute() (Marshaling Overhead)
+    Duck->>Storage: Cold WAN HTTP Reads (Manifest & Footers)
+    Storage-->>Duck: Parquet Bytes
+    Duck->>Duck: In-Process Vector Math (RAM Spikes)
+    note over Duck,App: OS Kernel SIGKILL: Process OOMKilled
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Fat Client Process (.NET)
+        participant App as Application UI (.NET)
+        participant Duck as DuckDB C++ Core (DuckDB.NET)
+    end
+    participant Storage as Azure Data Lake Storage (ADLS Gen2)
+
+    Client->>App: Submit Query (SELECT * FROM trades LIMIT 10)
+    App->>Duck: In-Process P/Invoke Execute()
+    activate Duck
+
+    note over Duck,Storage: Cold WAN Roundtrips (High Latency)
+    Duck->>Storage: HTTP GET Iceberg metadata.json
+    Storage-->>Duck: Metadata JSON Bytes
+    Duck->>Storage: HTTP Range Request (Parquet Footers)
+    Storage-->>Duck: Parquet Footers
+    Duck->>Storage: HTTP Range Request (Column Slices)
+    Storage-->>Duck: Raw Parquet Column Bytes
+
+    Duck->>Duck: Execute Vector Math (RAM spikes)
+
+    alt RAM exceeds Client Machine Limit
+        Duck-->>App: OS Signal: OOMKill (SIGKILL)
+        note over App,Duck: Fatal crash: Process terminated by OS Kernel
+    else Fits in Memory
+        Duck-->>App: Marshaled Records (Heavy Boxing/Unboxing Tax)
+        deactivate Duck
+        App-->>Client: Render UI Grid
+    end
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h4>Step B: Fat Client with Proxy CDN (Enter NGINX &amp; OpenResty Lua)</h4>
+                <p>
+                    To eliminate the WAN round-trip latency to Azure, we introduced an NGINX reverse proxy in front of the lakehouse to act as an internal caching reverse proxy. We split caching into two distinct tiers:
+                </p>
+                <ul>
+                    <li><strong>Proactive Metadata Caching:</strong> A background daemon polled the catalog and pre-warmed NGINX's cache with fresh metadata every 30 seconds.</li>
+                    <li><strong>Reactive Data Caching:</strong> Parquet data chunks were cached on local SSDs on-demand using HTTP byte-range caching (<code>proxy_cache_key $uri$slice_range</code>).</li>
+                </ul>
+
+                <p>
+                    To make the caching tier resilient against partial reads and dynamic SAS tokens, we augmented NGINX with OpenResty Lua scripting:
+                </p>
+                <ul>
+                    <li><strong>Phase Hook Precision:</strong> We bound request authentication to <code>access_by_lua_block</code> (validating bearer tokens before touching disk) and dynamic routing to <code>balancer_by_lua_block</code> for consistent hashing without process reloads.</li>
+                    <li><strong>Non-Blocking Cosockets:</strong> All upstream auth and cache-index lookups in Lua use non-blocking cosockets (<code>lua-resty-http</code> and <code>lua-resty-redis</code>), ensuring the NGINX event loop worker process is never stalled by slow auth providers.</li>
+                    <li><strong>Byte-Range URI Normalization:</strong> In <code>rewrite_by_lua_block</code>, raw byte ranges are sanitized and mapped to a deterministic 1MB boundary key, preventing duplicate chunk fetches from cloud storage when DuckDB requests overlapping slices.</li>
+                    <li><strong>Shared Memory Coordination:</strong> Local token validation digests and rate-limiting token buckets live in <code>lua_shared_dict</code>, executing atomic operations across all NGINX worker processes without race conditions.</li>
+                </ul>
+
+                <pre><code class="language-nginx"># NGINX Byte-Range SSD Slicing &amp; Cache Configuration
+slice 1m;
+proxy_cache lakehouse_ssd;
+proxy_cache_key $uri$is_args$args$slice_range;
+proxy_set_header Range $slice_range;
+proxy_cache_valid 200 206 7d;
+proxy_cache_use_stale error timeout updating http_500 http_502;</code></pre>
+
+                <div class="callout warn">
+                    <strong>Failure Mode: The Sidecar Illusion &amp; Ingestion Strain</strong>
+                    <p>
+                        While NGINX delivered an immediate <strong>5x throughput speedup</strong> on cached data, queries against large tables still died horrible deaths.
+                    </p>
+                    <p>
+                        We attempted to isolate compute by packaging DuckDB as a <strong>Sidecar container</strong> within the client’s Kubernetes pod. This was an expensive illusion: containers inside the same pod share the exact same underlying Kubernetes <code>cgroups</code> memory ceiling. High-frequency ingestion commits generated hundreds of small Parquet files and complex metadata trees. When DuckDB loaded all those fragment references into RAM, it blew through the pod quota. The Kubernetes scheduler executed an immediate eviction: <code>Exit Code 137</code>. Turns out, putting two processes in the same pod is just sharing a death pact.
+                    </p>
+                </div>
+
+                <!-- Diagram Step B: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-b">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 2 · Step B: Fat Client with NGINX Proxy CDN</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Client Pod (Shared cgroup)
+        participant App as Application UI
+        participant Duck as DuckDB Sidecar
+    end
+    participant Nginx as NGINX Proxy (SSD)
+    participant Storage as Azure Lakehouse
+
+    Client->>App: Submit Query
+    App->>Duck: Execute In-Process
+    Duck->>Nginx: HTTP Range Reads (SSD Hits)
+    Nginx-->>Duck: Fast Cached Parquet Bytes
+    Duck->>Duck: High file fragmentation -> Loads thousands of fragments
+    note over App,Duck: Pod cgroup Limit Breached: Evicted (Exit Code 137)
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as User / Dashboard
+    box rgb(240, 245, 250) Client Pod (Shared cgroup Memory)
+        participant App as Application UI
+        participant Duck as Embedded DuckDB (.NET Sidecar)
+    end
+    box rgb(245, 245, 245) Edge Caching Tier
+        participant Nginx as NGINX Reverse Proxy (Network SSD)
+    end
+    participant Storage as Azure Data Lake (ADLS Gen2)
+
+    Client->>App: Submit Analytical Query
+    App->>Duck: Execute Query (In-Process / IPC)
+    activate Duck
+
+    Duck->>Nginx: GET /metadata.json
+    alt Metadata Cache Hit
+        Nginx-->>Duck: Return Cached Metadata (SSD)
+    else Metadata Cache Miss
+        Nginx->>Storage: Fetch Metadata from Azure
+        Storage-->>Nginx: Return Bytes
+        Nginx->>Nginx: Cache in metadata_zone
+        Nginx-->>Duck: Return Metadata
+    end
+
+    Duck->>Duck: Parse Manifest Tree &amp; Plan Splits
+
+    Duck->>Nginx: GET /data.parquet (HTTP Range: 0-1MB)
+    alt Data Cache Hit
+        Nginx-->>Duck: Return 1MB Parquet Chunk (SSD Speeds)
+    else Data Cache Miss
+        Nginx->>Storage: Fetch Range Request from Azure
+        Storage-->>Nginx: Stream Parquet Bytes
+        Nginx->>Nginx: Write Chunk to Local SSD
+        Nginx-->>Duck: Return Parquet Bytes
+    end
+
+    Duck->>Duck: Vectorized SIMD Math
+
+    note over Duck,App: High commit rates create thousands of small files.<br/>DuckDB loads all fragment references into memory simultaneously.
+
+    alt Memory Breaches Pod cgroup Limit
+        Duck-->>App: Kubernetes Pod OOMKill (Exit Code 137)
+        note over App,Duck: Pod evicted by Kubernetes cgroup controller
+    else Query Fits
+        Duck-->>App: Return RecordBatches
+        deactivate Duck
+        App-->>Client: Render Dashboard
+    end
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4 -->
+                <h2 id="s4">4. Phase 2: Decoupled Execution &amp; Metadata Isolation</h2>
+
+                <h4>Step C: Decoupled Query Execution (Python &amp; Arrow Flight)</h4>
+                <p>
+                    Running analytical compute within client pods was dead. We extracted query execution into an independent, containerized backend service running in Python, leveraging Arrow Flight to stream columnar <code>RecordBatches</code> directly to clients over gRPC/HTTP/2 as low-copy, format-aligned columnar streams.
+                </p>
+                <div class="callout danger">
+                    <strong>The Eager-Loading Ambush</strong>
+                    <p>
+                        While .NET interop serialization was gone, <strong>the decoupled server still experienced sudden OOM crashes on large, actively ingested tables</strong>.
+                    </p>
+                    <p>
+                        We verified that table maintenance (snapshot expiration, compaction, orphan file removal) was operating cleanly. Low-level memory tracing revealed the culprit: the crash was <strong>not occurring during data execution, but during query planning</strong>. Early releases of DuckDB's native Iceberg extension (such as v1.1.5) performed <em>eager evaluation</em>, pulling the entire Avro manifest tree into host RAM before running predicate filters. An open tracking issue in the repository monitors native lazy manifest parsing; until that capability lands, delegating metadata planning to an external engine remains structurally necessary.
+                    </p>
+                </div>
+
+                <h4>Step D: Metadata Pruning Handoff (Introducing PyIceberg)</h4>
+                <p>
+                    To stop the planning-phase crashes, we bifurcated query planning from physical execution:
+                </p>
+                <ol>
+                    <li><strong>Metadata Planning (PyIceberg):</strong> The <code>PyIceberg</code> SDK connects to the catalog and parses manifests. PyIceberg uses <strong>lazy evaluation</strong>, iteratively reading Avro manifest files and matching partition statistics against query predicates without blowing up RAM.</li>
+                    <li><strong>Physical Vectorized Execution (DuckDB):</strong> PyIceberg resolves the query into a refined list of explicit Parquet URIs. We then instruct DuckDB to bypass the Iceberg catalog entirely and query those files directly via <code>read_parquet([...])</code>, reading only row groups that pass pushdown filters.</li>
+                </ol>
+
+                <h4>Step E: AST Parsing &amp; Query Splitting (SQLglot Automation)</h4>
+                <p>
+                    PyIceberg does not understand raw SQL text—it requires programmatic Python filter expressions. Rather than writing brittle regex that would inevitably crumble on nested parentheses, we integrated <strong>SQLglot</strong>:
+                </p>
+                <ul>
+                    <li>SQLglot compiles the client’s SQL query into an Abstract Syntax Tree (AST).</li>
+                    <li>It traverses the AST, extracts <code>WHERE</code> clauses, and compiles them into native PyIceberg expressions.</li>
+                    <li>It rewrites the SQL AST, replacing the table reference with a parameterized template: <code>FROM read_parquet(?)</code>.</li>
+                    <li>Once PyIceberg returns the pruned file URIs, they are bound into the template and handed to DuckDB for SIMD-accelerated execution.</li>
+                </ul>
+
+                <pre><code class="language-python">import sqlglot
+from sqlglot import exp
+
+def enforce_tenant_rls(raw_sql: str, tenant_id: str) -> str:
+    """Injects mandatory Row-Level Security predicates directly into AST."""
+    ast = sqlglot.parse_one(raw_sql)
+    tenant_predicate = exp.EQ(
+        this=exp.Column(this=exp.to_identifier("tenant_id")),
+        expression=exp.Literal.string(tenant_id)
+    )
+    for select in ast.find_all(exp.Select):
+        if select.args.get("where"):
+            select.args["where"].this = exp.And(
+                this=select.args["where"].this,
+                expression=tenant_predicate
+            )
+        else:
+            select.where(tenant_predicate, copy=False)
+    return ast.sql()</code></pre>
+
+                <!-- Diagram Step E: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-e">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 3 · Step E: SQLglot AST Rewriting &amp; PyIceberg Pruning Pipeline</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    box rgb(240, 245, 250) Gateway Query Service
+        participant AST as SQLglot AST Engine
+        participant PyIceberg as PyIceberg Planner
+        participant Duck as DuckDB C++ Core
+    end
+    participant Nginx as NGINX Proxy (SSD)
+
+    Client->>AST: Submit SQL Query
+    AST->>PyIceberg: Extracted Filter Predicates
+    PyIceberg->>Nginx: Stream Manifests (Lazy Pruning)
+    Nginx-->>PyIceberg: Filtered Parquet File URIs
+    AST->>Duck: Bind URIs: read_parquet([files])
+    Duck->>Nginx: Vectorized Column Chunk Reads
+    Duck-->>Client: Low-Copy Arrow Columnar Stream
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    box rgb(240, 245, 250) Isolated Query Service
+        participant API as API Server (FastAPI / Flight)
+        participant SQLglot as SQLglot AST Transpiler
+        participant PyIceberg as PyIceberg SDK (Lazy Planner)
+        participant Duck as DuckDB C++ Core Engine
+    end
+    box rgb(245, 245, 245) Distributed Cache Tier
+        participant Nginx as NGINX Proxy (Network SSD)
+    end
+    participant Storage as Azure Data Lake (ADLS Gen2)
+
+    Client->>API: Submit SQL Query (tenant_id = 42, dt >= 2026-01-01)
+    activate API
+
+    API->>SQLglot: Parse Raw SQL String
+    activate SQLglot
+    SQLglot->>SQLglot: Generate Query AST
+    SQLglot->>SQLglot: Extract WHERE Clauses to PyIceberg Filters
+    SQLglot->>SQLglot: Rewrite AST Template (FROM read_parquet)
+    SQLglot-->>API: Return (PyIceberg Filters, SQL Template)
+    deactivate SQLglot
+
+    API->>PyIceberg: Apply Predicates to Table Snapshot
+    activate PyIceberg
+    PyIceberg->>Nginx: Request Manifest List &amp; Avro Manifests
+    Nginx->>Storage: Fetch Manifests on Miss
+    Storage-->>Nginx: Return Manifest Bytes
+    Nginx-->>PyIceberg: Stream Avro Bytes (Lazy Evaluation)
+    PyIceberg->>PyIceberg: Prune Partitions &amp; Min/Max Stats
+    PyIceberg-->>API: Return Filtered Parquet File URIs
+    deactivate PyIceberg
+
+    API->>API: Bind URIs into SQLglot Template
+    API->>Duck: Execute read_parquet([uri1, uri2])
+    activate Duck
+    Duck->>Nginx: HTTP Range Request for Parquet Footers
+    Nginx->>Storage: Fetch Parquet Bytes on Miss
+    Storage-->>Nginx: Return Parquet Bytes
+    Nginx-->>Duck: Stream Parquet Column Chunks
+    Duck->>Duck: Skip Row Groups via Footers &amp; Vector Math
+    Duck-->>API: Yield Arrow RecordBatches
+    deactivate Duck
+
+    API-->>Client: Stream Low-Copy Results (Flight IPC / REST JSON)
+    deactivate API
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 5 -->
+                <h2 id="s5">5. Phase 3: Scaling Concurrency &amp; Task Orchestration</h2>
+
+                <h4>Step F: Consistent-Hashing Multi-Replica Proxy CDN</h4>
+                <p>
+                    A single NGINX instance was an obvious throughput bottleneck. However, placing three NGINX replicas behind a standard round-robin load balancer caused the same Parquet chunks to be cached on all three nodes independently, reducing effective SSD capacity by 66%.
+                </p>
+                <p>
+                    We placed a Layer 7 Ingress Controller in front of the NGINX cluster configured with <strong>Consistent Hashing</strong> on the request URI. If each of 3 replicas has a 200GB Network SSD drive, the system forms a pooled <strong>600GB non-duplicated SSD cache</strong>. When a node restarts, the hash ring adjusts, redistributing only a fraction (1/N) of keys without disrupting the rest of the cache.
+                </p>
+
+                <h4>Step G: Asynchronous Multiprocessing Arrow Flight Server</h4>
+                <p>
+                    Because Python relies on a <strong>Global Interpreter Lock (GIL)</strong>, running DuckDB execution directly in the main Flight server thread blocked the event loop during heavy aggregations, causing incoming connections to time out.
+                </p>
+                <p>
+                    We upgraded the server into an asynchronous architecture leveraging <code>pyarrow.flight</code>, <code>asyncio</code>, and <code>concurrent.futures.ProcessPoolExecutor</code>:
+                </p>
+                <ul>
+                    <li><strong>Fast Handshake:</strong> When a client calls <code>GetFlightInfo</code>, the main event loop extracts the target table, pulls the cached Arrow schema from memory, mints an Arrow Ticket, and returns promptly without triggering execution.</li>
+                    <li><strong>Non-Blocking Execution:</strong> When the client subsequently calls <code>DoGet(Ticket)</code>, the query is dispatched to a background child process pool. The main thread remains unblocked to answer new handshakes.</li>
+                    <li><strong>Low-Copy IPC:</strong> Once computation completes, Arrow batches are passed to the API thread via shared memory (<code>pyarrow.ipc</code>) and streamed across the HTTP/2 wire with format alignment.</li>
+                </ul>
+
+                <h4>Step H: Decoupled Executors &amp; The Claim-Check Pattern</h4>
+                <p>
+                    To scale beyond the hardware limits of a single machine, we decoupled the gateway from execution using <strong>Redis</strong>, <strong>Celery</strong>, and <strong>KEDA</strong> (Kubernetes Event-driven Autoscaling). However, placing Celery between our gateway and DuckDB exposed three major distributed scale bottlenecks:
+                </p>
+                <div class="callout danger">
+                    <strong>The Three Distributed Scale Killers &amp; Their Fixes:</strong>
+                    <ol>
+                        <li><strong>The Redis Result Backend OOM Crash:</strong> DuckDB outputs Arrow batches that are hundreds of megabytes in size. Pushing these byte arrays into Redis as Celery task results exhausted the broker's RAM.
+                            <br><em>The Fix (The Claim-Check Pattern):</em> Workers stream large Arrow/JSON payloads directly to temporary cloud storage (Azure Blob). The worker writes a tiny JSON string to Redis containing the URI pointer: <code>{"status": "COMPLETED", "blob_uri": "az://temp/job-42.arrow"}</code>. Redis handles only lightweight coordination metadata.</li>
+                        <li><strong>The Data Bouncing Penalty (Double Hop):</strong> Routing data through Worker &rarr; Blob &rarr; Gateway &rarr; Client forced large analytical datasets to traverse the internal Kubernetes network twice.
+                            <br><em>The Fix (Distributed Flight Endpoints):</em> The gateway acts as a coordinator, returning a <code>FlightEndpoint</code> pointing the client directly to the worker pod or signed storage URI.</li>
+                        <li><strong>Celery Polling Latency vs Push-Based Pub/Sub:</strong> In default, out-of-the-box configurations, Celery clients poll the result backend on a periodic timer (typically every 50ms), adding 50–150ms of artificial latency to queries.
+                            <br><em>The Fix (Push-Based Redis Pub/Sub):</em> We replaced result-backend polling with Redis Pub/Sub notifications. When the worker finishes writing data to blob storage, it publishes a completion event to <code>channel:ticket_{uuid}</code>. The gateway receives the event immediately, eliminating polling latency and triggering client streaming in sub-2ms.</li>
+                    </ol>
+                </div>
+
+                <!-- Diagram Step H: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-h">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 4 · Step H: Decoupled Task Queue, Claim Check &amp; Push Pub/Sub</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    participant GW as Flight Gateway
+    participant Redis as Redis Queue &amp; Pub/Sub
+    participant Worker as DuckDB Celery Worker
+    participant Blob as Temp Azure Blob
+
+    Client->>GW: DoGet(Ticket)
+    GW->>Redis: Enqueue Task &amp; Subscribe
+    Redis->>Worker: Dispatch Task (KEDA Autoscale)
+    Worker->>Blob: Stream Payload (Claim-Check)
+    Worker->>Redis: Publish Completion (Blob URI Pointer)
+    Redis-->>GW: Sub-2ms Push Notification
+    GW-->>Client: Stream Columnar Results
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Flight / REST Client
+    box rgb(240, 245, 250) Gateway and Orchestration
+        participant GW as Arrow Flight Gateway
+        participant Redis as Redis Queue and Pub/Sub
+        participant KEDA as KEDA Autoscaler
+    end
+    box rgb(245, 240, 250) Decoupled Compute Fleet
+        participant Worker as Celery Worker (DuckDB)
+    end
+    box rgb(245, 245, 245) Temporary Storage and Cache
+        participant Blob as Azure Temp Blob Storage
+        participant Nginx as NGINX SSD Proxy
+    end
+
+    Client->>GW: DoGet(Ticket)
+    activate GW
+    GW->>Redis: Enqueue Job and Subscribe (channel:ticket_123)
+    activate Redis
+
+    KEDA->>Redis: Poll Queue Depth Metrics
+    KEDA->>Worker: Autoscale Compute Workers (if backlog exceeds threshold)
+
+    Redis->>Worker: Pull Job Task (Ticket 123)
+    activate Worker
+
+    Worker->>Nginx: Request Cached Parquet Ranges
+    Nginx-->>Worker: Return Parquet Bytes
+    Worker->>Worker: Execute DuckDB Vectorized Math
+
+    note over Worker,Blob: The Claim Check Pattern
+    Worker->>Blob: Stream Large Arrow Batches to temp/job-123.arrow
+    Blob-->>Worker: 201 Created (Return Signed Blob URI)
+    Worker->>Redis: Publish channel:ticket_123 (status: OK, uri: job-123.arrow)
+    deactivate Worker
+
+    Redis-->>GW: Instant Push Notification (Zero Polling Overhead)
+    deactivate Redis
+
+    GW->>Blob: Read Payload or Issue Direct FlightEndpoint
+    Blob-->>GW: Stream Arrow Payload
+    GW-->>Client: Stream Arrow RecordBatches to Client
+    deactivate GW
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h4>Step I: Architectural Fork: The 20-Query POC Heuristic vs. Stateless Monoliths</h4>
+                <div class="callout warn">
+                    <strong>The 20-Query POC Heuristic [HEURISTIC]:</strong> In our specific POC configuration, approximately <strong>20 concurrent analytical queries</strong> represented the tipping point where the operational overhead of a distributed queue (Redis, Celery, KEDA) was justified over simpler replicated stateless monoliths.
+                </div>
+                <p>
+                    Below roughly 20 concurrent requests, the operational drag of running Redis brokers, Celery workers, KEDA scalers, and managing ephemeral storage lifecycles outweighs the performance benefit. A <strong>Replicated Stateless Monolith</strong> packages the Flight API server and DuckDB execution pool into a single container running behind a Layer 7 Load Balancer:
+                </p>
+                <ul>
+                    <li><strong>Cryptographically Signed Stateless Tickets:</strong> During <code>GetFlightInfo</code>, the parsed SQL query is compressed with <code>lz4</code>, encrypted and signed via <strong>HMAC-SHA256</strong> (preventing client-side query tampering), and encoded directly into the Arrow ticket bytes. The cluster stores zero session state.</li>
+                    <li><strong>Physical Node Memory &amp; Context Isolation:</strong> Each DuckDB process is explicitly restricted to prevent host OOMKills, while context-switching is curbed by pinning threads.</li>
+                </ul>
+
+                <pre><code class="language-sql">-- Enforce absolute host memory bounds and prevent thread thrashing
+PRAGMA memory_limit = '6GB';
+PRAGMA temp_directory = '/tmp/duckdb_spill';
+PRAGMA threads = 2;</code></pre>
+
+                <p>
+                    <em>Note:</em> The 20-query cutoff is an empirical workload-specific heuristic, not an immutable law. In subsequent parts, we transition from heuristics to mathematical modeling, formally modeling this crossover point using Kingman's formula for queueing latency and the Universal Scalability Law (USL).
+                </p>
+
+                <!-- Section 6 -->
+                <h2 id="s6">6. Phase 4: Enterprise Dual-Protocol Serving &amp; Zero-Trust</h2>
+
+                <h4>Step J: Dual-Protocol Edge Routing (REST vs. gRPC)</h4>
+                <p>
+                    REST and Arrow Flight serve fundamentally different data consumption paradigms:
+                </p>
+                <ul>
+                    <li><strong>Arrow Flight (Internal Pipelines &amp; Heavy UI):</strong> Columnar binary streaming over HTTP/2. Best served by our Stateless Monoliths, streaming data directly from memory via local IPC.</li>
+                    <li><strong>REST (External Web, Legacy Consumers, LLM Agents):</strong> Row-based JSON request-response over HTTP/1.1. Synchronous REST connections fail when analytical queries run for minutes due to load balancer timeouts. REST naturally aligns with our Decoupled Celery Architecture: <code>202 Accepted &rarr; Poll /status &rarr; Fetch JSON /result</code>.</li>
+                </ul>
+
+                <p>
+                    A modern Layer 7 ingress (Envoy or Azure Application Gateway for Containers) routes traffic by protocol:
+                </p>
+                <ul>
+                    <li><strong>Solving the TCP Sticky Trap:</strong> HTTP/2 multiplexes hundreds of queries over a single persistent TCP connection. A legacy Layer 4 load balancer routes by TCP connection, dumping all concurrent queries onto a single backend pod. Envoy unpacks HTTP/2 frames, distributing queries across workers on a <strong>per-stream</strong> basis.</li>
+                    <li><strong>Trailer Preservation:</strong> gRPC sends status codes inside HTTP/2 trailers appended to the end of the stream. Envoy preserves these trailers, ensuring client applications receive exact SQL error codes and timeout signals.</li>
+                </ul>
+
+                <!-- Diagram Step J: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-j">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 5 · Step J: Dual-Protocol Edge Ingress Routing</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Client App
+    participant L7 as Envoy L7 Ingress
+    participant Flight as Path A: Flight Monolith (gRPC)
+    participant REST as Path B: REST Fleet (Celery/Claim-Check)
+
+    alt Arrow Flight Streaming (gRPC/HTTP2)
+        Client->>L7: DoGet (Multiplexed Stream)
+        L7->>Flight: Per-Stream Route to Worker
+        Flight-->>Client: Low-Copy Arrow Columnar Stream
+    else REST Client (HTTP/1.1 JSON)
+        Client->>L7: POST /api/v1/jobs (Submit SQL)
+        L7->>REST: 202 Accepted -> Celery Execution
+        REST-->>Client: Return Claim-Check JSON
+    end
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor FlightClient as Flight Client (gRPC)
+    actor RestClient as Web Dashboard (REST)
+    box rgb(240, 245, 250) Unified Edge Ingress
+        participant LB as L7 Ingress (Envoy / AGFC)
+    end
+    box rgb(240, 250, 245) Path A - Flight Monoliths
+        participant FlightNode as Flight Monolith (API + DuckDB)
+    end
+    box rgb(250, 240, 245) Path B - Decoupled REST Fleet
+        participant RestAPI as REST API Gateway
+        participant Redis as Redis Queue
+        participant Worker as Celery Worker
+    end
+    box rgb(245, 245, 245) Shared Caching Tier
+        participant Nginx as NGINX SSD Proxy
+    end
+    participant Storage as Azure Data Lake (ADLS Gen2)
+
+    %% Path A: Arrow Flight Synchronous Flow
+    FlightClient->>LB: gRPC DoGet(Ticket)
+    LB->>FlightNode: Route gRPC Stream (Per-Stream Balancing)
+    activate FlightNode
+    FlightNode->>Nginx: Request Parquet Byte Ranges
+    Nginx->>Storage: Fetch Parquet Slices on Miss
+    Storage-->>Nginx: Return Parquet Bytes
+    Nginx-->>FlightNode: Return Parquet Bytes
+    FlightNode->>FlightNode: Execute Vector Math in Local RAM
+    FlightNode-->>LB: Stream Arrow RecordBatches (Low-Copy IPC)
+    LB-->>FlightClient: Stream Raw Columnar Bytes
+    deactivate FlightNode
+
+    %% Path B: Asynchronous REST Flow
+    RestClient->>LB: POST /api/v1/jobs (Submit SQL)
+    LB->>RestAPI: Route HTTP/1.1 Request
+    activate RestAPI
+    RestAPI->>Redis: Enqueue Job Task (Mint Job UUID)
+    RestAPI-->>LB: HTTP 202 Accepted (job_id: UUID)
+    LB-->>RestClient: Return 202 Polling Coordinates
+    deactivate RestAPI
+
+    Redis->>Worker: Pull Task (Job UUID)
+    activate Worker
+    Worker->>Nginx: Request Parquet Ranges (Reuses Cached SSD Bytes)
+    Nginx-->>Worker: Return Parquet Bytes
+    Worker->>Worker: Execute DuckDB Compute and Serialize to JSON
+    Worker->>Storage: Upload JSON to results/UUID.json (Claim Check)
+    Worker->>Redis: Update Status: COMPLETED (Store Blob Pointer)
+    deactivate Worker
+
+    RestClient->>LB: GET /api/v1/jobs/UUID/result
+    LB->>RestAPI: Route Result Fetch
+    activate RestAPI
+    RestAPI->>Redis: Verify COMPLETED and Fetch Blob Pointer
+    RestAPI->>Storage: Stream JSON from Blob Storage
+    Storage-->>RestAPI: JSON Payload
+    RestAPI-->>LB: HTTP 200 OK (Chunked JSON Stream)
+    deactivate RestAPI
+    LB-->>RestClient: Deliver Dashboard JSON
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h4>Step K: Predictive Caching (Proactive Warming &amp; Result Caching)</h4>
+                <p>
+                    Up to this point, our caching strategy was entirely reactive: the first user to query the system paid the performance penalty of reading cold data from Azure. We evolved the caching tier into a <strong>predictive, multi-tiered caching system</strong>:
+                </p>
+                <ol>
+                    <li><strong>Proactive Partition Warming:</strong> Upstream ETL ingestion pipelines commit new data to Iceberg and write a companion <strong>Sidecar JSON</strong> metadata file detailing the modified partition dates and file URIs. An independent <strong>Warmer Service</strong> consumes this file immediately, pre-fetching hot working data (e.g., the last 15 days of trades) into the NGINX Network SSD cache before users log in.</li>
+                    <li><strong>Versioned Result Caching:</strong> For repeat dashboard queries, DuckDB execution is skipped entirely. Query outputs are hashed and stored in Azure Blob Storage. When a query arrives, the gateway calculates its AST hash and cross-references a <strong>Redis Data Version Registry</strong>. If the partition version has not changed, the pre-computed Arrow IPC or JSON payload is streamed straight out of storage, returning results in milliseconds.</li>
+                </ol>
+
+                <h4>Step L: Unified Observability (OpenTelemetry &amp; ADX)</h4>
+                <p>
+                    Diagnosing latency regressions across a distributed system requires structured end-to-end tracing:
+                </p>
+                <ul>
+                    <li><strong>Trace Context Propagation:</strong> Every request is stamped with a <strong>W3C Trace Context</strong> (<code>traceparent</code>). For Arrow Flight, context travels in gRPC metadata headers; for REST, it is injected into Celery task kwargs, linking worker-level DuckDB execution spans to the original HTTP request.</li>
+                    <li><strong>Azure Data Explorer (ADX) &amp; KQL:</strong> Distributed spans are exported from OTel Collectors to ADX. Engineers run idiomatic KQL queries to trace query waterfalls:
+                        <pre><code class="language-kql">traces
+| where Timestamp > ago(2h)
+| where customDimensions.tenant_id == "tenant_42"
+| extend TotalDurationMs = todouble(customDimensions.duration_ms)
+| where TotalDurationMs > 30000
+| order by TotalDurationMs desc
+| project Timestamp, TraceId, OperationName, TotalDurationMs, customDimensions.cache_hit</code></pre>
+                    </li>
+                    <li><strong>Tail-Based Sampling:</strong> Fast cache hits under 50ms are sampled at a <strong>1% rate</strong> to control telemetry storage costs, while errors, cache misses, and queries taking over 5 seconds are captured at a <strong>100% rate</strong>.</li>
+                </ul>
+
+                <h4>Step M: Zero-Trust Security &amp; Identity Architecture</h4>
+                <p>
+                    A production gateway requires a security perimeter that decouples client authentication from infrastructure access keys:
+                </p>
+                <ul>
+                    <li><strong>Eliminating the IdP Bottleneck (Local JWKS):</strong> Forwarding client bearer tokens to an external identity provider (like Dremio) on every query introduced 100ms of latency. Instead, clients authenticate with the IdP once to obtain a signed JWT. The gateway caches the IdP’s public keys (JWKS) to validate signatures locally in sub-milliseconds.</li>
+                    <li><strong>SQLglot-Driven Row-Level Security (RLS):</strong> The gateway extracts the verified <code>tenant_id</code> from the JWT. SQLglot inspects the query AST and deterministically injects tenant boundary predicates (e.g., <code>AND tenant_id = 'TENANT_42'</code>) before compilation, preventing unauthorized cross-tenant data access.</li>
+                    <li><strong>Azure Workload Identity:</strong> We eliminated static SAS tokens and storage keys. AKS compute pods leverage Azure Workload Identity, exchanging short-lived Kubernetes service account tokens for ephemeral Azure access tokens on the fly.</li>
+                </ul>
+
+                <!-- Diagram Step M: Fit-First Overview Pattern -->
+                <div class="diagram-panel" id="diag-step-m">
+                    <div class="diagram-header">
+                        <div class="diagram-title-wrap">
+                            <span class="diagram-title">Sequence Flow 6 · Step M: Zero-Trust Identity, Local JWKS &amp; RLS AST Injection</span>
+                            <span class="mode-badge">Overview</span>
+                        </div>
+                        <div class="diagram-toolbar">
+                            <div class="view-switcher">
+                                <button type="button" class="view-btn active" data-view="summary">Summary</button>
+                                <button type="button" class="view-btn" data-view="detail">Full Detail</button>
+                            </div>
+                            <button type="button" class="diag-btn inline-zoomout" title="Zoom Out">−</button>
+                            <button type="button" class="diag-btn inline-zoomfit" title="Fit to Width">Fit</button>
+                            <button type="button" class="diag-btn inline-zoomin" title="Zoom In">+</button>
+                            <button type="button" class="fullscreen-btn" title="Open Fullscreen Lightbox">Expand View</button>
+                        </div>
+                    </div>
+                    <div class="diagram-tooltip">
+                        <span>💡</span> <strong>Fit-First Overview:</strong> Showing macro sequence. Click <em>Full Detail</em> or <em>Zoom In (+)</em> to inspect low-level socket handshakes and error paths.
+                    </div>
+                    <div class="diagram-viewport">
+                        <!-- Summary View (Zero Scroll, Clean Scaling) -->
+                        <div class="diagram-view diagram-view-summary">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Client Application
+    participant Ingress as Ingress Gateway (JWKS Cache)
+    participant AST as SQLglot AST Orchestrator
+    participant Worker as DuckDB Worker (AKS)
+    participant Storage as Azure Lakehouse
+
+    Client->>Ingress: Bearer JWT Token + Query
+    Ingress->>Ingress: Verify Signature locally via JWKS (<1ms)
+    Ingress->>AST: Validated tenant_id Claim
+    AST->>AST: Inject: WHERE tenant_id = '...'
+    AST->>Worker: Dispatch Hardened Query
+    Worker->>Worker: Azure Workload Identity Token Fetch
+    Worker->>Storage: Read Authorized Parquet Slices
+    Worker-->>Client: Deliver Verified Columnar Data
+                            </div>
+                        </div>
+                        <!-- Detailed View -->
+                        <div class="diagram-view diagram-view-detail" style="display: none;">
+                            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Client as Client Application
+    box rgb(240, 245, 250) Edge Security Layer
+        participant Ingress as Ingress Gateway (Envoy / NGINX)
+    end
+    box rgb(250, 245, 240) Identity Provider
+        participant IdP as Identity Provider (Dremio / Entra ID)
+    end
+    box rgb(240, 250, 245) Query Engine Fleet
+        participant SQLglot as SQLglot AST Orchestrator
+        participant Worker as DuckDB Compute Worker (AKS)
+    end
+    participant Storage as Azure Data Lake (ADLS Gen2)
+
+    Client->>IdP: 1. Authenticate via OAuth2 / OIDC
+    IdP-->>Client: 2. Return Signed JWT (Contains Tenant and Role Claims)
+
+    Client->>Ingress: 3. Submit Query (Header: Bearer JWT)
+    activate Ingress
+
+    note over Ingress: Sub-Millisecond Local Token Verification
+    Ingress->>Ingress: Verify Signature against Cached JWKS Keys
+    Ingress->>Ingress: Extract Claims (User: Alice, Tenant: TENANT_42)
+
+    Ingress->>SQLglot: 4. Forward Query with Verified Tenant Context
+    activate SQLglot
+
+    note over SQLglot: AST Row-Level Security (RLS) Injection
+    SQLglot->>SQLglot: Parse Query to AST
+    SQLglot->>SQLglot: Inject Mandatory Predicate (tenant_id = TENANT_42)
+    SQLglot->>SQLglot: Emit Hardened SQL Template
+
+    SQLglot->>Worker: 5. Dispatch Hardened Query
+    activate Worker
+    deactivate SQLglot
+
+    note over Worker,Storage: Ephemeral Azure Workload Identity Fetch
+    Worker->>Worker: Exchange Service Account Token for Ephemeral Azure Token
+    Worker->>Storage: HTTPS Range Read (Bearer: Ephemeral Token)
+    activate Storage
+    Storage-->>Worker: Authorized Parquet Data Bytes
+    deactivate Storage
+
+    Worker->>Worker: Execute Vector Math
+    Worker-->>Ingress: Stream Arrow RecordBatches
+    deactivate Worker
+
+    Ingress-->>Client: Deliver Verified Tenant Data
+    deactivate Ingress
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 7 -->
+                <h2 id="s7">7. System in Motion: Interactive Simulation</h2>
+                <p>
+                    Explore the physical data flow architecture below, followed by the programmatic dual-protocol sequence trace.
+                </p>
+
+                <!-- Restored Responsive Animation Embed (Fluid scaling on mobile without horizontal scrollbar) -->
+                <h3>Animated Enterprise Architecture Flow</h3>
+
+                <div class="sdg-wrap">
+                    <div class="sdg-head">
+                        <h4 class="sdg-title">Smart Data Gateway — Dual-Protocol &amp; Auto-Scaling Flow</h4>
+                        <div class="sdg-controls">
+                            <button class="sdg-btn" id="sdg-btn-prev">← Prev</button>
+                            <button class="sdg-btn active" id="sdg-btn-play">Pause</button>
+                            <button class="sdg-btn" id="sdg-btn-next">Next →</button>
+                            <button class="sdg-btn" id="sdg-btn-restart">Restart</button>
+                        </div>
+                    </div>
+
+                    <div class="sdg-legend">
+                        <span><i style="background:var(--sdg-cyan)"></i> REST / HTTP (Async)</span>
+                        <span><i style="background:var(--sdg-amber)"></i> Arrow Flight (gRPC)</span>
+                        <span><i style="background:var(--sdg-scale)"></i> Auto-Scale Signals</span>
+                        <span><i style="background:var(--sdg-purple)"></i> Catalog / Manifest</span>
+                        <span><i style="background:var(--sdg-green)"></i> Columnar Result</span>
+                    </div>
+
+                    <div class="sdg-stage">
+                        <svg id="sdg-svg" viewBox="0 0 920 400" preserveAspectRatio="xMidYMid meet">
+                            <defs>
+                                <filter id="sdgGlow" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur stdDeviation="2.5" result="b"/>
+                                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                </filter>
+                                <filter id="sdgGlowScale" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur stdDeviation="3" result="b"/>
+                                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                </filter>
+                                <filter id="sdgPktShadow" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity=".35"/>
+                                </filter>
+                                <marker id="sdgArrowCyan" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+                                    <path d="M0,0.8 L5,3 L0,5.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </marker>
+                                <marker id="sdgArrowAmber" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+                                    <path d="M0,0.8 L5,3 L0,5.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </marker>
+                                <marker id="sdgArrowScale" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+                                    <path d="M0,0.8 L5,3 L0,5.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </marker>
+                                <marker id="sdgArrowPurple" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+                                    <path d="M0,0.8 L5,3 L0,5.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </marker>
+                                <marker id="sdgArrowGreen" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+                                    <path d="M0,0.8 L5,3 L0,5.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </marker>
+                            </defs>
+
+                            <!-- Zones -->
+                            <rect class="sdg-zone" x="12" y="32" width="116" height="300" rx="6"/>
+                            <rect class="sdg-zone-head" x="12" y="32" width="116" height="24" rx="6"/>
+                            <text class="sdg-zone-label" x="20" y="48">CLIENT TIER</text>
+
+                            <rect class="sdg-zone" x="140" y="32" width="206" height="300" rx="6"/>
+                            <rect class="sdg-zone-head" x="140" y="32" width="206" height="24" rx="6"/>
+                            <text class="sdg-zone-label" x="148" y="48">INGRESS &amp; GATEWAY TIER</text>
+
+                            <rect class="sdg-zone" x="358" y="32" width="180" height="300" rx="6"/>
+                            <rect class="sdg-zone-head" x="358" y="32" width="180" height="24" rx="6"/>
+                            <text class="sdg-zone-label" x="366" y="48">COMPUTE ENGINE TIER</text>
+
+                            <rect class="sdg-zone" x="550" y="32" width="148" height="300" rx="6"/>
+                            <rect class="sdg-zone-head" x="550" y="32" width="148" height="24" rx="6"/>
+                            <text class="sdg-zone-label" x="558" y="48">CACHE ACCELERATION</text>
+
+                            <rect class="sdg-zone" x="710" y="32" width="198" height="300" rx="6"/>
+                            <rect class="sdg-zone-head" x="710" y="32" width="198" height="24" rx="6"/>
+                            <text class="sdg-zone-label" x="718" y="48">LAKEHOUSE STORAGE</text>
+
+                            <!-- Static Topology Lines -->
+                            <path class="sdg-static-line" d="M 118 108 C 132 108, 138 160, 152 160"/>
+                            <path class="sdg-static-line" d="M 118 224 C 132 224, 138 180, 152 180"/>
+                            <path class="sdg-static-line" d="M 234 170 H 250"/>
+                            <path class="sdg-static-line" d="M 334 154 C 350 154, 354 102, 370 102"/>
+                            <path class="sdg-static-line" d="M 334 186 H 370"/>
+                            <path class="sdg-static-line" d="M 448 132 V 160"/>
+                            <path class="sdg-static-line" d="M 526 176 C 598 176, 638 102, 724 102"/>
+                            <path class="sdg-static-line" d="M 526 194 H 562"/>
+                            <path class="sdg-static-line" d="M 686 194 H 724"/>
+                            <path class="sdg-static-line" d="M 724 212 H 526"/>
+                            <path class="sdg-static-line" d="M 370 206 H 334"/>
+                            <path class="sdg-static-line" d="M 250 160 C 190 160, 158 108, 118 108"/>
+                            <path class="sdg-static-line" d="M 250 180 C 190 180, 158 224, 118 224"/>
+                            <path class="sdg-static-line" d="M 292 204 V 254"/>
+
+                            <!-- Metric & Scale Lines -->
+                            <path class="sdg-static-scale" d="M 370 90 H 332"/>
+                            <path class="sdg-static-scale" d="M 292 116 V 140"/>
+                            <path class="sdg-static-scale" d="M 332 102 C 352 102, 354 174, 370 174"/>
+
+                            <!-- Dynamic Flows -->
+                            <g id="sdg-flows">
+                                <path id="sdg-f-rest" class="sdg-flow rest" d="M 118 108 C 132 108, 138 160, 152 160" marker-end="url(#sdgArrowCyan)"/>
+                                <path id="sdg-f-flight" class="sdg-flow flight" d="M 118 224 C 132 224, 138 180, 152 180" marker-end="url(#sdgArrowAmber)"/>
+                                <path id="sdg-f-gw" class="sdg-flow rest" d="M 234 170 H 250" marker-end="url(#sdgArrowCyan)"/>
+                                <path id="sdg-f-wm" class="sdg-flow rest" d="M 334 154 C 350 154, 354 102, 370 102" marker-end="url(#sdgArrowCyan)"/>
+                                <path id="sdg-f-exec" class="sdg-flow flight" d="M 334 186 H 370" marker-end="url(#sdgArrowAmber)"/>
+                                <path id="sdg-f-wm-exec" class="sdg-flow rest" d="M 448 132 V 160" marker-end="url(#sdgArrowCyan)"/>
+
+                                <path id="sdg-f-metric" class="sdg-flow scale" d="M 370 90 H 332" marker-end="url(#sdgArrowScale)"/>
+                                <path id="sdg-f-scale-gw" class="sdg-flow scale" d="M 292 116 V 140" marker-end="url(#sdgArrowScale)"/>
+                                <path id="sdg-f-scale-exec" class="sdg-flow scale" d="M 332 102 C 352 102, 354 174, 370 174" marker-end="url(#sdgArrowScale)"/>
+
+                                <path id="sdg-f-cat" class="sdg-flow meta" d="M 526 176 C 598 176, 638 102, 724 102" marker-end="url(#sdgArrowPurple)"/>
+                                <path id="sdg-f-cdn1" class="sdg-flow rest" d="M 526 194 H 562" marker-end="url(#sdgArrowCyan)"/>
+                                <path id="sdg-f-store" class="sdg-flow rest" d="M 686 194 H 724" marker-end="url(#sdgArrowCyan)"/>
+                                <path id="sdg-f-fetch-back" class="sdg-flow result" d="M 724 212 H 526" marker-end="url(#sdgArrowGreen)"/>
+                                <path id="sdg-f-return-gw" class="sdg-flow result" d="M 370 206 H 334" marker-end="url(#sdgArrowGreen)"/>
+                                <path id="sdg-f-return-rest" class="sdg-flow result" d="M 250 160 C 190 160, 158 108, 118 108" marker-end="url(#sdgArrowGreen)"/>
+                                <path id="sdg-f-return-flight" class="sdg-flow result" d="M 250 180 C 190 180, 158 224, 118 224" marker-end="url(#sdgArrowGreen)"/>
+                                <path id="sdg-f-return-cache" class="sdg-flow result" d="M 292 204 V 254" marker-end="url(#sdgArrowGreen)"/>
+                            </g>
+
+                            <!-- Nodes -->
+                            <g class="sdg-node" id="sdg-node-rest">
+                                <rect x="22" y="80" width="96" height="56" rx="5"/>
+                                <text class="sdg-node-title" x="70" y="102">REST Client</text>
+                                <text class="sdg-node-sub" x="70" y="116">HTTP / Async Polling</text>
+                                <text class="sdg-node-badge" x="70" y="127">Operational UI</text>
+                            </g>
+                            <g class="sdg-node" id="sdg-node-flight">
+                                <rect x="22" y="196" width="96" height="56" rx="5"/>
+                                <text class="sdg-node-title" x="70" y="218">Flight Client</text>
+                                <text class="sdg-node-sub" x="70" y="232">Arrow Flight / gRPC</text>
+                                <text class="sdg-node-badge" x="70" y="243">Columnar Stream</text>
+                            </g>
+
+                            <g class="sdg-node" id="sdg-node-monitor">
+                                <rect x="152" y="66" width="180" height="50" rx="5"/>
+                                <text class="sdg-node-title" x="242" y="86">Autoscaler &amp; Monitor</text>
+                                <text class="sdg-node-sub" x="242" y="99">KEDA / Prometheus HPA</text>
+                                <text class="sdg-node-badge" x="242" y="110" fill="var(--sdg-scale)">Queue Lag &amp; Ingress Rate</text>
+                            </g>
+                            <g class="sdg-node" id="sdg-node-lb">
+                                <rect x="152" y="140" width="82" height="64" rx="5"/>
+                                <text class="sdg-node-title" x="193" y="164">L7 Ingress</text>
+                                <text class="sdg-node-sub" x="193" y="178">Gateway API</text>
+                                <text class="sdg-node-badge" x="193" y="190">Multiplexing</text>
+                            </g>
+                            <g class="sdg-node" id="sdg-node-gw">
+                                <rect x="250" y="140" width="84" height="64" rx="5"/>
+                                <text class="sdg-node-title" x="292" y="162">Gateway Pool</text>
+                                <text class="sdg-node-sub" x="292" y="176">Stateless Router</text>
+                                <text class="sdg-node-badge" x="292" y="188" id="sdg-badge-gw">3 ➔ 8 Pods</text>
+                            </g>
+                            <g class="sdg-node" id="sdg-node-cache">
+                                <rect x="152" y="254" width="182" height="46" rx="5"/>
+                                <text class="sdg-node-title" x="243" y="274">Result Cache (Redis)</text>
+                                <text class="sdg-node-sub" x="243" y="288">Sub-ms Fingerprint Hits</text>
+                            </g>
+
+                            <g class="sdg-node" id="sdg-node-wm">
+                                <rect x="370" y="66" width="156" height="54" rx="5"/>
+                                <text class="sdg-node-title" x="448" y="88">Workload Manager</text>
+                                <text class="sdg-node-sub" x="448" y="102">Redis Queue / Priority</text>
+                                <text class="sdg-node-badge" x="448" y="113">Queue Depth Telemetry</text>
+                            </g>
+                            <g class="sdg-node" id="sdg-node-exec">
+                                <rect x="370" y="160" width="156" height="72" rx="5"/>
+                                <text class="sdg-node-title" x="448" y="184">DuckDB Worker Pool</text>
+                                <text class="sdg-node-sub" x="448" y="198">Stateless In-Memory SQL</text>
+                                <text class="sdg-node-badge" x="448" y="211" id="sdg-badge-exec">4 ➔ 16 Pods</text>
+                            </g>
+
+                            <g class="sdg-node" id="sdg-node-cdn">
+                                <rect x="562" y="160" width="124" height="72" rx="5"/>
+                                <text class="sdg-node-title" x="624" y="184">NGINX SSD Proxy</text>
+                                <text class="sdg-node-sub" x="624" y="198">Consistent Hashed</text>
+                                <text class="sdg-node-badge" x="624" y="211">SSD Byte Range</text>
+                            </g>
+
+                            <g class="sdg-node" id="sdg-node-catalog">
+                                <rect x="724" y="78" width="170" height="52" rx="5"/>
+                                <text class="sdg-node-title" x="809" y="100">Catalog Service</text>
+                                <text class="sdg-node-sub" x="809" y="114">Iceberg REST / Nessie</text>
+                                <text class="sdg-node-badge" x="809" y="125">Metadata Snapshot</text>
+                            </g>
+                            <g class="sdg-node storage" id="sdg-node-storage">
+                                <rect x="724" y="160" width="170" height="72" rx="5"/>
+                                <text class="sdg-node-title" x="809" y="184">Open Lakehouse</text>
+                                <text class="sdg-node-sub" x="809" y="198">Object Store (S3 / ADLS)</text>
+                                <text class="sdg-node-badge" x="809" y="211">Parquet Data Files</text>
+                            </g>
+
+                            <!-- Packets -->
+                            <g id="sdg-packets">
+                                <g id="sdg-pkt-rest" class="sdg-packet rest"><rect x="-24" y="-8.5" width="48" height="17"/><text>REST</text></g>
+                                <g id="sdg-pkt-flight" class="sdg-packet flight"><rect x="-26" y="-8.5" width="52" height="17"/><text>FLIGHT</text></g>
+                                <g id="sdg-pkt-meta" class="sdg-packet meta"><rect x="-24" y="-8.5" width="48" height="17"/><text>META</text></g>
+                                <g id="sdg-pkt-fetch" class="sdg-packet rest"><rect x="-25" y="-8.5" width="50" height="17"/><text>FETCH</text></g>
+                                <g id="sdg-pkt-data" class="sdg-packet result"><rect x="-25" y="-8.5" width="50" height="17"/><text>BYTES</text></g>
+                                <g id="sdg-pkt-return-gw" class="sdg-packet result"><rect x="-24" y="-8.5" width="48" height="17"/><text>ARROW</text></g>
+                                <g id="sdg-pkt-result-rest" class="sdg-packet result"><rect x="-28" y="-8.5" width="56" height="17"/><text>RESULT</text></g>
+                                <g id="sdg-pkt-result-flight" class="sdg-packet result"><rect x="-28" y="-8.5" width="56" height="17"/><text>STREAM</text></g>
+                                <g id="sdg-pkt-result-cache" class="sdg-packet result"><rect x="-22" y="-8.5" width="44" height="17"/><text>CACHE</text></g>
+                                <g id="sdg-pkt-metric" class="sdg-packet scale"><rect x="-26" y="-8.5" width="52" height="17"/><text>METRIC</text></g>
+                                <g id="sdg-pkt-scale-gw" class="sdg-packet scale"><rect x="-28" y="-8.5" width="56" height="17"/><text>SCALE +N</text></g>
+                                <g id="sdg-pkt-scale-exec" class="sdg-packet scale"><rect x="-28" y="-8.5" width="56" height="17"/><text>SCALE +N</text></g>
+                            </g>
+
+                            <!-- Rail -->
+                            <line class="sdg-step-line" x1="40" y1="368" x2="880" y2="368"/>
+                            <g id="sdg-rail"></g>
+                        </svg>
+                    </div>
+
+                    <div class="sdg-caption" id="sdg-caption">
+                        <strong>1 · INGRESS</strong> Client queries enter through the L7 Load Balancer.
+                    </div>
+                </div>
+
+                <p>The sequence below details how authentication, tenant-scoped AST rewriting, metadata evaluation, and parallel byte streaming execute across the physical layers mapped above.</p>
+
+                <!-- Section 8 -->
+                <h2 id="s8">8. The Architectural Evolution Matrix</h2>
+                <p>
+                    Below is the engineering comparison summarizing the architectural trade-offs, primary technical bottlenecks, root causes, and resolutions across every step of our journey:
+                </p>
+
+                <div class="matrix-table-wrap">
+                    <table class="matrix-table">
+                        <thead>
+                            <tr>
+                                <th>Step &amp; Pattern</th>
+                                <th>Primary Bottleneck</th>
+                                <th>Root Cause of Failure</th>
+                                <th>Architectural Resolution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Step A: In-Process Fat Client</strong><br>(.NET + DuckDB.NET)</td>
+                                <td>Application lockup; fatal OOMKill on wide tables.</td>
+                                <td>Memory spike on client heap; heavy boxing/unboxing across the C# CLR to C++ native boundary.</td>
+                                <td>Move execution out of process; establish dedicated query services.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step B: Proxy CDN Tier</strong><br>(Fat Client + NGINX)</td>
+                                <td>Crashes persist on high-frequency commit tables.</td>
+                                <td>Local SSD cache cannot fix client memory limits; Sidecar containers share pod cgroup memory.</td>
+                                <td>Decouple compute into an isolated backend container fleet.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step C: Decoupled Service</strong><br>(Python + Arrow Flight)</td>
+                                <td>Backend worker crashes during query planning.</td>
+                                <td>DuckDB native Iceberg extension eager evaluation loads entire Avro manifest trees into RAM.</td>
+                                <td>Bifurcate planning from execution; delegate metadata parsing to PyIceberg.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step D: Metadata Pruning</strong><br>(PyIceberg Handoff)</td>
+                                <td>SQL string translation gap &amp; unbuffered concurrency.</td>
+                                <td>PyIceberg requires Python expression objects rather than raw SQL strings.</td>
+                                <td>Integrate SQLglot to transpile AST expressions automatically.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step E: SQLglot Injection</strong><br>(AST Transpiler)</td>
+                                <td>Single-node concurrency limits; proxy SPOF.</td>
+                                <td>Single NGINX cache bottlenecked on bandwidth and SSD storage capacity.</td>
+                                <td>Scale out proxy caching tier using consistent hashing topology.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step F: Clustered Proxy</strong><br>(Consistent Hashing)</td>
+                                <td>Execution node vulnerable to thread starvation during traffic spikes.</td>
+                                <td>Absence of query queueing causes thread lockups and connection drops.</td>
+                                <td>Introduce an asynchronous multi-processing Flight API server.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step G: Async Flight Server</strong><br>(ProcessPoolExecutor)</td>
+                                <td>Machine vertical resource limits cap concurrency.</td>
+                                <td>Single-node worker limits cap concurrency without cluster-wide task orchestration.</td>
+                                <td>Decouple compute via Redis queue, Celery workers, and KEDA autoscaling.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step H: Decoupled Queue</strong><br>(Celery + Claim Check)</td>
+                                <td>Redis OOM; network double-hop data bouncing.</td>
+                                <td>Serializing gigabyte Arrow IPC record batches into Redis backend crashes the message broker.</td>
+                                <td>Implement Claim-Check pattern via Azure Blob; adopt push Pub/Sub.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step I: Stateless Monoliths</strong><br>(The 20-Query POC Heuristic)</td>
+                                <td>gRPC ticket payload size limits; connection timeouts.</td>
+                                <td>Raw SQL in Arrow Tickets can breach 8KB metadata limits; idle balancer drops.</td>
+                                <td>Compress &amp; HMAC-sign tickets; configure memory caps, disk spill, and HTTP/2 Keep-Alive.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step J: Dual-Protocol Ingress</strong><br>(REST vs. gRPC via Envoy)</td>
+                                <td>Protocol mismatch across divergent workload profiles.</td>
+                                <td>Forcing streaming columnar pipelines into request-response REST models degrades performance.</td>
+                                <td>Bifurcate ingress traffic via L7 Gateway API into Flight Monoliths and REST Workers.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step K: Predictive Caching</strong><br>(Warmer + Result Store)</td>
+                                <td>Cold start latency; redundant vector math on repeated queries.</td>
+                                <td>Re-executing complex aggregations on unchanged partition data wastes CPU cycles.</td>
+                                <td>Deploy Ingestion Warmer Service and Redis version-controlled Result Caching.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step L: Observability</strong><br>(OpenTelemetry &amp; ADX)</td>
+                                <td>Distributed latency opacity; black-box execution.</td>
+                                <td>Decoupled microservice architecture obscures pinpointing execution regressions.</td>
+                                <td>Instrument W3C trace propagation; export metrics to Prometheus and traces to ADX.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Step M: Zero-Trust Security</strong><br>(Local JWKS + Workload Identity)</td>
+                                <td>Authentication latency; static credential sprawl.</td>
+                                <td>Synchronous IdP verification adds latency; static SAS storage keys carry rotation risks.</td>
+                                <td>Validate JWTs locally via JWKS; enforce AST-level RLS; use Azure Workload Identity.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="callout success" style="margin-top: 3rem;">
+                    <strong>The Architecture Verdict:</strong> By synthesizing modern primitives (DuckDB, Arrow Flight, open table formats, consistent-hash NGINX caching, and the Kubernetes Gateway API), we constructed a stateless query gateway delivering sub-second serving latencies without keeping multi-node MPP clusters powered on 24/7. This access layer protects the primary lakehouse from unpredictable query patterns, providing deterministic multi-tenant isolation and strict cost control.
+                </div>
+
+                <p>
+                    While our POC iterations solved immediate memory crashes and eliminated network double-hops, empirical tinkering only takes a design so far. It left a deeper, mathematical question unanswered: <em>At what exact concurrent load does a stateless gateway hit scalability ceilings compared to a dedicated distributed MPP cluster?</em>
+                </p>
+                <p>
+                    In <strong>Part 3</strong>, we transition from empirical system design verification. We will examine the foundational mathematical models—including the <strong>Universal Scalability Law</strong> and <strong>Kingman's Formula for Queueing Latency</strong>—that explain why stateless gateways systematically outperform traditional MPP clusters on operational workloads, and where MPP remains mathematically necessary. Finally, we validate our distributed concurrency and state management by modeling the gateway in <strong>TLA+</strong>, proving the design is correct by specification.
+                </p>
+
+                <div style="margin-top: 3rem; padding-top: 1rem; border-top: 0px solid var(--line-soft); display: flex; justify-content: space-between;">
+                    <a href="part-1-the-monolith-crisis.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Previous: Part 1</a>
+                   <a href="part-3-the-production-reality-check.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Part 3: The Production Reality Check &rarr;</a>
+                </div>
+
+            </article>
+        </main>
+
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- DEDICATED FULLSCREEN LIGHTBOX PORTAL -->
+    <div id="diagram-modal" class="diagram-modal" role="dialog" aria-modal="true" aria-labelledby="diagram-modal-title">
+        <div class="modal-toolbar">
+            <h4 id="diagram-modal-title" class="modal-title">Architecture Sequence Flow</h4>
+            <div class="modal-controls">
+                <button class="modal-btn" id="modal-btn-zoomin" title="Zoom In">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                    Zoom +
+                </button>
+                <button class="modal-btn" id="modal-btn-zoomout" title="Zoom Out">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                    Zoom −
+                </button>
+                <button class="modal-btn" id="modal-btn-reset" title="Reset Zoom">100%</button>
+                <button class="modal-btn close" id="modal-btn-close" title="Close (Esc)">✕ Close</button>
+            </div>
+        </div>
+        <div id="diagram-modal-body" class="modal-viewport"></div>
+    </div>
+
+    <!-- EXACT ORIGINAL WORKING ANIMATION SIMULATION SCRIPT -->
+    <script>
+    (() => {
+      'use strict';
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const $ = id => document.getElementById(id);
+
+      if (!$('sdg-svg')) return;
+
+      const flows = {
+        rest: $('sdg-f-rest'), flight: $('sdg-f-flight'), gw: $('sdg-f-gw'),
+        wm: $('sdg-f-wm'), exec: $('sdg-f-exec'), wmExec: $('sdg-f-wm-exec'),
+        metric: $('sdg-f-metric'), scaleGw: $('sdg-f-scale-gw'), scaleExec: $('sdg-f-scale-exec'),
+        cat: $('sdg-f-cat'), cdn1: $('sdg-f-cdn1'), store: $('sdg-f-store'),
+        fetchBack: $('sdg-f-fetch-back'), returnGw: $('sdg-f-return-gw'),
+        returnRest: $('sdg-f-return-rest'), returnFlight: $('sdg-f-return-flight'),
+        returnCache: $('sdg-f-return-cache')
+      };
+      const nodes = {
+        rest: $('sdg-node-rest'), flight: $('sdg-node-flight'), lb: $('sdg-node-lb'),
+        gw: $('sdg-node-gw'), wm: $('sdg-node-wm'), exec: $('sdg-node-exec'),
+        monitor: $('sdg-node-monitor'), cdn: $('sdg-node-cdn'), cache: $('sdg-node-cache'),
+        storage: $('sdg-node-storage'), catalog: $('sdg-node-catalog')
+      };
+      const packets = {
+        rest: $('sdg-pkt-rest'), flight: $('sdg-pkt-flight'), meta: $('sdg-pkt-meta'),
+        fetch: $('sdg-pkt-fetch'), data: $('sdg-pkt-data'), returnGw: $('sdg-pkt-return-gw'),
+        resultRest: $('sdg-pkt-result-rest'), resultFlight: $('sdg-pkt-result-flight'),
+        resultCache: $('sdg-pkt-result-cache'),
+        metric: $('sdg-pkt-metric'), scaleGw: $('sdg-pkt-scale-gw'), scaleExec: $('sdg-pkt-scale-exec')
+      };
+      const captionEl = $('sdg-caption');
+      const btnPlay = $('sdg-btn-play'), btnPrev = $('sdg-btn-prev');
+      const btnNext = $('sdg-btn-next'), btnRestart = $('sdg-btn-restart');
+      const rail = $('sdg-rail');
+
+      const packetBounds = new WeakMap();
+      requestAnimationFrame(() => {
+        Object.values(packets).forEach(p => {
+          if (!p) return;
+          try {
+            const b = p.getBBox();
+            packetBounds.set(p, { ox: b.x + b.width / 2, oy: b.y + b.height / 2 });
+          } catch (e) {
+            packetBounds.set(p, { ox: 0, oy: 0 });
+          }
+        });
+      });
+
+      const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+      function movePacket(key, path, duration, signal, delayMs = 0) {
+        return new Promise(resolve => {
+          const packet = packets[key];
+          if (!packet || !path) return resolve();
+          const pathLen = path.getTotalLength();
+          const { ox, oy } = packetBounds.get(packet) || { ox: 0, oy: 0 };
+          const startAt = performance.now() + delayMs;
+
+          function frame(now) {
+            if (signal.cancelled) { packet.style.opacity = 0; return resolve(); }
+            if (now < startAt) { packet.style.opacity = 0; requestAnimationFrame(frame); return; }
+            const raw = Math.min((now - startAt) / duration, 1);
+            const t = easeInOut(raw);
+            let op = 1;
+            if (raw < 0.12) op = raw / 0.12;
+            else if (raw > 0.88) op = Math.max(0, (1 - raw) / 0.12);
+            packet.style.opacity = op;
+            const pt = path.getPointAtLength(pathLen * t);
+            packet.setAttribute('transform', `translate(${pt.x - ox}, ${pt.y - oy})`);
+            if (raw < 1) requestAnimationFrame(frame);
+            else { packet.style.opacity = 0; resolve(); }
+          }
+          requestAnimationFrame(frame);
+        });
+      }
+
+      const showFlow = k => flows[k] && flows[k].classList.add('visible');
+      const clearFlows = () => Object.values(flows).forEach(f => f && f.classList.remove('visible'));
+      const clearNodes = () => Object.values(nodes).forEach(n => {
+        if (n) {
+          n.classList.remove('active', 'pulse', 'spotlight', 'scaling');
+        }
+      });
+      const highlight = keys => keys.forEach(k => {
+        if (nodes[k]) { nodes[k].classList.add('active', 'spotlight'); }
+      });
+      const pulse = keys => keys.forEach(k => {
+        if (nodes[k]) { nodes[k].classList.add('pulse', 'spotlight'); }
+      });
+      const scaleGlow = keys => keys.forEach(k => {
+        if (nodes[k]) { nodes[k].classList.add('scaling', 'spotlight'); }
+      });
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+
+      const steps = [
+        {
+          label: 'REQUEST', phase: 'flow',
+          caption: 'Clients submit queries via REST (HTTP / async polling) or Arrow Flight (low-copy gRPC streaming).',
+          run: async (sig) => {
+            highlight(['rest', 'flight', 'lb']);
+            showFlow('rest'); showFlow('flight');
+            await Promise.all([
+              movePacket('rest', flows.rest, 800, sig),
+              movePacket('flight', flows.flight, 800, sig)
+            ]);
+          }
+        },
+        {
+          label: 'BALANCE', phase: 'flow',
+          caption: 'Layer-7 Load Balancer routes protocol streams across the horizontally scalable Gateway Server pool.',
+          run: async (sig) => {
+            highlight(['lb', 'gw']);
+            showFlow('gw');
+            await movePacket('rest', flows.gw, 650, sig);
+          }
+        },
+        {
+          label: 'ADMIT', phase: 'flow',
+          caption: 'REST queries enqueue into Workload Management for priority queuing; Arrow Flight streams route straight to DuckDB workers.',
+          run: async (sig) => {
+            highlight(['gw', 'wm', 'exec']);
+            showFlow('wm'); showFlow('exec'); showFlow('wmExec');
+            await Promise.all([
+              movePacket('rest', flows.wm, 700, sig),
+              movePacket('fetch', flows.wmExec, 550, sig, 350),
+              movePacket('flight', flows.exec, 750, sig)
+            ]);
+          }
+        },
+        {
+          label: 'AUTOSCALE', phase: 'scale',
+          caption: 'Load Monitor scrapes queue depth and connection concurrency, scaling out Gateway and Worker pod replicas.',
+          run: async (sig) => {
+            highlight(['monitor', 'wm']);
+            scaleGlow(['gw', 'exec']);
+            showFlow('metric'); showFlow('scaleGw'); showFlow('scaleExec');
+            await Promise.all([
+              movePacket('metric', flows.metric, 600, sig),
+              movePacket('scaleGw', flows.scaleGw, 650, sig, 250),
+              movePacket('scaleExec', flows.scaleExec, 750, sig, 300)
+            ]);
+            await delay(300);
+          }
+        },
+        {
+          label: 'CACHE CHECK', phase: 'pulse',
+          caption: 'Redis Result Cache inspects incoming query hashes, serving identical repeated requests in sub-milliseconds.',
+          run: async (sig) => {
+            highlight(['cache']);
+            pulse(['cache']);
+            await delay(800);
+          }
+        },
+        {
+          label: 'PLAN & FETCH', phase: 'meta',
+          caption: 'DuckDB resolves snapshot splits via the Catalog, requesting Parquet byte ranges through the NGINX Network SSD cache.',
+          run: async (sig) => {
+            highlight(['exec', 'catalog', 'cdn', 'storage']);
+            showFlow('cat'); showFlow('cdn1'); showFlow('store'); showFlow('fetchBack');
+            await Promise.all([
+              movePacket('meta', flows.cat, 750, sig),
+              movePacket('fetch', flows.cdn1, 600, sig, 150),
+              movePacket('fetch', flows.store, 600, sig, 350),
+              movePacket('data', flows.fetchBack, 850, sig, 550)
+            ]);
+          }
+        },
+        {
+          label: 'EXECUTE', phase: 'pulse',
+          caption: 'Stateless DuckDB workers execute vectorized SQL in-memory over streamed columnar Parquet/Arrow chunks across scaled pods.',
+          run: async (sig) => {
+            highlight(['exec']);
+            pulse(['exec']);
+            await delay(800);
+          }
+        },
+        {
+          label: 'RETURN & SAVE', phase: 'pulse',
+          caption: 'Final results stream back to clients via Arrow Flight/REST while simultaneously warming the shared result cache.',
+          run: async (sig) => {
+            highlight(['exec', 'gw', 'rest', 'flight', 'cache']);
+            pulse(['cache']);
+            showFlow('returnGw'); showFlow('returnRest'); showFlow('returnFlight'); showFlow('returnCache');
+            await Promise.all([
+              movePacket('returnGw', flows.returnGw, 450, sig),
+              movePacket('resultRest', flows.returnRest, 750, sig, 350),
+              movePacket('resultFlight', flows.returnFlight, 750, sig, 450),
+              movePacket('resultCache', flows.returnCache, 550, sig, 250)
+            ]);
+          }
+        }
+      ];
+
+      const railStart = 40, railEnd = 880;
+      const railStep = (railEnd - railStart) / (steps.length - 1);
+      const railDots = [], railLabels = [];
+
+      steps.forEach((s, i) => {
+        const cx = railStart + railStep * i;
+        const dot = document.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('class', 'sdg-step-dot');
+        dot.setAttribute('cx', cx); dot.setAttribute('cy', 368); dot.setAttribute('r', 3.5);
+        dot.addEventListener('click', () => { isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play'; playFrom(i); });
+        rail.appendChild(dot); railDots.push(dot);
+
+        const lb = document.createElementNS(SVG_NS, 'text');
+        lb.setAttribute('class', 'sdg-step-label');
+        lb.setAttribute('x', cx); lb.setAttribute('y', 356);
+        lb.textContent = s.label;
+        lb.addEventListener('click', () => { isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play'; playFrom(i); });
+        rail.appendChild(lb); railLabels.push(lb);
+      });
+
+      let currentRun = null;
+      let isPlaying = true;
+
+      async function playFrom(index) {
+        if (currentRun) currentRun.cancelled = true;
+        const signal = { cancelled: false, currentIndex: index };
+        currentRun = signal;
+
+        clearFlows(); clearNodes();
+        railDots.forEach(d => d.classList.remove('active'));
+        railLabels.forEach(l => l.classList.remove('active'));
+        Object.values(packets).forEach(p => p.style.opacity = 0);
+        captionEl.className = 'sdg-caption';
+
+        let i = index;
+        while (i < steps.length) {
+          if (signal.cancelled) return;
+          signal.currentIndex = i;
+          const step = steps[i];
+          clearFlows(); clearNodes();
+          Object.values(packets).forEach(p => p.style.opacity = 0);
+          railDots[i].classList.add('active');
+          railLabels[i].classList.add('active');
+          captionEl.className = 'sdg-caption phase-' + (step.phase || 'flow');
+          captionEl.innerHTML = `<strong>${i + 1} · ${step.label}</strong> ${step.caption}`;
+          await step.run(signal);
+          if (signal.cancelled) return;
+          await delay(600);
+          i++;
+        }
+        if (isPlaying && !signal.cancelled) {
+          await delay(1200);
+          if (!signal.cancelled) playFrom(0);
+        }
+      }
+
+      btnPlay.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        btnPlay.classList.toggle('active', isPlaying);
+        btnPlay.textContent = isPlaying ? 'Pause' : 'Play';
+        if (isPlaying) {
+          const next = currentRun && currentRun.currentIndex != null ? currentRun.currentIndex : 0;
+          playFrom(next);
+        } else if (currentRun) { currentRun.cancelled = true; }
+      });
+      btnRestart.addEventListener('click', () => {
+        isPlaying = true; btnPlay.classList.add('active'); btnPlay.textContent = 'Pause';
+        playFrom(0);
+      });
+      btnPrev.addEventListener('click', () => {
+        const next = Math.max(0, ((currentRun && currentRun.currentIndex) || 0) - 1);
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+        playFrom(next);
+      });
+      btnNext.addEventListener('click', () => {
+        const next = Math.min(steps.length - 1, (currentRun ? currentRun.currentIndex : -1) + 1);
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+        playFrom(next);
+      });
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        isPlaying = false; btnPlay.classList.remove('active'); btnPlay.textContent = 'Play';
+      }
+
+      playFrom(0);
+    })();
+    </script>
+</body>
+</html>

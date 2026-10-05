@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Theme Initialization (Prevents FOUC) -->
+    <script>
+        (function() {
+            let stored = localStorage.getItem('theme');
+            if (!stored) {
+                stored = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', stored);
+        })();
+    </script>
+
+    <!-- Primary SEO Meta Tags -->
+    <title>Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana</title>
+    <meta name="title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
+    <meta name="description" content="Part 4: A rigorous TLA+ and PlusCal formal verification of the Smart Data Gateway, proving safety invariants, liveness termination, and implementation trace conformance.">
+    <meta name="keywords" content="Data Architecture, TLA+, PlusCal, Formal Verification, Model Checking, TLC, Distributed Systems, Leslie Lamport, DuckDB, Apache Iceberg, Claim-Check Pattern, Lease Epochs, Model-Based Trace Checking">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
+    <link rel="prev" href="part-3-the-production-reality-check.html">
+
+    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
+    <meta property="og:title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
+    <meta property="og:description" content="Why empirical testing fails under concurrency—and how to mathematically verify distributed state machines with TLA+, PlusCal, and Model-Based Trace Checking.">
+    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+    <meta property="og:site_name" content="Saurav Sana | Field Notes">
+    <meta property="og:locale" content="en_US">
+    <meta property="article:author" content="Saurav Sana">
+    <meta property="article:published_time" content="2026-09-25">
+    <meta property="article:section" content="Technical Blog / Data Architecture">
+
+    <!-- Twitter / X Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:creator" content="@sauravsana">
+    <meta name="twitter:title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
+    <meta name="twitter:description" content="Why empirical testing fails under concurrency—and how to mathematically verify distributed state machines with TLA+, PlusCal, and Model-Based Trace Checking.">
+    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+
+    <!-- Typography & Base CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800;900&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- KaTeX for Mathematical LaTeX Equations -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        :root {
+            --bg: #efebe1;
+            --text: #111827;
+            --muted: #4b5563;
+            --muted-2: #6b7280;
+            --panel: #e5e1d5;
+            --panel-2: #dcd8cc;
+            --line: #cfcbc0;
+            --line-soft: #e2ded4;
+            --teal: #0f766e;
+            --amber: #b45309;
+            --danger: #b91c1c;
+            --success: #15803d;
+            --code-bg: #e5e1d5;
+            --code-text: #111827;
+            --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-display: 'Libre Franklin', sans-serif;
+            --font-mono: 'IBM Plex Mono', Consolas, monospace;
+            --font-serif: 'IBM Plex Serif', Georgia, serif;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0f1419;
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+            --muted-2: #6b7280;
+            --panel: #1a202c;
+            --panel-2: #2d3748;
+            --line: #374151;
+            --line-soft: #1f2937;
+            --teal: #2dd4bf;
+            --amber: #fbbf24;
+            --danger: #fca5a5;
+            --success: #6ee7b7;
+            --code-bg: #050811;
+            --code-text: #e2e8f0;
+        }
+
+
+
+            .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 840px; margin-left: auto; margin-right: auto; width: 100%; }
+
+
+        .site-nav { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+        .site-nav a { color: var(--muted); text-decoration: none; font-size: 0.95rem; font-family: var(--font-sans); transition: color 0.2s; }
+        .site-nav a:hover, .site-nav a.active { color: var(--text); }
+        
+        .theme-toggle { background: transparent; border: none; color: var(--amber); padding: 0.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s; margin-left: auto; }
+        .theme-toggle:hover { color: var(--text); }
+        .theme-toggle .icon-moon { display: none; }
+        .theme-toggle .icon-bulb { display: block; }
+        [data-theme="dark"] .theme-toggle .icon-bulb { display: none; }
+        [data-theme="dark"] .theme-toggle .icon-moon { display: block; color: var(--muted); }
+        [data-theme="dark"] .theme-toggle .icon-moon:hover { color: var(--text); }
+
+        .byline-wrap { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+        .article-tag { background: var(--teal); color: var(--bg); font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; }
+        .byline { font-family: var(--font-mono); font-size: 0.8rem; color: var(--teal); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+        .meta-line { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); margin-bottom: 2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .meta-line span { color: var(--muted-2); }
+        h1 { font-family: var(--font-display); font-size: 2.75rem; line-height: 1.15; font-weight: 900; letter-spacing: -0.02em; margin: 0.5rem 0 1rem; color: var(--text); word-break: break-word; }
+        .deck { font-family: var(--font-sans); font-size: 1.35rem; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 2rem; word-break: break-word; }
+
+        .epigraph { margin: 2.2rem 0 1.8rem; padding: 1.1rem 1.4rem; border-left: 3px solid var(--teal); background: var(--panel); border-radius: 0 8px 8px 0; max-width: 100%; }
+        .epigraph p { margin: 0; font-family: var(--font-serif); font-style: italic; font-size: 1.15rem; color: var(--text); line-height: 1.6; }
+        .epigraph footer { margin-top: 0.6rem; font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal); font-weight: 700; }
+        .epigraph cite { font-style: italic; text-transform: none; font-weight: 500; }
+
+        h2 { font-family: var(--font-display); font-size: 1.85rem; margin-top: 4rem; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); color: var(--text); font-weight: 800; letter-spacing: -0.01em; word-break: break-word; }
+        h3 { font-family: var(--font-display); font-size: 1.35rem; color: var(--text); margin-top: 2.5rem; margin-bottom: 1rem; font-weight: 700; word-break: break-word; }
+        h4 { font-family: var(--font-display); font-size: 1.15rem; color: var(--teal); margin-top: 1.75rem; margin-bottom: 0.75rem; font-weight: 700; }
+        p, li { font-size: 1.1rem; color: var(--text); margin-bottom: 1.5rem; overflow-wrap: break-word; }
+        ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+        strong { font-weight: 700; }
+        
+        .toc { background: var(--panel); padding: 1.75rem; border-radius: 8px; border: 1px solid var(--line); margin: 3rem 0; max-width: 100%; }
+        .toc-title { font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted-2); letter-spacing: 0.08em; margin-bottom: 1rem; font-weight: 700; text-transform: uppercase; }
+        .toc ol { margin: 0; padding-left: 1.5rem; }
+        .toc li { margin-bottom: 0.5rem; font-size: 1rem; }
+        .toc a { color: var(--teal); text-decoration: none; font-weight: 500; }
+        .toc a:hover { text-decoration: underline; }
+
+        .callout { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--teal); padding: 1.5rem; border-radius: 8px; margin: 2.5rem 0; font-size: 1.05rem; color: var(--text); max-width: 100%; }
+        .callout strong { color: var(--teal); font-family: var(--font-display); font-weight: 700; display: block; margin-bottom: 0.5rem; }
+        .callout.warning { border-left-color: var(--amber); }
+        .callout.warning strong { color: var(--amber); }
+        .callout.danger { border-left-color: var(--danger); }
+        .callout.danger strong { color: var(--danger); }
+
+        .table-container { width: 100%; max-width: 100%; overflow-x: auto; margin: 2.5rem 0; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); -webkit-overflow-scrolling: touch; }
+        .mpp-table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: 0.95rem; text-align: left; }
+        .mpp-table th, .mpp-table td { padding: 1.15rem 1.25rem; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text); }
+        .mpp-table th { background: var(--panel-2); font-family: var(--font-mono); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--teal); font-weight: 700; }
+        .mpp-table tr:last-child td { border-bottom: none; }
+        .mpp-table tr:hover td { background: var(--panel-2); }
+
+        pre, code { font-family: var(--font-mono); font-size: 0.9rem; }
+        code { word-break: break-word; overflow-wrap: anywhere; }
+        p code, li code { background: var(--panel); color: var(--teal); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid var(--line); }
+        pre { background: var(--code-bg); color: var(--code-text); padding: 1.25rem 1.5rem; border-radius: 8px; overflow-x: auto; max-width: 100%; margin: 2rem 0; line-height: 1.6; border: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+        
+        .code-header { background: var(--panel-2); border-bottom: 1px solid var(--line); padding: 0.5rem 1rem; border-radius: 8px 8px 0 0; font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: -2rem; display: block; position: relative; z-index: 1;}
+
+        .sre-list { list-style: none; padding: 0; margin: 2rem 0; }
+        .sre-list li { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .sre-list li strong { color: var(--teal); font-family: var(--font-display); font-size: 1.15rem; }
+        .sre-list p { margin: 0; font-size: 1rem; color: var(--text); line-height: 1.6; }
+
+        .site-footer { margin-top: 5rem; padding: 2rem 0; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; font-size: 0.9rem; color: var(--muted); font-family: var(--font-sans); font-weight: 500; width: 100%; }
+        .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .footer-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+        .footer-links a:hover { color: var(--teal); }
+        
+        .reading-progress { position: fixed; top: 0; left: 0; height: 4px; width: 0%; background: var(--teal); z-index: 9998; transition: width 100ms linear; }
+        .katex-display { overflow-x: auto !important; overflow-y: hidden !important; max-width: 100% !important; padding: 0.75rem 0 !important; margin: 1.5rem 0 !important; -webkit-overflow-scrolling: touch; }
+        .katex { max-width: 100%; }
+
+        /* =======================================================================
+           INTEGRATED SYSTEM DIAGRAM STYLES (REPLACING MONOSPACE ASCII)
+           ======================================================================= */
+        .diagram-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2.5rem 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .diagram-title {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--teal);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* 1. Validation Hierarchy Framework */
+        .diag-root {
+            max-width: 300px;
+            margin: 0 auto;
+            background: var(--panel-2);
+            border: 1px solid var(--teal);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--text);
+            letter-spacing: 0.03em;
+        }
+
+        .diag-stem-vertical {
+            width: 2px;
+            height: 20px;
+            background: var(--line);
+            margin: 0 auto;
+        }
+
+        .diag-branch-bus {
+            position: relative;
+            height: 20px;
+            margin: 0 16.66% 1rem;
+            border-top: 2px solid var(--line);
+            border-left: 2px solid var(--line);
+            border-right: 2px solid var(--line);
+        }
+
+        .diag-branch-center {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--line);
+            transform: translateX(-50%);
+        }
+
+        .diag-columns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .diag-column {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .diag-col-header {
+            font-family: var(--font-display);
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.25rem;
+            line-height: 1.3;
+        }
+
+        .diag-col-sub {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--line-soft);
+        }
+
+        .diag-col-items {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.82rem;
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .diag-col-items li {
+            position: relative;
+            padding-left: 1rem;
+            margin-bottom: 0.45rem;
+            font-size: 0.82rem;
+        }
+
+        .diag-col-items li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--teal);
+            font-weight: bold;
+        }
+
+        .diag-converge-bus {
+            position: relative;
+            height: 20px;
+            margin: 1rem 16.66% 0;
+            border-bottom: 2px solid var(--line);
+            border-left: 2px solid var(--line);
+            border-right: 2px solid var(--line);
+        }
+
+        .diag-outcome {
+            max-width: 320px;
+            margin: 0 auto;
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--teal);
+            border-radius: 6px;
+            padding: 0.65rem 1rem;
+            text-align: center;
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 0.9rem;
+            color: var(--text);
+            letter-spacing: 0.04em;
+        }
+
+        /* 2. State Trajectory Sequence Bar */
+        .state-trajectory {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 1rem 1.25rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--teal);
+            border-radius: 8px;
+            margin: 1.75rem 0;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .state-node {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.25rem 0.65rem;
+            border-radius: 4px;
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            color: var(--text);
+            flex-shrink: 0;
+        }
+
+        .state-arrow {
+            color: var(--teal);
+            font-size: 0.9rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .state-ellipsis {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--muted);
+            padding: 0 0.2rem;
+            flex-shrink: 0;
+        }
+
+        /* 3. Model-Based Trace Checking Pipeline */
+        .mbtc-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 0.75rem 1.25rem;
+            align-items: center;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .mbtc-card {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 0.9rem 1.1rem;
+        }
+
+        .mbtc-card-runtime { border-left: 3px solid var(--amber); }
+        .mbtc-card-log { border-left: 3px solid var(--teal); }
+        .mbtc-card-spec { border-left: 3px solid var(--teal); }
+        .mbtc-card-checker { border-left: 3px solid var(--success); }
+
+        .mbtc-name {
+            font-family: var(--font-display);
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 0.15rem;
+        }
+
+        .mbtc-detail {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .mbtc-connector-top {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .mbtc-connector-bottom {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .mbtc-connector-right {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0;
+        }
+
+        .mbtc-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--teal);
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-bottom: 0.15rem;
+        }
+
+        .mbtc-arrow-h {
+            font-size: 1.15rem;
+            color: var(--teal);
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .mbtc-arrow-v {
+            font-size: 1.15rem;
+            color: var(--teal);
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 0 1rem; }
+            .site-header { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
+            .site-nav { width: 100%; justify-content: flex-start; gap: 1rem; }
+            h1 { font-size: 2.15rem !important; }
+            .deck { font-size: 1.15rem; }
+            h2 { font-size: 1.55rem; margin-top: 3rem; }
+            h3 { font-size: 1.25rem; }
+            .mpp-table th, .mpp-table td { padding: 0.75rem 0.6rem; font-size: 0.85rem; }
+            .toc { padding: 1.25rem 1rem; }
+            pre { padding: 1rem; }
+            .site-footer { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+            
+            /* Responsive diagram collapses */
+            .diag-columns {
+                grid-template-columns: 1fr;
+            }
+            .diag-branch-bus, .diag-converge-bus {
+                display: none;
+            }
+            .diag-stem-vertical {
+                height: 12px;
+            }
+            .mbtc-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            .mbtc-connector-top, .mbtc-connector-bottom, .mbtc-connector-right {
+                transform: rotate(90deg);
+                padding: 0.25rem 0;
+            }
+            .mbtc-connector-bottom .mbtc-label,
+            .mbtc-connector-top .mbtc-label {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="reading-progress" id="reading-progress" aria-hidden="true"></div>
+
+<div class="container">
+
+<!-- Global Header -->
+<header class="site-header">
+    <a href="../../index.html" class="site-title">
+        <span class="site-title__badge">SS</span>
+        <span>Saurav Sana | Field Notes</span>
+    </a>
+
+    <nav class="site-nav">
+        <a href="../../index.html">Home</a>
+        <a href="../../index.html#blog">Blog</a>
+        <a href="index.html" style="color:var(--teal); font-weight:600;">Series</a>
+        <a href="../../contact.html">Contact</a>
+        <button class="theme-toggle" id="theme-btn" aria-label="Toggle light/dark theme" title="Toggle theme">
+            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+            <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+    </nav>
+</header>
+
+<main>
+    <article class="article">
+
+        <!-- Back Navigation -->
+        <div style="margin-bottom: 1rem;">
+            <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Back to Series Index</a>
+        </div>
+
+            <div class="byline">PART 4 · FORMAL METHODS &amp; DISTRIBUTED STATE VERIFICATION</div>
+
+
+        <h1>Beyond Benchmarks: Formally Verifying Distributed State</h1>
+        <p class="deck">Proving multi-tenant isolation, atomic task leases, and snapshot cache consistency under non-deterministic thread schedules.</p>
+        
+        <div class="meta-line">October 9, 2026 · <span>DRAFT</span></div>
+
+        <blockquote class="epigraph">
+            <p>
+                “Mathematics is nature’s way of letting you know how sloppy your writing is.”
+            </p>
+            <footer>
+                — Leslie Lamport, <cite>TLA+ Creator &amp; Turing Award Laureate</cite>
+            </footer>
+        </blockquote>
+
+        <!-- Table of Contents -->
+        <nav class="toc">
+            <div class="toc-title">ON THIS PAGE</div>
+            <ol>
+                <li><a href="#s1">The Validation Hierarchy: Physics, Logic, and Empirical Reality</a></li>
+                <li><a href="#s2">The Concurrency Testing Trap: Why Empirical Testing Lies</a></li>
+                <li><a href="#s3">Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</a></li>
+                <li><a href="#s4">The Abstraction Blueprint &amp; The Architecture Assumption Ledger</a></li>
+                <li><a href="#s5">The TLA+ Primer: Constructing Formal Logic from System Design</a></li>
+                <li><a href="#s6">The Complete Formal Specification in PlusCal</a></li>
+                <li><a href="#s7">The Mathematical State-Transition Relations (First-Order TLA+)</a></li>
+                <li><a href="#s8">TLC Model Checking, Invariants &amp; Mutation Testing</a></li>
+                <li><a href="#s9">From Model Correctness to Implementation Conformance</a></li>
+                <li><a href="#s10">The Comprehensive Architectural Verification Matrix</a></li>
+            </ol>
+        </nav>
+
+        <!-- SECTION 1 -->
+        <h2 id="s1">1. The Validation Hierarchy: Physics, Logic, and Empirical Reality</h2>
+
+        <p>
+            The earlier installments of this series answered the architectural and physical questions of the Smart Data Gateway. In Part 1, we analyzed why distributed MPP clusters hit concurrency ceilings on operational serving workloads. In Part 2, we detailed the architectural evolution to a single-node, NVMe-accelerated vectorized engine. In Part 3, we evaluated its production viability using physical and queueing laws: Gunther’s Universal Scalability Law (USL), Amdahl’s Law, Little’s Law, and Kingman’s heavy-traffic approximation.
+        </p>
+
+        <p>
+            Part 4 addresses the remaining fundamental requirement: <strong>verifying the correctness of the distributed state transitions on which that architecture depends</strong>.
+        </p>
+
+        <!-- DIAGRAM 1: Three-Tier Validation Hierarchy -->
+        <div class="diagram-card" aria-label="The Three-Tier Architectural Validation Framework">
+            <div class="diagram-title">The Three-Tier Architectural Validation Framework</div>
+            
+            <div class="diag-root">SMART DATA GATEWAY</div>
+            <div class="diag-stem-vertical"></div>
+            <div class="diag-branch-bus">
+                <div class="diag-branch-center"></div>
+            </div>
+
+            <div class="diag-columns">
+                <div class="diag-column">
+                    <div class="diag-col-header">Performance Physics</div>
+                    <div class="diag-col-sub">Capacity &amp; Scaling</div>
+                    <ul class="diag-col-items">
+                        <li>Universal Scalability (USL)</li>
+                        <li>Kingman Variance Delay</li>
+                        <li>Amdahl Speedup Limits</li>
+                        <li>Little's Law Backlog</li>
+                    </ul>
+                </div>
+
+                <div class="diag-column">
+                    <div class="diag-col-header">Formal Correctness</div>
+                    <div class="diag-col-sub">State Logic &amp; Safety</div>
+                    <ul class="diag-col-items">
+                        <li>TLA+ / PlusCal Logic</li>
+                        <li>Safety Invariants (\(\Box\))</li>
+                        <li>Liveness Guarantees (\(\leadsto\))</li>
+                        <li>Model-Based Tracing (MBTC)</li>
+                    </ul>
+                </div>
+
+                <div class="diag-column">
+                    <div class="diag-col-header">Empirical Reality</div>
+                    <div class="diag-col-sub">Hardware &amp; Runtimes</div>
+                    <ul class="diag-col-items">
+                        <li>Chaos Fault Injection</li>
+                        <li>Distributed Tracing</li>
+                        <li>P99/P99.9 SRE Metrics</li>
+                        <li>FinOps Unit Economics</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="diag-converge-bus">
+                <div class="diag-branch-center"></div>
+            </div>
+            <div class="diag-stem-vertical"></div>
+            <div class="diag-outcome">ARCHITECTURAL CONFIDENCE</div>
+        </div>
+
+        <div class="callout">
+            <strong>What This Model Proves—and What It Does Not:</strong>
+            <p>
+                A verified specification establishes that <strong>the modeled system satisfies the stated properties under the assumptions explicitly encoded in the model</strong>. It does not replace testing or prove that production code is free of bugs in every lower-level detail.
+            </p>
+            <p>
+                Production correctness requires four complementary layers:
+            </p>
+            <ol>
+                <li>Formally verifying the abstract distributed state transitions against safety and liveness invariants.</li>
+                <li>Validating environmental assumptions (Redis Lua atomicity, Azure Blob durability, Iceberg version monotonicity, worker lease mechanics).</li>
+                <li>Enforcing model-code conformance through Model-Based Trace Checking (MBTC) in continuous integration.</li>
+                <li>Validating physical boundaries via performance benchmarking, chaos testing, and SRE load telemetry.</li>
+            </ol>
+        </div>
+
+        <!-- SECTION 2 -->
+        <h2 id="s2">2. The Concurrency Testing Trap: Why Empirical Testing Lies</h2>
+
+        <p>
+            When our Architecture Review Board reviewed the design, they posed critical concurrency questions:
+        </p>
+        
+        <div class="callout warning">
+            <strong>The Review Board's Concurrency Challenges:</strong>
+            <ul>
+                <li><em>"If an NGINX NVMe replica crashes mid-stream, can consistent-hash re-mapping leak data across tenant partitions?"</em></li>
+                <li><em>"If a Celery worker pauses for garbage collection while its lease expires, can a second worker claim the task and commit a duplicate or out-of-order result?"</em></li>
+                <li><em>"Can an out-of-band Iceberg snapshot commit race with query planning and deliver stale or inconsistent financial data to a regulatory auditor?"</em></li>
+            </ul>
+        </div>
+
+        <p>
+            Standard software testing cannot answer these questions. In a concurrent system with \(N\) processes executing \(K\) steps each, the total number of distinct instruction schedules is given by the multinomial coefficient:
+        </p>
+
+        <div class="katex-display">
+            \[\text{Total Interleavings} = \frac{(N \times K)!}{(K!)^N}\]
+        </div>
+
+        <p>
+            For 3 workers executing 4 steps each, there are \(\frac{12!}{(4!)^3} = 34,650\) possible schedules. For 5 concurrent workers executing an 8-step lifecycle, the possible schedules exceed \(7.6 \times 10^{24}\).
+        </p>
+
+        <p>
+            A high-concurrency continuous integration suite running 1,000,000 randomized integration tests explores roughly \(1.3 \times 10^{-17}\%\) of that state space—approximately one part in \(10^{19}\). Concurrency bugs hide in the unexplored remainder, surfacing only when rare network latency spikes or OS thread preemptions align.
+        </p>
+
+        <div class="callout danger">
+            <strong>The Testing Fallacy in Distributed Systems:</strong><br>
+            Empirical testing asserts: <em>"For the specific inputs and thread schedules we sampled, the system produced expected outputs."</em><br><br>
+            Formal verification proves: <em>"Across every state reachable in the directed state graph, an invariant violation is mathematically impossible."</em>
+        </div>
+
+        <!-- SECTION 3 -->
+        <h2 id="s3">3. Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</h2>
+
+        <p>
+            Formal verification is often viewed as academic theory unsuitable for production engineering. In practice, major cloud platforms rely on formal methods because conventional testing breaks down under distributed concurrency.
+        </p>
+
+        <h3>Amazon Web Services (Newcombe et al., 2015)</h3>
+        <p>
+            AWS reported that its engineering teams used TLA+ across critical systems including S3, DynamoDB, and EBS, finding subtle design bugs that had escaped conventional reviews and testing. In one notable DynamoDB case, model checking discovered an obscure concurrency bug whose shortest error trace required an interleaving of 35 separate high-level operations across multiple nodes—a sequence virtually impossible to hit through randomized testing.
+        </p>
+
+        <h3>MongoDB Replication &amp; Realm Sync (Davis et al., VLDB 2020)</h3>
+        <p>
+            When MongoDB engineered its Raft-based replication engine and Realm Sync protocols, developers turned to TLA+ to explore protocol state spaces. Model checking forced engineers to confront edge cases early, uncovering fundamental synchronization and lease bugs in their replication design before committing code to production.
+        </p>
+
+        <h3>Microsoft Azure CCF (Howard et al., 2024)</h3>
+        <p>
+            Microsoft verified the Confidential Consortium Framework (CCF)—a 63,000-line C++ secure cloud ledger—using TLA+ specifications and model-based trace checking in CI. Model checking uncovered six critical consensus bugs that had escaped fuzz testing and chaos engineering.
+        </p>
+
+        <!-- SECTION 4 -->
+        <h2 id="s4">4. The Abstraction Blueprint &amp; The Architecture Assumption Ledger</h2>
+
+        <p>
+            A common failure mode when adopting formal methods is attempting to transcribe code line-by-line into math. Translating Python syntax, C++ memory management, or NGINX Lua directives creates an unmanageable model that obscures core distributed interactions.
+        </p>
+
+        <div class="callout">
+            <strong>The Abstraction Principle:</strong><br>
+            If a component's internal operation cannot alter the global reachability of an illegal distributed state, <em>abstract it to an atomic value or immutable function</em>. If a component introduces concurrency, failure modes, or non-deterministic ordering, <em>model it as an explicit state variable and action</em>.
+        </div>
+
+        <h3>The Architectural Mapping Matrix</h3>
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Architecture Component</th>
+                        <th>Formal Abstraction</th>
+                        <th>Safety / Liveness Property</th>
+                        <th>Modeled vs. Abstracted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Client Identity &amp; Auth</strong></td>
+                        <td><code>TenantOf[r]</code> mapping function</td>
+                        <td>Tenant Isolation</td>
+                        <td>Token cryptography (RSA/JWKS) abstracted; deterministic tenant binding modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Query AST Hardening</strong></td>
+                        <td>Atomic predicate binding in <code>jobs[r]</code></td>
+                        <td>Row-Level Security Enforcement</td>
+                        <td>SQL string parsing abstracted; immutable tenant binding modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Task Backlog</strong></td>
+                        <td><code>task_queue</code> (FIFO Sequence)</td>
+                        <td>FIFO Dispatch / Bounded Liveness</td>
+                        <td>TCP sockets abstracted; task ordering and pop operations modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Distributed Worker Fleet</strong></td>
+                        <td><code>Workers</code> processes with lease epochs</td>
+                        <td>Mutual Exclusion / Lease Safety</td>
+                        <td>SIMD DuckDB execution abstracted; atomic claiming, crash, and commit boundaries modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Claim-Check Store</strong></td>
+                        <td><code>blob_storage</code> with monotonic allocation</td>
+                        <td>Claim-Check Pointer Integrity</td>
+                        <td>Blob chunking abstracted; write-before-dereference sequencing modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Predictive Result Cache</strong></td>
+                        <td><code>cache[t][q][v]</code> 3D mapping</td>
+                        <td>Snapshot Freshness / Cache Coherence</td>
+                        <td>NVMe block I/O abstracted; composite key lookup and eviction modeled.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Iceberg Commit Engine</strong></td>
+                        <td>Monotonic <code>catalog_snapshot</code> advance</td>
+                        <td>Snapshot Consistency</td>
+                        <td>Manifest commit trees abstracted; monotonic version advance and cache invalidation modeled.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>The Architecture Assumption Ledger</h3>
+        <p>
+            To maintain rigor, our formal specification explicitly codifies its environment assumptions:
+        </p>
+        <ul>
+            <li><strong>Assumption A1 (Atomic Lease Claims):</strong> Redis Lua scripts execute test-and-set task claiming atomically with respect to other workers.</li>
+            <li><strong>Assumption A2 (Storage Acknowledgment):</strong> Azure Blob Storage acknowledgments guarantee that payload bytes are durably committed before the SAS URI pointer is registered.</li>
+            <li><strong>Assumption A3 (Monotonic Snapshot Ordering):</strong> Table catalog snapshots for any given table advance monotonically. The model abstracts Iceberg snapshot identity to a logical version and does not verify the catalog's internal multi-master commit protocol.</li>
+            <li><strong>Assumption A4 (Authenticated Identity):</strong> Cryptographic JWT validation correctly authenticates tenant identity prior to gateway queue admission.</li>
+            <li><strong>Assumption A5 (Isolated Cache Mutations):</strong> Cache entries are populated and invalidated exclusively through modeled gateway and ETL actions.</li>
+            <li><strong>Assumption A6 (Boundary Mapping):</strong> Physical runtime state transitions correspond directly to atomic labels defined in the specification.</li>
+            <li><strong>Assumption A7 (Finite Storage Capacity Bound):</strong> For finite model checking, storage allocation requires \(|Blobs| \ge |Requests|\). Resource exhaustion is handled as an operational constraint outside this model.</li>
+        </ul>
+
+        <!-- SECTION 5 -->
+        <h2 id="s5">5. The TLA+ Primer: Constructing Formal Logic from System Design</h2>
+
+        <p>
+            To ground mathematical logic in systems engineering, we anchor every formal concept to our concrete system design: the <strong>Multi-Tenant Stateless Query Gateway</strong>.
+        </p>
+
+        <div class="callout">
+            <strong>The Core Architectural Distinction: Requests vs. Queries</strong><br>
+            A common trap in modeling analytical gateways is conflating <code>Queries</code> with <code>Requests</code>. A query hash \(Q_1\) represents normalized SQL text. A request \(R_1\) represents an independent client invocation. Two distinct tenants can execute query \(Q_1\) simultaneously, and Tenant A can submit query \(Q_1\) multiple times concurrently. The job registry must be indexed by <code>Requests</code>, while the predictive cache is indexed by \(\langle\text{Tenant}, \text{Query}, \text{Version}\rangle\).
+        </div>
+
+        <h3>A. Temporal Logic Operators</h3>
+        <p>
+            In standard programming, assertions evaluate conditions at an instantaneous snapshot. TLA+ temporal logic reasons across entire execution paths over infinite time:
+        </p>
+
+        <!-- DIAGRAM 2: State Trajectory Sequence Bar -->
+        <div class="state-trajectory" role="img" aria-label="State Trajectory Sequence: State 0 to State n">
+            <span class="state-node">State 0</span>
+            <span class="state-arrow">&rarr;</span>
+            <span class="state-node">State 1</span>
+            <span class="state-arrow">&rarr;</span>
+            <span class="state-node">State 2</span>
+            <span class="state-arrow">&rarr;</span>
+            <span class="state-ellipsis">&hellip;</span>
+            <span class="state-arrow">&rarr;</span>
+            <span class="state-node">State <em>n</em></span>
+            <span class="state-arrow">&rarr;</span>
+            <span class="state-ellipsis">&hellip;</span>
+        </div>
+
+        <ul class="sre-list">
+            <li>
+                <strong>1. Always (\(\Box P\)) — Safety Invariants</strong>
+                <p><em>Formal Meaning:</em> Condition \(P\) is true in every reachable state along every valid execution trajectory.</p>
+                <div class="katex-display">
+                    \[\Box (\forall c \in \text{Clients} : client\_received[c].\text{tenant} = TenantOf[c])\]
+                </div>
+                <p><em>What it proves:</em> No schedule of thread preemption, worker failure, or cache race conditions can ever produce a state where Client A observes data belonging to Tenant B.</p>
+            </li>
+            <li>
+                <strong>2. Eventually (\(\Diamond P\)) — Progress Guarantees</strong>
+                <p><em>Formal Meaning:</em> Condition \(P\) is guaranteed to become true in at least one state in the future.</p>
+                <div class="katex-display">
+                    \[\Diamond (\text{jobs}[r].\text{state} \in \{\text{"COMPLETED"}, \text{"FAILED"}\})\]
+                </div>
+                <p><em>What it proves:</em> Request \(r\) will not stay queued forever; it is guaranteed to reach a terminal state.</p>
+            </li>
+            <li>
+                <strong>3. Leads-To (\(P \leadsto Q\)) — Terminal Liveness</strong>
+                <p><em>Formal Meaning:</em> Defined as \(\Box(P \implies \Diamond Q)\). Whenever state \(P\) occurs, state \(Q\) is guaranteed to follow.</p>
+                <div class="katex-display">
+                    \[(\text{jobs}[r].\text{state} \in \text{Pending}) \leadsto (\text{jobs}[r].\text{state} \in \text{Terminal})\]
+                </div>
+                <p><em>What it proves:</em> Under the model's fairness assumptions and bounded retries, every admitted request eventually reaches a terminal state without hanging indefinitely.</p>
+            </li>
+            <li>
+                <strong>4. Weak Fairness (\(\text{WF}_{\text{vars}}(A)\))</strong>
+                <p><em>Formal Meaning:</em> Excludes model behaviors in which action \(A\) remains continuously enabled forever but is never taken.</p>
+                <p><em>Gateway Example:</em> <code>WF_vars(ClaimTask)</code> ensures that if an idle worker sees a queued task, the model checker cannot explore infinite stuttering steps where the worker remains idle forever while work is available.</p>
+            </li>
+            <li>
+                <strong>5. Strong Fairness (\(\text{SF}_{\text{vars}}(A)\))</strong>
+                <p><em>Formal Meaning:</em> Excludes model behaviors in which action \(A\) is enabled repeatedly (infinitely often, even if disabled intermittently between steps) but is never taken.</p>
+                <p><em>Gateway Example:</em> <code>SF_vars(ETLCommit)</code> guarantees that background table commits and cache invalidations are never starved out indefinitely by continuous read traffic.</p>
+            </li>
+        </ul>
+
+        <h3>B. Mathematical Logic &amp; Set Operations</h3>
+        <ul>
+            <li><strong>Universal Quantification (\(\forall x \in S : P(x)\)):</strong> Condition \(P(x)\) holds for every item in set \(S\).</li>
+            <li><strong>Existential Quantification (\(\exists x \in S : P(x)\)):</strong> There exists at least one item in set \(S\) satisfying \(P(x)\).</li>
+            <li><strong>Prime Operator (\(x'\)):</strong> Denotes the variable's value in the next state. The transition is an algebraic constraint:
+                <pre><code>task_queue' = Tail(task_queue)</code></pre>
+            </li>
+            <li><strong>Frame Conditions (<code>UNCHANGED</code>):</strong> TLA+ requires explicit definition of unmutated variables. If a variable is omitted, it can take arbitrary values in the next state:
+                <pre><code>UNCHANGED &lt;&lt;catalog_snapshot, cache, blob_storage&gt;&gt;</code></pre>
+            </li>
+            <li><strong>Function Mutation (<code>EXCEPT</code>):</strong> Updates specific keys while preserving all others:
+                <pre><code>cache' = [cache EXCEPT ![t][q][v] = [valid |-&gt; TRUE, blob_id |-&gt; b_id]]</code></pre>
+            </li>
+        </ul>
+
+        <!-- SECTION 6 -->
+        <h2 id="s6">6. The Complete Formal Specification in PlusCal</h2>
+
+        <p>
+            Below is the complete, runnable formal specification of the Smart Data Gateway in PlusCal (<code>SmartDataGatewaySafety.tla</code>). It models the full distributed lifecycle:
+        </p>
+        <ul>
+            <li>Decoupled <code>Requests</code> and normalized <code>Queries</code> via function mappings (<code>TenantOf</code>, <code>QueryOf</code>, <code>ClientOf</code>, <code>ProtocolOf</code>).</li>
+            <li>Atomic dequeue and lease-epoch increments simulating Redis Lua scripts (Assumption A1).</li>
+            <li>Bounded worker crashes (<code>MaxCrashes</code>), fair crash recovery, and independent fair lease management.</li>
+            <li>Stale-worker commit rejection preventing double-commits after lease expiration.</li>
+            <li>Rigorous blob inventory accounting (INV-6) guaranteeing zero leaked or double-booked storage pointers.</li>
+        </ul>
+
+        <span class="code-header">SmartDataGatewaySafety.tla (Complete Executable Model)</span>
+        <pre><code>---------------------- MODULE SmartDataGatewaySafety ----------------------
+EXTENDS Naturals, Sequences, FiniteSets, TLC
+
+CONSTANTS
+    Tenants,          \* {"T1", "T2"}
+    Clients,          \* {"C1", "C2", "C3"}
+    Requests,         \* {"R1", "R2", "R3"}
+    Queries,          \* {"Q1"}
+    Workers,          \* {"W1", "W2"}
+    Blobs,            \* bounded blob pool, must satisfy |Blobs| >= |Requests| (A7)
+    MaxSnapshot,      \* max table snapshot version
+    MaxAttempts,      \* max execution attempts per request
+    MaxCrashes,       \* crash budget (finite-failure assumption, needed for liveness)
+    TenantOf,         \* Requests -> Tenants
+    QueryOf,          \* Requests -> Queries
+    ClientOf,         \* Requests -> Clients
+    ProtocolOf        \* Requests -> {"FLIGHT", "REST"}
+
+ASSUME
+    /\ DOMAIN TenantOf = Requests /\ DOMAIN QueryOf = Requests
+    /\ DOMAIN ClientOf = Requests /\ DOMAIN ProtocolOf = Requests
+    /\ \A r \in Requests : /\ TenantOf[r] \in Tenants
+                           /\ QueryOf[r] \in Queries
+                           /\ ClientOf[r] \in Clients
+                           /\ ProtocolOf[r] \in {"FLIGHT", "REST"}
+    /\ Cardinality(Blobs) >= Cardinality(Requests)
+
+(*--algorithm SmartDataGatewaySafety
+
+variables
+    catalog_snapshot = [t \in Tenants |-> 1],
+    cache = [t \in Tenants |-> [q \in Queries |-> [v \in 1..MaxSnapshot |->
+                [valid |-> FALSE, blob_id |-> "NONE"]]]],
+    task_queue = <<>>,
+    jobs = [r \in Requests |-> [
+        state       |-> "IDLE",
+        owner       |-> "NONE",
+        lease_epoch |-> 0,
+        attempts    |-> 0,
+        tenant      |-> TenantOf[r],
+        query       |-> QueryOf[r],
+        version     |-> 0,
+        blob_ptr    |-> "NONE",
+        protocol    |-> ProtocolOf[r]
+    ]],
+    blob_storage = [b \in Blobs |-> [allocated |-> FALSE, tenant |-> "NONE", version |-> 0]],
+    client_received = [c \in Clients |-> [blob_id |-> "NONE", tenant |-> "NONE", version |-> 0]],
+    available_blobs = Blobs,
+    worker_alive = [w \in Workers |-> TRUE],
+    commit_count = [r \in Requests |-> 0],
+    crashes = 0;
+
+define
+    Pending  == {"QUEUED", "CLAIMED", "RUNNING", "RESULT_WRITTEN"}
+    Terminal == {"COMPLETED", "FAILED"}
+
+    \* ===================== SAFETY INVARIANTS =====================
+
+    \* INV-1: a client only ever holds a live blob owned by its own tenant
+    TenantIsolation ==
+        \A c \in Clients :
+            client_received[c].blob_id /= "NONE" =>
+                /\ \E r \in Requests : ClientOf[r] = c /\ client_received[c].tenant = TenantOf[r]
+                /\ blob_storage[client_received[c].blob_id].allocated
+                /\ blob_storage[client_received[c].blob_id].tenant = client_received[c].tenant
+
+    \* INV-2: a COMPLETED ticket points at a live blob of matching tenant and version
+    ClaimCheckIntegrity ==
+        \A r \in Requests :
+            jobs[r].state = "COMPLETED" =>
+                /\ jobs[r].blob_ptr /= "NONE"
+                /\ blob_storage[jobs[r].blob_ptr].allocated
+                /\ blob_storage[jobs[r].blob_ptr].tenant = jobs[r].tenant
+                /\ blob_storage[jobs[r].blob_ptr].version = jobs[r].version
+
+    \* INV-3: a valid cache entry is for the current snapshot and a live, matching blob
+    CacheCoherenceFreshness ==
+        \A t \in Tenants : \A q \in Queries : \A v \in 1..MaxSnapshot :
+            cache[t][q][v].valid =>
+                /\ v = catalog_snapshot[t]
+                /\ blob_storage[cache[t][q][v].blob_id].allocated
+                /\ blob_storage[cache[t][q][v].blob_id].tenant = t
+                /\ blob_storage[cache[t][q][v].blob_id].version = v
+
+    \* INV-4: lease/ticket bookkeeping is internally consistent
+    LeaseConsistency ==
+        \A r \in Requests :
+            /\ jobs[r].state \in {"CLAIMED", "RUNNING", "RESULT_WRITTEN"} => jobs[r].owner \in Workers
+            /\ jobs[r].state \in {"IDLE", "QUEUED", "FAILED"} => jobs[r].blob_ptr = "NONE"
+            /\ jobs[r].state = "RESULT_WRITTEN" => jobs[r].blob_ptr /= "NONE"
+
+    \* INV-5: each request commits at most once
+    SingleCommit == \A r \in Requests : commit_count[r] <= 1
+
+    \* INV-6: no leaked or double-booked blobs
+    BlobAccounting ==
+        /\ \A b \in Blobs : (b \in available_blobs) <=> ~blob_storage[b].allocated
+        /\ \A b \in Blobs : blob_storage[b].allocated => \E r \in Requests : jobs[r].blob_ptr = b
+
+    \* INV-7: Flight and REST paths never cross
+    ProtocolSeparation ==
+        /\ \A r \in Requests :
+              ProtocolOf[r] = "FLIGHT" =>
+                  /\ jobs[r].state \in {"IDLE", "COMPLETED"}
+                  /\ jobs[r].owner \in {"NONE", "MONOLITH"}
+        /\ \A r \in Requests : ProtocolOf[r] = "REST" => jobs[r].owner \in Workers \cup {"NONE"}
+        /\ \A i \in 1..Len(task_queue) : ProtocolOf[task_queue[i]] = "REST"
+
+    \* ===================== LIVENESS (needs fairness) =====================
+    LiveTermination ==
+        \A r \in Requests : (jobs[r].state \in Pending) ~> (jobs[r].state \in Terminal)
+end define;
+
+\* =========================================================================
+\* CLIENT
+\* =========================================================================
+fair process ClientProcess \in Requests
+variables
+    my_tenant   = TenantOf[self],
+    my_query    = QueryOf[self],
+    my_client   = ClientOf[self],
+    my_proto    = ProtocolOf[self],
+    req_version = 0;
+begin
+ClientStart:
+    req_version := catalog_snapshot[my_tenant];
+
+CheckCache:
+    if cache[my_tenant][my_query][req_version].valid then
+        client_received[my_client] := [
+            blob_id |-> cache[my_tenant][my_query][req_version].blob_id,
+            tenant  |-> my_tenant,
+            version |-> req_version
+        ];
+        goto ClientDone;
+    end if;
+
+RouteProtocol:
+    if my_proto = "FLIGHT" then
+        goto ExecuteFlightSync;
+    else
+        goto EnqueueRest;
+    end if;
+
+EnqueueRest:
+    jobs[self] := [
+        state       |-> "QUEUED",
+        owner       |-> "NONE",
+        lease_epoch |-> 0,
+        attempts    |-> 1,
+        tenant      |-> my_tenant,
+        query       |-> my_query,
+        version     |-> req_version,
+        blob_ptr    |-> "NONE",
+        protocol    |-> "REST"
+    ];
+    task_queue := Append(task_queue, self);
+
+AwaitRest:
+    await jobs[self].state \in Terminal;
+    if jobs[self].state = "COMPLETED" then
+        client_received[my_client] := [
+            blob_id |-> jobs[self].blob_ptr,
+            tenant  |-> my_tenant,
+            version |-> jobs[self].version
+        ];
+    end if;
+    goto ClientDone;
+
+ExecuteFlightSync:
+    await available_blobs /= {};
+    with b \in available_blobs do
+        available_blobs := available_blobs \ {b};
+        blob_storage[b] := [allocated |-> TRUE, tenant |-> my_tenant, version |-> req_version];
+        jobs[self] := [
+            state       |-> "COMPLETED",
+            owner       |-> "MONOLITH",
+            lease_epoch |-> 1,
+            attempts    |-> 1,
+            tenant      |-> my_tenant,
+            query       |-> my_query,
+            version     |-> req_version,
+            blob_ptr    |-> b,
+            protocol    |-> "FLIGHT"
+        ];
+        client_received[my_client] := [blob_id |-> b, tenant |-> my_tenant, version |-> req_version];
+    end with;
+
+ClientDone:
+    skip;
+end process;
+
+\* =========================================================================
+\* COMPUTE WORKER
+\* =========================================================================
+fair process ComputeWorker \in Workers
+variables
+    curr_req   = "NONE",
+    curr_epoch = 0,
+    curr_blob  = "NONE";
+begin
+ClaimTask:
+    while TRUE do
+        await Len(task_queue) > 0 /\ worker_alive[self];
+        with r = Head(task_queue) do
+            task_queue := Tail(task_queue);
+            curr_req   := r;
+            curr_blob  := "NONE";
+            if jobs[r].state = "QUEUED" then
+                curr_epoch := jobs[r].lease_epoch + 1;
+                jobs[r] := [jobs[r] EXCEPT
+                    !.owner       = self,
+                    !.state       = "CLAIMED",
+                    !.lease_epoch = jobs[r].lease_epoch + 1
+                ];
+            else
+                curr_epoch := 0;
+            end if;
+        end with;
+
+    StartExecution:
+        if worker_alive[self] /\ curr_epoch > 0
+           /\ jobs[curr_req].lease_epoch = curr_epoch
+           /\ jobs[curr_req].state = "CLAIMED" then
+            jobs[curr_req] := [jobs[curr_req] EXCEPT !.state = "RUNNING"];
+        else
+            goto ClaimTask;
+        end if;
+
+    OffloadBlob:
+        if worker_alive[self] /\ jobs[curr_req].lease_epoch = curr_epoch
+           /\ jobs[curr_req].state = "RUNNING" /\ available_blobs /= {} then
+            with b \in available_blobs do
+                available_blobs := available_blobs \ {b};
+                curr_blob := b;
+                blob_storage[b] := [
+                    allocated |-> TRUE,
+                    tenant    |-> jobs[curr_req].tenant,
+                    version   |-> jobs[curr_req].version
+                ];
+                jobs[curr_req] := [jobs[curr_req] EXCEPT
+                    !.blob_ptr = b,
+                    !.state    = "RESULT_WRITTEN"
+                ];
+            end with;
+        else
+            goto ClaimTask;
+        end if;
+
+    CommitClaim:
+        if worker_alive[self] /\ jobs[curr_req].lease_epoch = curr_epoch
+           /\ jobs[curr_req].state = "RESULT_WRITTEN" then
+            jobs[curr_req] := [jobs[curr_req] EXCEPT !.state = "COMPLETED"];
+            commit_count[curr_req] := commit_count[curr_req] + 1;
+            if jobs[curr_req].version = catalog_snapshot[jobs[curr_req].tenant] then
+                cache[jobs[curr_req].tenant][jobs[curr_req].query][jobs[curr_req].version] :=
+                    [valid |-> TRUE, blob_id |-> curr_blob];
+            end if;
+        end if;
+    end while;
+end process;
+
+\* =========================================================================
+\* FAULTS: crash (optional, budgeted), recovery (fair), lease expiry (fair)
+\* =========================================================================
+process Crasher = "Crasher"
+begin
+CrashLoop:
+    while crashes < MaxCrashes do
+        with w \in {x \in Workers : worker_alive[x]} do
+            worker_alive[w] := FALSE;
+            crashes := crashes + 1;
+        end with;
+    end while;
+end process;
+
+fair process Recoverer = "Recoverer"
+begin
+RecoverLoop:
+    while TRUE do
+        with w \in {x \in Workers : ~worker_alive[x]} do
+            worker_alive[w] := TRUE;
+        end with;
+    end while;
+end process;
+
+fair process LeaseManager = "LeaseManager"
+begin
+LeaseLoop:
+    while TRUE do
+        with r \in {x \in Requests : jobs[x].state \in {"CLAIMED", "RUNNING", "RESULT_WRITTEN"}} do
+            if jobs[r].blob_ptr /= "NONE" then
+                blob_storage[jobs[r].blob_ptr] := [allocated |-> FALSE, tenant |-> "NONE", version |-> 0];
+                available_blobs := available_blobs \union {jobs[r].blob_ptr};
+            end if;
+            if jobs[r].attempts < MaxAttempts then
+                jobs[r] := [jobs[r] EXCEPT
+                    !.owner       = "NONE",
+                    !.state       = "QUEUED",
+                    !.attempts    = jobs[r].attempts + 1,
+                    !.lease_epoch = jobs[r].lease_epoch + 1,
+                    !.blob_ptr    = "NONE"
+                ];
+                task_queue := Append(task_queue, r);
+            else
+                jobs[r] := [jobs[r] EXCEPT
+                    !.owner       = "NONE",
+                    !.state       = "FAILED",
+                    !.lease_epoch = jobs[r].lease_epoch + 1,
+                    !.blob_ptr    = "NONE"
+                ];
+            end if;
+        end with;
+    end while;
+end process;
+
+\* =========================================================================
+\* OUT-OF-BAND LAKEHOUSE COMMIT
+\* =========================================================================
+fair process LakehouseETL = "LakehouseETL"
+begin
+ETLCommit:
+    while TRUE do
+        with t \in Tenants do
+            if catalog_snapshot[t] < MaxSnapshot then
+                with nv = catalog_snapshot[t] + 1 do
+                    catalog_snapshot[t] := nv;
+                    cache[t] := [q \in Queries |-> [v \in 1..MaxSnapshot |->
+                        IF v < nv
+                        THEN [valid |-> FALSE, blob_id |-> "NONE"]
+                        ELSE cache[t][q][v]]];
+                end with;
+            end if;
+        end with;
+    end while;
+end process;
+
+end algorithm; *)
+
+\* Action properties checked as PROPERTIES (evaluated on primed pairs, no fairness needed)
+EpochMonotonic ==
+    [][\A r \in Requests : jobs'[r].lease_epoch >= jobs[r].lease_epoch]_vars
+
+NoRegressionAfterCompletion ==
+    [][\A r \in Requests : jobs[r].state = "COMPLETED" => jobs'[r] = jobs[r]]_vars
+
+=============================================================================</code></pre>
+
+        <!-- SECTION 7 -->
+        <h2 id="s7">7. The Mathematical State-Transition Relations (First-Order TLA+)</h2>
+
+        <p>
+            When PlusCal is compiled, procedural statements are desugared into first-order predicate logic over pairs of states (\(\langle s, s' \rangle\)) and Linear Temporal Logic (LTL) formulas. Below is a mathematical reconstruction of the principal transition relations produced by the PlusCal model.
+        </p>
+
+        <h3>1. State Space Tuple</h3>
+        <div class="katex-display">
+            \[\text{vars} \triangleq \langle catalog\_snapshot, cache, task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes, pc \rangle\]
+        </div>
+
+        <h3>2. Initial State Predicate (\(Init\))</h3>
+        <div class="katex-display">
+            \[
+            Init \triangleq \begin{aligned}[t]
+            & \land catalog\_snapshot = [t \in Tenants \mapsto 1] \\
+            & \land cache = [t \in Tenants \mapsto [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [valid \mapsto \textsc{False}, blob\_id \mapsto \text{"NONE"}]]]] \\
+            & \land task\_queue = \langle \rangle \\
+            & \land jobs = [r \in Requests \mapsto [state \mapsto \text{"IDLE"}, owner \mapsto \text{"NONE"}, lease\_epoch \mapsto 0, attempts \mapsto 0, \\
+            & \phantom{\land jobs = [r \in Requests \mapsto [} tenant \mapsto TenantOf[r], query \mapsto QueryOf[r], version \mapsto 0, blob\_ptr \mapsto \text{"NONE"}, protocol \mapsto ProtocolOf[r]]] \\
+            & \land blob\_storage = [b \in Blobs \mapsto [allocated \mapsto \textsc{False}, tenant \mapsto \text{"NONE"}, version \mapsto 0]] \\
+            & \land client\_received = [c \in Clients \mapsto [blob\_id \mapsto \text{"NONE"}, tenant \mapsto \text{"NONE"}, version \mapsto 0]] \\
+            & \land available\_blobs = Blobs \land worker\_alive = [w \in Workers \mapsto \textsc{True}] \land commit\_count = [r \in Requests \mapsto 0] \land crashes = 0 \\
+            & \land pc = [r \in Requests \mapsto \text{"ClientStart"}] \cup [w \in Workers \mapsto \text{"ClaimTask"}] \cup \\
+            & \phantom{\land pc = } [\text{"Crasher"} \mapsto \text{"CrashLoop"}] \cup [\text{"Recoverer"} \mapsto \text{"RecoverLoop"}] \cup \\
+            & \phantom{\land pc = } [\text{"LeaseManager"} \mapsto \text{"LeaseLoop"}] \cup [\text{"LakehouseETL"} \mapsto \text{"ETLCommit"}]
+            \end{aligned}
+            \]
+        </div>
+
+        <h3>3. Selected Core Action Relations</h3>
+
+        <h4>A. Atomic Task Claiming with Lease Epoch (\(WorkerClaim\))</h4>
+        <div class="katex-display">
+            \[
+            WorkerClaim(w) \triangleq \begin{aligned}[t]
+            & \land pc[w] = \text{"ClaimTask"} \land worker\_alive[w] \land Len(task\_queue) > 0 \\
+            & \land \text{LET } r \triangleq Head(task\_queue) \text{ IN } \\
+            & \phantom{\land} \land task\_queue' = Tail(task\_queue) \\
+            & \phantom{\land} \land \IF jobs[r].state = \text{"QUEUED"} \\
+            & \phantom{\land \land} \THEN \land jobs' = [jobs \text{ EXCEPT } ![r].owner = w, ![r].state = \text{"CLAIMED"}, ![r].lease\_epoch = jobs[r].lease\_epoch + 1] \\
+            & \phantom{\land \land \THEN} \land pc' = [pc \text{ EXCEPT } ![w] = \text{"StartExecution"}] \\
+            & \phantom{\land \land} \ELSE \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \land \text{UNCHANGED } jobs \\
+            & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes \rangle
+            \end{aligned}
+            \]
+        </div>
+
+        <h4>B. Stale-Worker Commit Guard (\(WorkerCommit\))</h4>
+        <div class="katex-display">
+            \[
+            WorkerCommit(w, r, epoch, blob) \triangleq \begin{aligned}[t]
+            & \land pc[w] = \text{"CommitClaim"} \land worker\_alive[w] \\
+            & \land \IF jobs[r].lease\_epoch = epoch \land jobs[r].state = \text{"RESULT\_WRITTEN"} \\
+            & \phantom{\land} \THEN \land jobs' = [jobs \text{ EXCEPT } ![r].state = \text{"COMPLETED"}] \\
+            & \phantom{\land \THEN} \land commit\_count' = [commit\_count \text{ EXCEPT } ![r] = commit\_count[r] + 1] \\
+            & \phantom{\land \THEN} \land \IF jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
+            & \phantom{\land \THEN \land} \THEN cache' = [cache \text{ EXCEPT } ![jobs[r].tenant][jobs[r].query][jobs[r].version] = [valid \mapsto \textsc{True}, blob\_id \mapsto blob]] \\
+            & \phantom{\land \THEN \land} \ELSE \text{UNCHANGED } cache \\
+            & \phantom{\land} \ELSE \land \text{UNCHANGED } \langle jobs, commit\_count, cache \rangle \quad \text{(* Stale Commit Rejected *)} \\
+            & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \\
+            & \land \text{UNCHANGED } \langle catalog\_snapshot, task\_queue, blob\_storage, client\_received, available\_blobs, worker\_alive, crashes \rangle
+            \end{aligned}
+            \]
+        </div>
+
+        <h4>C. Snapshot Invalidation (\(ETLCommit\))</h4>
+        <div class="katex-display">
+            \[
+            ETLCommit(t) \triangleq \begin{aligned}[t]
+            & \land pc[\text{"LakehouseETL"}] = \text{"ETLCommit"} \land catalog\_snapshot[t] < MaxSnapshot \\
+            & \land \text{LET } new\_v \triangleq catalog\_snapshot[t] + 1 \text{ IN } \\
+            & \phantom{\land} \land catalog\_snapshot' = [catalog\_snapshot \text{ EXCEPT } ![t] = new\_v] \\
+            & \phantom{\land} \land cache' = [cache \text{ EXCEPT } ![t] = [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto \\
+            & \phantom{\land \land cache' = } \IF v < new\_v \THEN [valid \mapsto \textsc{False}, blob\_id \mapsto \text{"NONE"}] \ELSE cache[t][q][v]]]] \\
+            & \land \text{UNCHANGED } \langle task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes, pc \rangle
+            \end{aligned}
+            \]
+        </div>
+
+        <!-- SECTION 8 -->
+        <h2 id="s8">8. TLC Model Checking, Invariants &amp; Mutation Testing</h2>
+
+        <p>
+            We structure model checking into two distinct suites: a **Safety Configuration** (larger state space with Flight and REST interleavings) and a **Liveness Configuration** (smaller state space with temporal checking).
+        </p>
+
+        <h3>1. Safety Configuration (`SmartDataGatewaySafety.cfg`)</h3>
+        <span class="code-header">SmartDataGatewaySafety.cfg</span>
+        <pre><code>SPECIFICATION Spec
+
+CONSTANTS
+    Tenants     = {"T1", "T2"}
+    Clients     = {"C1", "C2", "C3"}
+    Requests    = {"R1", "R2", "R3"}
+    Queries     = {"Q1"}
+    Workers     = {"W1", "W2"}
+    Blobs       = {"B1", "B2", "B3", "B4"}
+    MaxSnapshot = 3
+    MaxAttempts = 2
+    MaxCrashes  = 1
+    TenantOf    = [R1 |-> "T1", R2 |-> "T2", R3 |-> "T1"]
+    QueryOf     = [R1 |-> "Q1", R2 |-> "Q1", R3 |-> "Q1"]
+    ClientOf    = [R1 |-> "C1", R2 |-> "C2", R3 |-> "C3"]
+    ProtocolOf  = [R1 |-> "REST", R2 |-> "REST", R3 |-> "FLIGHT"]
+
+INVARIANTS
+    TenantIsolation
+    ClaimCheckIntegrity
+    CacheCoherenceFreshness
+    LeaseConsistency
+    SingleCommit
+    BlobAccounting
+    ProtocolSeparation
+
+PROPERTIES
+    EpochMonotonic
+    NoRegressionAfterCompletion</code></pre>
+
+        <h3>2. Liveness Configuration (`SmartDataGatewayLiveness.cfg`)</h3>
+        <p>
+            Temporal checking over infinite behaviors (\(\leadsto\)) is significantly more computationally expensive than invariant checking. The liveness run uses a constrained model with two REST requests across two tenants sharing a query:
+        </p>
+
+        <span class="code-header">SmartDataGatewayLiveness.cfg</span>
+        <pre><code>SPECIFICATION Spec
+
+CONSTANTS
+    Tenants     = {"T1", "T2"}
+    Clients     = {"C1", "C2"}
+    Requests    = {"R1", "R2"}
+    Queries     = {"Q1"}
+    Workers     = {"W1", "W2"}
+    Blobs       = {"B1", "B2"}
+    MaxSnapshot = 2
+    MaxAttempts = 2
+    MaxCrashes  = 1
+    TenantOf    = [R1 |-> "T1", R2 |-> "T2"]
+    QueryOf     = [R1 |-> "Q1", R2 |-> "Q1"]
+    ClientOf    = [R1 |-> "C1", R2 |-> "C2"]
+    ProtocolOf  = [R1 |-> "REST", R2 |-> "REST"]
+
+INVARIANTS
+    TenantIsolation
+    ClaimCheckIntegrity
+    CacheCoherenceFreshness
+    LeaseConsistency
+    SingleCommit
+    BlobAccounting
+    ProtocolSeparation
+
+PROPERTIES
+    LiveTermination
+    EpochMonotonic
+    NoRegressionAfterCompletion</code></pre>
+
+        <h3>Verification Levels: Model Checking vs. Inductive Proofs</h3>
+        <p>
+            It is critical to distinguish <strong>bounded model checking</strong> from <strong>unbounded mathematical proof</strong>:
+        </p>
+        <ul>
+            <li><strong>Level 1 (TLC Model Checking):</strong> Exhaustively checks all reachable states within finite bounds (e.g., 3 requests, 2 workers, 3 snapshots). It verifies that no counterexample exists within that state envelope.</li>
+            <li><strong>Level 2 (Inductive Invariants &amp; TLAPS):</strong> Proves an invariant \(\text{Inv}\) unbounded across all possible configurations by proving the inductive base and step:
+                \[\text{Init} \implies \text{Inv} \quad \land \quad \text{Inv} \land [Next]_{\text{vars}} \implies \text{Inv}'\]
+                Discharging this proof requires the TLA+ Proof System (TLAPS) rather than TLC.</li>
+        </ul>
+
+        <h3>Mutation Testing: Confirming the Model Catches Invariant Violations</h3>
+        <p>
+            To verify that our invariants are not vacuously true, we introduce deliberate architectural defects and inspect the resulting TLC counterexamples:
+        </p>
+
+        <div class="callout danger">
+            <strong>Mutation 1: Dangling Pointer in Claim-Check Sequencing</strong>
+            <p><strong>Modification:</strong> Invert <code>OffloadBlob</code> and <code>CommitClaim</code> so the ticket is marked complete before the storage blob is allocated.</p>
+            <p><strong>Expected TLC Counterexample:</strong></p>
+            <pre><code>Error: Invariant ClaimCheckIntegrity is violated.
+State: jobs["R1"].state = "COMPLETED" /\ jobs["R1"].blob_ptr = "NONE"
+Action: CommitClaim executed before OffloadBlob.</code></pre>
+        </div>
+
+        <div class="callout danger">
+            <strong>Mutation 2: Multi-Tenant Key Collision in Result Cache</strong>
+            <p><strong>Modification:</strong> Change cache indexing to omit <code>TenantOf[r]</code>, indexing only by query hash and version.</p>
+            <p><strong>Expected TLC Counterexample:</strong></p>
+            <pre><code>Error: Invariant TenantIsolation is violated.
+State: client_received["C2"] received blob allocated to Tenant "T1".
+Action: Request R2 (Tenant T2) hit cache entry populated by Request R1 (Tenant T1) for shared query Q1.</code></pre>
+        </div>
+
+        <div class="callout danger">
+            <strong>Mutation 3: Stale Worker Commit After Lease Revocation</strong>
+            <p><strong>Modification:</strong> Remove the <code>jobs[curr_req].lease_epoch = curr_epoch</code> check in <code>CommitClaim</code>.</p>
+            <p><strong>Expected TLC Counterexample:</strong></p>
+            <pre><code>Error: Invariant SingleCommit is violated.
+State: commit_count["R1"] = 2.
+Action: Stale worker W1 committed R1 after LeaseManager reclaimed and requeued it to W2.</code></pre>
+        </div>
+
+        <!-- SECTION 9 -->
+        <h2 id="s9">9. From Model Correctness to Implementation Conformance</h2>
+
+        <p>
+            A verified specification proves that the design is logically sound under its assumptions. It does not prove that a Python or Rust codebase conforms to the model. To close the <strong>model-code semantic gap</strong>, we use <strong>Model-Based Trace Checking (MBTC)</strong>, drawing on methodologies from Microsoft's CCF and MongoDB.
+        </p>
+
+        <!-- DIAGRAM 3: Model-Based Trace Checking Pipeline -->
+        <div class="diagram-card" aria-label="Model-Based Trace Checking Validation Pipeline">
+            <div class="diagram-title">Model-Based Trace Checking (MBTC) Conformance Architecture</div>
+            <div class="mbtc-grid">
+                <!-- Top Row -->
+                <div class="mbtc-card mbtc-card-runtime">
+                    <div class="mbtc-name">Production Runtime</div>
+                    <div class="mbtc-detail">FastAPI / Celery Workers</div>
+                </div>
+
+                <div class="mbtc-connector-top">
+                    <span class="mbtc-label">JSON Traces</span>
+                    <span class="mbtc-arrow-h">&rarr;</span>
+                </div>
+
+                <div class="mbtc-card mbtc-card-log">
+                    <div class="mbtc-name">run_trace.ndjson</div>
+                    <div class="mbtc-detail">State Boundary Logs</div>
+                </div>
+
+                <!-- Middle Transition Row -->
+                <div></div>
+                <div></div>
+                <div class="mbtc-connector-right">
+                    <span class="mbtc-arrow-v">&darr;</span>
+                </div>
+
+                <!-- Bottom Row -->
+                <div class="mbtc-card mbtc-card-checker">
+                    <div class="mbtc-name">TLC Model Checker</div>
+                    <div class="mbtc-detail">Flags Drift in CI Harness</div>
+                </div>
+
+                <div class="mbtc-connector-bottom">
+                    <span class="mbtc-label">Replay Binding</span>
+                    <span class="mbtc-arrow-h">&larr;</span>
+                </div>
+
+                <div class="mbtc-card mbtc-card-spec">
+                    <div class="mbtc-name">TraceSpec.tla</div>
+                    <div class="mbtc-detail">Parameter-Bound Validator</div>
+                </div>
+            </div>
+        </div>
+
+        <h3>Step 1: Production Instrumentation</h3>
+        <p>
+            Runtime code emits structured JSON log events at each atomic state boundary:
+        </p>
+
+        <span class="code-header">src/orchestration/tasks.py (Trace Logging)</span>
+        <pre><code class="language-python"># Celery worker analytical task execution
+@celery_app.task(bind=True)
+def execute_query_task(self, request_id: str, tenant_id: str, query_hash: str):
+    emit_formal_trace("ClaimTask", {
+        "worker_id": self.request.id, "request_id": request_id,
+        "tenant_id": tenant_id, "state": "CLAIMED"
+    })
+    
+    # Execute query against Parquet
+    arrow_batch = engine.evaluate(query_hash, tenant_id)
+    
+    # Claim-check offload to Azure Blob
+    blob_id = storage_client.write_buffer(arrow_batch)
+    emit_formal_trace("OffloadBlob", {
+        "worker_id": self.request.id, "request_id": request_id,
+        "blob_id": blob_id, "state": "RESULT_WRITTEN"
+    })
+    
+    # Atomic pointer registration
+    redis_client.complete_ticket(request_id, blob_id)
+    emit_formal_trace("CommitClaim", {
+        "worker_id": self.request.id, "request_id": request_id,
+        "blob_id": blob_id, "state": "COMPLETED"
+    })</code></pre>
+
+        <h3>Step 2: Parameter-Constrained Trace Replay (`TraceSpec.tla`)</h3>
+        <p>
+            A common bug in trace specifications is checking only action names without binding observed variables. A valid trace spec must bind exact observed identifiers to the formal transitions:
+        </p>
+
+        <span class="code-header">TraceSpec.tla (Parameter-Constrained Replay)</span>
+        <pre><code>--------------------------- MODULE TraceSpec ---------------------------
+EXTENDS SmartDataGatewaySafety, IOUtils, Json
+
+TraceLog == ndJsonDeserialize("tests/traces/run_trace.ndjson")
+VARIABLE trace_idx
+
+TraceInit ==
+    /\ Init
+    /\ trace_idx = 1
+
+TraceNext ==
+    /\ trace_idx &lt;= Len(TraceLog)
+    /\ LET event == TraceLog[trace_idx]
+       IN /\ \/ /\ event.action = "ClaimTask"
+                /\ WorkerClaimWithParams(event.worker_id, event.request_id)
+             \/ /\ event.action = "OffloadBlob"
+                /\ WorkerOffloadWithParams(event.worker_id, event.request_id, event.blob_id)
+             \/ /\ event.action = "CommitClaim"
+                /\ WorkerCommitWithParams(event.worker_id, event.request_id, event.blob_id)
+          /\ trace_idx' = trace_idx + 1
+
+TraceSpec == TraceInit /\ [][TraceNext]_&lt;&lt;vars, trace_idx&gt;&gt;
+========================================================================</code></pre>
+
+        <p>
+            In continuous integration, the integration test suite runs under chaos fault injection, exports <code>run_trace.ndjson</code>, and evaluates <code>TraceSpec.tla</code> via TLC. If a code refactoring reorders operations (e.g., publishing to Redis before the storage blob write completes), TLC halts, catching implementation drift before deployment.
+        </p>
+
+        <!-- SECTION 10 -->
+        <h2 id="s10">10. The Comprehensive Architectural Verification Matrix</h2>
+
+        <p>
+            Formal methods address concurrency, isolation, and safety invariants. Performance physics addresses capacity and queueing bounds. Empirical SRE testing addresses hardware limits and operational behavior. Below is the complete verification matrix for the Smart Data Gateway:
+        </p>
+
+        <div class="table-container">
+            <table class="mpp-table">
+                <thead>
+                    <tr>
+                        <th>Architectural Requirement</th>
+                        <th>Verification Tier</th>
+                        <th>Methodology &amp; Tooling</th>
+                        <th>Target Threshold / Invariant</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Multi-Tenant Data Isolation</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Model Checking (Exhaustive Bounded)</td>
+                        <td><code>\Box TenantIsolation</code> evaluates to TRUE across all reachable states.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Claim-Check Pointer Integrity</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Model Checking + Mutation Testing</td>
+                        <td><code>\Box ClaimCheckIntegrity</code>: zero dangling or unallocated storage references.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cache Snapshot Freshness</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Concurrent Ingestion Model</td>
+                        <td><code>\Box CacheCoherenceFreshness</code>: no stale snapshot served post-commit.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Lease Consistency &amp; Single Commit</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Fault-Injection Model (Crashes &amp; Timeouts)</td>
+                        <td><code>\Box LeaseConsistency</code> &amp; <code>\Box SingleCommit</code>: zero split-brain commits.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Storage Inventory Accounting</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Finite-Pool Model</td>
+                        <td><code>\Box BlobAccounting</code>: zero leaked or double-booked storage blocks.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Liveness Under Faults</strong></td>
+                        <td>Formal Specification</td>
+                        <td>TLC Temporal Model Checking (Liveness Config)</td>
+                        <td><code>LiveTermination</code>: every pending task reaches a terminal state.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Implementation Conformance</strong></td>
+                        <td>Trace Validation</td>
+                        <td>Model-Based Trace Checking (MBTC in CI)</td>
+                        <td>Zero state-transition drift between production logs and <code>TraceSpec.tla</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>P99 Tail Latency Bound</strong></td>
+                        <td>Performance Physics</td>
+                        <td>Kingman Approximation + Envoy Hedging</td>
+                        <td>P99 latency &lt; 50ms at 80% server utilization.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cluster Throughput Scaling</strong></td>
+                        <td>Performance Physics</td>
+                        <td>Universal Scalability Law (\(\beta = 0\))</td>
+                        <td>Linear scaleup across stateless NVMe gateway nodes without crosstalk.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cloud Unit Economics</strong></td>
+                        <td>Empirical FinOps</td>
+                        <td>10,000-Iteration Monte Carlo Simulation</td>
+                        <td>Serving cost &lt; $0.0002 per analytical query at baseline load.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>
+            By combining performance physics, formal verification, and model-based trace checking, we transform distributed systems engineering from defensive guesswork into an empirically and mathematically grounded discipline. In the concluding article, <strong>Part 5: Synthesis &amp; The Operational Reality</strong>, we integrate these formal and physical models into production deployment patterns, FinOps balance sheets, and long-term operational guides.
+        </p>
+
+        <!-- Navigation Links -->
+        <div style="margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <a href="part-3-the-production-reality-check.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Part 3: The Production Reality Check</a>
+            <a href="part-5-conclusion.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Part 5: Opportunities &rarr;</a>
+        </div>
+
+    </article>
+</main>
+
+<!-- Global Footer -->
+<footer class="site-footer">
+    <div>© 2026 Saurav Sana</div>
+    <div class="footer-links">
+        <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+        <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+        <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="../../contact.html">Email</a>
+    </div>
+</footer>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- JAVASCRIPT: THEME TOGGLE, PROGRESS BAR, KATEX -->
+<!-- ========================================================================= -->
+<script>
+(function () {
+  const bar = document.getElementById('reading-progress');
+  if (!bar) return;
+  function updateProgress() {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
+    bar.style.width = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+})();
+
+document.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById('theme-btn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            let current = document.documentElement.getAttribute('data-theme');
+            let next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        });
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+      throwOnError: false
+    });
+  }
+});
+</script>
+
+</body>
+</html>
