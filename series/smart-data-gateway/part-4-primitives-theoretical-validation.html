@@ -536,7 +536,7 @@
                 “Mathematics is nature’s way of letting you know how sloppy your writing is.”
             </p>
             <footer>
-                — ,<strong>Leslie Lamport</strong>, <cite>TLA+ Creator &amp; Turing Award Laureate</cite>
+                — <strong>Leslie Lamport</strong>, <cite>TLA+ Creator &amp; Turing Award Laureate</cite>
             </footer>
         </blockquote>
 
@@ -557,229 +557,279 @@
             </ol>
         </nav>
 
-        <!-- SECTION 1 -->
-        <h2 id="s1">1. The Validation Hierarchy: Physics, Logic, and Empirical Reality</h2>
+<!-- SECTION 1 -->
+<h2 id="s1">1. The Validation Hierarchy: Physics, Logic, and Empirical Reality</h2>
 
-        <p>
-            The earlier installments of this series answered the architectural and physical questions of the Smart Data Gateway. In Part 1, we analyzed why distributed MPP clusters hit concurrency ceilings on operational serving workloads. In Part 2, we detailed the architectural evolution to a single-node, NVMe-accelerated vectorized engine. In Part 3, we evaluated its production viability using physical and queueing laws: Gunther’s Universal Scalability Law (USL), Amdahl’s Law, Little’s Law, and Kingman’s heavy-traffic approximation.
-        </p>
+<p>
+    The earlier installments of this series answered the architectural and physical questions of the Smart Data Gateway. In Part 1, we analyzed why distributed MPP clusters hit concurrency ceilings on operational serving workloads. In Part 2, we detailed the architectural evolution to a single-node, NVMe-accelerated vectorized engine. In Part 3, we evaluated its production viability using physical and queueing laws: Gunther’s Universal Scalability Law (USL), Amdahl’s Law, Little’s Law, and Kingman’s heavy-traffic approximation.
+</p>
 
-        <p>
-            Part 4 addresses the remaining fundamental requirement: <strong>verifying the correctness of the distributed state transitions on which that architecture depends</strong>.
-        </p>
+<p>
+    Having proven our hardware won't burst into flames under pressure, we now face the ultimate boss level: <strong>proving that our distributed state transitions won't suffer a collective existential crisis when the network decides to act up.</strong>
+</p>
 
-        <!-- DIAGRAM 1: Three-Tier Validation Hierarchy -->
-        <div class="diagram-card" aria-label="The Three-Tier Architectural Validation Framework">
-            <div class="diagram-title">The Three-Tier Architectural Validation Framework</div>
-            
-            <div class="diag-root">SMART DATA GATEWAY</div>
-            <div class="diag-stem-vertical"></div>
-            <div class="diag-branch-bus">
-                <div class="diag-branch-center"></div>
-            </div>
+<!-- DIAGRAM 1: Three-Tier Validation Hierarchy -->
+<div class="diagram-card" aria-label="The Three-Tier Architectural Validation Framework">
+    <div class="diagram-title">The Three-Tier Architectural Validation Framework</div>
+    
+    <div class="diag-root">SMART DATA GATEWAY</div>
+    <div class="diag-stem-vertical"></div>
+    <div class="diag-branch-bus">
+        <div class="diag-branch-center"></div>
+    </div>
 
-            <div class="diag-columns">
-                <div class="diag-column">
-                    <div class="diag-col-header">Performance Physics</div>
-                    <div class="diag-col-sub">Capacity &amp; Scaling</div>
-                    <ul class="diag-col-items">
-                        <li>Universal Scalability (USL)</li>
-                        <li>Kingman Variance Delay</li>
-                        <li>Amdahl Speedup Limits</li>
-                        <li>Little's Law Backlog</li>
-                    </ul>
-                </div>
-
-                <div class="diag-column">
-                    <div class="diag-col-header">Formal Correctness</div>
-                    <div class="diag-col-sub">State Logic &amp; Safety</div>
-                    <ul class="diag-col-items">
-                        <li>TLA+ / PlusCal Logic</li>
-                        <li>Safety Invariants (\(\Box\))</li>
-                        <li>Liveness Guarantees (\(\leadsto\))</li>
-                        <li>Model-Based Tracing (MBTC)</li>
-                    </ul>
-                </div>
-
-                <div class="diag-column">
-                    <div class="diag-col-header">Empirical Reality</div>
-                    <div class="diag-col-sub">Hardware &amp; Runtimes</div>
-                    <ul class="diag-col-items">
-                        <li>Chaos Fault Injection</li>
-                        <li>Distributed Tracing</li>
-                        <li>P99/P99.9 SRE Metrics</li>
-                        <li>FinOps Unit Economics</li>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="diag-converge-bus">
-                <div class="diag-branch-center"></div>
-            </div>
-            <div class="diag-stem-vertical"></div>
-            <div class="diag-outcome">ARCHITECTURAL CONFIDENCE</div>
-        </div>
-
-        <div class="callout">
-            <strong>What This Model Proves—and What It Does Not:</strong>
-            <p>
-                A verified specification establishes that <strong>the modeled system satisfies the stated properties under the assumptions explicitly encoded in the model</strong>. It does not replace testing or prove that production code is free of bugs in every lower-level detail.
-            </p>
-            <p>
-                Production correctness requires four complementary layers:
-            </p>
-            <ol>
-                <li>Formally verifying the abstract distributed state transitions against safety and liveness invariants.</li>
-                <li>Validating environmental assumptions (Redis Lua atomicity, Azure Blob durability, Iceberg version monotonicity, worker lease mechanics).</li>
-                <li>Enforcing model-code conformance through Model-Based Trace Checking (MBTC) in continuous integration.</li>
-                <li>Validating physical boundaries via performance benchmarking, chaos testing, and SRE load telemetry.</li>
-            </ol>
-        </div>
-
-        <!-- SECTION 2 -->
-        <h2 id="s2">2. The Concurrency Testing Trap: Why Empirical Testing Lies</h2>
-
-        <p>
-            When our Architecture Review Board reviewed the design, they posed critical concurrency questions:
-        </p>
-        
-        <div class="callout warning">
-            <strong>The Review Board's Concurrency Challenges:</strong>
-            <ul>
-                <li><em>"If an NGINX NVMe replica crashes mid-stream, can consistent-hash re-mapping leak data across tenant partitions?"</em></li>
-                <li><em>"If a Celery worker pauses for garbage collection while its lease expires, can a second worker claim the task and commit a duplicate or out-of-order result?"</em></li>
-                <li><em>"Can an out-of-band Iceberg snapshot commit race with query planning and deliver stale or inconsistent financial data to a regulatory auditor?"</em></li>
+    <div class="diag-columns">
+        <div class="diag-column">
+            <div class="diag-col-header">Performance Physics</div>
+            <div class="diag-col-sub">Capacity &amp; Scaling</div>
+            <ul class="diag-col-items">
+                <li>Universal Scalability (USL)</li>
+                <li>Kingman Variance Delay</li>
+                <li>Amdahl Speedup Limits</li>
+                <li>Little's Law Backlog</li>
             </ul>
         </div>
 
-        <p>
-            Standard software testing cannot answer these questions. In a concurrent system with \(N\) processes executing \(K\) steps each, the total number of distinct instruction schedules is given by the multinomial coefficient:
-        </p>
-
-        <div class="katex-display">
-            \[\text{Total Interleavings} = \frac{(N \times K)!}{(K!)^N}\]
+        <div class="diag-column">
+            <div class="diag-col-header">Formal Correctness</div>
+            <div class="diag-col-sub">State Logic &amp; Safety</div>
+            <ul class="diag-col-items">
+                <li>TLA+ / PlusCal Logic</li>
+                <li>Safety Invariants (&#9633;)</li>
+                <li>Liveness Guarantees (&#8669;)</li>
+                <li>Model-Based Tracing (MBTC)</li>
+            </ul>
         </div>
 
-        <p>
-            For 3 workers executing 4 steps each, there are \(\frac{12!}{(4!)^3} = 34,650\) possible schedules. For 5 concurrent workers executing an 8-step lifecycle, the possible schedules exceed \(7.6 \times 10^{24}\).
-        </p>
-
-        <p>
-            A high-concurrency continuous integration suite running 1,000,000 randomized integration tests explores roughly \(1.3 \times 10^{-17}\%\) of that state space—approximately one part in \(10^{19}\). Concurrency bugs hide in the unexplored remainder, surfacing only when rare network latency spikes or OS thread preemptions align.
-        </p>
-
-        <div class="callout danger">
-            <strong>The Testing Fallacy in Distributed Systems:</strong><br>
-            Empirical testing asserts: <em>"For the specific inputs and thread schedules we sampled, the system produced expected outputs."</em><br><br>
-            Formal verification proves: <em>"Across every state reachable in the directed state graph, an invariant violation is mathematically impossible."</em>
+        <div class="diag-column">
+            <div class="diag-col-header">Empirical Reality</div>
+            <div class="diag-col-sub">Hardware &amp; Runtimes</div>
+            <ul class="diag-col-items">
+                <li>Chaos Fault Injection</li>
+                <li>Distributed Tracing</li>
+                <li>P99/P99.9 SRE Metrics</li>
+                <li>FinOps Unit Economics</li>
+            </ul>
         </div>
+    </div>
 
-        <!-- SECTION 3 -->
-        <h2 id="s3">3. Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</h2>
+    <div class="diag-converge-bus">
+        <div class="diag-branch-center"></div>
+    </div>
+    <div class="diag-stem-vertical"></div>
+    <div class="diag-outcome">ARCHITECTURAL CONFIDENCE</div>
+</div>
 
-        <p>
-            Formal verification is often viewed as academic theory unsuitable for production engineering. In practice, major cloud platforms rely on formal methods because conventional testing breaks down under distributed concurrency.
-        </p>
+<div class="callout">
+    <strong>What This Model Proves—and What It Does Not:</strong>
+    <p>
+        Let’s be honest: a verified specification proves that <strong>your idealized mathematical dream matches your design logic under explicit assumptions.</strong> It doesn't magically mean your production code is immune to typos, cosmic rays, or an overly enthusiastic intern dropping a database table.
+    </p>
+    <p>
+        Production correctness requires four complementary layers:
+    </p>
+    <ol>
+        <li>Formally verifying the abstract distributed state transitions against safety and liveness invariants.</li>
+        <li>Validating environmental assumptions (Redis Lua atomicity, Azure Blob durability, Iceberg version monotonicity, worker lease mechanics).</li>
+        <li>Enforcing model-code conformance through Model-Based Trace Checking (MBTC) in continuous integration.</li>
+        <li>Validating physical boundaries via performance benchmarking, chaos testing, and SRE load telemetry.</li>
+    </ol>
+</div>
 
-        <h3>Amazon Web Services (Newcombe et al., 2015)</h3>
-        <p>
-            AWS reported that its engineering teams used TLA+ across critical systems including S3, DynamoDB, and EBS, finding subtle design bugs that had escaped conventional reviews and testing. In one notable DynamoDB case, model checking discovered an obscure concurrency bug whose shortest error trace required an interleaving of 35 separate high-level operations across multiple nodes—a sequence virtually impossible to hit through randomized testing.
-        </p>
+<!-- SECTION 2 -->
+<h2 id="s2">2. The Concurrency Testing Trap: Why Empirical Testing Lies</h2>
 
-        <h3>MongoDB Replication &amp; Realm Sync (Davis et al., VLDB 2020)</h3>
-        <p>
-            When MongoDB engineered its Raft-based replication engine and Realm Sync protocols, developers turned to TLA+ to explore protocol state spaces. Model checking forced engineers to confront edge cases early, uncovering fundamental synchronization and lease bugs in their replication design before committing code to production.
-        </p>
+<p>
+    Anticipating an architecture review board brings a specific kind of dread. Long before anyone actually asks a question, the mind races to imagine the brutal edge cases reviewers love to throw at a distributed design:
+</p>
 
-        <h3>Microsoft Azure CCF (Howard et al., 2024)</h3>
-        <p>
-            Microsoft verified the Confidential Consortium Framework (CCF)—a 63,000-line C++ secure cloud ledger—using TLA+ specifications and model-based trace checking in CI. Model checking uncovered six critical consensus bugs that had escaped fuzz testing and chaos engineering.
-        </p>
+<div class="callout warning">
+    <strong>Anticipated Review Board Concurrency Challenges:</strong>
+    <ul>
+        <li><em>"If an NGINX NVMe replica crashes mid-stream, can consistent-hash re-mapping leak data across tenant partitions?"</em></li>
+        <li><em>"If a Celery worker pauses for garbage collection while its lease expires, can a second worker claim the task and commit a duplicate or out-of-order result?"</em></li>
+        <li><em>"Can an out-of-band Iceberg snapshot commit race with query planning and deliver stale or inconsistent financial data to a regulatory auditor?"</em></li>
+    </ul>
+</div>
 
-        <!-- SECTION 4 -->
-        <h2 id="s4">4. The Abstraction Blueprint &amp; The Architecture Assumption Ledger</h2>
+<p>
+    Thinking through those scenarios exposes a funny quirk in modern software engineering. Entire engineering blogs and conferences are dedicated to test coverage, mocking tools, and CI/CD pipelines, yet almost nobody in everyday tech talks about formal verification. For decades, distributed systems have suffered from the exact same race conditions, while the industry response remains uniform: write more integration tests, cross your fingers, and rely on hope-driven development. 
+</p>
 
-        <p>
-            A common failure mode when adopting formal methods is attempting to transcribe code line-by-line into math. Translating Python syntax, C++ memory management, or NGINX Lua directives creates an unmanageable model that obscures core distributed interactions.
-        </p>
+<p>
+    Diving into formal methods out of sheer curiosity reveals a fascinating escape hatch. Finding a mathematical way to prove that a tricky state transition is bug-free feels like finding a cheat code to reality. Naturally, that brief moment of triumph is quickly humbled by the vertical cliff of the TLA+ learning curve. Realizing that tools for mathematical state verification have existed for over thirty years—while everyone just keeps arguing about test runner speeds—brings a strange mix of amusement and exhaustion. 
+</p>
 
-        <div class="callout">
-            <strong>The Abstraction Principle:</strong><br>
-            If a component's internal operation cannot alter the global reachability of an illegal distributed state, <em>abstract it to an atomic value or immutable function</em>. If a component introduces concurrency, failure modes, or non-deterministic ordering, <em>model it as an explicit state variable and action</em>.
-        </div>
+<p>
+    This naturally highlights why formal validation rarely makes it into sprint planning. Try walking into a planning session and telling a product manager, <em>"We need three days to map out a temporal logic state machine before writing code."</em> The response is always a blank stare and a polite reminder about story points and quarterly velocity. To avoid the steep learning curve, the industry relies on a very convenient defense mechanism: slapping an "academic" or "too theoretical" label on formal methods. It acts as a socially acceptable excuse to overlook high-value validation, default to a "ship fast, patch later" mindset, and stick to standard enterprise practices that prioritize speed over mathematical certainty.
+</p>
 
-        <h3>The Architectural Mapping Matrix</h3>
-        <div class="table-container">
-            <table class="mpp-table">
-                <thead>
-                    <tr>
-                        <th>Architecture Component</th>
-                        <th>Formal Abstraction</th>
-                        <th>Safety / Liveness Property</th>
-                        <th>Modeled vs. Abstracted</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Client Identity &amp; Auth</strong></td>
-                        <td><code>TenantOf[r]</code> mapping function</td>
-                        <td>Tenant Isolation</td>
-                        <td>Token cryptography (RSA/JWKS) abstracted; deterministic tenant binding modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Query AST Hardening</strong></td>
-                        <td>Atomic predicate binding in <code>jobs[r]</code></td>
-                        <td>Row-Level Security Enforcement</td>
-                        <td>SQL string parsing abstracted; immutable tenant binding modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Task Backlog</strong></td>
-                        <td><code>task_queue</code> (FIFO Sequence)</td>
-                        <td>FIFO Dispatch / Bounded Liveness</td>
-                        <td>TCP sockets abstracted; task ordering and pop operations modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Distributed Worker Fleet</strong></td>
-                        <td><code>Workers</code> processes with lease epochs</td>
-                        <td>Mutual Exclusion / Lease Safety</td>
-                        <td>SIMD DuckDB execution abstracted; atomic claiming, crash, and commit boundaries modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Claim-Check Store</strong></td>
-                        <td><code>blob_storage</code> with monotonic allocation</td>
-                        <td>Claim-Check Pointer Integrity</td>
-                        <td>Blob chunking abstracted; write-before-dereference sequencing modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Predictive Result Cache</strong></td>
-                        <td><code>cache[t][q][v]</code> 3D mapping</td>
-                        <td>Snapshot Freshness / Cache Coherence</td>
-                        <td>NVMe block I/O abstracted; composite key lookup and eviction modeled.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Iceberg Commit Engine</strong></td>
-                        <td>Monotonic <code>catalog_snapshot</code> advance</td>
-                        <td>Snapshot Consistency</td>
-                        <td>Manifest commit trees abstracted; monotonic version advance and cache invalidation modeled.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+<p>
+    To understand why standard software testing is a rigged game, look at how concurrent systems handle instruction execution. In an idealized, textbook system, imagine <em>N</em> identical processes (such as our DuckDB replicas), each executing a uniform sequence of <em>K</em> steps to finish a task. 
+</p>
 
-        <h3>The Architecture Assumption Ledger</h3>
-        <p>
-            To maintain rigor, our formal specification explicitly codifies its environment assumptions:
-        </p>
-        <ul>
-            <li><strong>Assumption A1 (Atomic Lease Claims):</strong> Redis Lua scripts execute test-and-set task claiming atomically with respect to other workers.</li>
-            <li><strong>Assumption A2 (Storage Acknowledgment):</strong> Azure Blob Storage acknowledgments guarantee that payload bytes are durably committed before the SAS URI pointer is registered.</li>
-            <li><strong>Assumption A3 (Monotonic Snapshot Ordering):</strong> Table catalog snapshots for any given table advance monotonically. The model abstracts Iceberg snapshot identity to a logical version and does not verify the catalog's internal multi-master commit protocol.</li>
-            <li><strong>Assumption A4 (Authenticated Identity):</strong> Cryptographic JWT validation correctly authenticates tenant identity prior to gateway queue admission.</li>
-            <li><strong>Assumption A5 (Isolated Cache Mutations):</strong> Cache entries are populated and invalidated exclusively through modeled gateway and ETL actions.</li>
-            <li><strong>Assumption A6 (Boundary Mapping):</strong> Physical runtime state transitions correspond directly to atomic labels defined in the specification.</li>
-            <li><strong>Assumption A7 (Finite Storage Capacity Bound):</strong> For finite model checking, storage allocation requires \(|Blobs| \ge |Requests|\). Resource exhaustion is handled as an operational constraint outside this model.</li>
-        </ul>
+<p>
+    If every step from every process could be shuffled like a deck of cards, the total number of global permutations is (<em>N</em> &times; <em>K</em>)!. However, internal order within each process matters—Process A's third step cannot run before its second step. To eliminate these redundant internal orderings, we divide by the product of internal permutations for each process, yielding the classic symmetrical multinomial coefficient:
+</p>
 
+<div class="katex-display">
+              \[ \text{Total Interleavings (Symmetrical)} = \frac{(N \times K)!}{(K!)^N} \]
+</div>
+
+<p>
+    Even in this tidy, symmetrical scenario, the numbers explode. For just 3 workers executing 4 steps each, there are 34,650 possible schedules. Scale that up to 5 concurrent workers executing an 8-step lifecycle, and the possibilities exceed 7.6 &times; 10<sup>24</sup>. 
+</p>
+
+<h3>The Catch: Real Systems Are Gloriously Asymmetrical</h3>
+<p>
+    Relying solely on the symmetrical case glosses over the true chaos of production. Real-world DuckDB replicas never march in lockstep. One replica might be handling a heavy, multi-phase partition compaction (<em>K<sub>1</sub> = 8</em>), another is serving a fast, lightweight cache hit (<em>K<sub>2</sub> = 3</em>), a third is committing an Iceberg metadata snapshot (<em>K<sub>3</sub> = 6</em>), and a fourth is stuck in an object store retry loop (<em>K<sub>4</sub> = 4</em>).
+</p>
+
+<p>
+    To account for heterogeneous workloads where every replica executes a different number of steps, the uniform formula upgrades to its generalized form:
+</p>
+
+<div class="katex-display">
+              \[ \text{Total Interleavings (Asymmetrical)} = \frac{\left(\sum_{i=1}^{N} K_i\right)!}{K_1! \times K_2! \times \dots \times K_N!} \]
+</div>
+
+<p>
+    Plugging those variable step counts (8, 3, 6, 4) across 4 replicas gives a total of 21 instruction steps, resulting in roughly <strong>120 billion possible execution schedules</strong> (1.2 &times; 10<sup>11</sup>). 
+</p>
+
+<p>
+    Asymmetry turns non-determinism up to maximum. Because some replicas finish instantly while others drag behind, they create micro-windows of resource contention that standard integration tests will never touch. A CI suite running 1,000,000 tests explores a microscopic fraction of that state space. Concurrency bugs hide comfortably in the unexplored remainder, waiting for a minor network jitter or CPU spike in production to break the system.
+</p>
+
+<div class="callout danger">
+    <strong>The Testing Fallacy in Distributed Systems:</strong><br>
+    Empirical testing asserts: <em>"For the specific inputs and thread schedules we happened to sample during a lucky test run, the system didn't blow up."</em><br><br>
+    Formal verification proves: <em>"Across every single state reachable in the directed state graph—whether symmetrical or wildly asymmetrical—an invariant violation is mathematically impossible."</em> (Even if learning the math requires a lot of coffee).
+</div>
+
+<!-- SECTION 3 -->
+<h2 id="s3">3. Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</h2>
+
+<p>
+    Formal verification is often viewed as academic theory unsuitable for production engineering. In practice, major cloud platforms rely on formal methods because conventional testing breaks down under distributed concurrency.
+</p>
+
+<h3>Amazon Web Services</h3>
+<p>
+    AWS reported using TLA+ across critical systems including S3, DynamoDB, and EBS, finding subtle design bugs that had escaped conventional reviews and testing. In one notable DynamoDB case, model checking discovered an obscure concurrency bug whose shortest error trace required an interleaving of 35 separate high-level operations across multiple nodes—a sequence virtually impossible to hit through randomized testing.
+</p>
+
+<h3>MongoDB Replication &amp; Realm Sync</h3>
+<p>
+    When MongoDB engineered its Raft-based replication engine and Realm Sync protocols, developers turned to TLA+ to explore protocol state spaces. Model checking forced engineers to confront edge cases early, uncovering fundamental synchronization and lease bugs in their replication design before committing code to production.
+</p>
+
+<h3>Microsoft Azure CCF</h3>
+<p>
+    Microsoft verified the Confidential Consortium Framework (CCF)—a 63,000-line C++ secure cloud ledger—using TLA+ specifications and model-based trace checking in CI. Model checking uncovered six critical consensus bugs that had escaped fuzz testing and chaos engineering.
+</p>
+
+<!-- SECTION 4 -->
+<h2 id="s4">4. The Abstraction Blueprint &amp; The Architecture Assumption Ledger</h2>
+
+<p>
+    A common failure mode when adopting formal methods is attempting to transcribe code line-by-line into math. Translating Python syntax, C++ memory management, or NGINX Lua directives creates an unmanageable model that obscures core distributed interactions.
+</p>
+
+<div class="callout">
+    <strong>The Abstraction Principle:</strong><br>
+    If a component's internal operation cannot alter the global reachability of an illegal distributed state, <em>abstract it to an atomic value or immutable function</em>. If a component introduces concurrency, failure modes, or non-deterministic ordering, <em>model it as an explicit state variable and action</em>.
+</div>
+
+<p>
+    To master this abstract thinking, consider a distributed worker pulling a task from Azure Managed Redis, generating a heavy financial report, and saving it to blob storage. We must ruthlessly separate what happens locally from what happens across the network.
+</p>
+
+<h3>1. Abstract to an Atomic Value (Safe Internal Operations)</h3>
+<p>
+    You do not model the CPU parsing a JSON task payload, nor do you model the complex SQL joins the worker executes inside DuckDB to build the report.
+</p>
+<ul>
+    <li><strong>The "Why":</strong> Even if the JSON parser takes 500 milliseconds, or the SQL query processes 10 million rows, these actions occur entirely inside one isolated process's memory. They cannot natively cause a race condition with another node in the cluster.</li>
+    <li><strong>The Abstraction:</strong> In the formal model, this entire multi-minute execution phase is reduced to a single, instant mathematical function (e.g., <code>report_data = Generate(task_id)</code>). We assume the local computation is deterministic and correct, treating it as a black box.</li>
+</ul>
+
+<h3>2. Model as an Explicit State (Dangerous Distributed Operations)</h3>
+<p>
+    Conversely, you absolutely <em>must</em> model the worker requesting a lease from Redis, the lease's countdown timer, the worker crashing mid-job, and the network request to save the file.
+</p>
+<ul>
+    <li><strong>The "Why":</strong> These steps involve shared state, concurrency, and time. If Worker A's CPU processing takes too long and its Redis lease expires, Worker B might pick up the exact same task. Now both workers are racing to write to the same storage path simultaneously.</li>
+    <li><strong>The Modeling:</strong> You map out explicit state transitions that the model checker will test against every possible interleaving: <code>State: Claiming</code>, <code>State: Processing</code>, <code>State: Writing</code>, <code>State: Committing</code>, along with external disruptive actions like <code>Action: Crash</code> and <code>Action: Lease_Timeout</code>.</li>
+</ul>
+
+<h3>The Architectural Mapping Matrix</h3>
+<p>
+    Applying this principle to the Smart Data Gateway, we classify every architectural component into either a "Safe Internal" abstraction or a "Dangerous Distributed" state that TLA+ must verify.
+</p>
+
+<div class="table-container">
+    <table class="mpp-table">
+        <thead>
+            <tr>
+                <th>Architecture Component</th>
+                <th>Formal Abstraction</th>
+                <th>Safety / Liveness Property</th>
+                <th>Abstraction Rationale (Safe vs. Dangerous)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Client Identity &amp; Auth</strong></td>
+                <td><code>TenantOf[r]</code> mapping function</td>
+                <td>Tenant Isolation</td>
+                <td><strong>Abstracted:</strong> Cryptographic JWT parsing is a safe local CPU operation.<br><strong>Modeled:</strong> The deterministic mapping of a request to a tenant boundary.</td>
+            </tr>
+            <tr>
+                <td><strong>Query AST Hardening</strong></td>
+                <td>Atomic predicate binding in <code>jobs[r]</code></td>
+                <td>Row-Level Security Enforcement</td>
+                <td><strong>Abstracted:</strong> SQL string parsing and AST traversal are safe internal logic.<br><strong>Modeled:</strong> The immutable binding of tenant IDs to the query payload.</td>
+            </tr>
+            <tr>
+                <td><strong>Task Backlog (Redis)</strong></td>
+                <td><code>task_queue</code> (FIFO Sequence)</td>
+                <td>FIFO Dispatch / Bounded Liveness</td>
+                <td><strong>Abstracted:</strong> Redis TCP socket handling.<br><strong>Modeled:</strong> Task ordering, push, and pop operations, which are highly concurrent.</td>
+            </tr>
+            <tr>
+                <td><strong>Distributed Worker Fleet</strong></td>
+                <td><code>Workers</code> processes with lease epochs</td>
+                <td>Mutual Exclusion / Lease Safety</td>
+                <td><strong>Abstracted:</strong> SIMD DuckDB vectorized execution (safe internal).<br><strong>Modeled:</strong> Atomic claiming, worker crashes, and commit boundaries (dangerous distributed).</td>
+            </tr>
+            <tr>
+                <td><strong>Claim-Check Store</strong></td>
+                <td><code>blob_storage</code> with monotonic allocation</td>
+                <td>Claim-Check Pointer Integrity</td>
+                <td><strong>Abstracted:</strong> Blob chunking and HTTP retries.<br><strong>Modeled:</strong> The strict write-before-dereference sequencing (a race condition hotspot).</td>
+            </tr>
+            <tr>
+                <td><strong>Iceberg Commit Engine</strong></td>
+                <td>Monotonic <code>catalog_snapshot</code> advance</td>
+                <td>Snapshot Consistency</td>
+                <td><strong>Abstracted:</strong> Manifest list/tree generation.<br><strong>Modeled:</strong> The monotonic version advance that triggers cache invalidation across the cluster.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h3>The Architecture Assumption Ledger</h3>
+<p>
+    Formal models are only as good as the axioms they rest on. If our real-world infrastructure violates these assumptions, our mathematical proof is void. This ledger defines the strict environmental boundaries for our "Dangerous Distributed" operations:
+</p>
+<ul>
+    <li><strong>Assumption A1 (Atomic Lease Claims):</strong> Redis Lua scripts execute test-and-set task claiming atomically with respect to other workers. <em>(Without this, our mutual exclusion property fails).</em></li>
+    <li><strong>Assumption A2 (Storage Acknowledgment):</strong> Azure Blob Storage acknowledgments guarantee that payload bytes are durably committed before the SAS URI pointer is returned. <em>(Without this, workers could read incomplete data).</em></li>
+    <li><strong>Assumption A3 (Monotonic Snapshot Ordering):</strong> Table catalog snapshots for any given Apache Iceberg table advance monotonically. We abstract the catalog's internal multi-master commit protocol, trusting the engine handles it.</li>
+    <li><strong>Assumption A4 (Isolated Cache Mutations):</strong> Cache entries are populated and invalidated exclusively through our modeled gateway and ETL actions, never via out-of-band database edits.</li>
+    <li><strong>Assumption A5 (Boundary Mapping):</strong> Physical runtime state transitions in the actual Python/Rust code correspond directly and exclusively to the atomic labels defined in this specification.</li>
+</ul>
         <!-- SECTION 5 -->
         <h2 id="s5">5. The TLA+ Primer: Constructing Formal Logic from System Design</h2>
 
