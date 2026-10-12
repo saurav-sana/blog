@@ -25,39 +25,63 @@
     </script>
 
     <!-- Primary SEO Meta Tags -->
-    <title>Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana</title>
-    <meta name="title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
-    <meta name="description" content="Part 4: A rigorous TLA+ and PlusCal formal verification of the Smart Data Gateway, proving safety invariants, liveness termination, and implementation trace conformance.">
+    <title>Beyond Benchmarks: Formally Verifying Distributed State | Saurav Sana</title>
+    <meta name="description" content="Practical formal-methods results for the Smart Data Gateway: state abstraction, safety and liveness properties, TLC model checking, mutation testing, and implementation-conformance limits.">
     <meta name="keywords" content="Data Architecture, TLA+, PlusCal, Formal Verification, Model Checking, TLC, Distributed Systems, Leslie Lamport, DuckDB, Apache Iceberg, Claim-Check Pattern, Lease Epochs, Model-Based Trace Checking">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
     <link rel="prev" href="part-3-the-production-reality-check.html">
+    <link rel="next" href="part-5-tco-agentic-enterprise-adoption.html">
 
     <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
     <meta property="og:type" content="article">
-    <meta property="og:url" content="https://sauravsana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
-    <meta property="og:title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
-    <meta property="og:description" content="Why empirical testing fails under concurrency—and how to mathematically verify distributed state machines with TLA+, PlusCal, and Model-Based Trace Checking.">
-    <meta property="og:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+    <meta property="og:url" content="https://saurav-sana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html">
+    <meta property="og:title" content="Beyond Benchmarks: Formally Verifying Distributed State | Saurav Sana">
+    <meta property="og:description" content="How to specify distributed-state properties with TLA+, review TLC model checking results, and distinguish model evidence from production evidence.">
+    <meta property="og:image" content="https://saurav-sana.github.io/blog/assets/img/smart-data-gateway-preview.png">
     <meta property="og:site_name" content="Saurav Sana | Field Notes">
     <meta property="og:locale" content="en_US">
     <meta property="article:author" content="Saurav Sana">
-    <meta property="article:published_time" content="2026-09-25">
+    <meta property="article:published_time" content="2026-10-12">
     <meta property="article:section" content="Technical Blog / Data Architecture">
 
     <!-- Twitter / X Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:creator" content="@sauravsana">
-    <meta name="twitter:title" content="Part 4 — Formal Verification &amp; Distributed Systems Correctness | Saurav Sana">
-    <meta name="twitter:description" content="Why empirical testing fails under concurrency—and how to mathematically verify distributed state machines with TLA+, PlusCal, and Model-Based Trace Checking.">
-    <meta name="twitter:image" content="https://sauravsana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+    <meta name="twitter:title" content="Beyond Benchmarks: Formally Verifying Distributed State | Saurav Sana">
+    <meta name="twitter:description" content="How to specify distributed-state properties with TLA+, review TLC model checking results, and distinguish model evidence from production evidence.">
+    <meta name="twitter:image" content="https://saurav-sana.github.io/blog/assets/img/smart-data-gateway-preview.png">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "Beyond Benchmarks: Formally Verifying Distributed State",
+      "description": "Part 4 of the Smart Data Gateway series: practical formal-methods results for specifying and validating distributed-state properties.",
+      "image": "https://saurav-sana.github.io/blog/assets/img/smart-data-gateway-preview.png",
+      "author": { "@type": "Person", "name": "Saurav Sana", "url": "https://saurav-sana.github.io/" },
+      "publisher": { "@type": "Person", "name": "Saurav Sana" },
+      "datePublished": "2026-10-12",
+      "dateModified": "2026-10-12",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://saurav-sana.github.io/blog/series/smart-data-gateway/part-4-primitives-theoretical-validation.html"
+      },
+      "isPartOf": {
+        "@type": "CreativeWorkSeries",
+        "name": "Smart Data Gateway",
+        "position": 4
+      }
+    }
+    </script>
 
     <!-- Typography & Base CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800;900&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- KaTeX for Mathematical LaTeX Equations -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
@@ -104,10 +128,8 @@
             --code-text: #e2e8f0;
         }
 
-
-     .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
         main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 860px; margin-left: auto; margin-right: auto; }
-
 
         .site-nav { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
         .site-nav a { color: var(--muted); text-decoration: none; font-size: 0.95rem; font-family: var(--font-sans); transition: color 0.2s; }
@@ -121,16 +143,13 @@
         [data-theme="dark"] .theme-toggle .icon-moon { display: block; color: var(--muted); }
         [data-theme="dark"] .theme-toggle .icon-moon:hover { color: var(--text); }
 
-
-      
         .byline { font-family: var(--font-mono); font-size: 0.8rem; color: var(--teal); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
         .meta-line { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); margin-bottom: 2rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .meta-line span { color: var(--muted-2); }
         h1 { font-family: var(--font-display); font-size: 2.75rem; line-height: 1.15; font-weight: 900; letter-spacing: -0.02em; margin: 0.5rem 0 1rem; color: var(--text); word-break: break-word; }
         .deck { font-family: var(--font-sans); font-size: 1.35rem; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 2rem; word-break: break-word; }
 
-
-        h2 { font-family: var(--font-display); font-size: 1.85rem; margin-top: 4rem; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); color: var(--text); font-weight: 800; letter-spacing: -0.01em; word-break: break-word; }
+        h2 { font-family: var(--font-display); font-size: 1.85rem; margin-top: 4rem; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); color: var(--text); font-weight: 800; letter-spacing: -0.01em; word-break: break-word; scroll-margin-top: 80px; }
         h3 { font-family: var(--font-display); font-size: 1.35rem; color: var(--text); margin-top: 2.5rem; margin-bottom: 1rem; font-weight: 700; word-break: break-word; }
         h4 { font-family: var(--font-display); font-size: 1.15rem; color: var(--teal); margin-top: 1.75rem; margin-bottom: 0.75rem; font-weight: 700; }
         p, li { font-size: 1.1rem; color: var(--text); margin-bottom: 1.5rem; overflow-wrap: break-word; }
@@ -152,11 +171,15 @@
         .callout.danger strong { color: var(--danger); }
 
         .table-container { width: 100%; max-width: 100%; overflow-x: auto; margin: 2.5rem 0; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); -webkit-overflow-scrolling: touch; }
-        .mpp-table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: 0.95rem; text-align: left; }
-        .mpp-table th, .mpp-table td { padding: 1.15rem 1.25rem; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text); }
+        
+        /* TABLE LAYOUT FIXES */
+        .mpp-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; }
+        .mpp-table th, .mpp-table td { padding: 1.15rem 1.25rem; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text); word-break: normal; overflow-wrap: normal; line-height: 1.5; }
         .mpp-table th { background: var(--panel-2); font-family: var(--font-mono); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--teal); font-weight: 700; }
         .mpp-table tr:last-child td { border-bottom: none; }
         .mpp-table tr:hover td { background: var(--panel-2); }
+        .mpp-table td ul { margin: 0; padding-left: 1rem; }
+        .mpp-table td li { margin-bottom: 0.25rem; font-size: 0.9rem;}
 
         pre, code { font-family: var(--font-mono); font-size: 0.9rem; }
         code { word-break: break-word; overflow-wrap: anywhere; }
@@ -179,284 +202,44 @@
         .katex-display { overflow-x: auto !important; overflow-y: hidden !important; max-width: 100% !important; padding: 0.75rem 0 !important; margin: 1.5rem 0 !important; -webkit-overflow-scrolling: touch; }
         .katex { max-width: 100%; }
 
-        /* =======================================================================
-           INTEGRATED SYSTEM DIAGRAM STYLES (REPLACING MONOSPACE ASCII)
-           ======================================================================= */
-        .diagram-card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 2.5rem 0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-        }
+        /* Integrated Diagram Styles */
+        .diagram-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; margin: 2.5rem 0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02); }
+        .diagram-title { font-family: var(--font-mono); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal); font-weight: 700; text-align: center; margin-bottom: 1.5rem; }
 
-        .diagram-title {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--teal);
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
+        .diag-root { max-width: 300px; margin: 0 auto; background: var(--panel-2); border: 1px solid var(--teal); border-radius: 6px; padding: 0.75rem 1rem; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 0.95rem; color: var(--text); letter-spacing: 0.03em; }
+        .diag-stem-vertical { width: 2px; height: 20px; background: var(--line); margin: 0 auto; }
+        .diag-branch-bus { position: relative; height: 20px; margin: 0 16.66% 1rem; border-top: 2px solid var(--line); border-left: 2px solid var(--line); border-right: 2px solid var(--line); }
+        .diag-branch-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--line); transform: translateX(-50%); }
+        .diag-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .diag-column { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; display: flex; flex-direction: column; }
+        .diag-col-header { font-family: var(--font-display); font-size: 0.88rem; font-weight: 800; color: var(--teal); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; line-height: 1.3; }
+        .diag-col-sub { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+        .diag-col-items { list-style: none; padding: 0; margin: 0; font-size: 0.82rem; color: var(--text); line-height: 1.5; }
+        .diag-col-items li { position: relative; padding-left: 1rem; margin-bottom: 0.45rem; font-size: 0.82rem; }
+        .diag-col-items li::before { content: "•"; position: absolute; left: 0; color: var(--teal); font-weight: bold; }
+        .diag-converge-bus { position: relative; height: 20px; margin: 1rem 16.66% 0; border-bottom: 2px solid var(--line); border-left: 2px solid var(--line); border-right: 2px solid var(--line); }
+        .diag-outcome { max-width: 320px; margin: 0 auto; background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 6px; padding: 0.65rem 1rem; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; color: var(--text); letter-spacing: 0.04em; }
 
-        /* 1. Validation Hierarchy Framework */
-        .diag-root {
-            max-width: 300px;
-            margin: 0 auto;
-            background: var(--panel-2);
-            border: 1px solid var(--teal);
-            border-radius: 6px;
-            padding: 0.75rem 1rem;
-            text-align: center;
-            font-family: var(--font-display);
-            font-weight: 800;
-            font-size: 0.95rem;
-            color: var(--text);
-            letter-spacing: 0.03em;
-        }
+        .state-trajectory { display: flex; align-items: center; gap: 0.4rem; padding: 1rem 1.25rem; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 8px; margin: 1.75rem 0; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+        .state-node { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); flex-shrink: 0; }
+        .state-arrow { color: var(--teal); font-size: 0.9rem; font-weight: bold; flex-shrink: 0; }
+        .state-ellipsis { font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); padding: 0 0.2rem; flex-shrink: 0; }
 
-        .diag-stem-vertical {
-            width: 2px;
-            height: 20px;
-            background: var(--line);
-            margin: 0 auto;
-        }
-
-        .diag-branch-bus {
-            position: relative;
-            height: 20px;
-            margin: 0 16.66% 1rem;
-            border-top: 2px solid var(--line);
-            border-left: 2px solid var(--line);
-            border-right: 2px solid var(--line);
-        }
-
-        .diag-branch-center {
-            position: absolute;
-            left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: var(--line);
-            transform: translateX(-50%);
-        }
-
-        .diag-columns {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-        }
-
-        .diag-column {
-            background: var(--bg);
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .diag-col-header {
-            font-family: var(--font-display);
-            font-size: 0.88rem;
-            font-weight: 800;
-            color: var(--teal);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 0.25rem;
-            line-height: 1.3;
-        }
-
-        .diag-col-sub {
-            font-family: var(--font-mono);
-            font-size: 0.72rem;
-            color: var(--muted);
-            margin-bottom: 0.75rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--line-soft);
-        }
-
-        .diag-col-items {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            font-size: 0.82rem;
-            color: var(--text);
-            line-height: 1.5;
-        }
-
-        .diag-col-items li {
-            position: relative;
-            padding-left: 1rem;
-            margin-bottom: 0.45rem;
-            font-size: 0.82rem;
-        }
-
-        .diag-col-items li::before {
-            content: "•";
-            position: absolute;
-            left: 0;
-            color: var(--teal);
-            font-weight: bold;
-        }
-
-        .diag-converge-bus {
-            position: relative;
-            height: 20px;
-            margin: 1rem 16.66% 0;
-            border-bottom: 2px solid var(--line);
-            border-left: 2px solid var(--line);
-            border-right: 2px solid var(--line);
-        }
-
-        .diag-outcome {
-            max-width: 320px;
-            margin: 0 auto;
-            background: var(--panel-2);
-            border: 1px solid var(--line);
-            border-left: 3px solid var(--teal);
-            border-radius: 6px;
-            padding: 0.65rem 1rem;
-            text-align: center;
-            font-family: var(--font-display);
-            font-weight: 800;
-            font-size: 0.9rem;
-            color: var(--text);
-            letter-spacing: 0.04em;
-        }
-
-        /* 2. State Trajectory Sequence Bar */
-        .state-trajectory {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 1rem 1.25rem;
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-left: 3px solid var(--teal);
-            border-radius: 8px;
-            margin: 1.75rem 0;
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .state-node {
-            font-family: var(--font-mono);
-            font-size: 0.82rem;
-            font-weight: 600;
-            padding: 0.25rem 0.65rem;
-            border-radius: 4px;
-            background: var(--panel-2);
-            border: 1px solid var(--line);
-            color: var(--text);
-            flex-shrink: 0;
-        }
-
-        .state-arrow {
-            color: var(--teal);
-            font-size: 0.9rem;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-
-        .state-ellipsis {
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            color: var(--muted);
-            padding: 0 0.2rem;
-            flex-shrink: 0;
-        }
-
-        /* 3. Model-Based Trace Checking Pipeline */
-        .mbtc-grid {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            grid-template-rows: auto auto auto;
-            gap: 0.75rem 1.25rem;
-            align-items: center;
-            max-width: 720px;
-            margin: 0 auto;
-        }
-
-        .mbtc-card {
-            background: var(--bg);
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            padding: 0.9rem 1.1rem;
-        }
-
+        /* Model-Based Trace Checking Pipeline */
+        .mbtc-grid { display: grid; grid-template-columns: 1fr auto 1fr; grid-template-rows: auto auto auto; gap: 0.75rem 1.25rem; align-items: center; max-width: 720px; margin: 0 auto; }
+        .mbtc-card { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.9rem 1.1rem; }
         .mbtc-card-runtime { border-left: 3px solid var(--amber); }
         .mbtc-card-log { border-left: 3px solid var(--teal); }
         .mbtc-card-spec { border-left: 3px solid var(--teal); }
         .mbtc-card-checker { border-left: 3px solid var(--success); }
-
-        .mbtc-name {
-            font-family: var(--font-display);
-            font-size: 0.88rem;
-            font-weight: 800;
-            color: var(--text);
-            margin-bottom: 0.15rem;
-        }
-
-        .mbtc-detail {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--muted);
-        }
-
-        .mbtc-connector-top {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-
-        .mbtc-connector-bottom {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-
-        .mbtc-connector-right {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem 0;
-        }
-
-        .mbtc-label {
-            font-family: var(--font-mono);
-            font-size: 0.68rem;
-            color: var(--teal);
-            font-weight: 600;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
-            margin-bottom: 0.15rem;
-        }
-
-        .mbtc-arrow-h {
-            font-size: 1.15rem;
-            color: var(--teal);
-            font-weight: bold;
-            line-height: 1;
-        }
-
-        .mbtc-arrow-v {
-            font-size: 1.15rem;
-            color: var(--teal);
-            font-weight: bold;
-            line-height: 1;
-        }
-
- 
+        .mbtc-name { font-family: var(--font-display); font-size: 0.88rem; font-weight: 800; color: var(--text); margin-bottom: 0.15rem; }
+        .mbtc-detail { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+        .mbtc-connector-h { display: flex; align-items: center; justify-content: center; padding: 0 0.5rem; flex-direction: column; text-align: center; }
+        .mbtc-connector-v { display: flex; align-items: center; justify-content: center; padding: 0.5rem 0; flex-direction: column; }
+        .mbtc-label { font-family: var(--font-mono); font-size: 0.68rem; color: var(--teal); font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 0.15rem; }
+        .mbtc-arrow { font-size: 1.15rem; color: var(--teal); font-weight: bold; line-height: 1; }
 
         @media (max-width: 768px) {
-           
             .site-header { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
             .site-nav { width: 100%; justify-content: flex-start; gap: 1rem; }
             h1 { font-size: 2.15rem !important; }
@@ -467,29 +250,12 @@
             .toc { padding: 1.25rem 1rem; }
             pre { padding: 1rem; }
             .site-footer { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
-            
-            /* Responsive diagram collapses */
-            .diag-columns {
-                grid-template-columns: 1fr;
-            }
-            .diag-branch-bus, .diag-converge-bus {
-                display: none;
-            }
-            .diag-stem-vertical {
-                height: 12px;
-            }
-            .mbtc-grid {
-                grid-template-columns: 1fr;
-                gap: 0.75rem;
-            }
-            .mbtc-connector-top, .mbtc-connector-bottom, .mbtc-connector-right {
-                transform: rotate(90deg);
-                padding: 0.25rem 0;
-            }
-            .mbtc-connector-bottom .mbtc-label,
-            .mbtc-connector-top .mbtc-label {
-                display: none;
-            }
+            .diag-columns { grid-template-columns: 1fr; }
+            .diag-branch-bus, .diag-converge-bus { display: none; }
+            .diag-stem-vertical { height: 12px; }
+            .mbtc-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+            .mbtc-connector-h, .mbtc-connector-v { transform: rotate(90deg); padding: 0.25rem 0; }
+            .mbtc-label { display: none; }
         }
     </style>
 </head>
@@ -529,33 +295,33 @@
 
 
         <h1>Beyond Benchmarks: Formally Verifying Distributed State</h1>
-        <p class="deck">Proving multi-tenant isolation, atomic task leases, and snapshot cache consistency under non-deterministic thread schedules.</p>
+        <p class="deck">Turning distributed-system assumptions into explicit state machines, safety properties, liveness claims, and a reproducible validation plan.</p>
         
-        <div class="meta-line">October 9, 2026 · <span>DRAFT</span></div>
+        <div class="meta-line">October 12, 2026</div>
 
         <blockquote class="epigraph">
             <p>
                 “Mathematics is nature’s way of letting you know how sloppy your writing is.”
             </p>
             <footer>
-                — <strong>Leslie Lamport</strong>, <cite>TLA+ Creator &amp; Turing Award Laureate</cite>
+                — <strong>Leslie Lamport</strong>, <cite>Specifying Systems (2002)</cite>
             </footer>
         </blockquote>
 
         <!-- Table of Contents -->
         <nav class="toc">
-            <div class="toc-title">ON THIS PAGE</div>
+  <div class="toc-title">ON THIS PAGE</div>
             <ol>
                 <li><a href="#s1">The Validation Hierarchy: Physics, Logic, and Empirical Reality</a></li>
-                <li><a href="#s2">The Concurrency Testing Trap: Why Empirical Testing Lies</a></li>
-                <li><a href="#s3">Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</a></li>
-                <li><a href="#s4">The Abstraction Blueprint &amp; The Architecture Assumption Ledger</a></li>
+                <li><a href="#s2">Concurrency Testing and the Limits of Sampling</a></li>
+                <li><a href="#s3">Industrial Precedent: Formal Methods in Distributed Systems</a></li>
+                <li><a href="#s4">The Architecture Assumption Ledger</a></li>
                 <li><a href="#s5">The TLA+ Primer: Constructing Formal Logic from System Design</a></li>
-                <li><a href="#s6">The Complete Formal Specification in PlusCal</a></li>
-                <li><a href="#s7">The Mathematical State-Transition Relations (First-Order TLA+)</a></li>
-                <li><a href="#s8">TLC Model Checking, Invariants &amp; Mutation Testing</a></li>
+                <li><a href="#s6">State Variables, Actions, and Properties in TLA+</a></li>
+                <li><a href="#s7">Formal Verification Scope &amp; Target Properties</a></li>
+                <li><a href="#s8">TLC Configurations, Evidence, &amp; Mutation Falsification</a></li>
                 <li><a href="#s9">From Model Correctness to Implementation Conformance</a></li>
-                <li><a href="#s10">The Comprehensive Architectural Verification Matrix</a></li>
+                <li><a href="#s10">The Comprehensive Architectural Verification Summary</a></li>
             </ol>
         </nav>
 
@@ -567,7 +333,7 @@
 </p>
 
 <p>
-    Having proven our hardware won't burst into flames under pressure, we now face the ultimate boss level: <strong>proving that our distributed state transitions won't suffer a collective existential crisis when the network decides to act up.</strong>
+    The performance analysis in earlier parts addresses capacity and queueing hypotheses; it does not establish correctness. This part specifies distributed-state properties and lays out how to check them under explicit model bounds and assumptions.
 </p>
 
 <!-- DIAGRAM 1: Three-Tier Validation Hierarchy -->
@@ -623,23 +389,19 @@
 </div>
 
 <div class="callout">
-    <strong>What This Model Proves—and What It Does Not:</strong>
-    <p>
-        Let’s be honest: a verified specification proves that <strong>your idealized mathematical dream matches your design logic under explicit assumptions.</strong> It doesn't magically mean your production code is immune to typos, cosmic rays, or an overly enthusiastic intern dropping a database table.
-    </p>
-    <p>
-        Production correctness requires four complementary layers:
-    </p>
+    <strong>What formal specification and model checking can establish</strong>
+    <p>A TLA+ specification defines an abstract transition system. If TLC completes a configured run without a counterexample, that is evidence that the checked properties hold for the reachable states in that finite model and configuration. It is not a proof that production code conforms, that omitted behaviors are safe, or that assumptions about Redis, object storage, the catalog, and runtime ordering are true.</p>
+    <p>Credible production assurance requires complementary evidence:</p>
     <ol>
-        <li>Formally verifying the abstract distributed state transitions against safety and liveness invariants.</li>
+        <li>Checking the abstract state machine with TLC and recording exact bounds, properties, tool version, and results.</li>
         <li>Validating environmental assumptions (Redis Lua atomicity, Azure Blob durability, Iceberg version monotonicity, worker lease mechanics).</li>
-        <li>Enforcing model-code conformance through Model-Based Trace Checking (MBTC) in continuous integration.</li>
+        <li>Building and testing a trace-conformance harness that binds observed event parameters to model transitions; this remains proposed until implemented and run.</li>
         <li>Validating physical boundaries via performance benchmarking, chaos testing, and SRE load telemetry.</li>
     </ol>
 </div>
 
 <!-- SECTION 2 -->
-<h2 id="s2">2. The Concurrency Testing Trap: Why Empirical Testing Lies</h2>
+<h2 id="s2">2. Concurrency Testing and the Limits of Sampling</h2>
 
 <p>
     Anticipating an architecture review board brings a specific kind of dread. Long before anyone actually asks a question, the mind races to imagine the brutal edge cases reviewers love to throw at a distributed design:
@@ -655,19 +417,19 @@
 </div>
 
 <p>
-    Thinking through those scenarios exposes a funny quirk in modern software engineering. Entire engineering blogs and conferences are dedicated to test coverage, mocking tools, and CI/CD pipelines, yet almost nobody in everyday tech talks about formal verification. For decades, distributed systems have suffered from the exact same race conditions, while the industry response remains uniform: write more integration tests, cross your fingers, and rely on hope-driven development. 
+    These scenarios expose a limitation rather than a failure of conventional testing: tests exercise selected inputs, schedules, and failure timings. They are essential for validating concrete implementations, but a test suite alone does not enumerate every behavior of a concurrent system. Formal modeling complements testing by making state transitions and nondeterministic choices explicit.
 </p>
 
 <p>
-    Diving into formal methods out of sheer curiosity reveals a fascinating escape hatch. Finding a mathematical way to prove that a tricky state transition is bug-free feels like finding a cheat code to reality. Naturally, that brief moment of triumph is quickly humbled by the vertical cliff of the TLA+ learning curve. Realizing that tools for mathematical state verification have existed for over thirty years—while everyone just keeps arguing about test runner speeds—brings a strange mix of amusement and exhaustion. 
+    Formal methods offer a disciplined way to explore whether a precise model admits a forbidden state or an execution that violates a stated temporal property. The result depends on the model, its bounds, and the environmental assumptions; it is not a shortcut around implementation testing or operational evidence.
 </p>
 
 <p>
-    This naturally highlights why formal validation rarely makes it into sprint planning. Try walking into a planning session and telling a product manager, <em>"We need three days to map out a temporal logic state machine before writing code."</em> The response is always a blank stare and a polite reminder about story points and quarterly velocity. To avoid the steep learning curve, the industry relies on a very convenient defense mechanism: slapping an "academic" or "too theoretical" label on formal methods. It acts as a socially acceptable excuse to overlook high-value validation, default to a "ship fast, patch later" mindset, and stick to standard enterprise practices that prioritize speed over mathematical certainty.
+    Formal methods do have a learning and maintenance cost, so their value depends on the consequence of failure, the complexity of the protocol, and the team’s ability to keep the model aligned with the implementation. They are most useful when a small number of state transitions govern high-impact properties such as tenant isolation, durable publication, lease fencing, or recovery.
 </p>
 
 <p>
-    To understand why standard software testing is a rigged game, look at how concurrent systems handle instruction execution. In an idealized, textbook system, imagine <em>N</em> identical processes (such as our DuckDB replicas), each executing a uniform sequence of <em>K</em> steps to finish a task. 
+    To understand why schedule coverage is difficult, consider how concurrent systems interleave operations. In an idealized, textbook system, imagine <em>N</em> identical processes (such as our DuckDB replicas), each executing a uniform sequence of <em>K</em> steps to finish a task.
 </p>
 
 <p>
@@ -675,16 +437,16 @@
 </p>
 
 <div class="katex-display">
-              \[ \text{Total Interleavings (Symmetrical)} = \frac{(N \times K)!}{(K!)^N} \]
+            \[ \text{Total Interleavings (Symmetrical)} = \frac{(N \times K)!}{(K!)^N} \]
 </div>
 
 <p>
-    Even in this tidy, symmetrical scenario, the numbers explode. For just 3 workers executing 4 steps each, there are 34,650 possible schedules. Scale that up to 5 concurrent workers executing an 8-step lifecycle, and the possibilities exceed 7.6 &times; 10<sup>24</sup>. 
+    Even in this tidy, symmetrical scenario, the numbers explode. For just 3 workers executing 4 steps each, there are 34,650 possible schedules. Scale that up to 5 concurrent workers executing an 8-step lifecycle, and the possibilities exceed 7.6 &times; 10<sup>24</sup>.
 </p>
 
-<h3>The Catch: Real Systems Are Gloriously Asymmetrical</h3>
+<h3>The Catch: Real Systems Are Asymmetrical</h3>
 <p>
-    Relying solely on the symmetrical case glosses over the true chaos of production. Real-world DuckDB replicas never march in lockstep. One replica might be handling a heavy, multi-phase partition compaction (<em>K<sub>1</sub> = 8</em>), another is serving a fast, lightweight cache hit (<em>K<sub>2</sub> = 3</em>), a third is committing an Iceberg metadata snapshot (<em>K<sub>3</sub> = 6</em>), and a fourth is stuck in an object store retry loop (<em>K<sub>4</sub> = 4</em>).
+    Relying solely on the symmetrical case understates the true heterogeneity of production. Real-world DuckDB replicas never march in lockstep. One replica might be handling a heavy, multi-phase partition compaction (<em>K<sub>1</sub> = 8</em>), another is serving a fast, lightweight cache hit (<em>K<sub>2</sub> = 3</em>), a third is committing an Iceberg metadata snapshot (<em>K<sub>3</sub> = 6</em>), and a fourth is stuck in an object store retry loop (<em>K<sub>4</sub> = 4</em>).
 </p>
 
 <p>
@@ -692,25 +454,25 @@
 </p>
 
 <div class="katex-display">
-              \[ \text{Total Interleavings (Asymmetrical)} = \frac{\left(\sum_{i=1}^{N} K_i\right)!}{K_1! \times K_2! \times \dots \times K_N!} \]
+            \[ \text{Total Interleavings (Asymmetrical)} = \frac{\left(\sum_{i=1}^{N} K_i\right)!}{K_1! \times K_2! \times \dots \times K_N!} \]
 </div>
 
 <p>
-    Plugging those variable step counts (8, 3, 6, 4) across 4 replicas gives a total of 21 instruction steps, resulting in roughly <strong>120 billion possible execution schedules</strong> (1.2 &times; 10<sup>11</sup>). 
+    Plugging those variable step counts (8, 3, 6, 4) across 4 replicas gives a total of 21 instruction steps, resulting in roughly <strong>12 billion possible execution schedules</strong> (1.2 &times; 10<sup>10</sup>).
 </p>
 
 <p>
-    Asymmetry turns non-determinism up to maximum. Because some replicas finish instantly while others drag behind, they create micro-windows of resource contention that standard integration tests will never touch. A CI suite running 1,000,000 tests explores a microscopic fraction of that state space. Concurrency bugs hide comfortably in the unexplored remainder, waiting for a minor network jitter or CPU spike in production to break the system.
+    This count is a combinatorial illustration, not a count of production behaviors: real systems have partial orders, nondeterministic inputs, retries, failures, and abstraction choices that this simple shuffle model omits. A million tests do not necessarily cover a million distinct schedules, and model checking does not automatically enumerate the real system’s entire state space. The useful comparison is that tests sample concrete executions while TLC explores all reachable states of the finite transition system that was specified and configured.
 </p>
 
 <div class="callout danger">
-    <strong>The Testing Fallacy in Distributed Systems:</strong><br>
-    Empirical testing asserts: <em>"For the specific inputs and thread schedules we happened to sample during a lucky test run, the system didn't blow up."</em><br><br>
-    Formal verification proves: <em>"Across every single state reachable in the directed state graph—whether symmetrical or wildly asymmetrical—an invariant violation is mathematically impossible."</em> (Even if learning the math requires a lot of coffee).
+    <strong>Complementary techniques, different evidence:</strong><br>
+    Tests provide evidence about the implementation under the inputs, schedules, and environments actually exercised.<br><br>
+    TLC can exhaustively explore the reachable state graph of a finite model/configuration and report a counterexample if a checked invariant fails. A clean run is conditional on the model, constants, specification, and TLC configuration; it is not a blanket proof about production code.
 </div>
 
 <!-- SECTION 3 -->
-<h2 id="s3">3. Industrial Precedent: Why AWS, Microsoft, &amp; MongoDB Bet on TLA+</h2>
+<h2 id="s3">3. Industrial Precedent: Formal Methods in Distributed Systems</h2>
 
 <p>
     Formal verification is often viewed as academic theory unsuitable for production engineering. In practice, major cloud platforms rely on formal methods because conventional testing breaks down under distributed concurrency.
@@ -718,974 +480,955 @@
 
 <h3>Amazon Web Services</h3>
 <p>
-    AWS reported using TLA+ across critical systems including S3, DynamoDB, and EBS, finding subtle design bugs that had escaped conventional reviews and testing. In one notable DynamoDB case, model checking discovered an obscure concurrency bug whose shortest error trace required an interleaving of 35 separate high-level operations across multiple nodes—a sequence virtually impossible to hit through randomized testing.
+    AWS engineers have publicly described using TLA+ to reason about distributed-service designs and finding design errors before implementation (<em>Newcombe et al., "How Amazon Web Services Uses Formal Methods," CACM 2015</em>). The details vary by case; the lesson is not that testing is futile, but that explicit models can expose unusual interleavings and protocol-level assumptions.
 </p>
 
 <h3>MongoDB Replication &amp; Realm Sync</h3>
 <p>
-    When MongoDB engineered its Raft-based replication engine and Realm Sync protocols, developers turned to TLA+ to explore protocol state spaces. Model checking forced engineers to confront edge cases early, uncovering fundamental synchronization and lease bugs in their replication design before committing code to production.
+    MongoDB engineers have published accounts of using formal methods, including TLA+, to reason about replication and synchronization protocols (<em>Schaf et al., "Model Checking MongoDB," NSDI 2020</em>). Treat these as examples of a useful engineering practice, not evidence that the Smart Data Gateway has itself been verified. 
 </p>
 
 <h3>Microsoft Azure CCF</h3>
 <p>
-    Microsoft verified the Confidential Consortium Framework (CCF)—a 63,000-line C++ secure cloud ledger—using TLA+ specifications and model-based trace checking in CI. Model checking uncovered six critical consensus bugs that had escaped fuzz testing and chaos engineering.
+    Microsoft’s Confidential Consortium Framework (CCF) materials describe using formal specification and model-based techniques to strengthen confidence in distributed-system behavior. The exact scope and reported findings should be read in their original publication; this article does not independently reproduce those results. 
 </p>
 
 <!-- SECTION 4 -->
-<h2 id="s4">4. The Abstraction Blueprint &amp; The Architecture Assumption Ledger</h2>
+<h2 id="s4">4. The Architecture Assumption Ledger</h2>
 
 <p>
-    A common failure mode when adopting formal methods is attempting to transcribe code line-by-line into math. Translating Python syntax, C++ memory management, or NGINX Lua directives creates an unmanageable model that obscures core distributed interactions.
+    A common failure mode when adopting formal methods is attempting to transcribe code line-by-line into math. Translating Python syntax, C++ memory management, or NGINX Lua directives creates an unmanageable model that obscures core distributed interactions. Instead, we must ruthlessly abstract safe internal computation (like a CPU parsing JSON or calculating a SQL join) into atomic functions, while explicitly modeling operations that introduce cross-node concurrency, state sharing, or failure. 
+</p>
+
+<p>
+    Because the model operates at this abstract level, any correctness claims depend entirely on the physical implementation upholding these abstracted assumptions. The ledger below explicitly defines the boundaries between what the formal model assumes and what the engineering team must physically validate in production.
+</p>
+
+<div class="table-container">
+    <table class="mpp-table" style="min-width: 850px;">
+        <thead>
+            <tr>
+                <th style="min-width: 220px;">Assumption</th>
+                <th>Where the Model Uses It</th>
+                <th>How to Validate It in Implementation</th>
+                <th style="min-width: 180px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>External Auth Resolution</strong><br>Authentication correctly maps a client token to a trusted cryptographic tenant ID, regardless of the user's requested payload.</td>
+                <td>Distinguishes <code>RequestedTenantOf[r]</code> from <code>AuthenticatedTenantOf[r]</code>, rejecting mismatches at the admission step.</td>
+                <td>Integration testing of the JWT middleware and API Gateway admission controllers to ensure payload variables cannot override token context.</td>
+                <td><span style="color: var(--success); font-weight: 600;">Validated via Integration Tests</span></td>
+            </tr>
+            <tr>
+                <td><strong>Cross-System Atomic Acceptance</strong><br>A worker can durably publish a result pointer <em>if and only if</em> its Redis lease epoch is current AND the Iceberg catalog snapshot matches the execution version.</td>
+                <td>The <code>CommitJob</code> action enforces both `epoch` and `version` algebraically in a single atomic TLA+ step.</td>
+                <td>This requires a conditional Compare-And-Set (CAS) transaction bridging Redis and Iceberg (or a unified transactional metastore) to prevent a stale worker from writing a result after the catalog advances.</td>
+                <td><span style="color: var(--amber); font-weight: 600;">Needs Implementation (Sharpest Gap)</span></td>
+            </tr>
+            <tr>
+                <td><strong>Fail-Stop Worker Crashes</strong><br>Workers fail by crashing entirely, stopping all execution. They do not experience Byzantine failures (e.g., maliciously corrupting memory or altering tenant predicates).</td>
+                <td>The <code>Crasher</code> actor transitions <code>worker_alive[w] = FALSE</code>, cleanly halting the worker process in the model.</td>
+                <td>Infrastructure monitoring, cgroups, memory-safe execution environments (e.g., Rust/Wasm), and signed query payloads.</td>
+                <td><span style="color: var(--success); font-weight: 600;">Validated via SRE Observability</span></td>
+            </tr>
+            <tr>
+                <td><strong>Queue Discipline & At-Least-Once Delivery</strong><br>Messages pushed to the broker are eventually delivered to a worker unless explicitly acknowledged or expired. Messages are not silently dropped.</td>
+                <td>The <code>task_queue</code> operates as a reliable mathematical sequence where <code>Tail(task_queue)</code> prevents silent loss.</td>
+                <td>Broker configuration (e.g., Redis Streams ACKs, Kafka consumer groups) and dead-letter queue (DLQ) monitoring.</td>
+                <td><span style="color: var(--success); font-weight: 600;">Validated via Infrastructure Config</span></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- SECTION 5 -->
+<h2 id="s5">5. The TLA+ Primer: Constructing Formal Logic from System Design</h2>
+
+<p>
+    TLA+ combines state-based mathematics with temporal logic to describe possible system behaviors over sequences of states. In this gateway, it can express safety conditions (something bad never happens) and liveness conditions (something good eventually happens under stated assumptions). A specification is only as meaningful as its state variables, actions, and environment model.
 </p>
 
 <div class="callout">
-    <strong>The Abstraction Principle:</strong><br>
-    If a component's internal operation cannot alter the global reachability of an illegal distributed state, <em>abstract it to an atomic value or immutable function</em>. If a component introduces concurrency, failure modes, or non-deterministic ordering, <em>model it as an explicit state variable and action</em>.
+    <strong>The Core Architectural Distinction: Requests vs. Queries</strong><br>
+    A common trap in modeling analytical gateways is conflating <code>Queries</code> with <code>Requests</code>. A query hash \(Q_1\) represents normalized SQL text. A request \(R_1\) represents an independent client invocation. Two distinct tenants can execute query \(Q_1\) simultaneously, and Tenant A can submit query \(Q_1\) multiple times concurrently. The job registry must be indexed by <code>Requests</code>, while the result cache is indexed by \(\langle\text{Tenant}, \text{Query}, \text{Snapshot}, \text{SecurityContext}\rangle\).
+</div>
+
+<h3>1. Temporal Logic Operators</h3>
+<p>
+    In standard programming, assertions evaluate conditions at an instantaneous snapshot. TLA+ temporal logic reasons across entire execution paths over infinite time:
+</p>
+
+<!-- DIAGRAM 2: State Trajectory Sequence Bar -->
+<div class="state-trajectory" role="img" aria-label="State Trajectory Sequence: State 0 to State n">
+    <span class="state-node">State 0</span>
+    <span class="state-arrow">&rarr;</span>
+    <span class="state-node">State 1</span>
+    <span class="state-arrow">&rarr;</span>
+    <span class="state-node">State 2</span>
+    <span class="state-arrow">&rarr;</span>
+    <span class="state-ellipsis">&hellip;</span>
+    <span class="state-arrow">&rarr;</span>
+    <span class="state-node">State <em>n</em></span>
+    <span class="state-arrow">&rarr;</span>
+    <span class="state-ellipsis">&hellip;</span>
+</div>
+
+<ul class="sre-list">
+    <li>
+        <strong>1. Always (\(\Box P\)) — Safety Invariants</strong>
+        <p><em>Formal Meaning:</em> Condition \(P\) is true in every reachable state along every valid execution trajectory.</p>
+        <div class="katex-display">
+            \[\Box (\forall r \in \text{Requests} : client\_received[r].\text{delivered} \implies client\_received[r].\text{tenant} = AuthenticatedTenantOf[r])\]
+        </div>
+        <p><em>Intended property:</em> Under the model’s admission, authorization, cache-key, and delivery assumptions, no reachable modeled state lets a request receive a result bound to a different authenticated tenant. This conclusion is only as strong as the modeled state and checked configuration.</p>
+    </li>
+    <li>
+        <strong>2. Eventually (\(\Diamond P\)) — Progress Guarantees</strong>
+        <p><em>Formal Meaning:</em> Condition \(P\) is guaranteed to become true in at least one state in the future.</p>
+        <div class="katex-display">
+            \[\Diamond (\text{jobs}[r].\text{state} \in \{\text{"COMPLETED"}, \text{"FAILED"}\})\]
+        </div>
+        <p><em>Interpretation:</em> This eventuality is a liveness claim only when checked as part of the behavior specification with explicit fairness and environment assumptions. By itself, a state formula with \(\Diamond\) is not a claim that all requests succeed; the permitted terminal outcomes explicitly include failure states (e.g., resources exhausted or timeout limits reached).</p>
+    </li>
+    <li>
+        <strong>3. Leads-To (\(P \leadsto Q\)) — Terminal Liveness</strong>
+        <p><em>Formal Meaning:</em> Defined as \(\Box(P \implies \Diamond Q)\). Whenever state \(P\) occurs, state \(Q\) is guaranteed to follow.</p>
+        <div class="katex-display">
+            \[ \text{Reclaimable}(b) \leadsto \text{Reclaimed}(b) \]
+        </div>
+        <p><em>Intended liveness claim:</em> If the executable specification includes the required fairness and recovery assumptions, every blob that becomes eligible for garbage collection eventually reaches a reclaimed state.</p>
+    </li>
+</ul>
+
+<h3>2. The Fairness Assumptions</h3>
+<p>
+    Liveness guarantees in TLA+ fundamentally depend on the environment properties provided to the model. We explicitly define the following fairness assumptions (preventing infinite stuttering where enabled actions are ignored forever) to verify system progress:
+</p>
+<ul>
+    <li><strong>Weak Fairness (\(\text{WF}_{\text{vars}}(A)\)):</strong> The model assumes the scheduler will eventually allocate CPU to processes. Specifically, we apply Weak Fairness to <code>WorkerClaim</code>, <code>StartExecution</code>, <code>CommitJob</code>, and <code>PopulateCache</code>, ensuring active workers aren't permanently starved while work is available.</li>
+    <li><strong>Strong Fairness (\(\text{SF}_{\text{vars}}(A)\)):</strong> Applied to actions that might only be intermittently enabled. We apply Strong Fairness to <code>GCReclaim</code> and <code>ETLCommit</code> to guarantee that background daemons (like garbage collection and cache invalidation) are never permanently starved out by a continuous flood of read traffic.</li>
+</ul>
+
+<h3>3. Mathematical Logic &amp; Set Operations</h3>
+<ul>
+    <li><strong>Universal Quantification (\(\forall x \in S : P(x)\)):</strong> Condition \(P(x)\) holds for every item in set \(S\).</li>
+    <li><strong>Existential Quantification (\(\exists x \in S : P(x)\)):</strong> There exists at least one item in set \(S\) satisfying \(P(x)\).</li>
+    <li><strong>Prime Operator (\(x'\)):</strong> Denotes the variable's value in the next state. The transition is an algebraic constraint:
+        <pre><code>task_queue' = Tail(task_queue)</code></pre>
+    </li>
+    <li><strong>Frame Conditions (<code>UNCHANGED</code>):</strong> TLA+ requires explicit definition of unmutated variables. If a variable is omitted, it can take arbitrary values in the next state:
+        <pre><code>UNCHANGED &lt;&lt;catalog_snapshot, cache, blob_storage&gt;&gt;</code></pre>
+    </li>
+    <li><strong>Function Mutation (<code>EXCEPT</code>):</strong> Updates specific keys while preserving all others:
+        <pre><code>cache' = [cache EXCEPT ![t][q][v] = [valid |-&gt; TRUE, blob_id |-&gt; b_id]]</code></pre>
+    </li>
+</ul>
+
+
+<!-- SECTION 6 -->
+<h2 id="s6">6. State Variables, Actions, and Properties in TLA+</h2>
+
+<p>
+    TLA+ is not simply “first-order predicate logic”; it is a formal specification language built around state predicates, action formulas, and temporal properties. A state predicate constrains one state, an action formula relates a current state to a next state, and temporal formulas describe behavior over sequences of states. 
+</p>
+
+<p>
+    PlusCal is an algorithmic notation translated into TLA+ by the PlusCal translator. TLC then model-checks a TLA+ specification; it is not the PlusCal translator. Below are representative state variables, action relations, and properties that map directly to the executed model.
+</p>
+
+<div class="callout callout-info">
+    <h4>Simplified Mathematical Reconstruction</h4>
+    <p>
+        Writing and manually validating pure mathematical formalisms (like raw TLA+ logic) is notoriously difficult. As a software architect, I rely on <strong>PlusCal</strong>—an algorithm-modeling language with C-like syntax—to express the system's distributed behaviors. The pure TLA+ math equations presented below are <strong>simplified mathematical reconstructions</strong> rather than raw generated output, curated to clearly illustrate the distributed state transitions (including program counters <code>pc</code>) for readability. 
+    </p>
+    <p style="margin-bottom: 0;">
+        <strong><a href="gateway.pdf" target="_blank">&#128196; Download Full TLA+ Model (PDF)</a></strong> — A cleanly typeset PDF of the complete TLA+ mathematics is available for academic and formal review. While the TLC model checker explores the reachable state graph of the configured finite specification and checks the selected properties, it relies on the boundaries established below.
+    </p>
+</div>
+
+
+<h3>1. Selected State Variables</h3>
+<p><em>Note: This is an excerpt, not the complete tuple. It includes the primary data-plane variables and the process program counter (<code>pc</code>) required to evaluate the state transitions shown below. Auxiliary fault-injection variables and background daemon states are omitted for readability.</em></p>
+<div class="katex-display">
+    \[\text{vars}_{\text{excerpt}} \triangleq \langle catalog\_snapshot, cache, task\_queue, jobs, blob\_storage, available\_blobs, worker\_alive, client\_received, commit\_count, pc \rangle\]
+</div>
+
+<h3>2. Initial State Predicate (\(Init\))</h3>
+<p><em>Initializes the selected state variables:</em></p>
+<div class="katex-display">
+    \[Init \triangleq \begin{aligned}
+     & \land catalog\_snapshot = [t \in Tenants \mapsto 1] \\
+     & \land cache = [t \in Tenants \mapsto [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [s \in SecCtxs \mapsto \text{NoEntry}]]]] \\
+     & \land task\_queue = \langle \rangle \\
+     & \land jobs = [r \in Requests \mapsto [state \mapsto \text{"IDLE"}, owner \mapsto \text{"NONE"}, lease\_epoch \mapsto 0, attempts \mapsto 0, \\
+     & \phantom{\land jobs = [r \in Requests \mapsto [} requested\_tenant \mapsto RequestedTenantOf[r], tenant \mapsto \text{"NONE"}, query \mapsto QueryOf[r], \\
+     & \phantom{\land jobs = [r \in Requests \mapsto [} security\_context \mapsto \text{"NONE"}, version \mapsto 0, blob\_ptr \mapsto \text{"NONE"}, protocol \mapsto ProtocolOf[r], \\
+     & \phantom{\land jobs = [r \in Requests \mapsto [} rls\_applied \mapsto \text{FALSE}, executed\_predicate\_tenant \mapsto \text{"NONE"}]] \\
+     & \land blob\_storage = [b \in Blobs \mapsto FreeBlob] \\
+     & \land available\_blobs = Blobs \\
+     & \land worker\_alive = [w \in Workers \mapsto \text{TRUE}] \\
+     & \land client\_received = [r \in Requests \mapsto [delivered \mapsto \text{FALSE}, released \mapsto \text{FALSE}, blob\_id \mapsto \text{"NONE"}, tenant \mapsto \text{"NONE"}, query \mapsto \text{"NONE"}, version \mapsto 0, security\_context \mapsto \text{"NONE"}]] \\
+     & \land commit\_count = [r \in Requests \mapsto 0] \\
+     & \land pc = [w \in Workers \mapsto \text{"ClaimTask"}, \text{"LakehouseETL"} \mapsto \text{"ETLCommit"}, \dots]
+     \end{aligned}\]
+</div>
+
+<h3>3. Selected Core Action Relations</h3>
+
+<h4>A. Atomic Task Claiming with Lease Epoch Increment (\(WorkerClaim\))</h4>
+<div class="katex-display">
+    \[WorkerClaim(w) \triangleq \begin{aligned}
+     & \land pc[w] = \text{"ClaimTask"} \land worker\_alive[w] \land Len(task\_queue) > 0 \\
+     & \land \text{LET } r \triangleq Head(task\_queue) \text{ IN } \\
+     & \phantom{\land} \land task\_queue' = Tail(task\_queue) \\
+     & \phantom{\land} \land \textbf{IF } jobs[r].state = \text{"QUEUED"} \\
+     & \phantom{\land \land} \textbf{THEN } \land jobs' = [jobs \text{ EXCEPT } ![r].owner = w, ![r].state = \text{"CLAIMED"}, ![r].lease\_epoch = jobs[r].lease\_epoch + 1] \\
+     & \phantom{\land \land \textbf{THEN}} \land pc' = [pc \text{ EXCEPT } ![w] = \text{"StartExecution"}] \\
+     & \phantom{\land \land} \textbf{ELSE } \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \land \text{UNCHANGED } jobs \\
+     & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
+     \end{aligned}\]
+</div>
+
+<h4>B. Authoritative Result Acceptance (<code>CommitJob</code>)</h4>
+<p>
+    This action represents the <strong>authoritative acceptance boundary</strong>. To prevent a distributed race condition where a background ETL process updates the Iceberg catalog while a worker is processing a task, this step atomically enforces <strong>both</strong> lease-epoch fencing and snapshot freshness. If <code>catalog_snapshot</code> has advanced, the commit is rejected, even if the worker's lease is perfectly valid.
+</p>
+<div class="katex-display">
+    \[CommitJob(w, r, epoch) \triangleq \begin{aligned}
+     & \land pc[w] = \text{"CommitJob"} \land worker\_alive[w] \\
+     & \land HoldsLease(r, epoch, w, \text{"RESULT\_WRITTEN"}) \\
+     & \land jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
+     & \land jobs' = [jobs \text{ EXCEPT } ![r].state = \text{"COMPLETED"}, ![r].owner = \text{"NONE"}] \\
+     & \land commit\_count' = [commit\_count \text{ EXCEPT } ![r] = commit\_count[r] + 1] \\
+     & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"PopulateCache"}] \\
+     & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, task\_queue, blob\_storage, client\_received, available\_blobs, worker\_alive \rangle
+     \end{aligned}\]
+</div>
+
+<h4>C. Best-Effort Cache Population (\(PopulateCache\))</h4>
+<p>
+    Commit is modelled as distinct from the best-effort result-cache write (<code>PopulateCache</code>). Splitting them is deliberate: real systems can crash between the two, leaving a job <code>COMPLETED</code> but uncached. The result cache is therefore treated as best-effort and never assumed to hold an entry just because a job completed.
+</p>
+<div class="katex-display">
+    \[PopulateCache(w, r, blob) \triangleq \begin{aligned}
+     & \land pc[w] = \text{"PopulateCache"} \land worker\_alive[w] \\
+     & \land jobs[r].state = \text{"COMPLETED"} \land jobs[r].blob\_ptr = blob \\
+     & \land jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
+     & \land BlobMatches(blob, jobs[r].tenant, jobs[r].query, jobs[r].version, jobs[r].security\_context) \\
+     & \land \textbf{IF } FlightPopulatesCache \lor ProtocolOf[r] = \text{"REST"} \\
+     & \phantom{\land} \textbf{THEN } cache' = [cache \text{ EXCEPT } ![jobs[r].tenant][jobs[r].query][jobs[r].version][jobs[r].security\_context] = [valid \mapsto \text{TRUE}, blob\_id \mapsto blob]] \\
+     & \phantom{\land} \textbf{ELSE } \text{UNCHANGED } cache \\
+     & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \\
+     & \land \text{UNCHANGED } \langle catalog\_snapshot, task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
+     \end{aligned}\]
+</div>
+
+<h4>D. Tenant-Isolated Snapshot Advance (\(ETLCommit\))</h4>
+<p>
+    The background ETL process independently advances the authoritative catalog snapshot. Cache invalidation is decoupled from this monotonic advance and treated as an asynchronous optimization; cache correctness does not depend on invalidation timing because freshness checks happen authoritatively at lookup and result acceptance.
+</p>
+<div class="katex-display">
+    \[ETLCommit(t) \triangleq \begin{aligned}
+     & \land pc[\text{"LakehouseETL"}] = \text{"ETLCommit"} \land catalog\_snapshot[t] < MaxSnapshot \\
+     & \land \text{LET } new\_v \triangleq catalog\_snapshot[t] + 1 \text{ IN } \\
+     & \phantom{\land} \land catalog\_snapshot' = [catalog\_snapshot \text{ EXCEPT } ![t] = new\_v] \\
+     & \phantom{\land} \land cache' = [cache \text{ EXCEPT } ![t] = [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [s \in SecCtxs \mapsto \\
+     & \phantom{\land \land cache' = } \textbf{IF } v < new\_v \textbf{ THEN } \text{NoEntry} \textbf{ ELSE } cache[t][q][v][s]]]]] \\
+     & \land pc' = [pc \text{ EXCEPT } ![\text{"LakehouseETL"}] = \text{"ETLCommit"}] \\
+     & \land \text{UNCHANGED } \langle task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
+     \end{aligned}\]
+</div>
+
+<h3>4. PlusCal Source Architecture & Behavioral Assumptions</h3>
+<p>
+    The complete, reproducible PlusCal specification source and TLC configuration files powering the model checker are maintained in the <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal" target="_blank" rel="noopener">data-lakehouse-gateway-formal GitHub Repository</a>. Rather than duplicating the full executable module, the overview below outlines the high-level structural components, concurrent process loops, and behavioral assumptions modeled in <code>DataLakehouseGateway.tla</code>.
+</p>
+
+<h4>A. Core Concurrent Process Modules</h4>
+<p>
+    The PlusCal specification models the gateway as a concurrent distributed system comprising clients, asynchronous compute workers, background maintenance daemons, and fault-injection actors:
+</p>
+<ul>
+    <li>
+        <strong>Client Request Lifecycle (<code>ClientProcess</code>):</strong> 
+        Handles request admission, tenant security verification bounds, immutable catalog snapshot version binding, result cache lookups, and protocol-specific routing. 
+        <ul>
+            <li><em>Flight Path:</em> Modeled as a deliberate synchronous, in-VM execution path that bypasses network queues, leases, and worker crash windows for atomic performance, optionally writing through to the cache when enabled.</li>
+            <li><em>REST Path:</em> Enqueues asynchronous multi-tenant jobs into a shared task queue for workers to claim.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Compute Worker Process (<code>ComputeWorker</code>):</strong> 
+        Implements claim-check execution loops. Workers pull tasks from the queue, increment lease epochs, bind tenant security predicates at execution time (modeling the presence of an authorization step via `rls_applied`, rather than evaluating the data-level semantics of row filtering), allocate and stage immutable result blobs, publish pointers via epoch fencing, commit jobs, and perform best-effort cache population.
+    </li>
+    <li>
+        <strong>Lease &amp; Fault Management (<code>LeaseManager</code>, <code>Crasher</code>, <code>Recoverer</code>):</strong> 
+        Explicitly models distributed failure semantics. The <code>LeaseManager</code> revokes leases upon worker death or operational timeouts (creating zombie workers handled by epoch fencing). The <code>Crasher</code> injects bounded worker crashes, while the <code>Recoverer</code> brings replacement workers online only after dead leases are fully reaped.
+    </li>
+    <li>
+        <strong>Background Maintenance Daemons (<code>GarbageCollector</code>, <code>CacheEvictor</code>, <code>LakehouseETL</code>):</strong> 
+        Runs perpetual cleanup loops. The <code>GarbageCollector</code> reclaims orphaned staged blobs (fenced out by superseded epochs) and published blobs no longer referenced by active jobs, cache entries, or clients. The <code>CacheEvictor</code> abstracts TTL/LRU result cache expiration, and the <code>LakehouseETL</code> independently advances tenant Iceberg snapshots.
+    </li>
+</ul>
+
+<!-- SECTION 7 -->
+<h2 id="s7">7. Formal Verification Scope &amp; Target Properties</h2>
+
+<p>
+    TLC model checking exhaustively verifies explicit bounds. The table below outlines the core properties our abstract model guarantees. It identifies the completed configurations where TLC proved the property holds, and importantly, it documents the structural mutations where TLC successfully detected a falsification (a deliberate design break).
+</p>
+
+<div class="table-container">
+    <table class="mpp-table" style="min-width: 950px;">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Property</th>
+                <th style="width: 25%;">Target Design Guarantee</th>
+                <th style="width: 15%;">Completed Configuration</th>
+                <th style="width: 25%;">Falsification (Mutant)</th>
+                <th style="width: 20%;">Architectural Limitation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>TenantBinding</strong></td>
+                <td>Every admitted job is bound to the tenant and security context from verified auth, never from the request payload.</td>
+                <td><code>MC_nofaults</code></td>
+                <td><strong style="color: var(--danger);">MC_mutant:</strong> TLC halts immediately when the untrusted payload tenant enters the task queue.</td>
+                <td>Finite bound checking.</td>
+            </tr>
+            <tr>
+                <td><strong>CacheFreshness</strong></td>
+                <td>Cache identity binds tenant, query identity, snapshot, and security context.</td>
+                <td><code>MC_flightcache</code></td>
+                <td><strong style="color: var(--danger);">MC_stale_snapshot:</strong> TLC detects a race condition between `LakehouseETL` and `ComputeWorker` when the snapshot freshness guard is removed.</td>
+                <td>Relies on authoritative acceptance abstraction.</td>
+            </tr>
+            <tr>
+                <td><strong>ClaimCheckIntegrity</strong></td>
+                <td>An unreleased job's blob pointer is valid and matches the job's metadata.</td>
+                <td><code>MC_lowblobs</code></td>
+                <td>N/A</td>
+                <td>Modeled blob semantics (does not detect underlying S3/Blob storage corruption).</td>
+            </tr>
+            <tr>
+                <td><strong>AtMostOneAcceptedResult</strong></td>
+                <td>At most one result pointer is accepted for a request at the defined durable acceptance boundary.</td>
+                <td><code>MC_faults_small</code></td>
+                <td><strong style="color: var(--danger);">MC_stale_commit:</strong> Removing the lease-epoch check <em>did not</em> violate this invariant due to the internal owner-string check (revealing a limitation in the model's fencing abstraction).</td>
+                <td>Does not prove exactly-once execution.</td>
+            </tr>
+            <tr>
+                <td><strong>LiveTermination</strong></td>
+                <td>Every queued or running job eventually reaches a terminal state.</td>
+                <td><code>MC_nofaults</code><br><code>MC_faults_small</code></td>
+                <td>N/A</td>
+                <td>Requires strict Weak Fairness (WF) assumptions. <code>FAILED</code> is a valid terminal state.</td>
+            </tr>
+            <tr>
+                <td><strong>DeliveredResultIntegrity</strong></td>
+                <td>While a client holds a result, its blob exists, is published, and matches the correct metadata.</td>
+                <td><code>MC_faults_small</code></td>
+                <td>N/A</td>
+                <td>Assumes fail-stop workers; does not catch Byzantine memory corruption.</td>
+            </tr>
+        </tbody>
+    </table>
 </div>
 
 <p>
-    To master this abstract thinking, consider a distributed worker pulling a task from Azure Managed Redis, generating a heavy financial report, and saving it to blob storage. We must ruthlessly separate what happens locally from what happens across the network.
-</p>
-
-<h3>1. Abstract to an Atomic Value (Safe Internal Operations)</h3>
-<p>
-    You do not model the CPU parsing a JSON task payload, nor do you model the complex SQL joins the worker executes inside DuckDB to build the report.
+    <em>Additional Transition Rules (PROPERTIES) Verified in Model:</em>
 </p>
 <ul>
-    <li><strong>The "Why":</strong> Even if the JSON parser takes 500 milliseconds, or the SQL query processes 10 million rows, these actions occur entirely inside one isolated process's memory. They cannot natively cause a race condition with another node in the cluster.</li>
-    <li><strong>The Abstraction:</strong> In the formal model, this entire multi-minute execution phase is reduced to a single, instant mathematical function (e.g., <code>report_data = Generate(task_id)</code>). We assume the local computation is deterministic and correct, treating it as a black box.</li>
+    <li><strong>EpochMonotonic</strong> \(\left(\Box [\text{epoch}' \ge \text{epoch}]_{\text{vars}}\right)\): Lease epochs never go backwards (fencing-token guarantee).</li>
+    <li><strong>SnapshotFixedWithinAttempt:</strong> A snapshot selected for one execution attempt does not change during that attempt. A retry starts a new attempt and resolves the latest published, readable snapshot again.</li>
+    <li><strong>CatalogMonotonic &amp; CommitMonotonic:</strong> Catalog snapshots only advance, and commit counts never decrease.</li>
+    <li><strong>TerminalAbsorbing:</strong> COMPLETED, FAILED, and UNAUTHORIZED states never change.</li>
+    <li><strong>DeliveryImmutable:</strong> A delivered result's blob and version never change.</li>
+    <li><strong>ClientsComplete</strong> (per-request release liveness): Quantify over each request/client and state the required antecedent and terminal outcome.</li>
+    <li><strong>GCReclaimsGarbage:</strong> For every blob that remains reclaimable and is not protected by a live reference, it is eventually reclaimed \(\left(\text{Reclaimable}(b) \leadsto \text{Reclaimed}(b)\right)\).</li>
 </ul>
 
-<h3>2. Model as an Explicit State (Dangerous Distributed Operations)</h3>
+<h3>1. Design Gaps Found by Static Formal Analysis</h3>
 <p>
-    Conversely, you absolutely <em>must</em> model the worker requesting a lease from Redis, the lease's countdown timer, the worker crashing mid-job, and the network request to save the file.
+    Static review and iterative TLC runs of the specification highlighted several distributed failure modes. <strong>While the updated TLA+ specification now mathematically proves these issues are resolved within the model, the burden shifts to the physical system to actually enforce them.</strong> The table below outlines the critical design gaps caught during formal modeling and the specific architectural and coding mandates required in the physical implementation to ensure these gaps remain closed in production.
+</p>
+<div class="table-container">
+    <table class="mpp-table" style="min-width: 900px;">
+        <thead>
+            <tr>
+                <th style="min-width: 50px;">#</th>
+                <th style="min-width: 250px;">Gap Found</th>
+                <th style="min-width: 250px;">Why It Matters</th>
+                <th style="min-width: 350px;">Physical Implementation Requirement</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td><strong>Stale cache entry risk:</strong> Invalidation may be delayed or incomplete.</td>
+                <td>A stale snapshot's cached result stayed servable for one more commit.</td>
+                <td>Implement a conditional read/write or strictly validate the Iceberg snapshot ID during the Redis/DuckDB cache lookup and final result commit. Do not rely solely on asynchronous cache invalidation loops.</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><strong>The Silent Leak:</strong> No delivered result blob was ever reclaimed because job and client references never expired.</td>
+                <td>The blob pool leaks under load. The earlier "GC fix" was effectively inert.</td>
+                <td>Code explicit TTLs in Redis/Blob storage for cached items and expose a client-side API endpoint (e.g., <code>DELETE /results/{id}</code>) to trigger early Garbage Collection.</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><strong>The Ghost Check:</strong> The tenant-mismatch check compared values that had not yet been assigned in the same step.</td>
+                <td>PlusCal evaluates right-hand sides in the pre-step state, so the check compared placeholders, making UNAUTHORIZED dead code.</td>
+                <td>Enforce JWT cryptographic tenant extraction directly in the API Gateway / NGINX layer <em>before</em> the request ever reaches the queue or worker logic.</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><strong>The Vacuous Terminator:</strong> Lease expiry was unconditional.</td>
+                <td>Any job could be expired at any time, so "every job terminates" held vacuously by ending in FAILED.</td>
+                <td>Implement a reliable heartbeat mechanism (e.g., Celery/Redis heartbeat) and enforce maximum retry limits strictly in the worker execution loop before setting status to <code>FAILED</code>.</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td><strong>The Cross-Tenant Slip-Up:</strong> The cache key claimed to include the security context but held one entry per query.</td>
+                <td>A second security context overwrote the first, causing thrashing and weak authorization isolation.</td>
+                <td>The Redis cache key construction must be strictly hardcoded as a composite string: <code>{tenant_id}:{query_hash}:{snapshot_id}:{security_context}</code>.</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td><strong>The Orphan Maker:</strong> Result write and pointer publication were a single atomic step.</td>
+                <td>The model could not produce the real failure: a zombie worker writes a blob, fails the epoch fence, and leaves an orphan.</td>
+                <td>Implement a two-phase commit: Workers must first write a staging file (e.g., <code>s3://bucket/staging/worker_epoch_blob</code>), then use a transactional CAS (Compare-And-Swap) in Redis/Iceberg to publish it.</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td><strong>The Premature Reaper:</strong> The GC could not tell an in-flight blob from an orphan.</td>
+                <td>Freeing a staged blob that a live worker is about to publish would corrupt results.</td>
+                <td>The background GC service must explicitly read the current active lease epoch from Redis and compare it against the blob's embedded staging epoch before issuing an S3 <code>DELETE</code>.</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td><strong>The Cache Race:</strong> Cache population can race with client release and the GC.</td>
+                <td>A cache entry could point at a freed or reused blob.</td>
+                <td>Use a Redis Lua script or a conditional <code>PUT</code> to atomically check the blob's physical existence and metadata before committing the cache entry.</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td><strong>The Unbounded Pin:</strong> Cache entries pin blobs and nothing evicts them.</td>
+                <td>A full pool with a never-evicting cache can starve new jobs.</td>
+                <td>Configure Redis with <code>volatile-lru</code> eviction policies or append explicit <code>EXPIRE</code> commands on all result keys to apply backpressure safely.</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td><strong>The Zombie Revival:</strong> A crashed worker could return before its leases were reclaimed.</td>
+                <td>Jobs stay CLAIMED with no actor left to advance them.</td>
+                <td>The Kubernetes/Nomad orchestrator or recovery loop must explicitly reap and fence dead worker leases in Redis before it schedules or allows a replacement pod to accept work.</td>
+            </tr>
+            <tr>
+                <td>11</td>
+                <td><strong>The Mid-Flight Crash:</strong> Commit and cache write were one atomic step.</td>
+                <td>Real systems can crash between them, leaving a job COMPLETED but uncached.</td>
+                <td>Separate the database commit transaction from the Redis cache write in the worker code. Handle cache write failures gracefully (fire-and-forget) to keep the caching layer strictly "best-effort".</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td><strong>Latest-snapshot acceptance race:</strong> A new catalog snapshot may publish after an attempt starts but before its result is accepted.</td>
+                <td>Attempt-level consistency alone does not satisfy the selected freshness policy. Cache invalidation can also lag publication.</td>
+                <td>Pass the resolved Iceberg <code>snapshot_id</code> in the task payload. The worker must include this ID in its final CAS commit; if the catalog has advanced in the interim, the commit must be rejected.</td>
+            </tr>
+            <tr>
+                <td>13</td>
+                <td><strong>The Unfenced Flight:</strong> The Flight path has no fencing or recovery by design.</td>
+                <td>A VM crash mid-execution has no gateway-side recovery.</td>
+                <td>The Arrow Flight server must be entirely stateless. Client SDKs must be explicitly configured to catch connection drops and retry the query against a new gateway node.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h3>2. Verification Anti-Goals: What This Model Cannot Find</h3>
+<p>A formal specification defines a system at a specific level of abstraction. By explicitly declaring what is excluded, we define the boundary where formal model checking ends and physical SRE chaos engineering must begin. This TLA+ model is intentionally blind to the following physical realities:</p>
+
+<div class="table-container">
+    <table class="mpp-table">
+        <thead>
+            <tr>
+                <th>Fault Class</th>
+                <th>Why the Model Misses It</th>
+                <th>Production Mitigation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Byzantine Faults</strong></td>
+                <td>Assumes fail-stop worker crashes. A worker that maliciously corrupts memory or lies about its state is not modeled.</td>
+                <td>mTLS, signed payloads, memory-safe execution environments.</td>
+            </tr>
+            <tr>
+                <td><strong>Clock Skew</strong></td>
+                <td>Relies on strictly ordered logical lease epochs (fencing tokens). Wall-clock drift between nodes is abstracted away.</td>
+                <td>NTP monitoring, strictly relying on Redis/storage for serialization.</td>
+            </tr>
+            <tr>
+                <td><strong>Message Loss / Duplication</strong></td>
+                <td>Assumes reliable memory-to-queue transitions within the modeled steps.</td>
+                <td>Idempotent worker execution, at-least-once message brokers.</td>
+            </tr>
+            <tr>
+                <td><strong>Resource Exhaustion</strong></td>
+                <td>Models finite abstract pools to verify logic, but cannot detect physical Out-Of-Memory (OOM) errors, disk-full events, or connection pool starvation.</td>
+                <td>Cgroups, Kubernetes pod evictions, Envoy circuit breakers.</td>
+            </tr>
+            <tr>
+                <td><strong>Implementation Bugs</strong></td>
+                <td>Verifies the abstract algorithm. A Python or Rust worker that diverges from the PlusCal specification will introduce unmodeled flaws.</td>
+                <td>Model-Based Trace Checking (MBTC), unit test coverage.</td>
+            </tr>
+            <tr>
+                <td><strong>Integer Overflow</strong></td>
+                <td>TLA+ math uses unbounded integers. Abstractions hide 32-bit or 64-bit boundaries.</td>
+                <td>Strongly-typed languages, static analysis, fuzzing.</td>
+            </tr>
+            <tr>
+                <td><strong>Telemetry Loss</strong></td>
+                <td>Assumes total observability of state transitions. Blind to the trace-conformance gap where log drops hide illegal states from the auditor.</td>
+                <td>Reliable log shipping pipelines, alert-on-missing-telemetry.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+<hr />
+
+<!-- SECTION 8 -->
+<h2 id="s8">8. TLC Configurations, Evidence, &amp; Mutation Falsification</h2>
+
+<p>
+    The validation workflow separates <strong>safety runs</strong> (type correctness and state invariants) from <strong>liveness runs</strong> (temporal properties under stated fairness assumptions) and explicitly tracks deadlock-checking behaviors. The empirical results below were captured using <strong>TLC2 Version 2026.10.06.014338</strong> running on Microsoft OpenJDK 11.0.31 (64-bit) under Windows 11 AMD64 with a 3,532MB heap configuration. 
+</p>
+
+<div class="callout callout-info">
+    <h4>Deadlock Checking vs. Temporal Liveness</h4>
+    <p>
+        Across all configurations, <strong><code>CHECK_DEADLOCK FALSE</code></strong> is explicitly utilized. Disabling TLC's structural deadlock check is necessary because a deliberately terminating model naturally reaches states with no enabled transitions (e.g., when all requests finish processing and background loops halt). This is expected terminal behavior, not a system stall.
+    </p>
+    <p>
+        However, because disabling this check masks unexpected stalls (like a dropped task causing the model to halt prematurely), we rely on explicit temporal liveness properties (e.g., <code>LiveTermination</code>) combined with explicit fairness assumptions. This verifies that the system always progresses to a valid terminal state—and importantly, reaching a <code>FAILED</code> state is mathematically recognized as a valid termination, ensuring eventual completion rather than guaranteeing eventual success.
+    </p>
+</div>
+
+<h3>1. Verification Levels: Model Checking vs. Inductive Proofs</h3>
+<p>
+    It is vital to distinguish bounded model checking from unbounded mathematical proof:
 </p>
 <ul>
-    <li><strong>The "Why":</strong> These steps involve shared state, concurrency, and time. If Worker A's CPU processing takes too long and its Redis lease expires, Worker B might pick up the exact same task. Now both workers are racing to write to the same storage path simultaneously.</li>
-    <li><strong>The Modeling:</strong> You map out explicit state transitions that the model checker will test against every possible interleaving: <code>State: Claiming</code>, <code>State: Processing</code>, <code>State: Writing</code>, <code>State: Committing</code>, along with external disruptive actions like <code>Action: Crash</code> and <code>Action: Lease_Timeout</code>.</li>
+    <li><strong>Level 1 (TLC Model Checking):</strong> Exhaustively explores the reachable state graph of the configured finite specification (e.g., up to 4 requests, 2 workers, 2 snapshots, and 4 physical blobs), verifying that no counterexample was found in the completed configuration.</li>
+ <li>
+        <strong>Level 2 (Inductive Invariants &amp; Safety Proofs):</strong> <em>(Not performed in this validation phase)</em> 
+        <p style="margin-top: 0.5rem;">While Level 1 (TLC) provides confidence within explicit bounds, Level 2 mathematically proves the design is safe at <em>infinite</em> scale (unbounded queue lengths, infinite tenants, infinite execution time). To achieve this, an engineer would formulate and discharge proposed proof obligations based on two mathematical conditions:</p>
+        <div class="katex-display">
+            \[\text{Init} \implies \text{Inv} \quad \land \quad \text{Inv} \land [Next]_{\text{vars}} \implies \text{Inv}'\]
+        </div>
+        <p>Because writing machine-checked proofs requires highly specialized tooling (TLAPS) and dedicated mathematical effort, this gateway currently relies exclusively on Level 1 (exhaustive bounded checking) to establish its architectural confidence.</p>
+    </li>
 </ul>
 
-<h3>The Architectural Mapping Matrix</h3>
+<h3>2. Per-Run Evidence Table</h3>
+
 <p>
-    Applying this principle to the Smart Data Gateway, we classify every architectural component into either a "Safe Internal" abstraction or a "Dangerous Distributed" state that TLA+ must verify.
+    <strong>Reproducibility:</strong> All TLA+ modules (<code>.tla</code>), TLC configurations (<code>.cfg</code>), and execution logs (<code>.out</code>) are checked into the GitHub repository. They can be downloaded and executed directly via the TLA+ Toolbox or CLI for independent verification of the claims below. All runs reflect Git commit SHA <code><a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/tree/a9f8b4c" target="_blank" rel="noopener">a9f8b4c</a></code>.
+</p>
+
+<p>
+    <strong>A note on bounded exploration:</strong> TLC exhaustively explores the reachable state graph of the configured finite specification <strong>only when the run completes</strong>. For runs that complete successfully, this demonstrates that no counterexample was found in the completed configuration within those exact bounds. If a run is manually stopped before completion, it is strictly <em>incomplete</em>; safety invariants are only checked up to the explored prefix depth, and temporal liveness properties remain completely unverified.
+</p>
+
+<div class="table-container">
+    <table class="mpp-table" style="min-width: 900px;">
+        <thead>
+            <tr>
+                <th style="width: 18%;">Configuration & Artifacts</th>
+                <th style="width: 25%;">Constants & Bounds</th>
+                <th style="width: 32%;">Target Properties (Safety & Liveness)</th>
+                <th style="width: 25%;">Results (Status / States / Time)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <strong>MC_nofaults</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_nofaults.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_nofaults.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">2 Requests (1 Flight, 1 REST)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 1 Tenant</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 3 Blobs, 2 Attempts</li>
+                        <li style="margin-bottom: 0;">0 Crashes, 0 Timeouts</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> TypeOK, TenantBinding, QueueConsistency<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> LiveTermination (WF)</span>
+                </td>
+                <td>
+                    <strong style="color: var(--success);">Completed</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space exhausted; properties checked successfully.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> 16,587 / 5,952<br>
+                    <strong>Time:</strong> ~8s</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_faults_small</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_faults_small.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_faults_small.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">2 Requests (REST)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 1 Tenant</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 3 Blobs, 2 Attempts</li>
+                        <li style="margin-bottom: 0;">1 Crash, 1 Timeout</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> AtMostOneAcceptedResult, EpochMonotonic, DeliveredResultIntegrity<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> LiveTermination (WF)</span>
+                </td>
+                <td>
+                    <strong style="color: var(--success);">Completed</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space exhausted; properties checked successfully. Fencing and recovery mechanisms validated.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> 1,842,503 / 480,211<br>
+                    <strong>Time:</strong> ~14m</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_lowblobs</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_lowblobs.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_lowblobs.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">3 Requests (REST)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 2 Tenants</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 2 Blobs (Stress), 2 Attempts</li>
+                        <li style="margin-bottom: 0;">0 Crashes, 0 Timeouts</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> TypeOK, BlobPoolConsistency, ClaimCheckIntegrity<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> GCReclaimsGarbage (SF)</span>
+                </td>
+                <td>
+                    <strong style="color: var(--success);">Completed</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space exhausted; properties checked successfully.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> 213,729 / 60,376<br>
+                    <strong>Time:</strong> ~2m 11s</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_flightcache</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_flightcache.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_flightcache.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">3 Requests (Cross-protocol)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 1 Tenant</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 3 Blobs, 2 Attempts</li>
+                        <li style="margin-bottom: 0;">0 Crashes, 0 Timeouts</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> CacheIntegrity, TenantIsolation, RLSEnforcement<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> LiveTermination (WF)</span>
+                </td>
+                <td>
+                    <strong style="color: var(--success);">Completed</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space exhausted; properties checked successfully.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> 765,916 / 204,066<br>
+                    <strong>Time:</strong> ~9m</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_safety_fast</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_safety_fast.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_safety_fast.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">4 Requests (Mixed: 2 REST, 2 FLIGHT)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 2 Tenants</li>
+                        <li style="margin-bottom: 0.25rem;">4 Blobs</li>
+                        <li style="margin-bottom: 0;">Symmetry Enabled</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> All safety invariants listed in Section 7.<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> N/A</span>
+                </td>
+                <td>
+                    <strong style="color: var(--amber);">Running (> 12 hrs)</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space expanding. No safety violations found in explored prefix. Symmetry reduction substantially reduces the explored state space.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> ~161M+ / ~27M+<br>
+                    <strong>Time:</strong> 12+ hrs</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_liveness_fast</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_liveness_fast.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_liveness_fast.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">2 Requests, 2 Workers, 2 Tenants</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 2 Blobs, 2 Attempts</li>
+                        <li style="margin-bottom: 0.25rem;">1 Crash, 1 Timeout</li>
+                        <li style="margin-bottom: 0;">NO SYMMETRY</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> All safety invariants listed in Section 7.<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> All temporal liveness properties listed in Section 7.</span>
+                </td>
+                <td>
+                    <strong style="color: var(--success);">Completed</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">State space exhausted; liveness checked on full directed graph.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> 41,958,379 / 8,322,286<br>
+                    <strong>Time:</strong> ~23 hrs</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>MC_full</strong><br>
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/DataLakehouseGateway.tla" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.tla</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_full.cfg" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.cfg</a> | 
+                    <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal/blob/a9f8b4c/spec/MC_full.out" target="_blank" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); text-decoration: none;">.out</a>
+                </td>
+                <td>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">4 Requests (Mixed)</li>
+                        <li style="margin-bottom: 0.25rem;">2 Workers, 2 Tenants</li>
+                        <li style="margin-bottom: 0.25rem;">2 Snaps, 4 Blobs, 2 Attempts</li>
+                        <li style="margin-bottom: 0;">2 Crashes, 2 Timeouts</li>
+                    </ul>
+                </td>
+                <td style="font-size: 0.9rem; line-height: 1.5;">
+                    <strong>Safety:</strong> All safety invariants listed in Section 7.<br>
+                    <span style="display: block; margin-top: 0.5rem;"><strong>Liveness:</strong> All temporal liveness properties listed in Section 7.</span>
+                </td>
+                <td>
+                    <strong style="color: var(--danger);">Incomplete (Manually Stopped)</strong><br>
+                    <span style="font-size: 0.85rem; display: block; margin-top: 0.25rem; margin-bottom: 0.5rem;">No safety violations found in explored prefix (Depth 48). Liveness unverified.</span>
+                    <span style="font-size: 0.85rem;"><strong>States:</strong> ~680M+ / ~215M+<br>
+                    <strong>Time:</strong> 15+ hrs</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);"><em>Note: <code>MC_full</code> combining full protocol routing, multi-tenant cache isolation, and continuous background fault-recovery loops yields a massive combinatorial state space explosion. The run was manually stopped before completion.</em></p>
+</div>
+
+<h3>3. Reachability Witnesses & Coverage</h3>
+<p>
+    To prove our safety checks aren't passing vacuously (e.g., checking cache behavior in a model where nothing ever enters the cache), we verify reachability by asserting the <em>negation</em> of expected states as temporary invariants. When TLC throws an error, the generated trace serves as a witness that the state is reachable.
+</p>
+<ul>
+    <li>
+        <strong>Witnessing a Cache Hit:</strong> We asserted <code>~ (\exists t, q, v, s : cache[t][q][v][s].valid = TRUE)</code>. TLC correctly generated a trace terminating in <code>&lt;PopulateCache&gt;</code>, proving the caching logic is exercised.
+    </li>
+    <li>
+        <strong>Witnessing GC Reclamation:</strong> We asserted <code>~ (\exists b \in Blobs : blob_storage[b] = FreeBlob /\ b \notin available_blobs)</code>. TLC generated a trace through <code>&lt;GCReclaim&gt;</code>, proving blobs actually leak and are successfully recycled in the <code>MC_lowblobs</code> pool limits.
+    </li>
+</ul>
+
+<h3>4. Mutation Testing: Confirming the Model Catches Invariant Violations</h3>
+<p>
+    Mutation testing serves as our falsification step: deliberately injecting security bypasses or sequencing errors into the specification to verify that our formal safety invariants are non-vacuous. By successfully catching these mutants, we demonstrate that selected defects are detected by our checks (though it does not prove the property set is entirely exhaustive).
+</p>
+
+<div class="callout danger">
+    <strong>Mutation 1: Security Check Bypass (<code>MC_mutant</code>)</strong>
+    <p><strong>Modification:</strong> Enabled <code>MutantSkipTenantCheck = TRUE</code> to simulate a flawed admission controller that honors the unverified request payload instead of the cryptographically verified JWT identity.</p>
+    <p><strong>The Execution Trace:</strong> The abridged sequence below demonstrates how TLC traces the mutation to a critical failure and catches the vulnerability before the malicious job can execute.</p>
+    
+    <pre><code>
+1. &lt;Initial predicate&gt; : Request r4 (Auth: t1, Payload: t2) is staged.
+​2. &lt;Start(r4)&gt;         : Gateway receives the REST invocation.
+3. &lt;BindSnapshot(r4)&gt;  : r4 locks in the latest valid table state.
+4. &lt;CheckCache(r4)&gt;    : Cache miss; r4 requires materialization.
+5. &lt;InitializeJob(r4)&gt; : [MUTATION] Tenant check bypassed. jobs[r4].tenant becomes t2.
+6. &lt;Route(r4)&gt;         : r4 is routed to the asynchronous queue path.
+7. &lt;EnqueueREST(r4)&gt;   : [VIOLATION] r4 enters task_queue. TLC halts immediately: 
+                         "Invariant TenantBinding is violated."</code></pre>
+</div>
+
+<div class="callout danger">
+    <strong>Mutation 2: Multi-Tenant Key Collision in Result Cache (<code>MC_cache_collision</code>)</strong>
+    <p><strong>Modification:</strong> Simplified cache indexing to omit tenant separation, indexing solely by query name, version, and security context.</p>
+    <p><strong>The Execution Trace:</strong> TLC detects a cache hit leak between two requests (<code>r1</code> belonging to <code>t1</code>, and <code>r2</code> belonging to <code>t2</code>) submitting identical queries.</p>
+    <pre><code>1. &lt;PopulateCache(w1)> : Worker w1 writes Blob b1 (stamped with t1 data) to cache["q1"][1]["s1"].
+2. &lt;Start(r2)>         : Tenant t2 requests q1 with SecCtx s1.
+3. &lt;CheckCache(r2)>    : r2 hits the cache and accepts Blob b1.
+4. &lt;CheckInvariants>   : [VIOLATION] TLC halts: Invariant TenantIsolation is violated. r2 (t2) holds b1 (t1).</code></pre>
+</div>
+
+<div class="callout danger">
+    <strong>Mutation 3: Stale Snapshot Acceptance Race (<code>MC_stale_snapshot</code>)</strong>
+    <p><strong>Modification:</strong> Removed the snapshot freshness guard (<code>jobs[r].version = catalog_snapshot[jobs[r].tenant]</code>) from the <code>CommitJob</code> action.</p>
+    <p><strong>The Decisive Test Execution Trace:</strong> We forced a specific interleaving where a worker races the background ETL process. TLC immediately detects that the worker has bypassed the acceptance boundary with an invalid snapshot.</p>
+    <pre><code>1. &lt;StartExecution(w)&gt; : Worker `w` starts query against Snapshot v1.
+2. &lt;AllocateBlob(w)&gt;   : Worker `w` stages a blob tagged for v1.
+3. &lt;ETLCommit(t)&gt;      : LakehouseETL advances authoritative catalog_snapshot to v2.
+4. &lt;PublishPointer(w)&gt; : Worker `w` (holding valid lease) durably points job to the staged blob.
+5. &lt;CommitJob(w)&gt;      : [MUTATION] Freshness guard is missing. Worker authoritatively accepts v1.
+6. &lt;CheckInvariants&gt;   : [VIOLATION] TLC halts: Invariant CacheFreshness is violated.</code></pre>
+</div>
+
+<div class="callout danger">
+    <strong>Mutation 4: Stale Worker Commit After Lease Revocation (<code>MC_stale_commit</code>)</strong>
+    <p><strong>Modification:</strong> Removed the <code>lease_epoch</code> check from the worker commit action.</p>
+    <p><strong>Result:</strong> Passed <em>without</em> violation. Why? Because the worker still checks <code>jobs[r].owner = w</code>. When the <code>LeaseManager</code> times out a lease, it actively resets the ownership string. Therefore, a zombie worker fails the string match anyway, making the integer epoch mathematically redundant <em>within this specific model scope</em>.</p>
+    <p><strong>Architectural Conclusion:</strong> Passing this mutant demonstrates a redundancy in the current mathematical abstraction, but it highlights a crucial physical reality: Merely including <code>lease_epoch</code> in logs or blob metadata does not fence writes. The external resource itself (e.g., Iceberg or Redis CAS) must actively reject stale tokens, because the physical external storage API cannot read the gateway's internal <code>owner</code> strings.</p>
+</div>
+
+<h3>5. Mapping the Evidence to the Review Board</h3>
+<p>
+    We can now map the explicit formal and empirical evidence directly back to the dreaded architecture review board challenges introduced in Section 2:
 </p>
 
 <div class="table-container">
     <table class="mpp-table">
         <thead>
             <tr>
-                <th>Architecture Component</th>
-                <th>Formal Abstraction</th>
-                <th>Safety / Liveness Property</th>
-                <th>Abstraction Rationale (Safe vs. Dangerous)</th>
+                <th>Concurrency Challenge</th>
+                <th>Validation Status & Evidence Base</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><strong>Client Identity &amp; Auth</strong></td>
-                <td><code>TenantOf[r]</code> mapping function</td>
-                <td>Tenant Isolation</td>
-                <td><strong>Abstracted:</strong> Cryptographic JWT parsing is a safe local CPU operation.<br><strong>Modeled:</strong> The deterministic mapping of a request to a tenant boundary.</td>
+                <td><em>"If an NGINX NVMe replica crashes mid-stream, can consistent-hash re-mapping leak data across tenant partitions?"</em></td>
+                <td><span style="color: var(--teal); font-weight: 600;">Validated in Part 3.</span> The formal specification explicitly abstracts network routing and in-memory hash ring mechanics. As detailed in the previous installment, this physical failure domain was successfully addressed through targeted chaos fault injection and SRE reliability testing.</td>
             </tr>
             <tr>
-                <td><strong>Query AST Hardening</strong></td>
-                <td>Atomic predicate binding in <code>jobs[r]</code></td>
-                <td>Row-Level Security Enforcement</td>
-                <td><strong>Abstracted:</strong> SQL string parsing and AST traversal are safe internal logic.<br><strong>Modeled:</strong> The immutable binding of tenant IDs to the query payload.</td>
+                <td><em>"If a Celery worker pauses for garbage collection while its lease expires, can a second worker claim the task and commit a duplicate or out-of-order result?"</em></td>
+                <td><span style="color: var(--success); font-weight: 600;">Formally Checked.</span> The <code>MC_faults_small</code> run exhaustively explored this precise lease timeout and reassignment interleaving. It found no violations of the <code>AtMostOneAcceptedResult</code> and <code>EpochMonotonic</code> invariants.</td>
             </tr>
             <tr>
-                <td><strong>Task Backlog (Redis)</strong></td>
-                <td><code>task_queue</code> (FIFO Sequence)</td>
-                <td>FIFO Dispatch / Bounded Liveness</td>
-                <td><strong>Abstracted:</strong> Redis TCP socket handling.<br><strong>Modeled:</strong> Task ordering, push, and pop operations, which are highly concurrent.</td>
-            </tr>
-            <tr>
-                <td><strong>Distributed Worker Fleet</strong></td>
-                <td><code>Workers</code> processes with lease epochs</td>
-                <td>Mutual Exclusion / Lease Safety</td>
-                <td><strong>Abstracted:</strong> SIMD DuckDB vectorized execution (safe internal).<br><strong>Modeled:</strong> Atomic claiming, worker crashes, and commit boundaries (dangerous distributed).</td>
-            </tr>
-            <tr>
-                <td><strong>Claim-Check Store</strong></td>
-                <td><code>blob_storage</code> with monotonic allocation</td>
-                <td>Claim-Check Pointer Integrity</td>
-                <td><strong>Abstracted:</strong> Blob chunking and HTTP retries.<br><strong>Modeled:</strong> The strict write-before-dereference sequencing (a race condition hotspot).</td>
-            </tr>
-            <tr>
-                <td><strong>Iceberg Commit Engine</strong></td>
-                <td>Monotonic <code>catalog_snapshot</code> advance</td>
-                <td>Snapshot Consistency</td>
-                <td><strong>Abstracted:</strong> Manifest list/tree generation.<br><strong>Modeled:</strong> The monotonic version advance that triggers cache invalidation across the cluster.</td>
+                <td><em>"Can an out-of-band Iceberg snapshot commit race with query planning and deliver stale or inconsistent financial data?"</em></td>
+                <td><span style="color: var(--success); font-weight: 600;">Formally Checked.</span> <code>Mutation 3 (MC_stale_snapshot)</code> explicitly forces the `LakehouseETL` to race the `ComputeWorker`. The model demonstrates that atomically enforcing the `CacheFreshness` bounds at the `CommitJob` linearization point successfully traps and rejects the stale result.</td>
             </tr>
         </tbody>
     </table>
+    </div>
+
+<!-- SECTION 9 -->
+<h2 id="s9">9. From Model Correctness to Implementation Conformance</h2>
+
+<p>
+    Here is the uncomfortable truth about formal methods: TLA+ proves that your <em>design</em> is mathematically flawless, but it does absolutely nothing to prevent your physical Python or Rust code from being a chaotic mess. If a developer later "optimizes" a worker by swapping the order of two database calls, the implementation drifts from the model, and all those beautiful mathematical guarantees instantly evaporate.
+</p>
+
+<p>
+    To bridge the "Math-to-Metal Gap," we must bind the physical runtime back to the abstract model. We propose doing this through <strong>Model-Based Trace Checking (MBTC)</strong>. Instead of just writing unit tests, we force the production system to emit a strict immutable ledger of its state transitions, and we feed those logs <em>backward</em> through an adapter into the TLA+ model to ensure real-world executions perfectly trace valid mathematical paths. Note that this trace-conformance harness remains a proposed design until fully implemented and integrated into CI.
+</p>
+
+<div class="diagram-card" aria-label="Proposed model-based trace checking pipeline">
+    <div class="diagram-title">The Proposed Trace Checking Pipeline</div>
+    <div class="mbtc-grid">
+        <div class="mbtc-card mbtc-card-runtime"><div class="mbtc-name">1. Production Runtime</div><div class="mbtc-detail">Emits state-transition logs</div></div>
+        <div class="mbtc-connector-h"><span class="mbtc-label">Structured events</span><span class="mbtc-arrow">&rarr;</span></div>
+        <div class="mbtc-card mbtc-card-log"><div class="mbtc-name">2. Event Ledger</div><div class="mbtc-detail">NDJSON Trace of real execution</div></div>
+        <div></div><div></div><div class="mbtc-connector-v"><span class="mbtc-label">Adapter translates</span><span class="mbtc-arrow">&darr;</span></div>
+        <div class="mbtc-card mbtc-card-spec"><div class="mbtc-name">3. The TLA+ Spec</div><div class="mbtc-detail">The mathematical boundaries</div></div>
+        <div class="mbtc-connector-h"><span class="mbtc-label">Audits against</span><span class="mbtc-arrow">&rarr;</span></div>
+        <div class="mbtc-card mbtc-card-checker"><div class="mbtc-name">4. Trace Checker</div><div class="mbtc-detail">Halts on illegal transitions</div></div>
+    </div>
 </div>
 
-<h3>The Architecture Assumption Ledger</h3>
+<h3>The Rosetta Stone: The Minimum Trace Contract</h3>
 <p>
-    Formal models are only as good as the axioms they rest on. If our real-world infrastructure violates these assumptions, our mathematical proof is void. This ledger defines the strict environmental boundaries for our "Dangerous Distributed" operations:
+    Standard application logs (e.g., <code>INFO: Worker starting task</code>) are completely useless for formal verification. The system must emit highly structured, deterministic events that act as a "Rosetta Stone." A custom adapter must then translate these physical events into corresponding TLA+ <code>pc</code> (program counter) state transitions. 
 </p>
+
+<p>To establish this contract, every critical telemetry event must capture:</p>
 <ul>
-    <li><strong>Assumption A1 (Atomic Lease Claims):</strong> Redis Lua scripts execute test-and-set task claiming atomically with respect to other workers. <em>(Without this, our mutual exclusion property fails).</em></li>
-    <li><strong>Assumption A2 (Storage Acknowledgment):</strong> Azure Blob Storage acknowledgments guarantee that payload bytes are durably committed before the SAS URI pointer is returned. <em>(Without this, workers could read incomplete data).</em></li>
-    <li><strong>Assumption A3 (Monotonic Snapshot Ordering):</strong> Table catalog snapshots for any given Apache Iceberg table advance monotonically. We abstract the catalog's internal multi-master commit protocol, trusting the engine handles it.</li>
-    <li><strong>Assumption A4 (Isolated Cache Mutations):</strong> Cache entries are populated and invalidated exclusively through our modeled gateway and ETL actions, never via out-of-band database edits.</li>
-    <li><strong>Assumption A5 (Boundary Mapping):</strong> Physical runtime state transitions in the actual Python/Rust code correspond directly and exclusively to the atomic labels defined in this specification.</li>
+    <li>
+        <strong>Identity &amp; Authorization:</strong> <code>requested_tenant_id</code> vs. <code>authenticated_tenant_id</code>. If these diverge and the request isn't immediately followed by an <code>UnauthorizedRejected</code> event, the trace checker knows a security bypass occurred.
+    </li>
+    <li>
+        <strong>Causality &amp; Sequencing:</strong> <code>request_id</code> and a strict <code>sequence</code> integer. You cannot rely on log arrival timestamps—network jitter will reorder logs. The sequence integer reconstructs the exact local order of operations. Note that cross-service causality requires correlation IDs or a well-defined authoritative acceptance event, as local sequences cannot establish global ordering.
+    </li>
+    <li>
+        <strong>State Fencing Variables:</strong> <code>worker_id</code>, <code>lease_epoch</code>, <code>snapshot_id</code>, and <code>blob_id</code>. These are the mathematical load-bearing columns. The checker needs these to verify that a worker didn't write a result using a stale catalog version.
+    </li>
 </ul>
-        <!-- SECTION 5 -->
-        <h2 id="s5">5. The TLA+ Primer: Constructing Formal Logic from System Design</h2>
 
-        <p>
-            To ground mathematical logic in systems engineering, we anchor every formal concept to our concrete system design: the <strong>Multi-Tenant Stateless Query Gateway</strong>.
-        </p>
-
-        <div class="callout">
-            <strong>The Core Architectural Distinction: Requests vs. Queries</strong><br>
-            A common trap in modeling analytical gateways is conflating <code>Queries</code> with <code>Requests</code>. A query hash \(Q_1\) represents normalized SQL text. A request \(R_1\) represents an independent client invocation. Two distinct tenants can execute query \(Q_1\) simultaneously, and Tenant A can submit query \(Q_1\) multiple times concurrently. The job registry must be indexed by <code>Requests</code>, while the predictive cache is indexed by \(\langle\text{Tenant}, \text{Query}, \text{Version}\rangle\).
-        </div>
-
-        <h3>A. Temporal Logic Operators</h3>
-        <p>
-            In standard programming, assertions evaluate conditions at an instantaneous snapshot. TLA+ temporal logic reasons across entire execution paths over infinite time:
-        </p>
-
-        <!-- DIAGRAM 2: State Trajectory Sequence Bar -->
-        <div class="state-trajectory" role="img" aria-label="State Trajectory Sequence: State 0 to State n">
-            <span class="state-node">State 0</span>
-            <span class="state-arrow">&rarr;</span>
-            <span class="state-node">State 1</span>
-            <span class="state-arrow">&rarr;</span>
-            <span class="state-node">State 2</span>
-            <span class="state-arrow">&rarr;</span>
-            <span class="state-ellipsis">&hellip;</span>
-            <span class="state-arrow">&rarr;</span>
-            <span class="state-node">State <em>n</em></span>
-            <span class="state-arrow">&rarr;</span>
-            <span class="state-ellipsis">&hellip;</span>
-        </div>
-
-        <ul class="sre-list">
-            <li>
-                <strong>1. Always (\(\Box P\)) — Safety Invariants</strong>
-                <p><em>Formal Meaning:</em> Condition \(P\) is true in every reachable state along every valid execution trajectory.</p>
-                <div class="katex-display">
-                    \[\Box (\forall c \in \text{Clients} : client\_received[c].\text{tenant} = TenantOf[c])\]
-                </div>
-                <p><em>What it proves:</em> No schedule of thread preemption, worker failure, or cache race conditions can ever produce a state where Client A observes data belonging to Tenant B.</p>
-            </li>
-            <li>
-                <strong>2. Eventually (\(\Diamond P\)) — Progress Guarantees</strong>
-                <p><em>Formal Meaning:</em> Condition \(P\) is guaranteed to become true in at least one state in the future.</p>
-                <div class="katex-display">
-                    \[\Diamond (\text{jobs}[r].\text{state} \in \{\text{"COMPLETED"}, \text{"FAILED"}\})\]
-                </div>
-                <p><em>What it proves:</em> Request \(r\) will not stay queued forever; it is guaranteed to reach a terminal state.</p>
-            </li>
-            <li>
-                <strong>3. Leads-To (\(P \leadsto Q\)) — Terminal Liveness</strong>
-                <p><em>Formal Meaning:</em> Defined as \(\Box(P \implies \Diamond Q)\). Whenever state \(P\) occurs, state \(Q\) is guaranteed to follow.</p>
-                <div class="katex-display">
-                    \[(\text{jobs}[r].\text{state} \in \text{Pending}) \leadsto (\text{jobs}[r].\text{state} \in \text{Terminal})\]
-                </div>
-                <p><em>What it proves:</em> Under the model's fairness assumptions and bounded retries, every admitted request eventually reaches a terminal state without hanging indefinitely.</p>
-            </li>
-            <li>
-                <strong>4. Weak Fairness (\(\text{WF}_{\text{vars}}(A)\))</strong>
-                <p><em>Formal Meaning:</em> Excludes model behaviors in which action \(A\) remains continuously enabled forever but is never taken.</p>
-                <p><em>Gateway Example:</em> <code>WF_vars(ClaimTask)</code> ensures that if an idle worker sees a queued task, the model checker cannot explore infinite stuttering steps where the worker remains idle forever while work is available.</p>
-            </li>
-            <li>
-                <strong>5. Strong Fairness (\(\text{SF}_{\text{vars}}(A)\))</strong>
-                <p><em>Formal Meaning:</em> Excludes model behaviors in which action \(A\) is enabled repeatedly (infinitely often, even if disabled intermittently between steps) but is never taken.</p>
-                <p><em>Gateway Example:</em> <code>SF_vars(ETLCommit)</code> guarantees that background table commits and cache invalidations are never starved out indefinitely by continuous read traffic.</p>
-            </li>
-        </ul>
-
-        <h3>B. Mathematical Logic &amp; Set Operations</h3>
-        <ul>
-            <li><strong>Universal Quantification (\(\forall x \in S : P(x)\)):</strong> Condition \(P(x)\) holds for every item in set \(S\).</li>
-            <li><strong>Existential Quantification (\(\exists x \in S : P(x)\)):</strong> There exists at least one item in set \(S\) satisfying \(P(x)\).</li>
-            <li><strong>Prime Operator (\(x'\)):</strong> Denotes the variable's value in the next state. The transition is an algebraic constraint:
-                <pre><code>task_queue' = Tail(task_queue)</code></pre>
-            </li>
-            <li><strong>Frame Conditions (<code>UNCHANGED</code>):</strong> TLA+ requires explicit definition of unmutated variables. If a variable is omitted, it can take arbitrary values in the next state:
-                <pre><code>UNCHANGED &lt;&lt;catalog_snapshot, cache, blob_storage&gt;&gt;</code></pre>
-            </li>
-            <li><strong>Function Mutation (<code>EXCEPT</code>):</strong> Updates specific keys while preserving all others:
-                <pre><code>cache' = [cache EXCEPT ![t][q][v] = [valid |-&gt; TRUE, blob_id |-&gt; b_id]]</code></pre>
-            </li>
-        </ul>
-
-        <!-- SECTION 6 -->
-        <h2 id="s6">6. The Complete Formal Specification in PlusCal</h2>
-
-        <p>
-            Below is the complete, runnable formal specification of the Smart Data Gateway in PlusCal (<code>SmartDataGatewaySafety.tla</code>). It models the full distributed lifecycle:
-        </p>
-        <ul>
-            <li>Decoupled <code>Requests</code> and normalized <code>Queries</code> via function mappings (<code>TenantOf</code>, <code>QueryOf</code>, <code>ClientOf</code>, <code>ProtocolOf</code>).</li>
-            <li>Atomic dequeue and lease-epoch increments simulating Redis Lua scripts (Assumption A1).</li>
-            <li>Bounded worker crashes (<code>MaxCrashes</code>), fair crash recovery, and independent fair lease management.</li>
-            <li>Stale-worker commit rejection preventing double-commits after lease expiration.</li>
-            <li>Rigorous blob inventory accounting (INV-6) guaranteeing zero leaked or double-booked storage pointers.</li>
-        </ul>
-
-        <span class="code-header">SmartDataGatewaySafety.tla (Complete Executable Model)</span>
-        <pre><code>---------------------- MODULE SmartDataGatewaySafety ----------------------
-EXTENDS Naturals, Sequences, FiniteSets, TLC
-
-CONSTANTS
-    Tenants,          \* {"T1", "T2"}
-    Clients,          \* {"C1", "C2", "C3"}
-    Requests,         \* {"R1", "R2", "R3"}
-    Queries,          \* {"Q1"}
-    Workers,          \* {"W1", "W2"}
-    Blobs,            \* bounded blob pool, must satisfy |Blobs| >= |Requests| (A7)
-    MaxSnapshot,      \* max table snapshot version
-    MaxAttempts,      \* max execution attempts per request
-    MaxCrashes,       \* crash budget (finite-failure assumption, needed for liveness)
-    TenantOf,         \* Requests -> Tenants
-    QueryOf,          \* Requests -> Queries
-    ClientOf,         \* Requests -> Clients
-    ProtocolOf        \* Requests -> {"FLIGHT", "REST"}
-
-ASSUME
-    /\ DOMAIN TenantOf = Requests /\ DOMAIN QueryOf = Requests
-    /\ DOMAIN ClientOf = Requests /\ DOMAIN ProtocolOf = Requests
-    /\ \A r \in Requests : /\ TenantOf[r] \in Tenants
-                           /\ QueryOf[r] \in Queries
-                           /\ ClientOf[r] \in Clients
-                           /\ ProtocolOf[r] \in {"FLIGHT", "REST"}
-    /\ Cardinality(Blobs) >= Cardinality(Requests)
-
-(*--algorithm SmartDataGatewaySafety
-
-variables
-    catalog_snapshot = [t \in Tenants |-> 1],
-    cache = [t \in Tenants |-> [q \in Queries |-> [v \in 1..MaxSnapshot |->
-                [valid |-> FALSE, blob_id |-> "NONE"]]]],
-    task_queue = <<>>,
-    jobs = [r \in Requests |-> [
-        state       |-> "IDLE",
-        owner       |-> "NONE",
-        lease_epoch |-> 0,
-        attempts    |-> 0,
-        tenant      |-> TenantOf[r],
-        query       |-> QueryOf[r],
-        version     |-> 0,
-        blob_ptr    |-> "NONE",
-        protocol    |-> ProtocolOf[r]
-    ]],
-    blob_storage = [b \in Blobs |-> [allocated |-> FALSE, tenant |-> "NONE", version |-> 0]],
-    client_received = [c \in Clients |-> [blob_id |-> "NONE", tenant |-> "NONE", version |-> 0]],
-    available_blobs = Blobs,
-    worker_alive = [w \in Workers |-> TRUE],
-    commit_count = [r \in Requests |-> 0],
-    crashes = 0;
-
-define
-    Pending  == {"QUEUED", "CLAIMED", "RUNNING", "RESULT_WRITTEN"}
-    Terminal == {"COMPLETED", "FAILED"}
-
-    \* ===================== SAFETY INVARIANTS =====================
-
-    \* INV-1: a client only ever holds a live blob owned by its own tenant
-    TenantIsolation ==
-        \A c \in Clients :
-            client_received[c].blob_id /= "NONE" =>
-                /\ \E r \in Requests : ClientOf[r] = c /\ client_received[c].tenant = TenantOf[r]
-                /\ blob_storage[client_received[c].blob_id].allocated
-                /\ blob_storage[client_received[c].blob_id].tenant = client_received[c].tenant
-
-    \* INV-2: a COMPLETED ticket points at a live blob of matching tenant and version
-    ClaimCheckIntegrity ==
-        \A r \in Requests :
-            jobs[r].state = "COMPLETED" =>
-                /\ jobs[r].blob_ptr /= "NONE"
-                /\ blob_storage[jobs[r].blob_ptr].allocated
-                /\ blob_storage[jobs[r].blob_ptr].tenant = jobs[r].tenant
-                /\ blob_storage[jobs[r].blob_ptr].version = jobs[r].version
-
-    \* INV-3: a valid cache entry is for the current snapshot and a live, matching blob
-    CacheCoherenceFreshness ==
-        \A t \in Tenants : \A q \in Queries : \A v \in 1..MaxSnapshot :
-            cache[t][q][v].valid =>
-                /\ v = catalog_snapshot[t]
-                /\ blob_storage[cache[t][q][v].blob_id].allocated
-                /\ blob_storage[cache[t][q][v].blob_id].tenant = t
-                /\ blob_storage[cache[t][q][v].blob_id].version = v
-
-    \* INV-4: lease/ticket bookkeeping is internally consistent
-    LeaseConsistency ==
-        \A r \in Requests :
-            /\ jobs[r].state \in {"CLAIMED", "RUNNING", "RESULT_WRITTEN"} => jobs[r].owner \in Workers
-            /\ jobs[r].state \in {"IDLE", "QUEUED", "FAILED"} => jobs[r].blob_ptr = "NONE"
-            /\ jobs[r].state = "RESULT_WRITTEN" => jobs[r].blob_ptr /= "NONE"
-
-    \* INV-5: each request commits at most once
-    SingleCommit == \A r \in Requests : commit_count[r] <= 1
-
-    \* INV-6: no leaked or double-booked blobs
-    BlobAccounting ==
-        /\ \A b \in Blobs : (b \in available_blobs) <=> ~blob_storage[b].allocated
-        /\ \A b \in Blobs : blob_storage[b].allocated => \E r \in Requests : jobs[r].blob_ptr = b
-
-    \* INV-7: Flight and REST paths never cross
-    ProtocolSeparation ==
-        /\ \A r \in Requests :
-              ProtocolOf[r] = "FLIGHT" =>
-                  /\ jobs[r].state \in {"IDLE", "COMPLETED"}
-                  /\ jobs[r].owner \in {"NONE", "MONOLITH"}
-        /\ \A r \in Requests : ProtocolOf[r] = "REST" => jobs[r].owner \in Workers \cup {"NONE"}
-        /\ \A i \in 1..Len(task_queue) : ProtocolOf[task_queue[i]] = "REST"
-
-    \* ===================== LIVENESS (needs fairness) =====================
-    LiveTermination ==
-        \A r \in Requests : (jobs[r].state \in Pending) ~> (jobs[r].state \in Terminal)
-end define;
-
-\* =========================================================================
-\* CLIENT
-\* =========================================================================
-fair process ClientProcess \in Requests
-variables
-    my_tenant   = TenantOf[self],
-    my_query    = QueryOf[self],
-    my_client   = ClientOf[self],
-    my_proto    = ProtocolOf[self],
-    req_version = 0;
-begin
-ClientStart:
-    req_version := catalog_snapshot[my_tenant];
-
-CheckCache:
-    if cache[my_tenant][my_query][req_version].valid then
-        client_received[my_client] := [
-            blob_id |-> cache[my_tenant][my_query][req_version].blob_id,
-            tenant  |-> my_tenant,
-            version |-> req_version
-        ];
-        goto ClientDone;
-    end if;
-
-RouteProtocol:
-    if my_proto = "FLIGHT" then
-        goto ExecuteFlightSync;
-    else
-        goto EnqueueRest;
-    end if;
-
-EnqueueRest:
-    jobs[self] := [
-        state       |-> "QUEUED",
-        owner       |-> "NONE",
-        lease_epoch |-> 0,
-        attempts    |-> 1,
-        tenant      |-> my_tenant,
-        query       |-> my_query,
-        version     |-> req_version,
-        blob_ptr    |-> "NONE",
-        protocol    |-> "REST"
-    ];
-    task_queue := Append(task_queue, self);
-
-AwaitRest:
-    await jobs[self].state \in Terminal;
-    if jobs[self].state = "COMPLETED" then
-        client_received[my_client] := [
-            blob_id |-> jobs[self].blob_ptr,
-            tenant  |-> my_tenant,
-            version |-> jobs[self].version
-        ];
-    end if;
-    goto ClientDone;
-
-ExecuteFlightSync:
-    await available_blobs /= {};
-    with b \in available_blobs do
-        available_blobs := available_blobs \ {b};
-        blob_storage[b] := [allocated |-> TRUE, tenant |-> my_tenant, version |-> req_version];
-        jobs[self] := [
-            state       |-> "COMPLETED",
-            owner       |-> "MONOLITH",
-            lease_epoch |-> 1,
-            attempts    |-> 1,
-            tenant      |-> my_tenant,
-            query       |-> my_query,
-            version     |-> req_version,
-            blob_ptr    |-> b,
-            protocol    |-> "FLIGHT"
-        ];
-        client_received[my_client] := [blob_id |-> b, tenant |-> my_tenant, version |-> req_version];
-    end with;
-
-ClientDone:
-    skip;
-end process;
-
-\* =========================================================================
-\* COMPUTE WORKER
-\* =========================================================================
-fair process ComputeWorker \in Workers
-variables
-    curr_req   = "NONE",
-    curr_epoch = 0,
-    curr_blob  = "NONE";
-begin
-ClaimTask:
-    while TRUE do
-        await Len(task_queue) > 0 /\ worker_alive[self];
-        with r = Head(task_queue) do
-            task_queue := Tail(task_queue);
-            curr_req   := r;
-            curr_blob  := "NONE";
-            if jobs[r].state = "QUEUED" then
-                curr_epoch := jobs[r].lease_epoch + 1;
-                jobs[r] := [jobs[r] EXCEPT
-                    !.owner       = self,
-                    !.state       = "CLAIMED",
-                    !.lease_epoch = jobs[r].lease_epoch + 1
-                ];
-            else
-                curr_epoch := 0;
-            end if;
-        end with;
-
-    StartExecution:
-        if worker_alive[self] /\ curr_epoch > 0
-           /\ jobs[curr_req].lease_epoch = curr_epoch
-           /\ jobs[curr_req].state = "CLAIMED" then
-            jobs[curr_req] := [jobs[curr_req] EXCEPT !.state = "RUNNING"];
-        else
-            goto ClaimTask;
-        end if;
-
-    OffloadBlob:
-        if worker_alive[self] /\ jobs[curr_req].lease_epoch = curr_epoch
-           /\ jobs[curr_req].state = "RUNNING" /\ available_blobs /= {} then
-            with b \in available_blobs do
-                available_blobs := available_blobs \ {b};
-                curr_blob := b;
-                blob_storage[b] := [
-                    allocated |-> TRUE,
-                    tenant    |-> jobs[curr_req].tenant,
-                    version   |-> jobs[curr_req].version
-                ];
-                jobs[curr_req] := [jobs[curr_req] EXCEPT
-                    !.blob_ptr = b,
-                    !.state    = "RESULT_WRITTEN"
-                ];
-            end with;
-        else
-            goto ClaimTask;
-        end if;
-
-    CommitClaim:
-        if worker_alive[self] /\ jobs[curr_req].lease_epoch = curr_epoch
-           /\ jobs[curr_req].state = "RESULT_WRITTEN" then
-            jobs[curr_req] := [jobs[curr_req] EXCEPT !.state = "COMPLETED"];
-            commit_count[curr_req] := commit_count[curr_req] + 1;
-            if jobs[curr_req].version = catalog_snapshot[jobs[curr_req].tenant] then
-                cache[jobs[curr_req].tenant][jobs[curr_req].query][jobs[curr_req].version] :=
-                    [valid |-> TRUE, blob_id |-> curr_blob];
-            end if;
-        end if;
-    end while;
-end process;
-
-\* =========================================================================
-\* FAULTS: crash (optional, budgeted), recovery (fair), lease expiry (fair)
-\* =========================================================================
-process Crasher = "Crasher"
-begin
-CrashLoop:
-    while crashes < MaxCrashes do
-        with w \in {x \in Workers : worker_alive[x]} do
-            worker_alive[w] := FALSE;
-            crashes := crashes + 1;
-        end with;
-    end while;
-end process;
-
-fair process Recoverer = "Recoverer"
-begin
-RecoverLoop:
-    while TRUE do
-        with w \in {x \in Workers : ~worker_alive[x]} do
-            worker_alive[w] := TRUE;
-        end with;
-    end while;
-end process;
-
-fair process LeaseManager = "LeaseManager"
-begin
-LeaseLoop:
-    while TRUE do
-        with r \in {x \in Requests : jobs[x].state \in {"CLAIMED", "RUNNING", "RESULT_WRITTEN"}} do
-            if jobs[r].blob_ptr /= "NONE" then
-                blob_storage[jobs[r].blob_ptr] := [allocated |-> FALSE, tenant |-> "NONE", version |-> 0];
-                available_blobs := available_blobs \union {jobs[r].blob_ptr};
-            end if;
-            if jobs[r].attempts < MaxAttempts then
-                jobs[r] := [jobs[r] EXCEPT
-                    !.owner       = "NONE",
-                    !.state       = "QUEUED",
-                    !.attempts    = jobs[r].attempts + 1,
-                    !.lease_epoch = jobs[r].lease_epoch + 1,
-                    !.blob_ptr    = "NONE"
-                ];
-                task_queue := Append(task_queue, r);
-            else
-                jobs[r] := [jobs[r] EXCEPT
-                    !.owner       = "NONE",
-                    !.state       = "FAILED",
-                    !.lease_epoch = jobs[r].lease_epoch + 1,
-                    !.blob_ptr    = "NONE"
-                ];
-            end if;
-        end with;
-    end while;
-end process;
-
-\* =========================================================================
-\* OUT-OF-BAND LAKEHOUSE COMMIT
-\* =========================================================================
-fair process LakehouseETL = "LakehouseETL"
-begin
-ETLCommit:
-    while TRUE do
-        with t \in Tenants do
-            if catalog_snapshot[t] < MaxSnapshot then
-                with nv = catalog_snapshot[t] + 1 do
-                    catalog_snapshot[t] := nv;
-                    cache[t] := [q \in Queries |-> [v \in 1..MaxSnapshot |->
-                        IF v < nv
-                        THEN [valid |-> FALSE, blob_id |-> "NONE"]
-                        ELSE cache[t][q][v]]];
-                end with;
-            end if;
-        end with;
-    end while;
-end process;
-
-end algorithm; *)
-
-\* Action properties checked as PROPERTIES (evaluated on primed pairs, no fairness needed)
-EpochMonotonic ==
-    [][\A r \in Requests : jobs'[r].lease_epoch >= jobs[r].lease_epoch]_vars
-
-NoRegressionAfterCompletion ==
-    [][\A r \in Requests : jobs[r].state = "COMPLETED" => jobs'[r] = jobs[r]]_vars
-
-=============================================================================</code></pre>
-
-        <!-- SECTION 7 -->
-        <h2 id="s7">7. The Mathematical State-Transition Relations (First-Order TLA+)</h2>
-
-        <p>
-            When PlusCal is compiled, procedural statements are desugared into first-order predicate logic over pairs of states (\(\langle s, s' \rangle\)) and Linear Temporal Logic (LTL) formulas. Below is a mathematical reconstruction of the principal transition relations produced by the PlusCal model.
-        </p>
-
-        <h3>1. State Space Tuple</h3>
-        <div class="katex-display">
-            \[\text{vars} \triangleq \langle catalog\_snapshot, cache, task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes, pc \rangle\]
-        </div>
-
-        <h3>2. Initial State Predicate (\(Init\))</h3>
-        <div class="katex-display">
-            \[
-            Init \triangleq \begin{aligned}[t]
-            & \land catalog\_snapshot = [t \in Tenants \mapsto 1] \\
-            & \land cache = [t \in Tenants \mapsto [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [valid \mapsto \textsc{False}, blob\_id \mapsto \text{"NONE"}]]]] \\
-            & \land task\_queue = \langle \rangle \\
-            & \land jobs = [r \in Requests \mapsto [state \mapsto \text{"IDLE"}, owner \mapsto \text{"NONE"}, lease\_epoch \mapsto 0, attempts \mapsto 0, \\
-            & \phantom{\land jobs = [r \in Requests \mapsto [} tenant \mapsto TenantOf[r], query \mapsto QueryOf[r], version \mapsto 0, blob\_ptr \mapsto \text{"NONE"}, protocol \mapsto ProtocolOf[r]]] \\
-            & \land blob\_storage = [b \in Blobs \mapsto [allocated \mapsto \textsc{False}, tenant \mapsto \text{"NONE"}, version \mapsto 0]] \\
-            & \land client\_received = [c \in Clients \mapsto [blob\_id \mapsto \text{"NONE"}, tenant \mapsto \text{"NONE"}, version \mapsto 0]] \\
-            & \land available\_blobs = Blobs \land worker\_alive = [w \in Workers \mapsto \textsc{True}] \land commit\_count = [r \in Requests \mapsto 0] \land crashes = 0 \\
-            & \land pc = [r \in Requests \mapsto \text{"ClientStart"}] \cup [w \in Workers \mapsto \text{"ClaimTask"}] \cup \\
-            & \phantom{\land pc = } [\text{"Crasher"} \mapsto \text{"CrashLoop"}] \cup [\text{"Recoverer"} \mapsto \text{"RecoverLoop"}] \cup \\
-            & \phantom{\land pc = } [\text{"LeaseManager"} \mapsto \text{"LeaseLoop"}] \cup [\text{"LakehouseETL"} \mapsto \text{"ETLCommit"}]
-            \end{aligned}
-            \]
-        </div>
-
-        <h3>3. Selected Core Action Relations</h3>
-
-        <h4>A. Atomic Task Claiming with Lease Epoch (\(WorkerClaim\))</h4>
-        <div class="katex-display">
-            \[
-            WorkerClaim(w) \triangleq \begin{aligned}[t]
-            & \land pc[w] = \text{"ClaimTask"} \land worker\_alive[w] \land Len(task\_queue) > 0 \\
-            & \land \text{LET } r \triangleq Head(task\_queue) \text{ IN } \\
-            & \phantom{\land} \land task\_queue' = Tail(task\_queue) \\
-            & \phantom{\land} \land \IF jobs[r].state = \text{"QUEUED"} \\
-            & \phantom{\land \land} \THEN \land jobs' = [jobs \text{ EXCEPT } ![r].owner = w, ![r].state = \text{"CLAIMED"}, ![r].lease\_epoch = jobs[r].lease\_epoch + 1] \\
-            & \phantom{\land \land \THEN} \land pc' = [pc \text{ EXCEPT } ![w] = \text{"StartExecution"}] \\
-            & \phantom{\land \land} \ELSE \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \land \text{UNCHANGED } jobs \\
-            & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes \rangle
-            \end{aligned}
-            \]
-        </div>
-
-        <h4>B. Stale-Worker Commit Guard (\(WorkerCommit\))</h4>
-        <div class="katex-display">
-            \[
-            WorkerCommit(w, r, epoch, blob) \triangleq \begin{aligned}[t]
-            & \land pc[w] = \text{"CommitClaim"} \land worker\_alive[w] \\
-            & \land \IF jobs[r].lease\_epoch = epoch \land jobs[r].state = \text{"RESULT\_WRITTEN"} \\
-            & \phantom{\land} \THEN \land jobs' = [jobs \text{ EXCEPT } ![r].state = \text{"COMPLETED"}] \\
-            & \phantom{\land \THEN} \land commit\_count' = [commit\_count \text{ EXCEPT } ![r] = commit\_count[r] + 1] \\
-            & \phantom{\land \THEN} \land \IF jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
-            & \phantom{\land \THEN \land} \THEN cache' = [cache \text{ EXCEPT } ![jobs[r].tenant][jobs[r].query][jobs[r].version] = [valid \mapsto \textsc{True}, blob\_id \mapsto blob]] \\
-            & \phantom{\land \THEN \land} \ELSE \text{UNCHANGED } cache \\
-            & \phantom{\land} \ELSE \land \text{UNCHANGED } \langle jobs, commit\_count, cache \rangle \quad \text{(* Stale Commit Rejected *)} \\
-            & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \\
-            & \land \text{UNCHANGED } \langle catalog\_snapshot, task\_queue, blob\_storage, client\_received, available\_blobs, worker\_alive, crashes \rangle
-            \end{aligned}
-            \]
-        </div>
-
-        <h4>C. Snapshot Invalidation (\(ETLCommit\))</h4>
-        <div class="katex-display">
-            \[
-            ETLCommit(t) \triangleq \begin{aligned}[t]
-            & \land pc[\text{"LakehouseETL"}] = \text{"ETLCommit"} \land catalog\_snapshot[t] < MaxSnapshot \\
-            & \land \text{LET } new\_v \triangleq catalog\_snapshot[t] + 1 \text{ IN } \\
-            & \phantom{\land} \land catalog\_snapshot' = [catalog\_snapshot \text{ EXCEPT } ![t] = new\_v] \\
-            & \phantom{\land} \land cache' = [cache \text{ EXCEPT } ![t] = [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto \\
-            & \phantom{\land \land cache' = } \IF v < new\_v \THEN [valid \mapsto \textsc{False}, blob\_id \mapsto \text{"NONE"}] \ELSE cache[t][q][v]]]] \\
-            & \land \text{UNCHANGED } \langle task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count, crashes, pc \rangle
-            \end{aligned}
-            \]
-        </div>
-
-        <!-- SECTION 8 -->
-        <h2 id="s8">8. TLC Model Checking, Invariants &amp; Mutation Testing</h2>
-
-        <p>
-            We structure model checking into two distinct suites: a **Safety Configuration** (larger state space with Flight and REST interleavings) and a **Liveness Configuration** (smaller state space with temporal checking).
-        </p>
-
-        <h3>1. Safety Configuration (`SmartDataGatewaySafety.cfg`)</h3>
-        <span class="code-header">SmartDataGatewaySafety.cfg</span>
-        <pre><code>SPECIFICATION Spec
-
-CONSTANTS
-    Tenants     = {"T1", "T2"}
-    Clients     = {"C1", "C2", "C3"}
-    Requests    = {"R1", "R2", "R3"}
-    Queries     = {"Q1"}
-    Workers     = {"W1", "W2"}
-    Blobs       = {"B1", "B2", "B3", "B4"}
-    MaxSnapshot = 3
-    MaxAttempts = 2
-    MaxCrashes  = 1
-    TenantOf    = [R1 |-> "T1", R2 |-> "T2", R3 |-> "T1"]
-    QueryOf     = [R1 |-> "Q1", R2 |-> "Q1", R3 |-> "Q1"]
-    ClientOf    = [R1 |-> "C1", R2 |-> "C2", R3 |-> "C3"]
-    ProtocolOf  = [R1 |-> "REST", R2 |-> "REST", R3 |-> "FLIGHT"]
-
-INVARIANTS
-    TenantIsolation
-    ClaimCheckIntegrity
-    CacheCoherenceFreshness
-    LeaseConsistency
-    SingleCommit
-    BlobAccounting
-    ProtocolSeparation
-
-PROPERTIES
-    EpochMonotonic
-    NoRegressionAfterCompletion</code></pre>
-
-        <h3>2. Liveness Configuration (`SmartDataGatewayLiveness.cfg`)</h3>
-        <p>
-            Temporal checking over infinite behaviors (\(\leadsto\)) is significantly more computationally expensive than invariant checking. The liveness run uses a constrained model with two REST requests across two tenants sharing a query:
-        </p>
-
-        <span class="code-header">SmartDataGatewayLiveness.cfg</span>
-        <pre><code>SPECIFICATION Spec
-
-CONSTANTS
-    Tenants     = {"T1", "T2"}
-    Clients     = {"C1", "C2"}
-    Requests    = {"R1", "R2"}
-    Queries     = {"Q1"}
-    Workers     = {"W1", "W2"}
-    Blobs       = {"B1", "B2"}
-    MaxSnapshot = 2
-    MaxAttempts = 2
-    MaxCrashes  = 1
-    TenantOf    = [R1 |-> "T1", R2 |-> "T2"]
-    QueryOf     = [R1 |-> "Q1", R2 |-> "Q1"]
-    ClientOf    = [R1 |-> "C1", R2 |-> "C2"]
-    ProtocolOf  = [R1 |-> "REST", R2 |-> "REST"]
-
-INVARIANTS
-    TenantIsolation
-    ClaimCheckIntegrity
-    CacheCoherenceFreshness
-    LeaseConsistency
-    SingleCommit
-    BlobAccounting
-    ProtocolSeparation
-
-PROPERTIES
-    LiveTermination
-    EpochMonotonic
-    NoRegressionAfterCompletion</code></pre>
-
-        <h3>Verification Levels: Model Checking vs. Inductive Proofs</h3>
-        <p>
-            It is critical to distinguish <strong>bounded model checking</strong> from <strong>unbounded mathematical proof</strong>:
-        </p>
-        <ul>
-            <li><strong>Level 1 (TLC Model Checking):</strong> Exhaustively checks all reachable states within finite bounds (e.g., 3 requests, 2 workers, 3 snapshots). It verifies that no counterexample exists within that state envelope.</li>
-            <li><strong>Level 2 (Inductive Invariants &amp; TLAPS):</strong> Proves an invariant \(\text{Inv}\) unbounded across all possible configurations by proving the inductive base and step:
-                \[\text{Init} \implies \text{Inv} \quad \land \quad \text{Inv} \land [Next]_{\text{vars}} \implies \text{Inv}'\]
-                Discharging this proof requires the TLA+ Proof System (TLAPS) rather than TLC.</li>
-        </ul>
-
-        <h3>Mutation Testing: Confirming the Model Catches Invariant Violations</h3>
-        <p>
-            To verify that our invariants are not vacuously true, we introduce deliberate architectural defects and inspect the resulting TLC counterexamples:
-        </p>
-
-        <div class="callout danger">
-            <strong>Mutation 1: Dangling Pointer in Claim-Check Sequencing</strong>
-            <p><strong>Modification:</strong> Invert <code>OffloadBlob</code> and <code>CommitClaim</code> so the ticket is marked complete before the storage blob is allocated.</p>
-            <p><strong>Expected TLC Counterexample:</strong></p>
-            <pre><code>Error: Invariant ClaimCheckIntegrity is violated.
-State: jobs["R1"].state = "COMPLETED" /\ jobs["R1"].blob_ptr = "NONE"
-Action: CommitClaim executed before OffloadBlob.</code></pre>
-        </div>
-
-        <div class="callout danger">
-            <strong>Mutation 2: Multi-Tenant Key Collision in Result Cache</strong>
-            <p><strong>Modification:</strong> Change cache indexing to omit <code>TenantOf[r]</code>, indexing only by query hash and version.</p>
-            <p><strong>Expected TLC Counterexample:</strong></p>
-            <pre><code>Error: Invariant TenantIsolation is violated.
-State: client_received["C2"] received blob allocated to Tenant "T1".
-Action: Request R2 (Tenant T2) hit cache entry populated by Request R1 (Tenant T1) for shared query Q1.</code></pre>
-        </div>
-
-        <div class="callout danger">
-            <strong>Mutation 3: Stale Worker Commit After Lease Revocation</strong>
-            <p><strong>Modification:</strong> Remove the <code>jobs[curr_req].lease_epoch = curr_epoch</code> check in <code>CommitClaim</code>.</p>
-            <p><strong>Expected TLC Counterexample:</strong></p>
-            <pre><code>Error: Invariant SingleCommit is violated.
-State: commit_count["R1"] = 2.
-Action: Stale worker W1 committed R1 after LeaseManager reclaimed and requeued it to W2.</code></pre>
-        </div>
-
-        <!-- SECTION 9 -->
-        <h2 id="s9">9. From Model Correctness to Implementation Conformance</h2>
-
-        <p>
-            A verified specification proves that the design is logically sound under its assumptions. It does not prove that a Python or Rust codebase conforms to the model. To close the <strong>model-code semantic gap</strong>, we use <strong>Model-Based Trace Checking (MBTC)</strong>, drawing on methodologies from Microsoft's CCF and MongoDB.
-        </p>
-
-        <!-- DIAGRAM 3: Model-Based Trace Checking Pipeline -->
-        <div class="diagram-card" aria-label="Model-Based Trace Checking Validation Pipeline">
-            <div class="diagram-title">Model-Based Trace Checking (MBTC) Conformance Architecture</div>
-            <div class="mbtc-grid">
-                <!-- Top Row -->
-                <div class="mbtc-card mbtc-card-runtime">
-                    <div class="mbtc-name">Production Runtime</div>
-                    <div class="mbtc-detail">FastAPI / Celery Workers</div>
-                </div>
-
-                <div class="mbtc-connector-top">
-                    <span class="mbtc-label">JSON Traces</span>
-                    <span class="mbtc-arrow-h">&rarr;</span>
-                </div>
-
-                <div class="mbtc-card mbtc-card-log">
-                    <div class="mbtc-name">run_trace.ndjson</div>
-                    <div class="mbtc-detail">State Boundary Logs</div>
-                </div>
-
-                <!-- Middle Transition Row -->
-                <div></div>
-                <div></div>
-                <div class="mbtc-connector-right">
-                    <span class="mbtc-arrow-v">&darr;</span>
-                </div>
-
-                <!-- Bottom Row -->
-                <div class="mbtc-card mbtc-card-checker">
-                    <div class="mbtc-name">TLC Model Checker</div>
-                    <div class="mbtc-detail">Flags Drift in CI Harness</div>
-                </div>
-
-                <div class="mbtc-connector-bottom">
-                    <span class="mbtc-label">Replay Binding</span>
-                    <span class="mbtc-arrow-h">&larr;</span>
-                </div>
-
-                <div class="mbtc-card mbtc-card-spec">
-                    <div class="mbtc-name">TraceSpec.tla</div>
-                    <div class="mbtc-detail">Parameter-Bound Validator</div>
-                </div>
-            </div>
-        </div>
-
-        <h3>Step 1: Production Instrumentation</h3>
-        <p>
-            Runtime code emits structured JSON log events at each atomic state boundary:
-        </p>
-
-        <span class="code-header">src/orchestration/tasks.py (Trace Logging)</span>
-        <pre><code class="language-python"># Celery worker analytical task execution
-@celery_app.task(bind=True)
-def execute_query_task(self, request_id: str, tenant_id: str, query_hash: str):
-    emit_formal_trace("ClaimTask", {
-        "worker_id": self.request.id, "request_id": request_id,
-        "tenant_id": tenant_id, "state": "CLAIMED"
-    })
+<span class="code-header">NDJSON Execution Trace (The Math-Readable Logs)</span>
+<pre><code>{"event_id":"e-104","sequence":4,"event_type":"BlobDurable","request_id":"r-17","tenant_id":"t-2","snapshot_id":42,"worker_id":"w-3","lease_epoch":8,"blob_id":"b-91"}
+{"event_id":"e-105","sequence":5,"event_type":"ResultAccepted","request_id":"r-17","tenant_id":"t-2","snapshot_id":42,"worker_id":"w-3","lease_epoch":8,"blob_id":"b-91"}</code></pre>
+<h3>How the Checker Catches "Implementation Drift"</h3>
+<p>
+    Let's look at a concrete example of how this proposed pipeline prevents silent corruption. 
+</p>
+
+<div class="callout warning">
+    <strong>The Scenario: The "Optimized" Pull Request</strong>
+    <p>Six months after launch, a well-meaning developer notices that writing blobs to S3 is slow. They decide to "optimize" the worker loop by publishing the result pointer to Redis <em>before</em> the S3 blob finishes uploading, wrapping it in an async promise.</p>
     
-    # Execute query against Parquet
-    arrow_batch = engine.evaluate(query_hash, tenant_id)
+    <p><strong>The Catch:</strong> In production, the worker crashes immediately after the Redis commit but before the S3 upload finishes. Redis now points to a ghost file. Clients start receiving <code>404 Not Found</code> errors.</p>
     
-    # Claim-check offload to Azure Blob
-    blob_id = storage_client.write_buffer(arrow_batch)
-    emit_formal_trace("OffloadBlob", {
-        "worker_id": self.request.id, "request_id": request_id,
-        "blob_id": blob_id, "state": "RESULT_WRITTEN"
-    })
-    
-    # Atomic pointer registration
-    redis_client.complete_ticket(request_id, blob_id)
-    emit_formal_trace("CommitClaim", {
-        "worker_id": self.request.id, "request_id": request_id,
-        "blob_id": blob_id, "state": "COMPLETED"
-    })</code></pre>
+    <p><strong>How MBTC stops this in CI/CD:</strong> During integration testing, the trace harness records the telemetry and feeds it via the adapter to TLC. TLC reads the transitions and sees a <code>ResultAccepted</code> event arrive at <code>sequence: 4</code>, but sees no <code>BlobDurable</code> event preceding it. TLC instantly throws a mathematical violation because the trace bypassed the strict state-machine requirement: <em>A pointer cannot be published unless its blob is durable.</em> The build fails, the PR is blocked, and the architecture is preserved.</p>
+</div>
 
-        <h3>Step 2: Parameter-Constrained Trace Replay (`TraceSpec.tla`)</h3>
-        <p>
-            A common bug in trace specifications is checking only action names without binding observed variables. A valid trace spec must bind exact observed identifiers to the formal transitions:
-        </p>
+<h3>Enforcing the Conformance Pipeline</h3>
+<p>
+    To ensure this isn't just an academic exercise, the trace checker must become an uncompromising gatekeeper in your deployment pipeline. The implementation is considered conformant only when it passes the following criteria:
+</p>
 
-        <span class="code-header">TraceSpec.tla (Parameter-Constrained Replay)</span>
-        <pre><code>--------------------------- MODULE TraceSpec ---------------------------
-EXTENDS SmartDataGatewaySafety, IOUtils, Json
-
-TraceLog == ndJsonDeserialize("tests/traces/run_trace.ndjson")
-VARIABLE trace_idx
-
-TraceInit ==
-    /\ Init
-    /\ trace_idx = 1
-
-TraceNext ==
-    /\ trace_idx &lt;= Len(TraceLog)
-    /\ LET event == TraceLog[trace_idx]
-       IN /\ \/ /\ event.action = "ClaimTask"
-                /\ WorkerClaimWithParams(event.worker_id, event.request_id)
-             \/ /\ event.action = "OffloadBlob"
-                /\ WorkerOffloadWithParams(event.worker_id, event.request_id, event.blob_id)
-             \/ /\ event.action = "CommitClaim"
-                /\ WorkerCommitWithParams(event.worker_id, event.request_id, event.blob_id)
-          /\ trace_idx' = trace_idx + 1
-
-TraceSpec == TraceInit /\ [][TraceNext]_&lt;&lt;vars, trace_idx&gt;&gt;
-========================================================================</code></pre>
-
-        <p>
-            In continuous integration, the integration test suite runs under chaos fault injection, exports <code>run_trace.ndjson</code>, and evaluates <code>TraceSpec.tla</code> via TLC. If a code refactoring reorders operations (e.g., publishing to Redis before the storage blob write completes), TLC halts, catching implementation drift before deployment.
-        </p>
+<ol>
+    <li><strong>The Happy Path Replay:</strong> A known-good integration test suite generates telemetry that successfully replays from start to finish without TLC throwing an illegal state transition.</li>
+    <li><strong>Falsification (The Red Team):</strong> Deliberately mutated traces (e.g., injecting a stale lease epoch, swapping the order of commit and blob creation, or mimicking a tenant mismatch) must be aggressively caught and flagged as <code>PropertyViolated</code> by the harness.</li>
+    <li><strong>Ambiguity Rejection:</strong> A missing log event alone does not inherently prove an illegal action occurred; it often means the evidence is simply incomplete. If events are dropped, duplicated, or missing causality sequences, the harness must report an <em>ambiguous trace error</em> rather than silently treating the execution as legally valid.</li>
+</ol>
 
         <!-- SECTION 10 -->
-        <h2 id="s10">10. The Comprehensive Architectural Verification Matrix</h2>
+<h2 id="s10">10. The Comprehensive Architectural Verification Summary</h2>
 
         <p>
-            Formal methods address concurrency, isolation, and safety invariants. Performance physics addresses capacity and queueing bounds. Empirical SRE testing addresses hardware limits and operational behavior. Below is the complete verification matrix for the Smart Data Gateway:
+            The comprehensive verification of the Smart Data Gateway requires a multi-tiered strategy spanning theoretical models and physical reality. As explored earlier in Part 3, the foundational targets for speed, scalability, and physical limitations—such as P99 tail latency bounds via Kingman's approximation, cluster throughput scaling under the Universal Scalability Law, and Monte Carlo-simulated cloud unit economics—must be empirically validated through live implementation conformance and rigorous operational SRE testing. Conversely, this current installment (Part 4) evaluates the logic of the system's distributed state through formal verification. 
         </p>
-
-        <div class="table-container">
-            <table class="mpp-table">
-                <thead>
-                    <tr>
-                        <th>Architectural Requirement</th>
-                        <th>Verification Tier</th>
-                        <th>Methodology &amp; Tooling</th>
-                        <th>Target Threshold / Invariant</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Multi-Tenant Data Isolation</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Model Checking (Exhaustive Bounded)</td>
-                        <td><code>\Box TenantIsolation</code> evaluates to TRUE across all reachable states.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Claim-Check Pointer Integrity</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Model Checking + Mutation Testing</td>
-                        <td><code>\Box ClaimCheckIntegrity</code>: zero dangling or unallocated storage references.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Cache Snapshot Freshness</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Concurrent Ingestion Model</td>
-                        <td><code>\Box CacheCoherenceFreshness</code>: no stale snapshot served post-commit.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Lease Consistency &amp; Single Commit</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Fault-Injection Model (Crashes &amp; Timeouts)</td>
-                        <td><code>\Box LeaseConsistency</code> &amp; <code>\Box SingleCommit</code>: zero split-brain commits.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Storage Inventory Accounting</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Finite-Pool Model</td>
-                        <td><code>\Box BlobAccounting</code>: zero leaked or double-booked storage blocks.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Liveness Under Faults</strong></td>
-                        <td>Formal Specification</td>
-                        <td>TLC Temporal Model Checking (Liveness Config)</td>
-                        <td><code>LiveTermination</code>: every pending task reaches a terminal state.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Implementation Conformance</strong></td>
-                        <td>Trace Validation</td>
-                        <td>Model-Based Trace Checking (MBTC in CI)</td>
-                        <td>Zero state-transition drift between production logs and <code>TraceSpec.tla</code>.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>P99 Tail Latency Bound</strong></td>
-                        <td>Performance Physics</td>
-                        <td>Kingman Approximation + Envoy Hedging</td>
-                        <td>P99 latency &lt; 50ms at 80% server utilization.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Cluster Throughput Scaling</strong></td>
-                        <td>Performance Physics</td>
-                        <td>Universal Scalability Law (\(\beta = 0\))</td>
-                        <td>Linear scaleup across stateless NVMe gateway nodes without crosstalk.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Cloud Unit Economics</strong></td>
-                        <td>Empirical FinOps</td>
-                        <td>10,000-Iteration Monte Carlo Simulation</td>
-                        <td>Serving cost &lt; $0.0002 per analytical query at baseline load.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <p>
+            Using bounded TLC model checking, we have exhaustively explored explicit finite state bounds (e.g., the <code>MC_nofaults</code>, <code>MC_faults_small</code>, and <code>MC_flightcache</code> runs) to demonstrate that no counterexample was found in the completed configuration for specific safety invariants—such as <code>TenantBinding</code> (tenant isolation), <code>ClaimCheckIntegrity</code> (pointer safety), and <code>EpochMonotonic</code>. Meanwhile, massive fault-injected scenarios remain only partially explored. By combining the empirical performance physics of Part 3 with the rigorous formal state definitions of Part 4, we establish confidence within stated bounds to bridge the gap between abstract logic and physically validated execution.
+        </p>
 
         <p>
-            By combining performance physics, formal verification, and model-based trace checking, we transform distributed systems engineering from defensive guesswork into an empirically and mathematically grounded discipline. In the concluding article, <strong>Part 5: Synthesis &amp; The Operational Reality</strong>, we integrate these formal and physical models into production deployment patterns, FinOps balance sheets, and long-term operational guides.
+            <strong>A Final Caveat on Row-Level Security:</strong> It is critical to acknowledge that the <code>rls_applied</code> state variable modeled in this specification merely proves the <em>presence</em> and correct ordering of an authorization step. The formal model does not establish that the physical SQL predicate actually filters rows correctly. Physical implementation testing must independently verify that caller-supplied payloads cannot weaken the injected RLS policy.
         </p>
+
+        <p>
+            The useful outcome is not a claim of absolute certainty; it is a reviewable chain from requirement to model property, from property to a reproducible TLC run, and from abstract action to implementation evidence. Part 5 discusses operational architecture and economics; any correctness claim carried forward should retain its evidence status and assumptions.
+        </p>
+
+        
 
         <!-- Navigation Links -->
         <div style="margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
             <a href="part-3-the-production-reality-check.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Part 3: The Production Reality Check</a>
-            <a href="part-5-conclusion.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Part 5: Opportunities &rarr;</a>
+            <a href="part-5-tco-agentic-enterprise-adoption.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">Part 5: Enterprise Adoption &rarr;</a>
         </div>
 
     </article>
@@ -1737,10 +1480,10 @@ document.addEventListener("DOMContentLoaded", function() {
 document.addEventListener("DOMContentLoaded", function () {
   if (window.renderMathInElement) {
     renderMathInElement(document.body, {
-      delimiters: [
-        { left: "\\[", right: "\\]", display: true },
-        { left: "\\(", right: "\\)", display: false }
-      ],
+       delimiters: [
+  { left: "\\[", right: "\\]", display: true },
+  { left: "\\(", right: "\\)", display: false }
+],
       ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
       throwOnError: false
     });
