@@ -753,6 +753,8 @@
 
         <p>If your architecture only works when everything is perfect, <strong>you do not have an architecture; you have a pet project.</strong></p>
 
+        <p>At the end of Part 2, we made <strong>Five Core Claims</strong> about this architecture: Performance, Isolation, Freshness, Recovery, and Cost. Parts 3 and 4 serve as the rigorous proving ground for these claims. Here in Part 3, we focus on the empirical proofs for <strong>Performance</strong>, <strong>Recovery</strong>, and <strong>Cost</strong> through physical load testing, stochastic modeling, and chaos engineering. (Part 4 will mathematically prove Isolation and Freshness via formal methods).</p>
+
         <div class="callout">
             <strong>Blueprint Scope: Empirical Models vs. Formal Validation</strong><br>
             In this part, we establish the structural, security, and mathematical blueprint for the gateway using <strong>empirical models and stochastic simulations</strong>. The numerical projections below—latency percentiles, MTTR, and availability formulations—represent theoretical baseline outputs that are yet to be validated by live SRE load testing and chaos drills.<br><br>
@@ -992,7 +994,7 @@
         <!-- SECTION 5 -->
         <h2 id="s5">5. Tail-Tolerant Systems Engineering &amp; Authentication Architecture</h2>
 
-        <p>To eliminate tail latency across a platform executing high-frequency regulatory queries and scatter-gather fetches, the routing layer must separate long-lived streaming connections from microsecond local cache fetches.</p>
+        <p><strong>Validating Claim 1 (Performance):</strong> To eliminate tail latency across a platform executing high-frequency regulatory queries and scatter-gather fetches, the routing layer must separate long-lived streaming connections from microsecond local cache fetches. This is how we prove that high concurrency does not inherently mean high latency.</p>
 
         <h3>A. Load Balancer Layer: Arrow Flight (gRPC) to DuckDB Workers</h3>
         <p>While standard Round Robin perfectly distributes request <em>counts</em>, it blindly assumes all queries take equal time. In reality, a heavy 1-month data aggregation stream will pin a DuckDB worker indefinitely while millisecond point-queries cycle rapidly. Round Robin carelessly routes new traffic into these blocked queues, creating severe hot spots.</p>
@@ -1087,8 +1089,10 @@
             <li><strong>Snapshot Consistency Guard:</strong> Mutable root catalog pointers bypass NGINX proxy caching entirely (enforcing <code>Cache-Control: no-cache, must-revalidate</code>) to prevent stale reads during upstream data commits.</li>
         </ul>
 
-        <!-- SECTION 7 -->
+        <!-- SECTION 6 -->
         <h2 id="s6">6. Availability Mathematics, SLA Commitments &amp; FMEA</h2>
+
+        <p><strong>Validating Claim 4 (Recovery):</strong> A theoretical architecture is useless if it cannot survive the violent realities of cloud infrastructure failures. Proving our recovery claim requires calculating mathematical SLA boundaries and mapping exact failure states.</p>
 
         <h3>Component SLAs (Azure Multi-Zone Standard)</h3>
         <div class="table-container">
@@ -1188,7 +1192,7 @@
             </table>
         </div>
 
-        <!-- SECTION 8 -->
+        <!-- SECTION 7 -->
         <h2 id="s7">7. Latency Engineering &amp; Workload Profiling</h2>
         <p>Total operational query latency is modeled as:</p>
         <div class="katex-display">
@@ -1214,15 +1218,17 @@
                 </thead>
                 <tbody>
                     <tr><td><strong>1. Point Query / Event Lookup</strong></td><td>5 MB – 30 MB</td><td>&gt; 90%</td><td><strong>Near-instantaneous</strong> (\(\mathcal{O}(1)\) local cache fetch)</td><td>Network Round Trip</td></tr>
-                    <tr><td><strong>2. 1-Day Data Aggregation</strong></td><td>20 MB – 100 MB</td><td>85%</td><td><strong>Sub-second</strong></td><td>CPU Vectorization Efficiency</td></tr>
+                    <tr><td><strong>2. 1-Day Data Aggregation</strong></td><td>20 MB – 100 MB</td><td>85%</td><td><strong>Sub-10 second</strong></td><td>CPU Vectorization Efficiency</td></tr>
                     <tr><td><strong>3. 1-Week Data Aggregation</strong></td><td>150 MB – 800 MB</td><td>70%</td><td><strong>Low single-digits</strong> (seconds)</td><td>NVMe / Network I/O</td></tr>
                     <tr><td><strong>4. 1-Month Data Aggregation</strong></td><td>800 MB – 4 GB+</td><td>&lt; 50%</td><td><strong>I/O Bound</strong> (Sustained ADLS Gen2 fallback)</td><td>ADLS Gen2 Egress limits</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <!-- SECTION 9 -->
+        <!-- SECTION 8 -->
         <h2 id="s8">8. Azure Hardware Sizing &amp; FinOps Analysis</h2>
+
+        <p><strong>Validating Claim 5 (Cost):</strong> Financial predictability is a strict architectural requirement. By modeling hardware constraints and egress costs mathematically, we can prove the Gateway avoids the staggering financial burn typical of always-on MPP clusters.</p>
 
         <h3>The Kubernetes Math Trap: Why 8 Cores Does Not Equal 8 Cores</h3>
         <p>If you configure worker pod resource requests to <code>cpu: "8"</code> and <code>memory: "32Gi"</code>, scheduling breaks on standard Azure shapes: on a <code>Standard_D8s_v5</code> node, Azure reserves ~0.5 vCPU and ~4 GiB of RAM for OS kernels, kubelet daemons, and CNI networking. The allocatable space is only ~7.5 vCPUs, leaving the 8-core pod in <code>Pending</code> indefinitely.</p>
@@ -1260,7 +1266,7 @@
             </ul>
         </div>
 
-        <!-- SECTION 10 -->
+        <!-- SECTION 9 -->
         <h2 id="s9">9. Stochastic Performance Modeling: Systems Physics &amp; Proofs</h2>
 
         <h3>1. Scatter-Gather Tail Latency: Monte Carlo Simulations</h3>
@@ -1411,7 +1417,7 @@
         </div>
 
         <h3>5. Monte Carlo FinOps Cost Distribution</h3>
-        <p>Financial predictability is a strict architectural requirement. This Monte Carlo simulation generates 3,000 synthetic monthly billing cycles by sampling Poisson traffic spikes and randomized cache hit variance.</p>
+        <p>This Monte Carlo simulation generates 3,000 synthetic monthly billing cycles by sampling Poisson traffic spikes and randomized cache hit variance to prove the mathematical boundary on our egress and compute costs.</p>
 
         <div class="sim-card">
             <div class="sim-header">
@@ -1446,10 +1452,10 @@
             </div>
         </div>
 
-        <!-- SECTION 11 -->
+        <!-- SECTION 10 -->
         <h2 id="s10">10. The SRE Validation Framework &amp; Acceptance Criteria</h2>
 
-        <p>To transition our architecture from theoretical models into production certification, we formalize seven Non-Functional Requirement (NFR) pillars. Each pillar defines its exact deployment topology, load execution profile, target metrics, and verification harness.</p>
+        <p>To transition our architecture from theoretical models into production certification, we formalize seven Non-Functional Requirement (NFR) pillars. These represent the final empirical validation of both our Performance and Recovery claims. Each pillar defines its exact deployment topology, load execution profile, target metrics, and verification harness.</p>
 
         <div class="table-container">
             <table class="mpp-table">
@@ -1654,7 +1660,7 @@
             </div>
         </div>
 
-        <!-- SECTION 12 -->
+        <!-- SECTION 11 -->
         <h2 id="s11">11. What Analytical Models Can &amp; Cannot Prove (The Formal Methods Bridge)</h2>
         
         <blockquote class="epigraph">
@@ -1717,7 +1723,7 @@
 
         <p>Analytical modeling demonstrates our architecture can be <strong>physically viable</strong> under load. But in mission-critical financial and regulatory systems, physical viability is merely your license to proceed to logical verification and testing.</p>
 
-        <p>To ensure our design is <strong>operationally indestructible and logically flawless</strong>, we must subject it to the crucible of physical load, chaotic fault injection, and formal state verification. That rigorous proving ground is the subject of Part 4: Formal Validation and Proofs.</p>
+        <p>To ensure our design is <strong>operationally indestructible and logically flawless</strong>, we must subject it to the crucible of physical load, chaotic fault injection, and formal state verification. That rigorous proving ground is the subject of Part 4, where we will use TLA+ and PlusCal to formally prove the remaining core claims: <strong>Isolation</strong> and <strong>Freshness</strong>.</p>
 
         <!-- Navigation Links -->
         <div style="margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
