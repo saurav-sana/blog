@@ -13,17 +13,22 @@
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
 
-    <title>Part 5: Production Architecture, TCO Analysis, and MAP | Beyond the MPP Default | Saurav Sana</title>
-    <meta name="description" content="Part 5 concludes the Smart Data Gateway architecture series with production architecture, TCO analysis, MCP integration, multi-agent data access, resilience, and build-vs-buy analysis.">
+    <title>Part 5: The Final Boundary — TCO, Agentic Reality, and Enterprise Adoption | Saurav Sana</title>
+    <meta name="description" content="Part 5 concludes the Smart Data Gateway architecture series with production architecture, auditable TCO and query-based unit pricing, MCP integration, multi-agent data access, resilience, and build-vs-buy analysis.">
     <meta name="author" content="Saurav Sana">
     <meta name="keywords" content="Smart Data Gateway, DuckDB, Apache Iceberg, MCP, Model Context Protocol, multi-agent systems, TCO, Total Cost of Ownership, FinOps, architecture, build vs buy">
-    <meta name="article:published_time" content="2026-10-05">
+    <meta name="article:published_time" content="2026-10-13">
     <meta name="theme-color" content="#0b1220">
-    <link rel="canonical" href="https://sauravsana.github.io/blog/series/smart-data-gateway/part-5-production-architecture.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/smart-data-gateway/part-5-production-architecture.html">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <!-- KaTeX Integration -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
 
     <!-- Central Blog Theme -->
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
@@ -429,35 +434,27 @@
             gap: 8px;
         }
 
-    /* Add this to your <style> tag */
-    .formula-banner {
-        display: block;
-        margin: 1.25rem 0;
-        padding: 0.9rem 1.2rem;
-        background: var(--panel-2, rgba(255, 255, 255, 0.05));
-        border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
-        border-radius: 6px;
-        font-family: 'IBM Plex Mono', Consolas, monospace;
-        font-size: 0.88rem;
-        color: var(--teal, #2C98D4);
-        line-height: 1.6;
-        text-align: center;
-        overflow-x: auto;
-    }
-    .formula-banner .operator {
-        color: var(--amber, #D4A72C);
-        font-weight: 700;
-        margin: 0 0.4rem;
-    }
-    .formula-banner .relation {
-        color: var(--accent, #D42C59);
-        font-weight: 800;
-        font-size: 1.15rem;
-        margin: 0 0.6rem;
-    }
+        /* ==========================================================================
+           8. KATEX MATHEMATICS BANNER
+           ========================================================================== */
+        .formula-banner {
+            display: block;
+            margin: 1.25rem 0;
+            padding: 0.9rem 1.2rem;
+            background: var(--panel-2, rgba(255, 255, 255, 0.05));
+            border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+            border-radius: 6px;
+            color: var(--teal, #2C98D4);
+            text-align: center;
+            overflow-x: auto;
+        }
+        
+        .formula-banner .katex-display {
+            margin: 0; /* Ensures the display math sits perfectly inside the banner */
+        }
 
         /* ==========================================================================
-           8. RESPONSIVE MEDIA QUERIES
+           9. RESPONSIVE MEDIA QUERIES
            ========================================================================== */
         @media (max-width: 700px) {
             h1, .hero h1 { font-size: 1.65rem; }
@@ -503,12 +500,11 @@
 
     <main>
 
-
         <article class="article">
-                    <!-- Back Navigation -->
-        <div style="margin-bottom: 1rem;">
-            <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Back to Series Index</a>
-        </div>
+            <!-- Back Navigation -->
+            <div style="margin-bottom: 1rem;">
+                <a href="index.html" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--teal); text-decoration: none; font-weight: 600;">&larr; Back to Series Index</a>
+            </div>
             <header class="hero">
                 <p class="eyebrow">Smart Data Gateway · Part 5 · Enterprise Systems</p>
                 <h1>The Final Boundary: Total Cost of Ownership, Agentic Reality, and Enterprise Adoption</h1>
@@ -525,13 +521,13 @@
                 </div>
 
                 <p class="lede">The dangerous architecture is not the one that distributes computation. It is the one that distributes computation before the workload actually requires it—usually just because it looked good on a slide deck.</p>
-                
+
                 <p>Over the last four parts, we've engaged in an extensive theoretical and mathematical exercise to build a Smart Data Gateway. We've drawn beautiful boxes, argued over queueing physics, and formally verified state transitions. But let's be honest: <strong>drawing diagrams is a minute fraction of the job.</strong> Making it work reliably in production—when half the network is degraded and a rogue LLM decides to query a billion rows of unstructured data—is an entirely different reality that very few people want to discuss because it is actually hard.</p>
 
                 <!-- 1. AGENTS & MCP -->
                 <h2>1. The Mandatory AI Section: Agents, MCP, and Denial-of-Wallet</h2>
                 <p>Let’s address the elephant in the room. By law, every architecture document written today must aggressively feature the words "AI" and "Autonomous Agents" if you want anyone to actually read it. But beyond the mandatory hype cycle, this design actually solves a brutally real use case.</p>
-                
+
                 <p>Connecting a swarm of autonomous LLMs directly to your traditional Massively Parallel Processing (MPP) data warehouse via raw SQL is essentially a denial-of-wallet attack. LLMs hallucinate schema, write deeply unoptimized cross-joins, and treat your cloud compute like free real estate.</p>
 
                 <p>This is where the <strong>Model Context Protocol (MCP)</strong> comes in, but treating MCP as a mere pass-through to an MPP engine introduces brutal bottlenecks. The Gateway solves these by acting as a strictly governed MCP Server:</p>
@@ -555,7 +551,7 @@
                     <div class="acceptance-card">
                         <h3 class="acceptance-card__title">Arbitrary SQL Injection</h3>
                         <p class="acceptance-card__body"><strong>The Reality:</strong> Injecting auth predicates into an agent's arbitrary SQL string using Regex is a security nightmare waiting to happen.</p>
-                        <p class="acceptance-card__body"><strong>The Gateway Fix:</strong> <em>Governed Capabilities.</em> The agent doesn't send SQL; it sends typed parameters. The Gateway strictly constructs the query and enforces scan limits, shrinking the attack surface to zero.</p>
+                        <p class="acceptance-card__body"><strong>The Gateway Fix:</strong> <em>Governed Capabilities.</em> The agent doesn't send SQL; it sends typed parameters. The Gateway constructs queries from typed parameters and enforces authorization, scan limits, and policy. This reduces the attack surface, but does not eliminate injection, authorization, parser, or policy-engine risks; use parameterization, AST validation, least privilege, and adversarial tests.</p>
                     </div>
                 </div>
 
@@ -575,17 +571,17 @@
 
                         <rect x="275" y="105" width="200" height="45" rx="10" fill="none" stroke="currentColor" stroke-width="2"/>
                         <text x="375" y="133" text-anchor="middle" font-weight="700" fill="currentColor">Arrow RecordBatch</text>
-                        
+
                         <line x1="375" y1="150" x2="375" y2="180" stroke="currentColor" stroke-width="2"/>
                         <line x1="375" y1="180" x2="520" y2="180" stroke="currentColor" stroke-width="2" marker-end="url(#arrow-right-pipe)"/>
                         <text x="450" y="170" text-anchor="middle" font-size="13" font-style="italic" fill="currentColor">application path</text>
-                        
+
                         <rect x="530" y="157" width="160" height="45" rx="10" fill="none" stroke="currentColor" stroke-width="2"/>
                         <text x="610" y="185" text-anchor="middle" font-weight="700" fill="currentColor">Arrow Flight (Zero-copy)</text>
 
                         <line x1="375" y1="180" x2="375" y2="225" stroke="currentColor" stroke-width="2" marker-end="url(#arrow-down-pipe)"/>
                         <text x="385" y="205" font-size="13" font-style="italic" fill="currentColor">LLM agent path</text>
-                        
+
                         <rect x="225" y="225" width="300" height="110" rx="15" fill="none" stroke="currentColor" stroke-width="2"/>
                         <text x="375" y="255" text-anchor="middle" font-size="14" fill="currentColor">Aggregate &amp; Summarize</text>
                         <text x="375" y="280" text-anchor="middle" font-size="14" fill="currentColor">Top-N Filtering &amp; Bounded Rows</text>
@@ -603,7 +599,7 @@
                 <p>A distributed engine (Spark, Trino) is not automatically the optimal architecture just because your data volume is large. Distributed systems pay a heavy coordination tax for scheduling and network shuffles. Conversely, the Gateway uses single-process vectorized engines (DuckDB) to exploit local memory and NVMe speeds without the overhead.</p>
 
                 <p>But a serious architecture document needs a failure boundary. If you use this Gateway for everything, you will fail spectacularly. (And no, "we will just auto-scale the pods" is not an architecture.)</p>
-                
+
                 <table>
                     <thead>
                         <tr>
@@ -621,12 +617,12 @@
                         <tr>
                             <td><strong>Sub-10 ms read-after-write</strong></td>
                             <td>Redis / Operational Store</td>
-                            <td>Lakehouse snapshots (Iceberg) are physically incapable of supporting this contract.</td>
+                            <td>Lakehouse snapshot visibility and refresh latency generally do not provide a strict sub-10 ms read-after-write contract; use an operational store when that consistency and latency guarantee is required.</td>
                         </tr>
                         <tr>
                             <td><strong>Massive historical cross-joins</strong></td>
                             <td>MPP (Trino / Spark)</td>
-                            <td>A single Gateway node will OOM. Parallel shuffle and distributed memory are required here.</td>
+                            <td>A single-node execution path may exceed memory or latency budgets. Large joins and broad scans often need distributed shuffle and memory, so route them to an engine designed for that workload.</td>
                         </tr>
                         <tr>
                             <td><strong>Fuzzy / Full-text search</strong></td>
@@ -636,7 +632,7 @@
                         <tr>
                             <td><strong>Bounded analytical serving</strong></td>
                             <td><strong>Smart Data Gateway</strong></td>
-                            <td><strong>This is our sweet spot:</strong> Locality, vectorized execution, strict resource budgets, and sub-second P99s.</td>
+                            <td><strong>This is the candidate sweet spot:</strong> Locality, vectorized execution, strict resource budgets, and latency targets demonstrated under representative concurrency and failure conditions.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -674,98 +670,270 @@
                 <p>Everyone loves talking about distributed consensus algorithms; nobody wants to talk about configuring cgroups so an OOM-killed pod doesn't take down the billing system. In modern Agile™ corporate culture, the prevailing wisdom is often "deliver the happy path now, let the SREs fix the edge cases later."</p>
 
                 <p>That works fine if you are shipping a frontend button. It is a spectacular way to cause a catastrophic, cross-tenant data bleed when building critical platform infrastructure.</p>
-                
-                <p>As utilization approaches saturation, queueing delay becomes highly sensitive to burstiness. Adding average capacity does not fix tail latency. Interactive workloads require a <strong>warm capacity envelope</strong>. Kubernetes autoscaling operates on a control-plane timescale (minutes), which is entirely too slow to absorb a burst of interactive agent requests (milliseconds). The Gateway survives by enforcing strict concurrency limits, admission control, fast/slow routing lanes, and explicitly fast-failing bad requests.</p>
-                
-<!-- 4. TOTAL COST OF OWNERSHIP (TCO) -->
-                <h2>4. Total Cost of Ownership (TCO): The Real Economics of the Edge</h2>
-                <div class="quote-block quote-block--accent">
-                    <p class="quote-block__text">"The most reliable component in a system is the one that isn't there. The second most reliable is the one you don't run 24/7."</p>
-                    <p class="quote-block__author">— <strong><em>Gordon Bell</em></strong> (adapted)</p>
-                </div>
-                
-                <p>Architectural elegance is pleasant on whiteboards, but eventually, the CFO sees the cloud bill. A major architectural driver for deploying an application-aware Smart Data Gateway is fundamentally shifting the Total Cost of Ownership (TCO) for analytical serving. By intercepting 80%–95% of routine operational queries before they touch a distributed MPP engine (Trino, Snowflake, Databricks SQL), we collapse costs across four distinct dimensions: <strong>idle cluster capacity</strong>, <strong>cross-AZ network shuffle</strong>, <strong>object storage request amplification</strong>, and <strong>platform toil</strong>.</p>
 
-                <!-- Detailed Comparative Economics Table -->
+                <p>As utilization approaches saturation, queueing delay becomes highly sensitive to burstiness. Adding average capacity does not fix tail latency. Interactive workloads require a <strong>warm capacity envelope</strong>. Kubernetes autoscaling operates on a control-plane timescale (minutes), which is entirely too slow to absorb a burst of interactive agent requests (milliseconds). The Gateway survives by enforcing strict concurrency limits, admission control, fast/slow routing lanes, and explicitly fast-failing bad requests.</p>
+
+                <!-- 4. TOTAL COST OF OWNERSHIP (TCO) -->
+                <h2>4. Total Cost of Ownership: From Cloud Bill to Query Unit Economics</h2>
+                <div class="quote-block quote-block--accent">
+                    <p class="quote-block__text">A lower compute bill is not proof of a lower TCO. The architecture wins only when the complete, comparable cost of delivering the same business outcome is lower.</p>
+                    <p class="quote-block__author">— The economic rule for this design</p>
+                </div>
+
+                <p>A Smart Data Gateway is not automatically cheaper than an MPP warehouse. It creates an opportunity to change the cost curve for a particular workload: bounded, repeated, latency-sensitive analytical reads that do not need a distributed execution plan. Whether that opportunity becomes a real saving depends on the workload mix, cache behaviour, concurrency, freshness requirements, engineering effort, and the price of the capacity that remains behind the Gateway.</p>
+
+                <p>The TCO argument must therefore be reproducible. An enterprise buyer should be able to take the workload sample, cost ledger, rate card, and assumptions in this section and recalculate the result. Percentages such as “90% cheaper,” fixed query-size cutoffs, or a universal break-even spend are not architecture facts; they are hypotheses to validate against a specific workload and deployment.</p>
+
+                <div class="callout success">
+                    <div class="callout-title">The economic contract</div>
+                    <p>Compare the cost of delivering the <strong>same query outcomes at the same security, freshness, availability, and latency objectives</strong>. Include the Gateway, the remaining MPP or fallback capacity, data access, support, engineering, and operational risk. Do not compare a fully loaded incumbent bill with only the Gateway's container bill.</p>
+                </div>
+
+                <h3>4.1 Define the boundary before adding up costs</h3>
+                <p>Choose a measurement period (usually a month) and a consistent workload boundary. Include the application or BI queries that the Gateway is intended to serve, not every ETL job and historical scan in the estate. Keep common costs visible and allocate them consistently rather than making them disappear from one side of the comparison.</p>
+                <table>
+                    <thead>
+                        <tr><th>Cost category</th><th>Include in the Gateway case</th><th>Comparison rule</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Compute and capacity</strong></td>
+                            <td>Gateway CPU and memory, minimum warm capacity, autoscaling headroom, node/pod overhead, spill and scratch storage, observability sidecars, and any dedicated cluster.</td>
+                            <td>Count provisioned capacity needed to meet the SLO, not only CPU-seconds consumed by successful queries. Include the capacity retained for bursts and failover.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data access and network</strong></td>
+                            <td>Object-store GET/HEAD/LIST/range requests, catalog calls, cross-zone traffic, private endpoints, data transfer, result delivery, and cache fill traffic.</td>
+                            <td>Measure actual requests and bytes. Do not assume zero network cost merely because execution is local; reads still travel from storage and results still leave the service.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>State and acceleration</strong></td>
+                            <td>Redis or equivalent control-plane state, local NVMe, cache warm-up, invalidation, metadata caching, materialized results, and any replicated state.</td>
+                            <td>Include refresh and invalidation work. A cache hit is not free, and a cache miss may cost more than a direct read if it triggers extra work.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Reliability and security</strong></td>
+                            <td>Multi-zone redundancy, backups where applicable, audit retention, policy evaluation, vulnerability management, incident response, and recovery drills.</td>
+                            <td>Compare equivalent security and reliability obligations. Do not treat compliance controls as optional because the execution engine is smaller.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>People and lifecycle</strong></td>
+                            <td>Initial implementation amortization, ongoing engineering, on-call, upgrades, performance tuning, support, testing, and vendor/platform management.</td>
+                            <td>Use an explicit amortization horizon (for example, 24 or 36 months) and loaded labour cost. A custom service has a continuing maintenance cost even if infrastructure is inexpensive.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Residual analytical platform</strong></td>
+                            <td>MPP capacity that remains for large joins, scans, transformations, ad-hoc exploration, and Gateway fallback; plus any duplicated catalogue or governance services.</td>
+                            <td>Only subtract the incumbent capacity that can actually be retired or downsized without breaking other workloads. Shared clusters rarely disappear just because some queries moved.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>4.2 Build a cost ledger from query telemetry</h3>
+                <p>Aggregate cloud invoices tell you what the platform cost, but not which workload caused the cost or whether a particular tenant is profitable. Emit a metering record for each query attempt and reconcile its aggregate totals to infrastructure invoices. A practical ledger includes:</p>
+                <ul>
+                    <li><code>tenant_id</code>, <code>query_id</code>, <code>query_class</code>, <code>pricing_version</code>, and a stable request/idempotency key.</li>
+                    <li>Outcome and route: accepted, rejected, succeeded, failed, cancelled, cache hit/miss, local execution, or MPP fallback.</li>
+                    <li>Resource use: CPU-seconds, peak memory or memory-GiB-seconds, spill bytes, execution time, and queue wait.</li>
+                    <li>Data use: remote bytes read, cache bytes read, object-store request counts, catalog calls, result bytes, and separately billable egress.</li>
+                    <li>Retry count and reason, plus the attribution of retries to client, dependency, or Gateway failure.</li>
+                </ul>
+                <p>Do not log raw query results, credentials, access tokens, or sensitive parameter values just to support billing. Use opaque identifiers and controlled audit references. Define whether a field is measured, estimated, or derived; a precise-looking metric is not reliable if its collection semantics are ambiguous.</p>
+
+                <div class="formula-banner">
+                    $$ \text{Monthly TCO} = \text{Fixed platform cost} + \text{Usage-driven cost} + \text{Amortized build \& operating cost} $$
+                </div>
+                <p>Keep cost categories mutually exclusive. For example, if the platform invoice already includes worker compute, do not add the same compute again as a separate allocation. For an internal cost-per-successful-query metric, divide fully loaded monthly cost by successful billable query count, but do not use that average alone to set the rate card: a metadata-only lookup and a multi-gigabyte scan do not consume the same resources.</p>
+
+                <h3>4.3 The comparison: MPP default versus a hybrid Gateway</h3>
                 <div class="diagram" style="padding: 1.5rem; margin: 2rem 0;">
-                    <div class="diagram-title">Unit Cost Architecture: MPP Cluster vs. Stateless Gateway</div>
+                    <div class="diagram-title">Compare equivalent service, not just execution engines</div>
                     <table style="margin: 0; font-size: 0.92rem;">
-                        <thead>
-                            <tr>
-                                <th style="width: 22%;">Cost Vector</th>
-                                <th style="width: 39%;">Traditional MPP Default (Trino / Snowflake / EMR)</th>
-                                <th style="width: 39%;">Smart Gateway (Stateless DuckDB + Local NVMe)</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th style="width: 22%;">Cost vector</th><th style="width: 39%;">MPP-first baseline</th><th style="width: 39%;">Gateway + residual MPP</th></tr></thead>
                         <tbody>
-                            <tr>
-                                <td><strong>Compute Billing &amp; Allocation</strong></td>
-                                <td><strong>Coarse-grained cluster sizing:</strong> Requires persistent minimum nodes (e.g., 4–8 worker nodes @ 64GB RAM) running 24/7 to maintain sub-second P99 SLAs for dashboards. Workload variance pays an idle baseline tax of 60%–75%.</td>
-                                <td><strong>Fine-grained container lifecycle:</strong> Lightweight stateless pods (e.g., 2–4 vCPU, 8–16GB RAM) running in existing general-purpose compute pools. Scales to zero or near-zero; burst capacity spins up in milliseconds, not cluster boot minutes.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Network &amp; Inter-Node Shuffle</strong></td>
-                                <td><strong>Distributed shuffle penalties:</strong> Multi-node joins and wide aggregations stream intermediate partitions across Availability Zones ($0.01/GB cross-AZ traffic), generating hidden network bills that often rival compute spend.</td>
-                                <td><strong>Zero shuffle tax:</strong> Pure intra-node vectorized execution. Data travels from cloud storage directly to local container memory or NVMe scratch disk. Cross-node network traffic for query execution is 0.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Storage Access &amp; API Calls</strong></td>
-                                <td><strong>Repeated metadata scans:</strong> Every ad-hoc query triggers catalog roundtrips and recursive object store listing calls (S3/ADLS `ListObjectsV2` and repeated `GET` requests for Parquet footers).</td>
-                                <td><strong>Local Byte-Range &amp; Snapshot Cache:</strong> PyIceberg metadata and hot Parquet byte ranges sit in local ephemeral NVMe/memory. Drops upstream S3 `GET` calls and latency jitter by up to 85%.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Platform &amp; Operational SRE Toil</strong></td>
-                                <td><strong>High operational overhead:</strong> JVM GC pause tuning, coordinator state management, distributed skew rebalancing, and complex multi-node upgrade paths requiring specialized data platform engineers.</td>
-                                <td><strong>Standard microservice hygiene:</strong> Packaged as a standard container running on standard Kubernetes (cgroups memory bounds). Managed, observed, and routed via standard APM tooling (Prometheus, OpenTelemetry).</td>
-                            </tr>
+                            <tr><td><strong>Interactive compute</strong></td><td>Warehouse/serverless query charges and any minimum warm capacity needed for latency objectives.</td><td>Gateway CPU/memory and warm pool, plus MPP execution for queries that are routed out of the Gateway envelope.</td></tr>
+                            <tr><td><strong>Storage reads</strong></td><td>Remote file reads, catalog operations, metadata retrieval, and warehouse-specific storage charges.</td><td>Remote reads still occur on cache misses; warm cache may reduce repeated reads but adds cache capacity, fill, and invalidation costs.</td></tr>
+                            <tr><td><strong>Network</strong></td><td>Result transfer, inter-node shuffle where applicable, cross-zone transfer, and service-specific data egress.</td><td>Potentially less distributed shuffle for local execution, but storage reads, client delivery, cache replication, and fallback traffic remain.</td></tr>
+                            <tr><td><strong>Operations</strong></td><td>Managed-service charges plus internal ownership, governance integration, tuning, and incident response.</td><td>Gateway build and on-call, policy and audit integration, engine upgrades, capacity management, plus residual warehouse operations.</td></tr>
+                            <tr><td><strong>Commercial exposure</strong></td><td>Warehouse credits or query charges may vary with usage, concurrency, and product configuration.</td><td>Can provide tenant-level budgets and transparent query metering, but the provider must price fixed capacity, variable work, support, and fallback sustainably.</td></tr>
                         </tbody>
                     </table>
                 </div>
+                <p>The Gateway does not eliminate distributed compute. It makes the routing boundary explicit: bounded interactive reads can run locally when measurements support that choice; large joins, broad scans, ETL, and workloads outside memory, latency, or concurrency limits stay on the distributed path. This hybrid boundary is usually a more defensible business case than promising to replace the warehouse wholesale.</p>
 
-                <div class="acceptance-grid">
-                    <div class="acceptance-card">
-                        <h3 class="acceptance-card__title">Compute Footprint &amp; Idle Tax</h3>
-                        <p class="acceptance-card__body">MPP data warehouses charge a high premium for interactive availability. An idle 8-node cluster kept warm solely to serve intermittent dashboard pings costs roughly $2,500–$4,500/month before processing a single byte. The Gateway turns interactive serving into standard HTTP request pricing, running workloads on right-sized spot or standard compute slices.</p>
-                    </div>
-                    <div class="acceptance-card">
-                        <h3 class="acceptance-card__title">The Storage Call Multiplier</h3>
-                        <p class="acceptance-card__body">In high-concurrency micro-query environments, object store API fees (`GET` and `LIST`) can quietly climb to 20% of your data lake storage invoice. By utilizing client-side Parquet footer caching and vectorized range-request proxies, the Gateway consolidates file operations into deterministic memory reads.</p>
-                    </div>
-                    <div class="acceptance-card">
-                        <h3 class="acceptance-card__title">LLM &amp; MCP Cost Containment</h3>
-                        <p class="acceptance-card__body">Autonomous agents can easily burn through warehouse credits by firing iterative SQL loops. Routing agents through the Gateway puts an upper bound on compute blast radius: queries run in isolated memory containers with hard CPU/time budgets, preventing a rogue agent loop from generating a five-figure surprise bill.</p>
-                    </div>
-                    <div class="acceptance-card">
-                        <h3 class="acceptance-card__title">The Engineering Build-vs-Maintenance Reality</h3>
-                        <p class="acceptance-card__body">TCO is not just infrastructure; it includes developer payroll. Writing a custom gateway carries upfront design, testing, and continuous maintenance costs. The economic crossover typically occurs when your monthly managed warehouse spend for serving exceeds ~$8,000–$12,000/month or when bespoke tenancy/policy requirements make commercial SaaS untenable.</p>
-                    </div>
+                <h3>4.4 From TCO to a client price: separate cost accounting from billing</h3>
+                <p>Internal cost accounting should be as granular as practical. Customer billing should be stable, explainable, predictable, and difficult to game. Billing every CPU millisecond or memory allocation directly can produce invoices that customers cannot forecast. Billing every query at one flat rate is easier to explain but subsidizes expensive queries with cheap ones and can encourage inefficient workloads.</p>
+                <p>A pragmatic commercial model is a <strong>monthly platform fee + metered Gateway Execution Units (GEUs) + explicitly listed pass-through or separately metered services</strong>. GEUs are a versioned product abstraction, not a universal industry standard. They convert measured resource consumption into understandable usage credits while allowing the implementation to evolve. A contract can instead use direct CPU/byte meters if that better fits the customer.</p>
+
+                <table>
+                    <thead><tr><th>Charge component</th><th>What it recovers</th><th>Pricing guidance</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Platform fee</strong></td><td>Tenant isolation, policy and audit services, baseline availability, minimum warm capacity, support tier, and a share of fixed operating cost.</td><td>Monthly subscription or committed minimum. Define included capacity, environments, support response, and retention explicitly.</td></tr>
+                        <tr><td><strong>GEU usage</strong></td><td>Variable query execution cost, including an allocated share of usage-driven overhead if the rate design says so.</td><td>Use measured CPU, memory, spill, and execution class to derive credits. Publish the pricing version and how each class is calculated.</td></tr>
+                        <tr><td><strong>Storage / refresh</strong></td><td>Persistent result cache, materialization, refresh jobs, and retained claim-check payloads.</td><td>Meter by GB-month, refresh execution, or another observable unit. Avoid charging twice when a resource is already included in GEUs.</td></tr>
+                        <tr><td><strong>Egress / exceptional work</strong></td><td>Material data transfer, large exports, MPP fallback, or asynchronous jobs that have a different cost profile.</td><td>Show the applicable rate or quote in advance. Never hide an expensive fallback behind a low flat query fee.</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>4.5 Derive a GEU from measured resources</h3>
+                <p>Start with a representative query corpus. For each query, measure CPU-seconds, memory pressure or memory-GiB-seconds, spill, remote bytes, request count, result bytes, and cache status. Convert these measurements into a resource score using weights calibrated from marginal cost and capacity constraints.</p>
+                <div class="formula-banner">
+                    $$ \text{GEU}(q) = \max(\text{minimum charge}, \text{weighted resource score}) $$
+                </div>
+                <p>One possible internal score is:</p>
+                <div class="formula-banner">
+                    $$ \text{Score}(q) = w_{\text{cpu}} \cdot \frac{\text{CPU}(q)}{\text{CPU}_{\text{ref}}} + w_{\text{mem}} \cdot \frac{\text{Mem}(q)}{\text{Mem}_{\text{ref}}} + w_{\text{spill}} \cdot \frac{\text{Spill}(q)}{\text{Spill}_{\text{ref}}} $$
+                </div>
+                <p>Remote bytes, object-store requests, and result egress may be charged as separate meters if their costs vary materially or customers can understand them better that way. Do not count the same cost both inside GEUs and as a separate line item. The reference values and weights must come from observed cost and capacity data, not intuition alone. Keep the internal resource score separate from the published commercial rate so the latter can be forecastable and contractually stable.</p>
+
+                <table>
+                    <thead><tr><th>Illustrative query class</th><th>Example GEUs</th><th>How the class is assigned</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Light</strong></td><td>0.2</td><td>Low CPU and memory use, bounded result, no material spill; commonly a warm-cache or selective lookup.</td></tr>
+                        <tr><td><strong>Standard</strong></td><td>1.0</td><td>Reference workload against which the unit is calibrated.</td></tr>
+                        <tr><td><strong>Heavy bounded</strong></td><td>5.0</td><td>Higher scan, CPU, memory, or aggregation cost but still inside the Gateway's approved envelope.</td></tr>
+                        <tr><td><strong>Exceptional / routed</strong></td><td>10+ or separate rate</td><td>Near-limit work, large export, or MPP fallback; require preflight estimation, explicit policy, or separate pricing.</td></tr>
+                    </tbody>
+                </table>
+                <p>These GEU values are examples for explaining the method, not recommended production rates. Calibrate the classes on a training sample, then validate them on held-out queries. If two queries assigned the same class have radically different costs, improve the class model or use a separate meter. Version the classifier and rate card; retain the version used for every invoice so that a pricing change does not silently rewrite historical charges.</p>
+
+                <h3>4.6 Calculate the price per GEU</h3>
+                <p>Define the cost boundary before calculating a rate. Let \( F \) be monthly fixed cost attributable to this service, \( V \) be monthly variable cost for the measured workload, \( U \) be total monthly billable GEUs, and \( m \) be the target gross margin as a fraction (for example, <code>0.40</code> for 40%). Fixed and variable costs must be mutually exclusive; do not allocate the same cost to both.</p>
+
+                <p><strong>Pure usage-based pricing.</strong> If all recoverable costs are carried by usage, the fully loaded cost per GEU is:</p>
+                <div class="formula-banner">
+                    $$ C_{\text{GEU}} = \frac{F + V}{U} $$
+                </div>
+                <p>To achieve target gross margin \( m \), price is cost divided by one minus the margin:</p>
+                <div class="formula-banner">
+                    $$ P_{\text{GEU}} = \frac{C_{\text{GEU}}}{1 - m} $$
                 </div>
 
-                <!-- Mathematical TCO Tipping Point -->
-<!-- Replace your callout block with this -->
-<div class="callout success">
-    <div class="callout-title">The Break-Even Equation</div>
-    
-    <div class="formula-banner">
-        <span>TCO<sub>Gateway</sub></span>
-        <span class="operator">=</span>
-        <span>Infra<sub>stateless</sub></span>
-        <span class="operator">+</span>
-        <span>Cost<sub>Storage API</sub></span>
-        <span class="operator">+</span>
-        <span>Cost<sub>DevOps Maint</sub></span>
-        <span class="relation">&Lt;</span>
-        <span>Cluster<sub>24/7 idle</sub></span>
-        <span class="operator">+</span>
-        <span>Bandwidth<sub>Cross-AZ</sub></span>
-        <span class="operator">+</span>
-        <span>SaaS Credit Premium</span>
-    </div>
-</div>
+                <p><strong>Recommended hybrid pricing.</strong> If the monthly platform fee fully recovers the applicable fixed cost, and GEU usage charges recover variable cost, calculate the two rates separately:</p>
+                <div class="formula-banner">
+                    $$ P_{\text{platform}} = \frac{F}{1 - m} $$
+                </div>
+                <div class="formula-banner">
+                    $$ P_{\text{GEU}} = \frac{V / U}{1 - m} $$
+                </div>
+                <p>This hybrid formulation makes the fixed-capacity commitment visible instead of forcing low-volume tenants to absorb all fixed cost through a volatile usage rate. It assumes the platform fee actually recovers the fixed cost assigned to it and that usage revenue recovers the variable costs assigned to GEUs, each at the same target margin. If the fee includes an allowance, discounts, credits, committed capacity, or shared-cost recovery, model those explicitly rather than applying these formulas unchanged.</p>
 
-    <p style="margin: 0; font-size: 0.95rem; line-height: 1.6;">
-        If more than <strong>80% of your query volume scans less than 10 GB</strong>, keeping a persistent distributed MPP cluster warm for operational point-reads is an economic anti-pattern. Reserve the heavy cluster for the 5% multi-terabyte ETL and large historical joins where distributed shuffle is actually indispensable.
-    </p>
+                <div class="callout">
+                    <div class="callout-title">Gross margin is not markup</div>
+                    <p>A 40% markup on cost means <code>price = 1.4 × cost</code>, which produces a gross margin of only 28.6%. To obtain a 40% gross margin, use <code>price = cost / 0.60</code>. These equations target gross margin on the costs included in COGS; taxes, sales commissions, financing, corporate overhead, and other below-gross-profit costs need separate treatment.</p>
+                </div>
+
+                <h3>4.7 Worked example: turn monthly cost into a client rate</h3>
+                <p>The following figures are <strong>illustrative only</strong>, in USD, and are not cloud-provider quotes or measured results from this Gateway. Their purpose is to make the calculation auditable.</p>
+                <table>
+                    <thead><tr><th>Monthly cost input</th><th>Example amount</th><th>Interpretation</th></tr></thead>
+                    <tbody>
+                        <tr><td>Fixed platform COGS</td><td>$12,000</td><td>Baseline capacity, shared control plane, security/audit, on-call, and fixed operations allocated to this service.</td></tr>
+                        <tr><td>Variable usage COGS</td><td>$8,000</td><td>Metered execution and other variable costs for the month's measured workload.</td></tr>
+                        <tr><td><strong>Total cost of goods sold (COGS)</strong></td><td><strong>$20,000</strong></td><td>Fixed + variable costs, without double counting.</td></tr>
+                        <tr><td>Successful billable query count</td><td>6,000,000</td><td>Useful operational denominator, but not the billing unit by itself.</td></tr>
+                        <tr><td>Total measured usage</td><td>10,000,000 GEUs</td><td>Usage distribution after applying the versioned metering policy.</td></tr>
+                        <tr><td>Target gross margin</td><td>40%</td><td>Revenue must cover COGS and leave 40% of revenue as gross profit.</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>Step 1 — calculate the platform fee.</strong> If the platform fee is intended to recover the fixed COGS, price it at fixed COGS divided by one minus the target gross margin:</p>
+                <div class="formula-banner">
+                    $$ \text{Platform fee} = \frac{\$12{,}000}{1 - 0.40} = \text{\textbf{\$20,000 per month}} $$
+                </div>
+
+                <p><strong>Step 2 — calculate the GEU rate.</strong> If usage revenue is intended to recover variable COGS at the same target margin:</p>
+                <div class="formula-banner">
+                    $$ \text{Variable cost / GEU} = \frac{\$8{,}000}{10{,}000{,}000} = \$0.0008 $$
+                </div>
+                <div class="formula-banner">
+                    $$ \text{Price / GEU} = \frac{\$0.0008}{1 - 0.40} = \text{\textbf{\$0.001333}} $$
+                </div>
+
+                <p><strong>Step 3 — calculate revenue and margin.</strong></p>
+                <table>
+                    <thead><tr><th>Metric</th><th>Calculation</th><th>Illustrative result</th></tr></thead>
+                    <tbody>
+                        <tr><td>Platform revenue</td><td>Fixed COGS / 0.60</td><td>$20,000</td></tr>
+                        <tr><td>Usage revenue</td><td>10,000,000 × $0.001333…</td><td>$13,333</td></tr>
+                        <tr><td>Total revenue</td><td>Platform + usage</td><td>$33,333</td></tr>
+                        <tr><td>Gross profit</td><td>Revenue − $20,000 COGS</td><td>$13,333</td></tr>
+                        <tr><td>Gross margin</td><td>Gross profit / revenue</td><td>40%</td></tr>
+                        <tr><td>Average COGS per successful query</td><td>$20,000 / 6,000,000</td><td>$0.003333</td></tr>
+                        <tr><td>Average total revenue per query</td><td>$33,333 / 6,000,000</td><td>$0.005556</td></tr>
+                    </tbody>
+                </table>
+
+                <p>At that usage rate, the variable charge examples are: light query (0.2 GEU) ≈ $0.000267; standard query (1 GEU) ≈ $0.001333; heavy bounded query (5 GEU) ≈ $0.006667; exceptional query (10 GEU) ≈ $0.013333. These are usage charges only; the monthly platform fee is separate. The per-query average including platform revenue is an accounting average, not a promise that every query costs that amount.</p>
+
+                <div class="callout">
+                    <div class="callout-title">Gross margin is not markup</div>
+                    <p>For a target gross margin \( m \), the price is <code>cost / (1 − m)</code>. A 40% gross margin means a $1.00 cost needs a $1.6667 price, not $1.40. This calculation covers only the costs included in COGS; taxes, sales commissions, financing, corporate overhead, and other below-gross-profit costs need their own treatment in the commercial model.</p>
+                </div>
+
+                <h3>4.8 Check the low-volume and peak-load cases</h3>
+                <p>A usage-only model may not recover fixed cost when adoption is low. With the same $8,000 variable COGS but only 5 million GEUs, variable cost rises to $0.0016 per GEU. At a 40% gross margin, the usage rate would need to be about $0.002667 per GEU. That still does not recover the $12,000 fixed platform cost unless the rate also carries a fixed-cost allocation or the contract includes a platform fee/minimum commitment.</p>
+                <p>Model at least three demand cases before setting a rate card. Averages hide the economics of warm capacity and concurrency.</p>
+                <table>
+                    <thead><tr><th>Scenario</th><th>What changes</th><th>What to verify</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Low adoption</strong></td><td>GEU volume is below plan while the minimum warm pool and on-call obligations remain.</td><td>Platform fee or minimum commitment covers fixed cost; the service is not subsidized indefinitely.</td></tr>
+                        <tr><td><strong>Expected demand</strong></td><td>Observed mix of light, standard, heavy, and cache-miss queries.</td><td>Rate card meets margin target and customer unit economics remain attractive.</td></tr>
+                        <tr><td><strong>Peak / burst</strong></td><td>Higher concurrency, lower cache hit rate, more spill, queueing, or fallback to MPP.</td><td>Warm capacity, admission controls, SLOs, and overage/fallback charges are explicit and affordable.</td></tr>
+                        <tr><td><strong>Data change / cold cache</strong></td><td>Snapshot changes invalidate cache entries or cause repeated metadata and data reads.</td><td>Refresh/invalidation cost is included and freshness remains within contract.</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>4.9 Prove customer savings, not just provider margin</h3>
+                <p>Provider margin is only one side of the business case. Enterprise adoption also requires evidence that the customer can deliver an equivalent serving workload at a lower all-in cost. Compare the Gateway against the <strong>incremental serving cost</strong> of the incumbent architecture—not the entire data platform if both designs continue to use the same lakehouse storage.</p>
+                <p>Include the costs that genuinely change:</p>
+                <ul>
+                    <li>MPP compute and idle or reserved capacity attributable to the serving workload.</li>
+                    <li>BI query-serving infrastructure, gateways, and cache infrastructure.</li>
+                    <li>Operational support, upgrades, and relevant engineering allocation.</li>
+                    <li>Additional Gateway platform charges, storage, egress, and data movement.</li>
+                    <li>MPP capacity that must remain because the Gateway cannot serve every query class.</li>
+                </ul>
+                <p>Let \( C_{\text{baseline}} \) be the monthly cost of delivering the equivalent incumbent service and \( C_{\text{gateway,all-in}} \) be the Gateway's monthly all-in cost for the same scope and service level. Then:</p>
+                <div class="formula-banner">
+                    $$ S = C_{\text{baseline}} - C_{\text{gateway,all-in}} $$
+                </div>
+                <div class="formula-banner">
+                    $$ \text{Savings } \% = \left( \frac{S}{C_{\text{baseline}}} \right) \times 100 $$
+                </div>
+                <p>For example, if a measured incumbent serving workload costs $60,000/month and the Gateway's fully loaded, equivalent service costs $33,333/month, the modeled saving is $26,667/month, or about 44.4%. This is a hypothetical illustration, not a performance claim. The Gateway-side number must include its platform fee, usage, engineering amortization, retained MPP/fallback capacity, storage, egress, support, and other incremental costs. The baseline must include the cost that actually goes away—not the whole warehouse bill if ETL and other workloads still need it.</p>
+                <p>Where shared capacity cannot be retired, report both <strong>avoidable cost</strong> and <strong>allocated cost</strong>. Avoidable cost supports the near-term cash-saving case; allocated cost helps compare long-run architecture economics. Do not claim savings from a reduction in allocated spend if the cash invoice remains unchanged.</p>
+
+                <h3>4.10 Billing rules are part of correctness</h3>
+                <ul>
+                    <li><strong>Rejected before execution:</strong> schema, authorization, or admission-control rejection should normally incur no execution charge; any platform subscription remains governed by the contract.</li>
+                    <li><strong>Gateway-caused retries:</strong> do not bill the customer twice for internal retries caused by a platform fault. Track attempts separately from logical requests.</li>
+                    <li><strong>Client cancellation:</strong> state whether charges reflect measured consumption up to cancellation, and make that rule visible before execution.</li>
+                    <li><strong>Cache hits:</strong> charge according to the published meter. A lower GEU class is justified only if the cost model shows materially lower consumption; cache hits still incur lookup and retention costs.</li>
+                    <li><strong>Fallback and asynchronous jobs:</strong> disclose the route and estimated/actual charge before running expensive work where technically possible. Do not silently route a low-cost request into a high-cost execution path.</li>
+                    <li><strong>Budgets and idempotency:</strong> support tenant budgets, preflight estimates, spend caps, and idempotent billing records so duplicate delivery does not duplicate charges.</li>
+                    <li><strong>Invoice evidence:</strong> expose tenant, logical query ID, pricing version, units, rate, route, and relevant usage measures without leaking query results or sensitive values.</li>
+                </ul>
+
+                <h3>4.11 A validation plan that can survive procurement</h3>
+                <ol>
+                    <li><strong>Capture a representative sample.</strong> Include query classes, tenant skew, cache warm/cold states, concurrency bursts, snapshot changes, failures, and large-query outliers—not only the easiest dashboard requests.</li>
+                    <li><strong>Establish the baseline.</strong> Measure the incumbent service's billable usage, reserved/minimum capacity, data requests, network, support, and the cost of meeting the same SLOs.</li>
+                    <li><strong>Replay on the Gateway.</strong> Use equivalent security filters, result semantics, freshness, and correctness checks. Record CPU, memory, remote bytes, request counts, latency percentiles, errors, retries, and fallback rate.</li>
+                    <li><strong>Reconcile cost.</strong> Allocate invoices to the measured period and workload. Explain residual/shared costs and amortize implementation costs over an explicit horizon.</li>
+                    <li><strong>Calibrate and hold out.</strong> Derive GEU weights and query classes from part of the corpus, then test prediction error on queries not used to tune the model. Publish confidence ranges where metering is estimated.</li>
+                    <li><strong>Run shadow billing.</strong> Produce invoices without charging, investigate surprising line items, and test low/expected/peak and cold-cache scenarios before contracts depend on the rate card.</li>
+                    <li><strong>Review quarterly.</strong> Reconcile actual COGS, margins, SLOs, and customer savings. Change pricing only through a versioned policy and a transparent customer notice.</li>
+                </ol>
+
+                <div class="callout success">
+                    <div class="callout-title">The break-even rule</div>
+                    <p>The Gateway is economically justified when the <strong>measured, fully loaded cost of the Gateway plus the residual analytical platform</strong> is lower than the comparable incumbent cost, while meeting the required correctness, freshness, security, and SLOs. If that inequality does not hold for a workload, keep it on the existing engine. The purpose of the Gateway is to place the boundary correctly—not to win every query.</p>
+                </div>
+
+                <h3>4.12 What this means for enterprise adoption</h3>
+                <p>Enterprise adoption depends on more than a low unit price. Procurement and platform owners need a repeatable bill of materials, a defensible cost allocation, a published meter, spend limits, auditable invoices, clear fallback behaviour, and evidence that the service remains viable at low and peak utilization. The price model is therefore part of the architecture: it influences admission control, query routing, cache policy, tenant quotas, and which work should be asynchronous.</p>
+                <p>Do not promise that 80%–95% of queries will be intercepted, that every query under a fixed scan size belongs on the Gateway, or that the design will be 90% cheaper without workload evidence. Instead, measure the query distribution, identify the fraction that fits the Gateway's verified envelope, and publish the resulting economics. That is a stronger enterprise story than a universal savings percentage.</p>
 
                 <!-- 5. BUILD VS BUY -->
                 <h2>5. The CTO Conversation: Build vs. Buy</h2>
@@ -805,7 +973,7 @@
                     <div class="pillar-card">
                         <h3><span class="pillar-number">01</span> Zero-trust security &amp; governance</h3>
                         <h4>Dynamic AST masking</h4>
-                        <p>The policy engine rewrites the query tree to redact PII before compute.</p>
+                        <p>The policy engine validates the query plan and applies approved masking or projection rules before results are exposed; verify that rewrites preserve authorization semantics.</p>
                         <h4>WORM audit vaults</h4>
                         <p>Every query, trace, rewrite and byte count lands in immutable storage.</p>
                         <h4>Agentic guardrails</h4>
@@ -819,7 +987,7 @@
                         <h4>Poison-pill dead-letter queues</h4>
                         <p>Malformed payloads are routed aside, so the system heals itself.</p>
                         <h4>Granular tenant chargeback</h4>
-                        <p>Wall-clock time and bytes scanned give exact per-tenant billing.</p>
+                        <p>Versioned resource meters, query outcomes, and cost reconciliation support explainable per-tenant chargeback. Wall-clock time or bytes scanned alone are not a complete cost model.</p>
                     </div>
 
                     <div class="pillar-card">
@@ -839,23 +1007,23 @@
                         <h4>Multi-format reads</h4>
                         <p>Iceberg, Delta Lake and Hudi all read natively — no vendor lock-in.</p>
                         <h4>Cost-based tiered routing</h4>
-                        <p>Scans under 50GB run local; heavier exports return a claim URI.</p>
+                        <p>Route queries according to measured resource estimates, memory limits, concurrency, SLOs, and policy; route heavier exports to an asynchronous or distributed path when appropriate.</p>
                     </div>
 
                     <div class="pillar-card">
                         <h3><span class="pillar-number">05</span> Edge analytics (DuckDB-WASM)</h3>
                         <h4>Server-planned, edge-executed</h4>
-                        <p>The backend only plans: it applies security and returns Parquet paths.</p>
+                        <p>The backend applies authorization and policy before issuing narrowly scoped access to permitted data; edge execution must not bypass row-level security, expiry, revocation, or audit requirements.</p>
                         <h4>Zero-copy in-browser compute</h4>
-                        <p>DuckDB-WASM reads storage directly and feeds the grid at 60 FPS.</p>
-                        <h4>No backend compute cost</h4>
-                        <p>Edge proxies cache byte ranges; the user's laptop supplies the CPU.</p>
+                        <p>DuckDB-WASM can execute bounded analytical work in the browser when data access, browser memory, device capability, and authorization constraints permit.</p>
+                        <h4>Compute shifted to the client</h4>
+                        <p>Some compute may shift to the client, but delivery, proxying, browser memory, data egress, and client-device variability remain part of the end-to-end cost and reliability model.</p>
                     </div>
 
                     <div class="payoff-card">
                         <h3>The Payoff</h3>
-                        <h4>90%+ lower BI infrastructure cost</h4>
-                        <p>No 24/7 clusters to keep warm, and zero-lag data freshness.</p>
+                        <h4>Measured cost reduction</h4>
+                        <p>Potentially less dedicated warm capacity and fewer repeated reads, if workload replay proves the reduction. Freshness remains bounded by source commits, snapshot visibility, and cache invalidation.</p>
                         <h4>Security decoupled from application logic</h4>
                         <p>Policy, masking and audit live in the gateway, not in every service.</p>
                         <h4>Agents as first-class clients</h4>
@@ -875,7 +1043,7 @@
                 <!-- 8. BIBLIOGRAPHY -->
                 <h2>8. Bibliography &amp; References</h2>
                 <p class="text-muted">These sources support the general methods discussed across this series. They are not evidence that the Smart Data Gateway model has passed universal validation.</p>
-                
+
                 <div class="bibliography">
                     <p>AWS Architecture Blog (2023). <a href="https://assets.amazon.science/67/f9/92733d574c11ba1a11bd08bfb8ae/how-amazon-web-services-uses-formal-methods.pdf" target="_blank" rel="noopener noreferrer"><em>How Amazon Web Services Uses Formal Methods</em></a>.</p>
                     <p>Brooker, M. (2015). <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener noreferrer"><em>“Exponential Backoff and Jitter.”</em></a> AWS Architecture Blog.</p>
@@ -886,6 +1054,7 @@
                     <p>Menascé, D. A., Almeida, V. A. F., &amp; Dowdy, L. W. (2004). <em>Performance by Design: Computer Capacity Planning by Example</em>. Prentice Hall.</p>
                     <p>Microsoft. <a href="https://github.com/microsoft/CCF" target="_blank" rel="noopener noreferrer"><em>Confidential Consortium Framework (CCF) repository</em></a>.</p>
                     <p>MongoDB Engineering. <a href="https://www.mongodb.com/company/blog/technical/rapid-prototyping-safe-logless-reconfiguration-protocol-mongodb-tla-plus" target="_blank" rel="noopener noreferrer"><em>Rapid Prototyping a Safe, Logless Reconfiguration Protocol with TLA+</em></a>.</p>
+                    <p>FinOps Foundation. <a href="https://www.finops.org/framework/" target="_blank" rel="noopener noreferrer"><em>The FinOps Framework</em></a>. Guidance on allocating, measuring, and managing technology unit economics.</p>
                     <p>Wayne, H. (2018). <em>Practical TLA+: Planning Driven Development</em>. Apress.</p>
                 </div>
 

@@ -643,6 +643,261 @@
     <li><strong>Deliver:</strong> The client reads the blob. This action is <em>strictly gated</em>; a client can only read if <code>job.state == "ACCEPTED"</code>.</li>
 </ol>
 
+<!-- ========================================================================= -->
+<!-- BEGIN TLA+ MODEL VISUALIZATION WIDGET                                     -->
+<!-- ========================================================================= -->
+
+<style>
+    /* Widget Scoped CSS */
+    .tla-widget-container {
+        font-family: var(--font-sans), sans-serif;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 3rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    .tla-widget-header {
+        background: var(--panel-2);
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--line);
+    }
+    
+    .tla-widget-title {
+        font-family: var(--font-display);
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--text);
+        margin: 0 0 0.25rem 0;
+    }
+    
+    .tla-widget-subtitle {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--teal);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 0;
+    }
+
+    .tla-section {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--line-soft);
+    }
+    .tla-section:last-child { border-bottom: none; }
+    
+    .tla-section-title {
+        font-family: var(--font-display);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-top: 0;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* 1. Ecosystem Grid (CSS Native) */
+    .tla-ecosystem-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+    }
+    
+    .tla-actor-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1rem;
+        position: relative;
+    }
+    
+    .tla-actor-badge {
+        position: absolute;
+        top: -10px;
+        right: 10px;
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.2rem 0.5rem;
+        border-radius: 12px;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .badge-core { background: var(--teal); }
+    .badge-chaos { background: var(--danger); }
+    .badge-daemon { background: var(--amber); }
+
+    .tla-actor-name {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 0.5rem 0;
+    }
+    
+    .tla-actor-desc {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    /* Mermaid Wrapper */
+    .mermaid-wrapper {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1rem;
+        overflow-x: auto;
+        display: flex;
+        justify-content: center;
+    }
+
+    [data-theme="dark"] .mermaid-wrapper {
+        background: #111; /* Helps mermaid visibility in dark mode */
+    }
+</style>
+
+<!-- Load Mermaid.js -->
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ 
+        startOnLoad: true, 
+        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'base',
+        themeVariables: {
+            primaryColor: '#e5e1d5',
+            primaryBorderColor: '#0f766e',
+            primaryTextColor: '#111827',
+            lineColor: '#0f766e',
+            tertiaryColor: '#fca5a5'
+        }
+    });
+</script>
+
+<div class="tla-widget-container">
+    <div class="tla-widget-header">
+        <h3 class="tla-widget-title">Formal Model Abstraction Map</h3>
+        <p class="tla-widget-subtitle">DataLakehouseGateway.tla Visualized</p>
+    </div>
+
+    <!-- PANEL 1: The Actors -->
+    <div class="tla-section">
+        <h4 class="tla-section-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            1. Concurrent Actors & Daemons
+        </h4>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The TLC Model Checker simulates all of these independent processes interleaving concurrently, hunting for race conditions.</p>
+        
+        <div class="tla-ecosystem-grid">
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-core">Core</span>
+                <h5 class="tla-actor-name">ComputeWorker</h5>
+                <p class="tla-actor-desc">Claims tasks, executes queries, stages blobs, and attempts to commit results. Subject to sudden death.</p>
+            </div>
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-core">Core</span>
+                <h5 class="tla-actor-name">ClientProcess</h5>
+                <p class="tla-actor-desc">Submits REST/Flight requests, checks cache, and strictly attempts to read ONLY 'ACCEPTED' blobs.</p>
+            </div>
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-chaos">Chaos</span>
+                <h5 class="tla-actor-name">Crasher & LeaseManager</h5>
+                <p class="tla-actor-desc">Injects Fail-Stop crashes and expires leases mid-execution, intentionally creating "Zombie Workers".</p>
+            </div>
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-daemon">Daemon</span>
+                <h5 class="tla-actor-name">LakehouseETL</h5>
+                <p class="tla-actor-desc">Independently advances the Iceberg catalog snapshot in the background, invalidating active queries.</p>
+            </div>
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-daemon">Daemon</span>
+                <h5 class="tla-actor-name">GarbageCollector</h5>
+                <p class="tla-actor-desc">Hunts for 'STAGED' blobs whose lease epochs were fenced out, and purges them to prevent storage leaks.</p>
+            </div>
+        </div>
+    </div>
+
+HTML
+    <!-- PANEL 2: The State Machine -->
+    <div class="tla-section">
+        <h4 class="tla-section-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+            2. The 6-Stage Request Lifecycle
+        </h4>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The strict state machine governing <code>jobs[r].state</code>. The critical fix splits completion into STAGED (Worker Write) and ACCEPTED (Client Read).</p>
+        
+        <!-- Modified wrapper: 'justify-content: flex-start' allows the min-width scroll to work properly -->
+        <div class="mermaid-wrapper" style="justify-content: flex-start;">
+            <!-- Added min-width to prevent Mermaid from shrinking the text on small screens -->
+            <div class="mermaid" style="min-width: 500px; margin: 0 auto; width: 100%;">
+                stateDiagram-v2
+                    direction TB
+                    
+                    [*] --> IDLE
+                    IDLE --> QUEUED : 1. Admit
+                    QUEUED --> CLAIMED : 2. Claim
+                    CLAIMED --> RUNNING : 3. Execute
+                    
+                    RUNNING --> STAGED : 4. Stage (PublishPointer)
+                    note right of STAGED : Blob is temporary.\nClient CANNOT read yet.
+                    
+                    STAGED --> ACCEPTED : 5. Accept (CommitJob)
+                    note right of ACCEPTED : Atomic Boundary passed.\n6. Deliver (Client CAN read).
+                    
+                    STAGED --> FAILED : Commit Rejected (Stale Data)
+                    RUNNING --> QUEUED : Lease Timeout (Retry)
+                    
+                    ACCEPTED --> [*]
+                    FAILED --> [*]
+
+                  
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL 3: The Authoritative Boundary -->
+    <div class="tla-section">
+        <h4 class="tla-section-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            3. The Authoritative Boundary (CommitJob)
+        </h4>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The exact mathematical guard evaluated by TLA+ in zero logical time. This intercepts both "Zombie Workers" and "Stale Snapshots" simultaneously.</p>
+        
+        <div class="mermaid-wrapper">
+            <div class="mermaid" style="min-width: 500px; margin: 0 auto; width: 100%;">
+                flowchart TD
+                    Start([Worker attempts CommitJob]) --> Guard1
+                    
+                    Guard1{Is worker_epoch<br>== lease_epoch?}
+                    Guard1 -- YES --> Guard2
+                    Guard1 -- NO (Zombie Worker) --> Reject[REJECTED: Transition to FAILED]
+                    
+                    Guard2{Is job.version<br>== catalog.version?}
+                    Guard2 -- YES (Data is Fresh) --> Mutate
+                    Guard2 -- NO (Snapshot Advanced) --> Reject
+                    
+                    Mutate[\Atomic State Mutation/]
+                    Mutate --> S1[jobs.state = ACCEPTED]
+                    Mutate --> S2[blob.staged = FALSE]
+                    Mutate --> S3[Populate Cache]
+                    
+                    S2 --> End([Client Granted Read Access])
+                    
+                    style Mutate fill:#0f766e,color:#fff
+                    style Reject fill:#b91c1c,color:#fff
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ========================================================================= -->
+<!-- END TLA+ MODEL VISUALIZATION WIDGET                                       -->
+<!-- ========================================================================= -->
+
 <div class="callout callout-info">
     <h4>Simplified Mathematical Reconstruction</h4>
     <p>
