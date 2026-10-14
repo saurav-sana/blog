@@ -628,19 +628,19 @@
 
 
 <!-- SECTION 6 -->
-<h2 id="s6">6. State Variables, Actions, and the 6-Stage Lifecycle</h2>
+<h2 id="s6">6. State Variables, Actions, and the Lifecycle Orchestration</h2>
 
 <p>
-    Without a strict state machine, a distributed query gateway will eventually serve corrupted, stale, or cross-tenant data. To prevent a catastrophic race condition between a worker writing a result (staging) and a client reading it (delivery), the formal specification mandates a strict <strong>6-Stage Lifecycle</strong>:
+    Without a strict state machine, a distributed query gateway will eventually serve corrupted, stale, or cross-tenant data. To prevent catastrophic race conditions between a worker writing a result and a client reading it, while gracefully handling dynamic KEDA scale-out events, the formal specification mandates a strict <strong>Request Lifecycle</strong> governed by a "Snapshot-at-Start" contract:
 </p>
 
 <ol>
     <li><strong>Admit:</strong> Client connects, JWT is verified against the payload, and the request is routed.</li>
-    <li><strong>Bind:</strong> Request firmly locks onto the current authoritative Iceberg catalog snapshot.</li>
-    <li><strong>Execute:</strong> Compute worker claims the task from the queue and evaluates the query.</li>
+    <li><strong>Bind:</strong> Request firmly locks onto the current authoritative Iceberg catalog snapshot <em>and</em> deterministically computes its target Consistent-Hashing CDN Proxy shard.</li>
+    <li><strong>Execute:</strong> A compute worker (provisioned dynamically from <code>OFFLINE</code> to <code>ACTIVE</code> by the KEDA autoscaler) claims the task from the queue and evaluates the query.</li>
     <li><strong>Stage (<code>PublishPointer</code>):</strong> The worker writes the raw data to a temporary blob/S3 path. <em>Crucially, the job is not yet complete.</em></li>
-    <li><strong>Accept (<code>CommitJob</code>):</strong> The <strong>Authoritative Boundary</strong>. An atomic transaction validates that the worker's lease is still active and the snapshot hasn't advanced. Only if true, the state transitions to <code>"ACCEPTED"</code>.</li>
-    <li><strong>Deliver:</strong> The client reads the blob. This action is <em>strictly gated</em>; a client can only read if <code>job.state == "ACCEPTED"</code>.</li>
+    <li><strong>Accept (<code>CommitJob</code>):</strong> The <strong>Authoritative Boundary</strong>. An atomic transaction validates that the worker's lease is still active (epoch fencing). If true, the state transitions to <code>"ACCEPTED"</code>. <em>(Note: Under the snapshot-at-start contract, Iceberg catalog advances no longer fail active executions.)</em></li>
+    <li><strong>Deliver & Release:</strong> The client reads the blob. This action is <em>strictly gated</em> to <code>"ACCEPTED"</code> states. A decoupled releaser process eventually drops the client's reference, enabling safe garbage collection.</li>
 </ol>
 
 <!-- ========================================================================= -->
@@ -781,7 +781,7 @@
 
 <div class="tla-widget-container">
     <div class="tla-widget-header">
-        <h3 class="tla-widget-title">Formal Model Abstraction Map</h3>
+        <h3 class="tla-widget-title">Formal Model Abstraction Map (v5)</h3>
         <p class="tla-widget-subtitle">DataLakehouseGateway.tla Visualized</p>
     </div>
 
@@ -791,71 +791,72 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             1. Concurrent Actors & Daemons
         </h4>
-        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The TLC Model Checker simulates all of these independent processes interleaving concurrently, hunting for race conditions.</p>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The TLC Model Checker simulates all of these independent processes interleaving concurrently to prove the architecture is free of race conditions.</p>
         
         <div class="tla-ecosystem-grid">
             <div class="tla-actor-card">
                 <span class="tla-actor-badge badge-core">Core</span>
-                <h5 class="tla-actor-name">ComputeWorker</h5>
-                <p class="tla-actor-desc">Claims tasks, executes queries, stages blobs, and attempts to commit results. Subject to sudden death.</p>
+                <h5 class="tla-actor-name">ComputeWorker & Client</h5>
+                <p class="tla-actor-desc">Workers claim tasks and stage blobs. Clients route traffic via a deterministic Consistent-Hashing Proxy ring.</p>
             </div>
             <div class="tla-actor-card">
-                <span class="tla-actor-badge badge-core">Core</span>
-                <h5 class="tla-actor-name">ClientProcess</h5>
-                <p class="tla-actor-desc">Submits REST/Flight requests, checks cache, and strictly attempts to read ONLY 'ACCEPTED' blobs.</p>
+                <span class="tla-actor-badge badge-daemon">Daemon</span>
+                <h5 class="tla-actor-name">KedaAutoscaler</h5>
+                <p class="tla-actor-desc">Monitors queue depth and dynamically transitions workers between <code>OFFLINE</code> and <code>ACTIVE</code> states.</p>
             </div>
             <div class="tla-actor-card">
                 <span class="tla-actor-badge badge-chaos">Chaos</span>
-                <h5 class="tla-actor-name">Crasher & LeaseManager</h5>
-                <p class="tla-actor-desc">Injects Fail-Stop crashes and expires leases mid-execution, intentionally creating "Zombie Workers".</p>
+                <h5 class="tla-actor-name">Kubernetes Lifecycle</h5>
+                <p class="tla-actor-desc"><code>Crasher</code> simulates OOMKills (ACTIVE -> CRASHED). <code>Recoverer</code> acts as Kubelet, recycling pods to OFFLINE.</p>
+            </div>
+            <div class="tla-actor-card">
+                <span class="tla-actor-badge badge-chaos">Chaos</span>
+                <h5 class="tla-actor-name">TimeoutInjector & LeaseMgr</h5>
+                <p class="tla-actor-desc">Explicitly injects lease expirations onto live queries, creating zombie workers to stress-test epoch fencing.</p>
             </div>
             <div class="tla-actor-card">
                 <span class="tla-actor-badge badge-daemon">Daemon</span>
                 <h5 class="tla-actor-name">LakehouseETL</h5>
-                <p class="tla-actor-desc">Independently advances the Iceberg catalog snapshot in the background, invalidating active queries.</p>
+                <p class="tla-actor-desc">Monotonically advances Iceberg catalogs and pushes cache invalidations across all distributed proxy shards.</p>
             </div>
             <div class="tla-actor-card">
                 <span class="tla-actor-badge badge-daemon">Daemon</span>
                 <h5 class="tla-actor-name">GarbageCollector</h5>
-                <p class="tla-actor-desc">Hunts for 'STAGED' blobs whose lease epochs were fenced out, and purges them to prevent storage leaks.</p>
+                <p class="tla-actor-desc">Hunts for 'STAGED' blobs fenced out by superseded lease epochs, and purges them to prevent storage leaks.</p>
             </div>
         </div>
     </div>
 
-HTML
     <!-- PANEL 2: The State Machine -->
     <div class="tla-section">
         <h4 class="tla-section-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-            2. The 6-Stage Request Lifecycle
+            2. The Job Lifecycle (Snapshot-at-Start)
         </h4>
-        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The strict state machine governing <code>jobs[r].state</code>. The critical fix splits completion into STAGED (Worker Write) and ACCEPTED (Client Read).</p>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">Under the updated architecture, Snapshot freshness is bound at Start and no longer acts as a failure condition during Commit.</p>
         
-        <!-- Modified wrapper: 'justify-content: flex-start' allows the min-width scroll to work properly -->
         <div class="mermaid-wrapper" style="justify-content: flex-start;">
-            <!-- Added min-width to prevent Mermaid from shrinking the text on small screens -->
             <div class="mermaid" style="min-width: 500px; margin: 0 auto; width: 100%;">
                 stateDiagram-v2
                     direction TB
                     
                     [*] --> IDLE
-                    IDLE --> QUEUED : 1. Admit
-                    QUEUED --> CLAIMED : 2. Claim
+                    IDLE --> QUEUED : 1. Admit & Bind (Snapshot + CDN Proxy)
+                    QUEUED --> CLAIMED : 2. Claim (By ACTIVE KEDA Worker)
                     CLAIMED --> RUNNING : 3. Execute
                     
                     RUNNING --> STAGED : 4. Stage (PublishPointer)
                     note right of STAGED : Blob is temporary.\nClient CANNOT read yet.
                     
                     STAGED --> ACCEPTED : 5. Accept (CommitJob)
-                    note right of ACCEPTED : Atomic Boundary passed.\n6. Deliver (Client CAN read).
+                    note right of ACCEPTED : Atomic Boundary passed.\n6. Deliver & ClientRelease.
                     
-                    STAGED --> FAILED : Commit Rejected (Stale Data)
-                    RUNNING --> QUEUED : Lease Timeout (Retry)
+                    STAGED --> QUEUED : Lease Timeout (Re-queued by LeaseManager)
+                    RUNNING --> QUEUED : Lease Timeout / Worker Crash
+                    QUEUED --> FAILED : Max Retry Attempts Exhausted
                     
                     ACCEPTED --> [*]
                     FAILED --> [*]
-
-                  
             </div>
         </div>
     </div>
@@ -866,7 +867,7 @@ HTML
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             3. The Authoritative Boundary (CommitJob)
         </h4>
-        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The exact mathematical guard evaluated by TLA+ in zero logical time. This intercepts both "Zombie Workers" and "Stale Snapshots" simultaneously.</p>
+        <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">The mathematical guard evaluated in zero logical time. Notice the absence of data-freshness checks; only the Lease Epoch dictates commit safety.</p>
         
         <div class="mermaid-wrapper">
             <div class="mermaid" style="min-width: 500px; margin: 0 auto; width: 100%;">
@@ -874,17 +875,13 @@ HTML
                     Start([Worker attempts CommitJob]) --> Guard1
                     
                     Guard1{Is worker_epoch<br>== lease_epoch?}
-                    Guard1 -- YES --> Guard2
-                    Guard1 -- NO (Zombie Worker) --> Reject[REJECTED: Transition to FAILED]
-                    
-                    Guard2{Is job.version<br>== catalog.version?}
-                    Guard2 -- YES (Data is Fresh) --> Mutate
-                    Guard2 -- NO (Snapshot Advanced) --> Reject
+                    Guard1 -- YES (Lease Valid) --> Mutate
+                    Guard1 -- NO (Zombie Worker) --> Reject[REJECTED: Worker Returns to Task Queue]
                     
                     Mutate[\Atomic State Mutation/]
                     Mutate --> S1[jobs.state = ACCEPTED]
                     Mutate --> S2[blob.staged = FALSE]
-                    Mutate --> S3[Populate Cache]
+                    Mutate --> S3[Populate specific CDN Proxy Cache]
                     
                     S2 --> End([Client Granted Read Access])
                     
@@ -901,135 +898,121 @@ HTML
 <div class="callout callout-info">
     <h4>Simplified Mathematical Reconstruction</h4>
     <p>
-        Writing and manually validating pure mathematical formalisms (like raw TLA+ logic) is notoriously difficult. As a software architect, I rely on <strong>PlusCal</strong>—an algorithm-modeling language with C-like syntax—to express the system's distributed behaviors. The pure TLA+ math equations presented below are <strong>simplified mathematical reconstructions</strong> rather than raw generated output, curated to clearly illustrate the distributed state transitions (including program counters <code>pc</code>) for readability. 
+        Writing and manually validating pure mathematical formalisms is notoriously difficult. As a software architect, I rely on <strong>PlusCal</strong> to express the system's distributed behaviors. The pure TLA+ math equations presented below are <strong>simplified mathematical reconstructions</strong> rather than raw generated output, curated to clearly illustrate the distributed state transitions for readability. 
     </p>
     <p style="margin-bottom: 0;">
-        <strong><a href="gateway.pdf" target="_blank">&#128196; Download Full TLA+ Model (PDF)</a></strong> — A cleanly typeset PDF of the complete TLA+ mathematics is available for academic and formal review. While the TLC model checker explores the reachable state graph of the configured finite specification and checks the selected properties, it relies on the boundaries established below.
+        <strong><a href="gateway.pdf" target="_blank">&#128196; Download Full TLA+ Model (PDF)</a></strong> — A cleanly typeset PDF of the complete TLA+ mathematics is available for formal review.
     </p>
 </div>
 
-
 <h3>1. Selected State Variables</h3>
-<p><em>Note: This is an excerpt, not the complete tuple. It includes the primary data-plane variables and the process program counter (<code>pc</code>) required to evaluate the state transitions shown below. Auxiliary fault-injection variables and background daemon states are omitted for readability.</em></p>
+<p><em>Note: This excerpt highlights the introduction of <code>hash_ring</code> for CDN routing and <code>worker_status</code> for KEDA autoscaling. Auxiliary variables are omitted.</em></p>
 <div class="katex-display">
-    \[\text{vars}_{\text{excerpt}} \triangleq \langle catalog\_snapshot, cache, task\_queue, jobs, blob\_storage, available\_blobs, worker\_alive, client\_received, commit\_count, pc \rangle\]
+    \[\text{vars}_{\text{excerpt}} \triangleq \langle hash\_ring, worker\_status, catalog\_snapshot, cache, task\_queue, jobs, blob\_storage, pc \rangle\]
 </div>
 
 <h3>2. Initial State Predicate (\(Init\))</h3>
 <p><em>Initializes the selected state variables:</em></p>
 <div class="katex-display">
     \[Init \triangleq \begin{aligned}
+     & \land hash\_ring \in [Tenants \times Queries \rightarrow ProxyNodes] \\
+     & \land worker\_status = [w \in Workers \mapsto \text{"OFFLINE"}] \\
      & \land catalog\_snapshot = [t \in Tenants \mapsto 1] \\
-     & \land cache = [t \in Tenants \mapsto [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [s \in SecCtxs \mapsto \text{NoEntry}]]]] \\
+     & \land cache = [p \in ProxyNodes \mapsto [t \in Tenants \mapsto [q \in Queries \mapsto [v \in 1..MaxSnapshot \dots ]]]] \\
      & \land task\_queue = \langle \rangle \\
-     & \land jobs = [r \in Requests \mapsto [state \mapsto \text{"IDLE"}, owner \mapsto \text{"NONE"}, lease\_epoch \mapsto 0, attempts \mapsto 0, \\
-     & \phantom{\land jobs = [r \in Requests \mapsto [} requested\_tenant \mapsto RequestedTenantOf[r], tenant \mapsto \text{"NONE"}, query \mapsto QueryOf[r], \\
-     & \phantom{\land jobs = [r \in Requests \mapsto [} security\_context \mapsto \text{"NONE"}, version \mapsto 0, blob\_ptr \mapsto \text{"NONE"}, protocol \mapsto ProtocolOf[r], \\
-     & \phantom{\land jobs = [r \in Requests \mapsto [} rls\_applied \mapsto \text{FALSE}, executed\_predicate\_tenant \mapsto \text{"NONE"}]] \\
+     & \land jobs = [r \in Requests \mapsto [state \mapsto \text{"IDLE"}, owner \mapsto \text{"NONE"}, lease\_epoch \mapsto 0 \dots ]] \\
      & \land blob\_storage = [b \in Blobs \mapsto FreeBlob] \\
-     & \land available\_blobs = Blobs \\
-     & \land worker\_alive = [w \in Workers \mapsto \text{TRUE}] \\
-     & \land client\_received = [r \in Requests \mapsto [delivered \mapsto \text{FALSE}, released \mapsto \text{FALSE}, blob\_id \mapsto \text{"NONE"}, tenant \mapsto \text{"NONE"}, query \mapsto \text{"NONE"}, version \mapsto 0, security\_context \mapsto \text{"NONE"}]] \\
-     & \land commit\_count = [r \in Requests \mapsto 0] \\
      & \land pc = [w \in Workers \mapsto \text{"ClaimTask"}, \text{"LakehouseETL"} \mapsto \text{"ETLCommit"}, \dots]
      \end{aligned}\]
 </div>
 
 <h3>3. Selected Core Action Relations</h3>
 
-<h4>A. Atomic Task Claiming with Lease Epoch Increment (\(WorkerClaim\))</h4>
+<h4>A. KEDA Autoscaler Scale-Out (\(ScaleOut\))</h4>
+<p>KEDA dynamically transitions offline workers to active states when the task queue breaches the configured threshold.</p>
+<div class="katex-display">
+    \[ScaleOut \triangleq \begin{aligned}
+     & \land pc[\text{"KedaAutoscaler"}] = \text{"ScaleLoop"} \\
+     & \land Len(task\_queue) \geq ScaleOutThreshold \\
+     & \land \exists w \in Workers : worker\_status[w] = \text{"OFFLINE"} \\
+     & \land \text{LET } w \triangleq \text{CHOOSE } x \in Workers : worker\_status[x] = \text{"OFFLINE"} \text{ IN } \\
+     & \phantom{\land} \land worker\_status' = [worker\_status \text{ EXCEPT } ![w] = \text{"ACTIVE"}] \\
+     & \land pc' = [pc \text{ EXCEPT } ![\text{"KedaAutoscaler"}] = \text{"ScaleLoop"}] \\
+     & \land \text{UNCHANGED } \langle hash\_ring, cache, task\_queue, jobs, blob\_storage \rangle
+     \end{aligned}\]
+</div>
+
+<h4>B. Atomic Task Claiming (\(WorkerClaim\))</h4>
 <div class="katex-display">
     \[WorkerClaim(w) \triangleq \begin{aligned}
-     & \land pc[w] = \text{"ClaimTask"} \land worker\_alive[w] \land Len(task\_queue) > 0 \\
+     & \land pc[w] = \text{"ClaimTask"} \land worker\_status[w] = \text{"ACTIVE"} \land Len(task\_queue) > 0 \\
      & \land \text{LET } r \triangleq Head(task\_queue) \text{ IN } \\
      & \phantom{\land} \land task\_queue' = Tail(task\_queue) \\
      & \phantom{\land} \land \textbf{IF } jobs[r].state = \text{"QUEUED"} \\
      & \phantom{\land \land} \textbf{THEN } \land jobs' = [jobs \text{ EXCEPT } ![r].owner = w, ![r].state = \text{"CLAIMED"}, ![r].lease\_epoch = jobs[r].lease\_epoch + 1] \\
      & \phantom{\land \land \textbf{THEN}} \land pc' = [pc \text{ EXCEPT } ![w] = \text{"StartExecution"}] \\
      & \phantom{\land \land} \textbf{ELSE } \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \land \text{UNCHANGED } jobs \\
-     & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
+     & \land \text{UNCHANGED } \langle worker\_status, hash\_ring, catalog\_snapshot, cache, blob\_storage \rangle
      \end{aligned}\]
 </div>
 
-<h4>B. The Authoritative Acceptance Boundary (<code>CommitJob</code>)</h4>
+<h4>C. The Authoritative Acceptance Boundary (<code>CommitJob</code>)</h4>
 <p>
-    This action represents the <strong>authoritative acceptance boundary</strong> (Stage 5 of the lifecycle). To prevent a distributed race condition where a background ETL process updates the Iceberg catalog while a worker is staging a task, this step atomically enforces <strong>both</strong> lease-epoch fencing and snapshot freshness. If <code>catalog_snapshot</code> has advanced, the commit is rejected, even if the worker's lease is valid.
+    This step atomically enforces lease-epoch fencing. Notice that data freshness (comparing <code>jobs[r].version</code> to <code>catalog_snapshot</code>) is intentionally absent, fulfilling the snapshot-at-start contract.
 </p>
 <div class="katex-display">
     \[CommitJob(w, r, epoch) \triangleq \begin{aligned}
-     & \land pc[w] = \text{"CommitJob"} \land worker\_alive[w] \\
-     & \land HoldsLease(r, epoch, w, \text{"RESULT\_STAGED"}) \\
-     & \land jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
+     & \land pc[w] = \text{"CommitJob"} \land worker\_status[w] = \text{"ACTIVE"} \\
+     & \land HoldsLease(r, epoch, w, \text{"STAGED"}) \\
      & \land jobs' = [jobs \text{ EXCEPT } ![r].state = \text{"ACCEPTED"}, ![r].owner = \text{"NONE"}] \\
-     & \land commit\_count' = [commit\_count \text{ EXCEPT } ![r] = commit\_count[r] + 1] \\
+     & \land blob\_storage' = [blob\_storage \text{ EXCEPT } ![curr\_blob].staged = \text{FALSE}] \\
      & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"PopulateCache"}] \\
-     & \land \text{UNCHANGED } \langle catalog\_snapshot, cache, task\_queue, blob\_storage, client\_received, available\_blobs, worker\_alive \rangle
+     & \land \text{UNCHANGED } \langle worker\_status, hash\_ring, catalog\_snapshot, cache, task\_queue \rangle
      \end{aligned}\]
 </div>
 
-<h4>C. Best-Effort Cache Population (\(PopulateCache\))</h4>
+<h4>D. Best-Effort Cache Population (CDN Hashing)</h4>
 <p>
-    Commit is modelled as distinct from the best-effort result-cache write (<code>PopulateCache</code>). Splitting them is deliberate: real systems can crash between the two, leaving a job <code>ACCEPTED</code> but uncached. The result cache is therefore treated as best-effort and never assumed to hold an entry just because a job completed.
+    When populating the cache, the worker dynamically routes the write to the specific partitioned Proxy Node calculated by the consistent hash ring at startup.
 </p>
 <div class="katex-display">
     \[PopulateCache(w, r, blob) \triangleq \begin{aligned}
-     & \land pc[w] = \text{"PopulateCache"} \land worker\_alive[w] \\
+     & \land pc[w] = \text{"PopulateCache"} \land worker\_status[w] = \text{"ACTIVE"} \\
      & \land jobs[r].state = \text{"ACCEPTED"} \land jobs[r].blob\_ptr = blob \\
      & \land jobs[r].version = catalog\_snapshot[jobs[r].tenant] \\
-     & \land BlobMatches(blob, jobs[r].tenant, jobs[r].query, jobs[r].version, jobs[r].security\_context) \\
-     & \land \textbf{IF } FlightPopulatesCache \lor ProtocolOf[r] = \text{"REST"} \\
-     & \phantom{\land} \textbf{THEN } cache' = [cache \text{ EXCEPT } ![jobs[r].tenant][jobs[r].query][jobs[r].version][jobs[r].security\_context] = [valid \mapsto \text{TRUE}, blob\_id \mapsto blob]] \\
-     & \phantom{\land} \textbf{ELSE } \text{UNCHANGED } cache \\
+     & \land \text{LET } p \triangleq hash\_ring[jobs[r].tenant, jobs[r].query] \text{ IN } \\
+     & \phantom{\land} \land cache' = [cache \text{ EXCEPT } ![p][jobs[r].tenant][jobs[r].query][jobs[r].version][jobs[r].security\_context] = \\
+     & \phantom{\land \land cache' = } [valid \mapsto \text{TRUE}, blob\_id \mapsto blob]] \\
      & \land pc' = [pc \text{ EXCEPT } ![w] = \text{"ClaimTask"}] \\
-     & \land \text{UNCHANGED } \langle catalog\_snapshot, task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
-     \end{aligned}\]
-</div>
-
-<h4>D. Tenant-Isolated Snapshot Advance (\(ETLCommit\))</h4>
-<p>
-    The background ETL process independently advances the authoritative catalog snapshot. Cache invalidation is decoupled from this monotonic advance and treated as an asynchronous optimization; cache correctness does not depend on invalidation timing because freshness checks happen authoritatively at lookup and result acceptance.
-</p>
-<div class="katex-display">
-    \[ETLCommit(t) \triangleq \begin{aligned}
-     & \land pc[\text{"LakehouseETL"}] = \text{"ETLCommit"} \land catalog\_snapshot[t] < MaxSnapshot \\
-     & \land \text{LET } new\_v \triangleq catalog\_snapshot[t] + 1 \text{ IN } \\
-     & \phantom{\land} \land catalog\_snapshot' = [catalog\_snapshot \text{ EXCEPT } ![t] = new\_v] \\
-     & \phantom{\land} \land cache' = [cache \text{ EXCEPT } ![t] = [q \in Queries \mapsto [v \in 1..MaxSnapshot \mapsto [s \in SecCtxs \mapsto \\
-     & \phantom{\land \land cache' = } \textbf{IF } v < new\_v \textbf{ THEN } \text{NoEntry} \textbf{ ELSE } cache[t][q][v][s]]]]] \\
-     & \land pc' = [pc \text{ EXCEPT } ![\text{"LakehouseETL"}] = \text{"ETLCommit"}] \\
-     & \land \text{UNCHANGED } \langle task\_queue, jobs, blob\_storage, client\_received, available\_blobs, worker\_alive, commit\_count \rangle
+     & \land \text{UNCHANGED } \langle worker\_status, hash\_ring, catalog\_snapshot, task\_queue, jobs, blob\_storage \rangle
      \end{aligned}\]
 </div>
 
 <h3>4. PlusCal Source Architecture & Behavioral Assumptions</h3>
 <p>
-    The complete, reproducible PlusCal specification source and TLC configuration files powering the model checker are maintained in the <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal" target="_blank" rel="noopener">data-lakehouse-gateway-formal GitHub Repository</a>. Rather than duplicating the full executable module, the overview below outlines the high-level structural components, concurrent process loops, and behavioral assumptions modeled in <code>DataLakehouseGateway.tla</code>.
+    The complete, reproducible PlusCal specification source and TLC configuration files powering the model checker are maintained in the <a href="https://github.com/saurav-sana/data-lakehouse-gateway-formal" target="_blank" rel="noopener">data-lakehouse-gateway-formal GitHub Repository</a>. The high-level structural components driving the state space include:
 </p>
 
-<h4>A. Core Concurrent Process Modules</h4>
-<p>
-    The PlusCal specification models the gateway as a concurrent distributed system comprising clients, asynchronous compute workers, background maintenance daemons, and fault-injection actors:
-</p>
 <ul>
     <li>
-        <strong>Client Request Lifecycle (<code>ClientProcess</code>):</strong> 
-        Handles request admission, tenant security verification bounds, immutable catalog snapshot version binding, result cache lookups, and protocol-specific routing. 
-        <ul>
-            <li><em>Flight Path:</em> Modeled as a deliberate synchronous, in-VM execution path that bypasses network queues, leases, and worker crash windows for atomic performance, optionally writing through to the cache when enabled.</li>
-            <li><em>REST Path:</em> Enqueues asynchronous multi-tenant jobs into a shared task queue for workers to claim.</li>
-        </ul>
+        <strong>Client Request & CDN Routing (<code>ClientProcess</code>, <code>ClientReleaser</code>):</strong> 
+        Handles request admission, calculates the target proxy shard via <code>hash_ring</code> to prevent cache stampedes, binds to an immutable catalog snapshot, and strictly routes requests. The <code>ClientReleaser</code> process is explicitly decoupled from delivery, ensuring the Garbage Collector cannot prematurely delete blobs actively held by clients.
     </li>
     <li>
         <strong>Compute Worker Process (<code>ComputeWorker</code>):</strong> 
-        Implements claim-check execution loops. Workers pull tasks from the queue, increment lease epochs, bind tenant security predicates at execution time (modeling the presence of an authorization step via `rls_applied`, rather than evaluating the data-level semantics of row filtering), allocate and stage immutable result blobs, publish pointers via epoch fencing, commit jobs to the <code>ACCEPTED</code> state, and perform best-effort cache population.
+        Implements claim-check execution loops. Workers claim tasks, allocate and stage immutable result blobs, publish pointers via epoch fencing, and commit jobs to the <code>ACCEPTED</code> state regardless of catalog advances (honoring the Snapshot-at-start contract).
     </li>
     <li>
-        <strong>Lease &amp; Fault Management (<code>LeaseManager</code>, <code>Crasher</code>, <code>Recoverer</code>):</strong> 
-        Explicitly models distributed failure semantics. The <code>LeaseManager</code> revokes leases upon worker death or operational timeouts (creating zombie workers handled by epoch fencing). The <code>Crasher</code> injects bounded worker crashes, while the <code>Recoverer</code> brings replacement workers online only after dead leases are fully reaped.
+        <strong>KEDA & Kubernetes Lifecycle (<code>KedaAutoscaler</code>, <code>Crasher</code>, <code>Recoverer</code>):</strong> 
+        The model proves that auto-scaling operations are safe. KEDA dynamically transitions workers between <code>OFFLINE</code> and <code>ACTIVE</code> based on queue depth. The <code>Crasher</code> simulates OOMKills by moving active pods to <code>CRASHED</code> (prompting lease retries), while the <code>Recoverer</code> simulates the Kubelet returning them to the <code>OFFLINE</code> pool.
+    </li>
+    <li>
+        <strong>Lease Management & Chaos (<code>LeaseManager</code>, <code>TimeoutInjector</code>):</strong> 
+        Explicitly models zombie workers. The <code>TimeoutInjector</code> triggers live-worker lease timeouts independently of global budgets, forcing the <code>LeaseManager</code> to queue retries while the zombie worker is still computing, stressing the Authoritative Boundary's epoch fence.
     </li>
     <li>
         <strong>Background Maintenance Daemons (<code>GarbageCollector</code>, <code>CacheEvictor</code>, <code>LakehouseETL</code>):</strong> 
-        Runs perpetual cleanup loops. The <code>GarbageCollector</code> reclaims orphaned staged blobs (fenced out by superseded epochs) and published blobs no longer referenced by active jobs, cache entries, or clients. The <code>CacheEvictor</code> abstracts TTL/LRU result cache expiration, and the <code>LakehouseETL</code> independently advances tenant Iceberg snapshots.
+        The <code>LakehouseETL</code> independently advances tenant Iceberg snapshots, proving that its distributed cache invalidations across all proxy shards are race-free. The <code>GarbageCollector</code> reclaims orphaned staged blobs fenced out by superseded epochs.
     </li>
 </ul>
 
