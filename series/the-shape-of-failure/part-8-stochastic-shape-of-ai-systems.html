@@ -3,15 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Token Sampling, Inference Queues, TTFT degradation, and the Compounding Failure of Autonomous Agents.">
+    <meta name="description" content="Token Sampling, Inference Queues, and the Compounding Failure of Agents. How to apply queueing theory and probability to LLM serving and autonomous pipelines.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-8-stochastic-shape-of-ai-systems.html">
 
-    <!-- Early Theme Initialization -->
+    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
     <script>
         (function () {
             try {
@@ -29,480 +39,506 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
     <style>
         /* =======================================================================
-           DARK MODE OVERRIDES & TOKENS
+           SERIES-ALIGNED STYLES & LAYOUT
            ======================================================================= */
-        :where(:root) {
-            --bg: #0d1117;
-            --text: #f8fafc;
-            --muted: #a3adc2;
-            --muted-2: #8b949e;
-            --teal: #4fb8a6;
-            --amber: #D4A72C;
-            --bad: #e57373;
-            --good: #81c784;
-            --panel: rgba(255, 255, 255, 0.06);
-            --panel-2: rgba(255, 255, 255, 0.095);
-            --line: rgba(255, 255, 255, 0.18);
-            --line-soft: rgba(255, 255, 255, 0.1);
-            --tldr-bg: rgba(79, 184, 166, 0.12);
-        }
-
-        [data-theme="light"], .light, .theme-light {
-            --bg: #ffffff;
-            --text: #0f172a;
-            --muted: #475569;
-            --muted-2: #64748b;
-            --teal: #0d9488;
-            --amber: #b45309;
-            --bad: #dc2626;
-            --good: #16a34a;
-            --panel: #f8fafc;
-            --panel-2: #f1f5f9;
-            --line: #e2e8f0;
-            --line-soft: #f1f5f9;
-            --tldr-bg: rgba(13, 148, 136, 0.06);
-        }
-
-        [data-theme="dark"], .dark, .theme-dark {
-            --bg: #0d1117 !important;
-            --text: #f8fafc !important;
-            --muted: #a3adc2 !important;
-            --muted-2: #8b949e !important;
-            --teal: #4fb8a6 !important;
-            --amber: #D4A72C !important;
-            --bad: #e57373 !important;
-            --good: #81c784 !important;
-            --panel: rgba(255, 255, 255, 0.06) !important;
-            --panel-2: rgba(255, 255, 255, 0.095) !important;
-            --line: rgba(255, 255, 255, 0.18) !important;
-            --line-soft: rgba(255, 255, 255, 0.1) !important;
-            --tldr-bg: rgba(79, 184, 166, 0.12) !important;
-        }
-
-        /* --- Theme Toggle Icon Visibility Fix --- */
-        .theme-toggle {
-            background: transparent;
-            border: none;
-            color: var(--muted);
-            cursor: pointer;
-            padding: 0.4rem;
-            display: flex;
-            align-items: center;
-            transition: color 0.2s ease;
-        }
-
-        .theme-toggle:hover { color: var(--teal); }
-        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
-        
-        html[data-theme="light"] .theme-toggle .icon-moon, 
-        .light .theme-toggle .icon-moon,
-        .theme-light .theme-toggle .icon-moon { display: block !important; }
-
-        html[data-theme="dark"] .theme-toggle .icon-bulb, 
-        .dark .theme-toggle .icon-bulb,
-        .theme-dark .theme-toggle .icon-bulb { display: block !important; }
 
         /* --- Page Adjustments --- */
-        body { background: var(--bg); color: var(--text); margin: 0; padding: 0; font-family: 'IBM Plex Sans', sans-serif; line-height: 1.7; }
-        .site-header { padding: 1.5rem 2rem 1rem 2rem; border-bottom: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: center;}
-        .site-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.75rem; }
-        .site-title__badge { background: var(--teal); color: #fff; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
-        
-        main { margin: 2.5rem auto !important; padding: 0 1.5rem; max-width: 800px; }
-        
-        .byline { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.75rem; color: var(--teal); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem; }
-        .deck { font-size: 1.15rem; color: var(--muted); margin-top: 0.5rem; margin-bottom: 1.5rem; line-height: 1.5; }
-        
-        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; line-height: 1.15; color: var(--text); }
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.55rem; margin-top: 3rem; margin-bottom: 1.25rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
         h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
-        p, li { font-size: 1.05rem; margin-bottom: 1.35rem; }
-        ul { padding-left: 1.5rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        p { margin-bottom: 1.35rem; }
         code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
 
-        .snarky-quote { border-left: 3px solid var(--amber); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3rem 0; }
+        /* --- Quote Styling --- */
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
         .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
         .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
 
-        .tldr-box { background: var(--tldr-bg); border-left: 3px solid var(--teal); padding: 1.5rem; margin: 2rem 0; border-radius: 0 8px 8px 0; }
-        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad); }
-        .tldr-box--amber { background: rgba(212, 167, 44, 0.08); border-left-color: var(--amber); }
-        .tldr-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.85rem; font-weight: 600; color: var(--teal); }
+        /* --- Series Heading Row --- */
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+
+        /* --- TL;DR / Callout Boxes --- */
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
         .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        
+        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: 0.4rem; }
 
-        /* --- Taxonomy Cards Grid --- */
-        .taxonomy-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin: 2rem 0; }
-        @media (max-width: 768px) { .taxonomy-grid-3 { grid-template-columns: 1fr; } }
-        .tax-card { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 1.35rem; border-radius: 8px; display: flex; flex-direction: column; }
-        .tax-card h4 { font-family: 'Libre Franklin', sans-serif; margin: 0 0 0.5rem 0; font-size: 1.05rem; color: var(--text); }
-        .tax-card p { font-size: 0.9rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.55; }
+        /* --- Math Block --- */
+        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
+        .math-block var { font-style: italic; color: var(--amber); }
+        
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation strong { color: var(--text); }
 
-        /* --- Simulation Stage & Tabs --- */
+        /* --- Simulation Stage (Tight Toolbar) --- */
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
-        .stage-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 0.75rem; overflow-x: auto;}
-        .tab-btn { background: transparent; color: var(--muted); border: none; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; padding: 0.4rem 0.8rem; cursor: pointer; border-radius: 4px; transition: all 0.2s; white-space: nowrap;}
-        .tab-btn:hover { background: var(--panel-2); color: var(--text); }
-        .tab-btn.active { background: var(--panel-2); color: var(--teal); border: 1px solid var(--line); font-weight: 600;}
-
-        .stage-top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+        .sim-toolbar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+            flex-wrap: nowrap; 
+            overflow-x: auto; 
+            padding-bottom: 0.5rem;
+        }
         
-        .sim-params { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
         .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
         .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
         .param-group span { font-weight: 600; color: var(--text); float: right; }
-
-        .controls { display: flex; gap: 0.5rem; align-items: center; }
-        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; }
+        
+        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
         [data-theme="light"] button.sim-btn { color: #ffffff; }
         button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
         button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-        [data-theme="light"] button.sim-btn.secondary { color: var(--text); }
-
-        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
         
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
         .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
         .readout span { color: var(--amber); font-weight: 600; }
 
+        /* --- Scenario Cards --- */
+        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-card p strong { color: var(--text); }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref a { color: var(--teal); text-decoration: none; }
+        .scenario-ref a:hover { text-decoration: underline; }
+
+        /* --- Post Pager --- */
         .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
         .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
         .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
-        .site-footer { border-top: 1px solid var(--line-soft); padding: 2rem; margin-top: 3rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+        /* --- Theme Toggle Icon Visibility --- */
+        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
+        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+
+        @media (max-width: 650px) {
+            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-params { flex-direction: column; width: 100%; }
+            .param-group { width: 100%; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+        }
     </style>
 </head>
 <body>
+    <div class="container">
 
-    <!-- Global Header -->
-    <header class="site-header">
-        <a href="../../index.html" class="site-title">
-            <span class="site-title__badge">SS</span>
-            <span>Saurav Sana | Field Notes</span>
-        </a>
-        <nav aria-label="Primary navigation" style="display:flex; gap:1.5rem; align-items:center;">
-            <a href="../../index.html" style="color:var(--muted); text-decoration:none; font-size:0.875rem;">Home</a>
-            <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
-                <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                </svg>
-                <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-            </button>
-        </nav>
-    </header>
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
 
-    <main>
-        <div style="margin-bottom: 0.75rem; font-family:'IBM Plex Mono', monospace; font-size:0.85rem;">
-            <a href="index.html" style="color: var(--muted); text-decoration: none;">← The Shape of Failure Series</a>
-        </div>
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
 
-        <div class="byline">The Shape of Failure · Part 8 of 8</div>
-        <div class="series-heading-row">
-            <h1>The Stochastic Shape of AI Systems</h1>
-        </div>
-        <p class="deck">Token Sampling, Inference Queues, and the Compounding Failure of Autonomous Agents.</p>
-        <div style="margin-bottom: 2rem; color: var(--muted); font-size: 0.9rem;">October 28, 2026 · AI Engineering & Orchestration</div>
-
-        <div class="snarky-quote">
-            <p class="snarky-quote-text">"You are trying to wrap five nines of reliability around a piece of software that fundamentally works by rolling dice very, very fast."</p>
-            <p class="snarky-quote-author">— <strong><em>Anonymous Staff Engineer</em></strong></p>
-        </div>
-
-        <p>In classical distributed systems, uncertainty is an environmental hazard—we build deterministic state machines and try to protect them from chaotic networks. In modern AI architectures, uncertainty is the compiler itself.</p>
-
-        <p>Large Language Models do not "execute" code in the traditional sense; they sample from categorical probability distributions over vocabularies. When you introduce agentic loops—where an LLM writes a database query, executes a tool, parses the response, and plans the next step—you take standard software failure rates and exponentiate them.</p>
-
-        <h2>The Anatomy of LLM Failures: TTFT vs. TPOT</h2>
-        
-        <p>Before we can engineer fault tolerance into an agent, we must separate <em>infrastructure failure</em> from <em>semantic failure</em>. They require entirely different mitigation strategies. Conflating the two is how you accidentally trigger a retry storm that takes down your entire inference cluster.</p>
-
-        <div class="taxonomy-grid-3">
-            <div class="tax-card" style="border-top-color: var(--teal);">
-                <h4>TTFT (Serving Queue)</h4>
-                <p><strong>Time To First Token.</strong> This is compute-bound. It measures the pre-fill phase where the KV-cache is allocated for the prompt. When the cache overflows, requests queue up. This failure is <em>deterministic</em> and behaves exactly like standard web traffic saturation.</p>
-            </div>
-            <div class="tax-card" style="border-top-color: var(--amber);">
-                <h4>TPOT (Decoding Phase)</h4>
-                <p><strong>Time Per Output Token.</strong> This is memory-bandwidth bound. Once generating, TPOT typically degrades gracefully under load until it hits a cliff. High TPOT means the model is working, just starving for memory IOPS.</p>
-            </div>
-            <div class="tax-card" style="border-top-color: var(--bad);">
-                <h4>Semantic Drift</h4>
-                <p><strong>Token Sampling Variance.</strong> The model generates valid JSON, but confidently hallucinates a non-existent parameter. This is <em>stochastic</em>. Retrying blindly without changing temperature or prompts rarely fixes this.</p>
-            </div>
-        </div>
-
-        <h2>The Mathematics of Agentic Compounding</h2>
-        
-        <p>If you build a ReAct (Reasoning + Acting) agent that needs to execute <code>N</code> independent reasoning steps to fulfill a user request, the probability of the entire workflow succeeding is exactly the same binomial logic we explored in Part 2, but applied to logical steps: $P_{success} = (P_{step})^N$.</p>
-
-        <p>When engineers transition from single-prompt chatbots to Agentic RAG or multi-step orchestration frameworks (like LangGraph or DSPy), they are often stunned by the sudden drop in reliability. A prompt that works 92% of the time feels "production ready." But an agent that relies on that prompt 6 times in a loop will fail nearly half the time.</p>
-
-        <h2>Interactive Simulation: Chain of Failure</h2>
-        
-        <p>Use the simulator below to model a fleet of Agent Workflows executing concurrently. Adjust the <strong>Pipeline Depth (Steps)</strong> to see how quickly reliability degrades as agents become more autonomous. Adjust the <strong>Step Reliability</strong> to see how much model quality matters.</p>
-
-        <div class="stage">
-            <div class="stage-tabs" id="tabContainer">
-                <button class="tab-btn active" data-key="pipeline">Agent Chain Collapse (Compound Prob)</button>
+        <main>
+            <div class="post-meta" style="margin-bottom: 0.5rem;">
+                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
             </div>
 
-            <div class="sim-params" id="paramsContainer">
-                <div class="param-group">
-                    <div>Step Reliability: <span id="v_p">0.90</span></div>
-                    <input type="range" id="param_p" min="0.5" max="0.99" step="0.01" value="0.90">
-                </div>
-                <div class="param-group">
-                    <div>Pipeline Depth: <span id="v_depth">5</span></div>
-                    <input type="range" id="param_depth" min="1" max="15" step="1" value="5">
+            <div class="series-heading-row">
+                <h1>The Stochastic Shape of AI Systems</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">November 28, 2026 · Part 8 of 8 · AI/LLM Frontier</div>
+
+            <blockquote class="snarky-quote">
+                <p class="snarky-quote-text">“The fundamental problem of communication is that of reproducing at one point either exactly or approximately a message selected at another point.”</p>
+                <p class="snarky-quote-author">— <strong><em>Claude Shannon</em></strong>, "A Mathematical Theory of Communication"</p>
+            </blockquote>
+
+            <p>Welcome to the frontier. If you thought distributed databases were chaotic, you haven't tried running an autonomous LLM agent in production. The entire stack is built on a foundation of literal random number generators and probabilistic matrix multiplications.</p>
+
+            <p>We are currently in the "PoC Euphoria" phase of AI, where companies are stringing together multi-step agents and crossing their fingers. But the mathematics of AI systems are the exact same mathematics we've explored in this series. The underlying physics haven't changed; the failure surfaces have just moved.</p>
+
+            <!-- ========================================== -->
+            <!-- 1. CATEGORICAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>1. The Categorical Distribution (Token Sampling)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Weighted Dice Roll</div>
+                <div class="tldr-content">
+                    <p>An LLM doesn't "think" of the next word. It outputs a probability distribution over its entire vocabulary (e.g., 50,000 possible tokens) and rolls a weighted die. The Categorical distribution models a single draw from a set of possibilities that each have a distinct probability.</p>
+                    <p>The <code>temperature</code> parameter is your dial for flattening or sharpening those probabilities. Temperature = 0 makes it deterministic (always pick the highest probability token). Temperature = 1.0 lets the model roll the dice based on its raw probabilities. Temperature > 1.0 flattens the distribution, making the model hallucinate wildly.</p>
                 </div>
             </div>
 
-            <div class="stage-top-bar">
-                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); font-style: italic;" id="captionText">
-                    Expected Pipeline Success: 59.0%
-                </div>
-                <div class="controls">
-                    <button id="btnRun" class="sim-btn">▶ Run Workflow</button>
-                    <button id="btnReset" class="sim-btn secondary">Reset</button>
-                </div>
+            <h3>The Math</h3>
+            <p>The probability of sampling token <var>i</var>, where <var>p<sub>i</sub></var> is the raw probability assigned by the model's Softmax layer:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>i</var>) = <var>p<sub>i</sub></var>  (where &Sigma; <var>p<sub>i</sub></var> = 1)
             </div>
-
-            <canvas id="cv" width="800" height="260"></canvas>
             
-            <div class="readout">
-                <div>Runs: <span id="statN">0</span></div>
-                <div>Actual Success Rate: <span id="statSuccess">–</span></div>
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>X</var>:</strong> The discrete category (the token chosen).</li>
+                    <li><strong><var>p<sub>i</sub></var>:</strong> The probability weight of that specific token.</li>
+                    <li><strong>Temperature (<var>T</var>):</strong> Applied before the Softmax. The formula is \(e^{z_i / T} / \sum e^{z_j / T}\).</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If the model assigns a 40% chance to the word "Data", 30% to "Model", 20% to "Magic", and 10% to "Garbage". If you set <var>T</var> = 1.0, "Data" is chosen 40% of the time. If you set <var>T</var> = 2.0, the probabilities are flattened, and "Garbage" might suddenly be chosen 20% of the time.</p>
             </div>
-        </div>
 
-        <h2>Architectural Patterns for Fault-Tolerant Agents</h2>
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>If you leave the temperature > 0, your application is <strong>non-deterministic</strong>. Your unit tests will pass locally and fail in production because the model rolled a different token. For high-reliability structured data extraction, you must force temperature to 0 (greedy decoding).</p>
+                </div>
+            </div>
 
-        <div class="tldr-box tldr-box--warning">
-            <div class="tldr-eyebrow">The KV-Cache Eviction Cliff</div>
-            <p>Blindly retrying a failed agent step is dangerous. Because LLM generation is highly stateful, an agent stuck in a retry loop (e.g., trying to fix a malformed JSON output by asking the model to "try again") consumes enormous KV-cache memory on the inference server. If just 5% of your agents get stuck in loops, they will evict the cache for the other 95%, causing a catastrophic, system-wide latency spike.</p>
-        </div>
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="categorical">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Temperature (T): <span id="v_temp_categorical">1.0</span></div>
+                            <input type="range" id="temp_categorical" min="0.1" max="3.0" step="0.1" value="1.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Most Frequent Token: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
 
-        <p>To survive compound failure rates without taking down the infrastructure, autonomous pipelines require entirely different circuit breakers than standard microservices.</p>
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Non-Deterministic Test" <span class="scenario-tag">CI/CD Pipelines</span></div>
+                <p>Your tests check for a specific string output. But the model has a temperature of 0.7. On the 15th run, it generates a semantically identical but syntactically different string, and your CI pipeline goes red. You cannot unit test a stochastic system without setting T=0.</p>
+                <div class="scenario-ref">Reference: <a href="https://platform.openai.com/docs/api-reference/completions/create#completions-create-temperature" target="_blank">OpenAI: Temperature and Determinism</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Hallucination Spiral" <span class="scenario-tag">High Temperature Agents</span></div>
+                <p>An agent is set to a high temperature to "encourage creativity." It encounters an ambiguous input, samples an unlikely token, and then compounds the hallucination in subsequent steps, confidently outputting a completely fabricated answer.</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2309.11495" target="_blank">Yao et al., "Tree of Thoughts" (Exploration vs. Exploitation)</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Top-P Mask" <span class="scenario-tag">Nucleus Sampling</span></div>
+                <p>Top-P truncates the distribution to only include the top tokens that sum to probability <var>P</var> (e.g., 0.9). This removes the long tail of absolute nonsense, but restricts the model's ability to recover from a bad path.</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1904.09751" target="_blank">Holtzman et al., "The Curious Case of Neural Text Degeneration"</a></div>
+            </div>
 
-        <h3>1. Constraint-Guided Decoding</h3>
-        <p>Never rely on "prompt engineering" to guarantee JSON schemas or enum selections. Use grammar-constrained decoding at the inference engine level. By masking the logits during decoding, you force the probability of a structural formatting failure to zero, entirely eliminating one class of semantic drift.</p>
+            <!-- ========================================== -->
+            <!-- 2. EXPONENTIAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>2. The Exponential Distribution (TTFT & Inference)</h2>
 
-        <h3>2. Deterministic Anchoring (GraphRAG)</h3>
-        <p>Stochastic models drift when they have to maintain complex entity relationships in their context window over long conversations. A robust pattern is to anchor the agent's memory in deterministic data structures. By integrating a Graph database (like Neo4j) to map relationships deterministically, the LLM is relegated to translating the graph's hard facts into natural language, rather than hallucinating the facts itself.</p>
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Waiting Room for the First Token</div>
+                <div class="tldr-content">
+                    <p>When you send a prompt to an LLM, you are waiting for the Time to First Token (TTFT). This is a queueing problem. The GPU has a fixed number of KV-cache blocks. If they are full, your request goes into a waiting room. The time you spend waiting is modeled by the Exponential distribution.</p>
+                    <p>Just like the bus stop in Part 3, it is "memoryless." The probability of your request starting in the next 10 milliseconds is exactly the same, regardless of how long you've already been waiting in the queue. This is why TTFT spikes are so frustrating for users.</p>
+                </div>
+            </div>
 
-        <h3>3. Semantic Circuit Breakers</h3>
-        <p>HTTP 500s are easy to catch. But what if the model returns HTTP 200 with the payload: <em>"I'm sorry, I cannot fulfill that request."</em>? Your downstream agentic parser will crash trying to extract a SQL query from that sentence. Fault-tolerant agents implement "Semantic Circuit Breakers"—fast, regex-based or lightweight classifier checks that evaluate the <em>intent</em> of the response before passing it to the next node in the orchestration graph.</p>
+            <h3>The Math</h3>
+            <p>The probability density function for the time until the first token is generated, given a service rate <var>&lambda;</var>:</p>
+            <div class="math-block">
+                <var>f</var>(<var>x</var>) = <var>&lambda;</var> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>&lambda;</var>:</strong> The rate at which the GPU can ingest prompts (e.g., 50 requests per second).</li>
+                    <li><strong><var>x</var>:</strong> The TTFT in seconds.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If your GPU can process 100 prompts per second (<var>&lambda;</var>=100), the probability that a request takes more than 50ms (<var>x</var>=0.05s) to generate its first token is <code>e^(-100 * 0.05) = e^-5 ≈ 0.67%</code>. This seems tiny, but at 1 million requests, that's 6,700 users experiencing a massive lag spike.</p>
+            </div>
 
-        <h3>4. SLM Fallback Routing</h3>
-        <p>When an agent step fails, hitting the primary, massive LLM again with an exponential backoff often just adds pressure to an already saturated TTFT queue. A highly effective resilience pattern is routing validation and simple retries to local Small Language Models (SLMs). Dedicated, fine-tuned models like Gemma or Qwen running via Ollama can act as fast, cheap fallback validators to un-stick a stalled agent loop without consuming the primary cluster's KV-cache.</p>
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Context windows matter. A prompt with 100,000 tokens requires vastly more KV-cache memory and compute than a prompt with 100 tokens. The <var>&lambda;</var> is not static; it collapses as the context window fills up. You must monitor TTFT by context length, not just globally.</p>
+                </div>
+            </div>
 
-        <p>We spent the earlier parts of this series learning to tame the chaos of hardware, network partitions, and queuing theory. With AI, we are inviting stochastic chaos directly into the application logic layer. The math of failure hasn't changed; we just have to apply it to our prompts, our orchestration graphs, and our token sampling strategies.</p>
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="exponential">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Inference Rate (λ): <span id="v_lam_exponential">2.0</span></div>
+                            <input type="range" id="lam_exponential" min="0.2" max="10.0" step="0.1" value="2.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean TTFT: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
 
-        <!-- Navigation -->
-        <nav class="post-pager" aria-label="Series pagination">
-            <a href="part-7-byzantine-faults.html">← Part 7: Byzantine Faults</a>
-            <a href="../../index.html#blog">Back to Blog Index →</a>
-        </nav>
-    </main>
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "KV-Cache Exhaustion" <span class="scenario-tag">vLLM / TGI</span></div>
+                <p>During a traffic spike, the KV-cache fills up. vLLM implements "continuous batching" to handle this, but when the cache is full, TTFT skyrockets as new requests are paused until existing sequences finish and free up blocks.</p>
+                <div class="scenario-ref">Reference: <a href="https://blog.vllm.ai/2023/06/20/vllm.html" target="_blank">vLLM: Easy, Fast, and Cheap LLM Serving</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Cold Start" <span class="scenario-tag">Serverless Inference</span></div>
+                <p>A serverless GPU takes 30 seconds to load a 70B parameter model into VRAM. The first request after a cold start experiences a TTFT of 30+ seconds. This breaks the Exponential assumption because the hazard rate is effectively 0 for the first 30 seconds.</p>
+                <div class="scenario-ref">Reference: <a href="https://developer.nvidia.com/blog/scaling-llm-inference-with-nvidia-triton-model-analyzer/" target="_blank">NVIDIA Triton Inference Server</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Chunked Prefill" <span class="scenario-tag">Continuous Batching</span></div>
+                <p>To prevent long prompts from blocking short ones, modern serving engines break prompts into chunks. This smooths out the TTFT distribution, making it less Exponential and more deterministic, but increases the Inter-Token Latency (ITL).</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2402.01622" target="_blank">Agrawal et al., "Taming Throughput-Latency Tradeoff in LLM Inference"</a></div>
+            </div>
 
-    <footer class="site-footer">
-        <div>© 2026 Saurav Sana</div>
-    </footer>
+            <!-- ========================================== -->
+            <!-- 3. GEOMETRIC DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>3. The Geometric Distribution (Structured Outputs)</h2>
 
-    <!-- Simulator Script -->
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: "JSON is Hard, Let's Retry"</div>
+                <div class="tldr-content">
+                    <p>You prompt an LLM: "Return a JSON object with keys 'name' and 'age'." The LLM responds: "Sure! Here is the JSON: \`\`\`json { "name": "Alice" } \`\`\`". Your parser fails. You retry.</p>
+                    <p>The Geometric distribution models the number of retries required to get a valid, parseable output. Every request is a Bernoulli trial (Valid JSON vs. Invalid JSON). If the model has a 90% success rate at generating JSON, the Geometric distribution tells you how many loops you'll run before it finally works.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of needing exactly <var>k</var> attempts to get the first valid JSON, where <var>p</var> is the probability of success:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = (1 - <var>p</var>)<sup><var>k</var>-1</sup> &middot; <var>p</var>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>k</var>:</strong> The total number of attempts.</li>
+                    <li><strong><var>p</var>:</strong> The probability the model outputs valid JSON on any single attempt.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If the model succeeds 80% of the time (<var>p</var>=0.8), the chance it takes exactly 3 attempts is <code>0.2^2 * 0.8 = 0.032</code> (3.2%). But if you have 10,000 API calls per day, that means 320 requests require 3 attempts, burning 3x the tokens and inflating your latency and cost.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Retrying with the exact same prompt and temperature > 0 is a recipe for an infinite loop. If the model fails once, it might fail the same way again. You must change the prompt (e.g., "Fix the JSON errors in your previous response") or lower the temperature on the retry.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="geometric">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>JSON Success Prob (p): <span id="v_p_geometric">0.70</span></div>
+                            <input type="range" id="p_geometric" min="0.05" max="0.99" step="0.01" value="0.70">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Attempts: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Token Tax" <span class="scenario-tag">Cost Management</span></div>
+                <p>If your validation fails 20% of the time, your effective token usage is 1.25x higher than expected. At scale, this geometric compounding destroys your FinOps budget. You must use constrained decoding (like OpenAI's JSON mode) to force <var>p</var> to 1.0.</p>
+                <div class="scenario-ref">Reference: <a href="https://platform.openai.com/docs/guides/json-mode" target="_blank">OpenAI JSON Mode</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Parser Exception" <span class="scenario-tag">LangChain</span></div>
+                <p>LangChain's OutputParsers throw an exception if the LLM adds conversational filler ("Here is your JSON!"). This forces the framework to retry, which loops back to the model and creates a geometric latency spiral.</p>
+                <div class="scenario-ref">Reference: <a href="https://python.langchain.com/docs/modules/model_io/output_parsers/" target="_blank">LangChain Output Parsers</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Infinite Loop" <span class="scenario-tag">Agent Tool Calling</span></div>
+                <p>An agent tries to call an API with the wrong arguments. The API returns a 400 error. The agent retries with the exact same arguments. Without a circuit breaker, this loop runs until the maximum token limit is reached.</p>
+                <div class="scenario-ref">Reference: <a href="https://python.langchain.com/docs/modules/agents/how_to/max_iterations/" target="_blank">LangChain Max Iterations</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 4. BINOMIAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>4. The Binomial Distribution (Agent Compounding)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The 10-Step Agent</div>
+                <div class="tldr-content">
+                    <p>You build an autonomous agent. It has to do 10 sequential steps: search the web, parse the HTML, extract the data, write to a database, etc. You benchmark the model on a single step and see a fantastic 95% success rate.</p>
+                    <p>The Binomial distribution dictates that if each step is an independent Bernoulli trial, the probability of the <em>entire</em> workflow succeeding is \(0.95^{10} \approx 59\%\). You just built an agent that fails 41% of the time, despite having a "world-class" model.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of <var>k</var> successes out of <var>n</var> independent steps, where each step has a probability <var>p</var> of success:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = (<var>n</var> choose <var>k</var>) &middot; <var>p</var><sup><var>k</var></sup> &middot; (1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>n</var>:</strong> The number of sequential steps in your agent workflow.</li>
+                    <li><strong><var>k</var>:</strong> The number of successful steps.</li>
+                    <li><strong><var>p</var>:</strong> The probability of success on a single step.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If you have a 20-step agent with a 95% per-step success rate, the probability of 20 out of 20 successes is <code>0.95^20 = 35.8%</code>. This means a third of your user sessions will encounter a failed state. You cannot fix this by fine-tuning the model; you must reduce the number of steps (n) or add deterministic guardrails (raise p).</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Agent steps are <strong>not independent</strong>. If step 2 hallucinates a wrong URL, step 3 (parsing the HTML) will fail, step 4 (extracting the data) will fail, and the whole pipeline collapses. The Binomial math is actually overly optimistic because it doesn't account for error cascades.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="binomial">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Agent Steps (n): <span id="v_n_binomial">10</span></div>
+                            <input type="range" id="n_binomial" min="2" max="30" step="1" value="10">
+                        </div>
+                        <div class="param-group">
+                            <div>Step Success Prob (p): <span id="v_p_binomial">0.95</span></div>
+                            <input type="range" id="p_binomial" min="0.50" max="0.99" step="0.01" value="0.95">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Successful Steps: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Compounding Hallucination" <span class="scenario-tag">AutoGPT</span></div>
+                <p>Early autonomous agents like AutoGPT were notorious for getting stuck in loops. A single wrong assumption in step 1 led to compounding errors in steps 2 through 50. The agent would eventually run out of context window or start hallucinating tools that didn't exist.</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2308.11432" target="_blank">Wang et al., "A Survey on Large Language Model based Autonomous Agents"</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Cascading Failures" <span class="scenario-tag">Multi-Agent Systems</span></div>
+                <p>When you have multiple agents talking to each other (e.g., a "Coder" agent and a "Reviewer" agent), the failure rate compounds exponentially. The Reviewer misses a bug, the Coder introduces 3 more bugs while trying to fix it, and the whole system collapses.</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2305.14325" target="_blank">Qian et al., "Communicative Agents for Software Development"</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Deterministic Guardrail" <span class="scenario-tag">NeMo Guardrails</span></div>
+                <p>The only way to make agents reliable is to wrap the non-deterministic steps in deterministic guardrails. If an agent tries to call a tool with invalid arguments, the guardrail catches it before the API is hit. This artificially raises <var>p</var> for the workflow.</p>
+                <div class="scenario-ref">Reference: <a href="https://github.com/NVIDIA/NeMo-Guardrails" target="_blank">NVIDIA NeMo Guardrails</a></div>
+            </div>
+
+            <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
+                <div class="tldr-eyebrow">The Final Reality: Human-in-the-Loop</div>
+                <div class="tldr-content">
+                    <p>AI systems don't fail because the math is different. They fail because the math is the same. A 20-step agent is just a distributed system with a 40% failure rate.</p>
+                    <p style="margin-top: 0.5rem;"><strong>The Lesson:</strong> You cannot prompt-engineer your way out of the Binomial distribution. You must build deterministic architectures that constrain the AI's stochastic nature. For any high-stakes workflow, you need a human-in-the-loop. The AI proposes; the deterministic system disposes.</p>
+                </div>
+            </div>
+
+            <nav class="post-pager" aria-label="Series pagination">
+                <a href="part-7-architects-reality-check.html">← Part 7: The Architect's Reality Check</a>
+                <a href="appendix-ai-systems.html">Back to Series Overview →</a>
+            </nav>
+        </main>
+
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Simulator & Theme Engine -->
     <script>
-        (function() {
-            let state = { runs: 0, successes: 0, history: [], running: false };
-            let timer = null;
-            
-            const cv = document.getElementById('cv');
-            const ctx = cv.getContext('2d');
-            
-            const param_p = document.getElementById('param_p');
-            const param_depth = document.getElementById('param_depth');
-            const v_p = document.getElementById('v_p');
-            const v_depth = document.getElementById('v_depth');
-            const captionText = document.getElementById('captionText');
-            
-            function getCssVar(name) {
-                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-            }
-            
-            function isLightMode() {
-                const root = document.documentElement;
-                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
-            }
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvasToSim = new Map();
 
-            function updateExpected() {
-                const p = parseFloat(param_p.value);
-                const depth = parseInt(param_depth.value);
-                const expected = Math.pow(p, depth) * 100;
-                captionText.textContent = `Expected Pipeline Success: ${expected.toFixed(1)}%`;
-            }
-
-            function draw() {
-                const dpr = window.devicePixelRatio || 1;
-                const rect = cv.parentElement.getBoundingClientRect();
-                cv.width = rect.width * dpr;
-                cv.height = 260 * dpr;
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.scale(dpr, dpr);
-                const logicalW = rect.width;
-                const logicalH = 260;
-
-                ctx.clearRect(0, 0, logicalW, logicalH);
-                
-                const pad = {l: 40, r: 20, t: 20, b: 30};
-                const plotW = logicalW - pad.l - pad.r;
-                const plotH = logicalH - pad.t - pad.b;
-                
-                // Grid
-                const gridColor = isLightMode() ? '#cbd5e1' : '#2a323e';
-                ctx.strokeStyle = gridColor;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(pad.l, pad.t);
-                ctx.lineTo(pad.l, logicalH - pad.b);
-                ctx.lineTo(logicalW - pad.r, logicalH - pad.b);
-                ctx.stroke();
-
-                if (state.history.length === 0) {
-                    ctx.fillStyle = isLightMode() ? '#475569' : '#8b93a3';
-                    ctx.font = '13px "IBM Plex Mono", monospace';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('Click "▶ Run Workflow" to simulate agents...', logicalW/2, logicalH/2);
-                    return;
-                }
-
-                // We will plot the running success rate over time
-                const successRates = [];
-                let runningSuccesses = 0;
-                state.history.forEach((success, idx) => {
-                    if(success) runningSuccesses++;
-                    successRates.push(runningSuccesses / (idx + 1));
-                });
-
-                // Plot line
-                ctx.beginPath();
-                ctx.strokeStyle = getCssVar('--teal');
-                ctx.lineWidth = 2;
-                
-                const xStep = plotW / Math.max(100, successRates.length);
-                
-                successRates.forEach((rate, idx) => {
-                    const x = pad.l + (idx * xStep);
-                    const y = logicalH - pad.b - (rate * plotH);
-                    if (idx === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                });
-                ctx.stroke();
-
-                // Draw expected line
-                const p = parseFloat(param_p.value);
-                const depth = parseInt(param_depth.value);
-                const expected = Math.pow(p, depth);
-                
-                ctx.beginPath();
-                ctx.strokeStyle = getCssVar('--amber');
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([5, 5]);
-                const expY = logicalH - pad.b - (expected * plotH);
-                ctx.moveTo(pad.l, expY);
-                ctx.lineTo(logicalW - pad.r, expY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Y-axis labels
-                ctx.fillStyle = isLightMode() ? '#475569' : '#8b93a3';
-                ctx.font = '10px "IBM Plex Mono", monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText('100%', pad.l - 8, pad.t + 4);
-                ctx.fillText('50%', pad.l - 8, pad.t + (plotH/2) + 4);
-                ctx.fillText('0%', pad.l - 8, logicalH - pad.b + 4);
-
-                // Update DOM
-                document.getElementById('statN').textContent = state.runs;
-                const actualRate = (state.successes / state.runs) * 100;
-                document.getElementById('statSuccess').textContent = actualRate.toFixed(1) + '%';
-            }
-
-            function simulateBatch() {
-                const p = parseFloat(param_p.value);
-                const depth = parseInt(param_depth.value);
-                
-                for(let i=0; i<5; i++) {
-                    let success = true;
-                    for(let step=0; step<depth; step++) {
-                        if (Math.random() > p) {
-                            success = false;
-                            break;
-                        }
-                    }
-                    state.history.push(success);
-                    state.runs++;
-                    if (success) state.successes++;
-                    
-                    // keep history manageable
-                    if(state.history.length > 300) {
-                        state.history.shift();
-                    }
-                }
-                
-                // Recalculate successes based on shifted array
-                if (state.history.length === 300) {
-                   state.successes = state.history.filter(Boolean).length;
-                   state.runs = 300;
-                }
-                
-                draw();
-            }
-
-            // Bind Events
-            param_p.addEventListener('input', (e) => {
-                v_p.textContent = parseFloat(e.target.value).toFixed(2);
-                state = { runs: 0, successes: 0, history: [], running: false };
-                updateExpected();
-                draw();
-            });
-            
-            param_depth.addEventListener('input', (e) => {
-                v_depth.textContent = e.target.value;
-                state = { runs: 0, successes: 0, history: [], running: false };
-                updateExpected();
-                draw();
-            });
-
-            document.getElementById('btnRun').onclick = () => {
-                if(state.running) { 
-                    state.running = false; 
-                    document.getElementById('btnRun').textContent = '▶ Run Workflow'; 
-                    clearInterval(timer); 
-                    return; 
-                }
-                state.running = true; 
-                document.getElementById('btnRun').textContent = '⏸ Pause';
-                timer = setInterval(simulateBatch, 50);
-            };
-            
-            document.getElementById('btnReset').onclick = () => { 
-                state = { runs: 0, successes: 0, history: [], running: false };
-                if (timer) clearInterval(timer);
-                document.getElementById('btnRun').textContent = '▶ Run Workflow'; 
-                draw(); 
-                document.getElementById('statN').textContent = '0';
-                document.getElementById('statSuccess').textContent = '–';
-            };
-
-            // Resize & Theme Listeners
-            window.addEventListener('resize', draw);
-            const observer = new MutationObserver(() => draw());
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
-
-            // Theme Toggle Logic
+            // --- Theme Toggle Logic ---
             const themeBtn = document.querySelector('.theme-toggle');
             if (themeBtn) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
                 themeBtn.addEventListener('click', () => {
                     const root = document.documentElement;
                     const current = root.getAttribute('data-theme') || 'dark';
@@ -511,14 +547,299 @@
                     root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
                     localStorage.setItem('theme', newTheme);
+
+                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
+                        const sim = canvasToSim.get(canvas);
+                        if (sim) sim.draw();
+                    });
                 });
             }
 
-            // Init
-            updateExpected();
-            draw();
-        })();
+            function isLightMode() {
+                const root = document.documentElement;
+                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
+            }
+
+            function getCssVar(name) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            }
+
+            class Simulator {
+                constructor(stageElement) {
+                    this.type = stageElement.dataset.simType;
+                    this.canvas = stageElement.querySelector('.sim-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.samples = [];
+                    this.running = false;
+                    this.timer = null;
+                    this.params = {};
+
+                    this.statN = stageElement.querySelector('.stat-n');
+                    this.statMean = stageElement.querySelector('.stat-mean');
+                    this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnStep = stageElement.querySelector('.btn-step');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.bindInputs(stageElement);
+
+                    this.btnRun.onclick = () => this.toggleRun();
+                    this.btnStep.onclick = () => this.step(50);
+                    this.btnReset.onclick = () => this.reset();
+
+                    this.resize();
+                    window.addEventListener('resize', () => this.resize());
+
+                    canvasToSim.set(this.canvas, this);
+                    this.draw();
+                }
+
+                bindInputs(stage) {
+                    if (this.type === 'categorical') {
+                        const input = stage.querySelector('#temp_categorical');
+                        const label = stage.querySelector('#v_temp_categorical');
+                        this.params.temp = parseFloat(input.value);
+                        input.oninput = (e) => {
+                            this.params.temp = parseFloat(e.target.value);
+                            label.textContent = this.params.temp.toFixed(1);
+                            this.reset();
+                        };
+                    } else if (this.type === 'exponential') {
+                        const input = stage.querySelector('#lam_exponential');
+                        const label = stage.querySelector('#v_lam_exponential');
+                        this.params.lam = parseFloat(input.value);
+                        input.oninput = (e) => {
+                            this.params.lam = parseFloat(e.target.value);
+                            label.textContent = this.params.lam.toFixed(1);
+                            this.reset();
+                        };
+                    } else if (this.type === 'geometric') {
+                        const input = stage.querySelector('#p_geometric');
+                        const label = stage.querySelector('#v_p_geometric');
+                        this.params.p = parseFloat(input.value);
+                        input.oninput = (e) => {
+                            this.params.p = parseFloat(e.target.value);
+                            label.textContent = this.params.p.toFixed(2);
+                            this.reset();
+                        };
+                    } else if (this.type === 'binomial') {
+                        const inputN = stage.querySelector('#n_binomial');
+                        const labelN = stage.querySelector('#v_n_binomial');
+                        const inputP = stage.querySelector('#p_binomial');
+                        const labelP = stage.querySelector('#v_p_binomial');
+
+                        this.params.n = parseInt(inputN.value);
+                        this.params.p = parseFloat(inputP.value);
+
+                        inputN.oninput = (e) => { this.params.n = parseInt(e.target.value); labelN.textContent = this.params.n; this.reset(); };
+                        inputP.oninput = (e) => { this.params.p = parseFloat(e.target.value); labelP.textContent = this.params.p.toFixed(2); this.reset(); };
+                    }
+                }
+
+                resize() {
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = this.canvas.parentElement.getBoundingClientRect();
+                    const logicalW = rect.width - 48;
+                    const logicalH = 220;
+
+                    this.canvas.width = logicalW * dpr;
+                    this.canvas.height = logicalH * dpr;
+                    this.canvas.style.width = logicalW + 'px';
+                    this.canvas.style.height = logicalH + 'px';
+
+                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    this.ctx.scale(dpr, dpr);
+
+                    this.logicalW = logicalW;
+                    this.logicalH = logicalH;
+                    this.draw();
+                }
+
+                generateSample() {
+                    const u = Math.random();
+                    if (this.type === 'categorical') {
+                        // Simulate 4 tokens: "Data", "Model", "Magic", "Garbage"
+                        // Base logits (simplified): 2, 1.5, 1, 0
+                        let logits = [2, 1.5, 1, 0];
+                        let T = this.params.temp;
+                        if (T <= 0.05) T = 0.05; // Prevent division by zero
+                        
+                        // Apply temperature
+                        let exps = logits.map(l => Math.exp(l / T));
+                        let sumExps = exps.reduce((a, b) => a + b, 0);
+                        let probs = exps.map(e => e / sumExps);
+
+                        // Sample
+                        let r = u;
+                        let acc = 0;
+                        for (let i = 0; i < probs.length; i++) {
+                            acc += probs[i];
+                            if (r <= acc) return i;
+                        }
+                        return probs.length - 1;
+                    } else if (this.type === 'exponential') {
+                        return -Math.log(1 - u) / this.params.lam;
+                    } else if (this.type === 'geometric') {
+                        let k = 1;
+                        while (u >= this.params.p) k++;
+                        return k;
+                    } else if (this.type === 'binomial') {
+                        let s = 0;
+                        for (let i = 0; i < this.params.n; i++) {
+                            if (u < this.params.p) s++;
+                        }
+                        return s;
+                    }
+                }
+
+                getRange() {
+                    if (this.type === 'categorical') return [0, 3];
+                    if (this.type === 'exponential') return [0, 5 / this.params.lam];
+                    if (this.type === 'geometric') return [1, Math.ceil(5 / this.params.p)];
+                    if (this.type === 'binomial') return [0, this.params.n];
+                }
+
+                isDiscrete() {
+                    return this.type === 'categorical' || this.type === 'geometric' || this.type === 'binomial';
+                }
+
+                getLabels() {
+                    if (this.type === 'categorical') return ['Data', 'Model', 'Magic', 'Garbage'];
+                    return null;
+                }
+
+                draw() {
+                    if (!this.ctx) return;
+                    const ctx = this.ctx;
+                    const W = this.logicalW;
+                    const H = this.logicalH;
+                    ctx.clearRect(0, 0, W, H);
+
+                    const light = isLightMode();
+                    const gridColor = light ? '#cbd5e1' : '#2a323e';
+                    const labelColor = light ? '#475569' : '#8b93a3';
+
+                    let barColor = getCssVar('--teal');
+                    if (this.type === 'exponential') barColor = getCssVar('--amber');
+                    if (this.type === 'geometric') barColor = getCssVar('--bad');
+                    if (this.type === 'binomial') barColor = getCssVar('--good');
+
+                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    const plotW = W - pad.l - pad.r;
+                    const plotH = H - pad.t - pad.b;
+
+                    ctx.strokeStyle = gridColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(pad.l, H - pad.b);
+                    ctx.lineTo(W - pad.r, H - pad.b);
+                    ctx.stroke();
+
+                    if (this.samples.length === 0) {
+                        ctx.fillStyle = labelColor;
+                        ctx.font = '12px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        this.statN.textContent = '0';
+                        this.statMean.textContent = '–';
+                        return;
+                    }
+
+                    const [rmin, rmax] = this.getRange();
+                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
+                    const binWidth = (rmax - rmin) / bins;
+                    const counts = new Array(bins).fill(0);
+                    let sum = 0;
+
+                    this.samples.forEach(v => {
+                        sum += v;
+                        if (v >= rmin && v <= rmax) {
+                            let idx = Math.floor((v - rmin) / binWidth);
+                            if (idx >= bins) idx = bins - 1;
+                            counts[idx]++;
+                        }
+                    });
+
+                    const mean = sum / this.samples.length;
+                    const maxCount = Math.max(1, ...counts);
+                    const bw = plotW / bins;
+                    const labels = this.getLabels();
+
+                    ctx.fillStyle = barColor;
+                    counts.forEach((c, i) => {
+                        const h = (c / maxCount) * plotH * 0.9;
+                        const x = pad.l + (i * bw);
+                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
+
+                        if (labels && labels[i]) {
+                            ctx.fillStyle = labelColor;
+                            ctx.font = '10px "IBM Plex Mono", monospace';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(labels[i], x + bw/2, H - pad.b + 15);
+                            ctx.fillStyle = barColor;
+                        }
+                    });
+
+                    if (this.type === 'categorical') {
+                        let maxIdx = counts.indexOf(maxCount);
+                        this.statMean.textContent = labels[maxIdx];
+                    } else if (mean >= rmin && mean <= rmax) {
+                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--bad');
+                        ctx.lineWidth = 2;
+                        ctx.moveTo(meanX, pad.t);
+                        ctx.lineTo(meanX, H - pad.b);
+                        ctx.stroke();
+
+                        ctx.fillStyle = getCssVar('--bad');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                        this.statMean.textContent = mean.toFixed(2);
+                    }
+
+                    this.statN.textContent = this.samples.length;
+                }
+
+                toggleRun() {
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                        return;
+                    }
+                    this.running = true;
+                    this.btnRun.textContent = '⏸ Pause';
+                    this.timer = setInterval(() => {
+                        this.step(15);
+                    }, 50);
+                }
+
+                step(n) {
+                    for (let i = 0; i < n; i++) {
+                        this.samples.push(this.generateSample());
+                    }
+                    this.draw();
+                }
+
+                reset() {
+                    this.samples = [];
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                    }
+                    this.draw();
+                }
+            }
+
+            document.querySelectorAll('.stage').forEach(stage => {
+                new Simulator(stage);
+            });
+        });
     </script>
 </body>
 </html>
