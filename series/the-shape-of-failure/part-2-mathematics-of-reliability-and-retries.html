@@ -8,20 +8,161 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag() {
-            window.dataLayer.push(arguments);
-        }
+        function gtag() { window.dataLayer.push(arguments); }
         gtag('js', new Date());
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
+
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="Why n-way replication is theater when your failure domains overlap, and the real math of things breaking.">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
+
+    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                root.setAttribute('data-theme', initialTheme);
+                root.classList.add(initialTheme, 'theme-' + initialTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        /* =======================================================================
+           SERIES-ALIGNED STYLES & LAYOUT
+           ======================================================================= */
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        p { margin-bottom: 1.35rem; }
+        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
+
+        /* --- Quote Styling --- */
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
+        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+
+        /* --- Series Heading Row --- */
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+
+        /* --- TL;DR / Callout Boxes --- */
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
+        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        
+        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: 0.4rem; }
+
+        /* --- Math Block --- */
+        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
+        .math-block var { font-style: italic; color: var(--amber); }
+        
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation strong { color: var(--text); }
+
+        /* --- Simulation Stage (Tight Toolbar) --- */
+        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        
+        .sim-toolbar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+            flex-wrap: nowrap; 
+            overflow-x: auto; 
+            padding-bottom: 0.5rem;
+        }
+        
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group span { font-weight: 600; color: var(--text); float: right; }
+        
+        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
+        [data-theme="light"] button.sim-btn { color: #ffffff; }
+        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+        
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout span { color: var(--amber); font-weight: 600; }
+
+        /* --- Scenario Cards --- */
+        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-card p strong { color: var(--text); }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref a { color: var(--teal); text-decoration: none; }
+        .scenario-ref a:hover { text-decoration: underline; }
+
+        /* --- Post Pager --- */
+        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+
+        /* --- Theme Toggle Icon Visibility --- */
+        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
+        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+
+        @media (max-width: 650px) {
+            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-params { flex-direction: column; width: 100%; }
+            .param-group { width: 100%; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
         <header class="site-header">
-            <a href="../../index.html" class="site-title">Saurav Sana</a>
-            <nav class="site-nav" aria-label="Primary navigation">
-                <a href="../../index.html">Home</a>
-                <a href="../../index.html">Blog</a>
-                <a href="#">Tags</a>
-                <a href="#">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
                     </svg>
@@ -42,51 +183,568 @@
 
         <main>
             <div class="post-meta" style="margin-bottom: 0.5rem;">
-                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure</a>
+                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
             </div>
 
-            <div class="part-eyebrow">Part 2 of 7</div>
-            <h1>The Mathematics of Reliability and Retries</h1>
-            <p style="font-family:'Libre Franklin',sans-serif; font-weight:600; font-size:1rem; color:var(--amber); margin:0 0 0.5rem;">Why Quorums Lie to You, and the Statistical Truth About Node Failures</p>
-            <div class="post-meta" style="margin-bottom: 2rem;">September 25, 2026 · The Shape of Failure Series</div>
+            <div class="series-heading-row">
+                <h1>Reliability, Redundancy, and the Independence Delusion</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">October 18, 2026 · Part 2 of 8</div>
 
-            <div class="placeholder-block">
-                <strong>Placeholder.</strong> Full article content coming soon. This part covers Bernoulli (single failures), Binomial (quorum consensus), Geometric (retries), Negative Binomial (error budgets), and Weibull (hardware aging and memory leaks).
+            <blockquote class="snarky-quote">
+                <p class="snarky-quote-text">“Everything fails, all the time.”</p>
+                <p class="snarky-quote-author">— <strong><em>Werner Vogels</em></strong>, CTO of Amazon</p>
+            </blockquote>
+
+            <p>Welcome to the mathematics of things breaking. In systems design, we routinely calculate cluster reliability using simple probabilities. We spin up three database replicas, calculate the probability of one dying, and proudly declare our architecture "highly available" because we assume that if Server A dies, Server B is completely unaffected.</p>
+
+            <p>This assumption is what we call <strong>Replication Theater</strong>. True independence in the cloud is a myth. Components assumed to be mathematically independent turn out to share a rack, a power domain, a Top-of-Rack switch, a hypervisor, a control plane, or a deployment pipeline. You don't have three independent servers; you have three tenants in the same burning building.</p>
+
+            <p>To accurately model failures, we must map our architecture to the correct statistical distribution. Applying the wrong mathematical model to an infrastructure failure is how you end up paging on-call engineers at 3 AM for a phantom metric.</p>
+
+            <!-- ========================================== -->
+            <!-- 1. BERNOULLI DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>1. The Bernoulli Distribution</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Binary Reality</div>
+                <div class="tldr-content">
+                    <p>Forget the cluster. Forget the fleet. Forget the 99.99% SLA dashboard. Think about <em>one single request</em> happening right now. Did the HTTP request succeed, or did it return a 500? Did the server boot, or did it hang?</p>
+                    <p>Everything in your complex distributed system eventually bottoms out here: <strong>a single binary event</strong>. A user clicks "buy," and either the transaction goes through or it doesn't. There is no "partially degraded" in a strict Bernoulli model. It is a single coin flip: Success (1) or Fail (0).</p>
+                    <p>When an S3 load balancer drops <em>your</em> specific packet, you are a 0. The user doesn't care that the fleet is healthy; their specific coin flip just landed on tails.</p>
+                </div>
             </div>
 
-            <h2>What This Part Covers</h2>
-            <p>The assumption that three replicas means three independent failure probabilities is one of the most expensive misconceptions in distributed systems engineering. Correlated failures — shared power domains, shared network switches, shared kernel versions — mean the Binomial model breaks down precisely when you need it most.</p>
-            <p>This part builds the statistical foundation for reasoning about reliability: from a single node’s Bernoulli trial, through quorum consensus under Binomial assumptions, to the Geometric distribution that governs how many retries you actually need before a circuit breaker should trip.</p>
+            <h3>The Math</h3>
+            <p>The probability mass function for a Bernoulli trial, where <var>p</var> is the probability of success, and <var>k</var> is the outcome (0 for failure, 1 for success):</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = <var>p</var><sup><var>k</var></sup>(1 - <var>p</var>)<sup>1 - <var>k</var></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li>If the request succeeds (<var>k</var> = 1): The formula becomes <code>p^1 * (1-p)^0</code>, which is just <strong>p</strong>.</li>
+                    <li>If the request fails (<var>k</var> = 0): The formula becomes <code>p^0 * (1-p)^1</code>, which is just <strong>1 - p</strong>.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If your single server has a 99% success rate (<var>p</var> = 0.99), the probability of a successful request is <code>0.99^1 = 0.99</code>. The probability of failure is <code>1 - 0.99 = 0.01</code> (or 1%).</p>
+            </div>
 
-            <h2>Key Concepts</h2>
-            <ul>
-                <li>Bernoulli trials and the single-node failure probability</li>
-                <li>Binomial distribution: quorum consensus and the myth of independent replicas</li>
-                <li>Geometric distribution: retry budgets and exponential backoff with jitter</li>
-                <li>Negative Binomial: error budget modeling across a rolling window</li>
-                <li>Weibull distribution: hardware aging curves and memory leak detection</li>
-            </ul>
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>The Bernoulli distribution tells you the probability of <em>one</em> event. It tells you absolutely nothing about the system as a whole. If you average out 1,000,000 requests and get a 99.9% success rate, you are masking the fact that 1,000 users just experienced a hard 0.</p>
+                </div>
+            </div>
 
-            <nav class="part-nav" aria-label="Series navigation">
-                <div class="prev">
-                    <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="bernoulli">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Success Prob (p): <span id="v_p_bernoulli">0.70</span></div>
+                            <input type="range" id="p_bernoulli" min="0.01" max="0.99" step="0.01" value="0.70">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
                 </div>
-                <div class="next">
-                    <a href="part-3-physics-of-time-traffic-and-queues.html">Part 3: The Physics of Time, Traffic, and Queues →</a>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Value: <span class="stat-mean">–</span></div>
                 </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Single User Perspective" <span class="scenario-tag">AWS S3</span></div>
+                <p>"It works for 99.99% of people" is useless to the one user who just saw their payment fail. When an S3 load balancer drops <em>your</em> specific packet, you are a 0. The fleet is irrelevant. You have experienced a perfect, unadulterated Bernoulli failure.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/message/41926/" target="_blank">AWS S3 2017 Post-Mortem (Typo took down the fleet)</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Single Point of Truth" <span class="scenario-tag">HashiCorp Vault</span></div>
+                <p>A master key unsealing an encrypted node. There is no such thing as "partially unlocked." It either accepts the cryptographic shard and opens, or it stays shut. It is the ultimate binary state.</p>
+                <div class="scenario-ref">Reference: <a href="https://developer.hashicorp.com/vault/docs/concepts/seal" target="_blank">Vault Seal/Unseal Architecture</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Ruthless Executioner" <span class="scenario-tag">Kubernetes Liveness Probe</span></div>
+                <p>Every 10 seconds, the Kubelet asks the pod "Are you alive?" The pod's response is a Bernoulli trial. If it returns three 0s in a row, the pod is killed. The Kubelet doesn't care if the pod is "a little bit tired."</p>
+                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank">Kubernetes Liveness Probe Docs</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 2. BINOMIAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>2. The Binomial Distribution</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Architecture Review Lie</div>
+                <div class="tldr-content">
+                    <p>If a Bernoulli trial is one server flipping a coin, the Binomial distribution is 100 servers flipping coins at the exact same time. It models the probability of exactly <var>k</var> simultaneous failures in a cluster.</p>
+                    <p>This is the math your cloud architect used when they said, "With 5 replicas, the chance of losing quorum is statistically zero!" It assumes every server is perfectly independent.</p>
+                    <p><strong>The fatal flaw:</strong> The architecture diagram says "3 AZs, 3 independent replicas." The physical reality is one Top-of-Rack switch losing power, causing 20 servers to land on tails at the exact same millisecond. They aren't independent coins; they are coins glued together.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of observing exactly <var>k</var> failures out of <var>n</var> total nodes, where each node has a probability <var>p</var> of failing:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = (<var>n</var> choose <var>k</var>) &middot; <var>p</var><sup><var>k</var></sup> &middot; (1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong>(<var>n</var> choose <var>k</var>):</strong> This is the combinatorics part. It calculates the number of different ways <var>k</var> nodes can fail out of <var>n</var> total nodes. (e.g., If node 1 and 2 fail, or node 2 and 3 fail).</li>
+                    <li><strong><var>p</var><sup><var>k</var></sup>:</strong> The probability that exactly <var>k</var> nodes fail.</li>
+                    <li><strong>(1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>:</strong> The probability that the remaining <var>n</var> - <var>k</var> nodes survive.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> You have a 5-node database cluster (<var>n</var> = 5). Each node has a 1% chance of dying (<var>p</var> = 0.01). What is the probability that exactly 2 nodes fail? (Which would cause you to lose quorum). The math says <strong>0.097%</strong>. Looks safe, right? But this math assumes the failures are independent.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>The Binomial distribution is dangerously optimistic. It assumes failures are independent coin flips. But in the real world, failures are highly correlated. If you deploy a bad kernel update, <var>p</var> doesn't stay at 1%; it jumps to 100% for every single node.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="binomial">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Fleet Size (n): <span id="v_n_binomial">50</span></div>
+                            <input type="range" id="n_binomial" min="10" max="200" step="10" value="50">
+                        </div>
+                        <div class="param-group">
+                            <div>Fail Prob (p): <span id="v_p_binomial">0.10</span></div>
+                            <input type="range" id="p_binomial" min="0.01" max="0.5" step="0.01" value="0.10">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Failures: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Correlated Poison" <span class="scenario-tag">CrowdStrike 2024</span></div>
+                <p>You have 100,000 Windows servers. You assume the chance of all failing is mathematically zero. But they didn't flip independent coins; they all downloaded the exact same kernel-level update payload. The probability wasn't independent; it was <code>p = 1</code> for everyone who received the update. The Binomial assumption shattered.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.crowdstrike.com/falcon-content-update-remediation-and-guidance-hub/" target="_blank">CrowdStrike Channel File 291 Root Cause Analysis</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Quorum Illusion" <span class="scenario-tag">Raft / Paxos</span></div>
+                <p>You have a 5-node cluster. You assume 2 can die safely. But if the shared Top-of-Rack switch dies, all 5 nodes lose network connection simultaneously. The quorum is gone instantly. The Binomial formula assumes the failures are independent, but physical infrastructure is a shared single point of failure.</p>
+                <div class="scenario-ref">Reference: <a href="https://raft.github.io/raft.pdf" target="_blank">Ongaro & Ousterhout, "In Search of an Understandable Consensus Algorithm" (Raft Paper)</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Self-Inflicted DDoS" <span class="scenario-tag">Redis Cache Stampede</span></div>
+                <p>A popular cache key expires. 10,000 clients simultaneously miss the cache and slam the database at the same millisecond. The database drops 80% of the queries. It wasn't random load; it was highly correlated timing.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank">Facebook, "Scaling Memcache at Facebook" (NSDI '13)</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 3. WEIBULL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>3. The Weibull Distribution</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Ticking Time Bomb</div>
+                <div class="tldr-content">
+                    <p>Hardware doesn't flip coins. Hardware gets tired and dies. The Weibull distribution models the <em>hazard rate</em> over time. It creates the infamous "Bathtub Curve," which has three distinct phases:</p>
+                    <ul>
+                        <li><strong>Infant Mortality (Early Life):</strong> High failure rate right out of the box. (Think: a bad batch of hard drives, or a botched Kubernetes deployment).</li>
+                        <li><strong>Useful Life (Middle):</strong> A flat, random failure rate. (Think: standard operating conditions where failures are purely random).</li>
+                        <li><strong>Wear-Out (Late Life):</strong> A terrifying spike in failures as physical components degrade. (Think: mechanical drives hitting their spin limit, or a memory leak finally hitting OOM).</li>
+                    </ul>
+                    <p>If you use Bernoulli for hardware, you'll budget for the flat middle and get absolutely destroyed by the cliff at the end.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability density function for a Weibull distribution, where <var>k</var> is the shape parameter (determines the bathtub curve shape) and <var>&lambda;</var> is the scale parameter (the characteristic life):</p>
+            <div class="math-block">
+                <var>f</var>(<var>x</var>; <var>&lambda;</var>, <var>k</var>) = (<var>k</var> / <var>&lambda;</var>) &middot; (<var>x</var> / <var>&lambda;</var>)<sup><var>k</var> - 1</sup> &middot; <var>e</var><sup>-(<var>x</var>/<var>&lambda;</var>)<sup><var>k</var></sup></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>k</var> (Shape):</strong> This is the magic number.
+                        <ul>
+                            <li>If <var>k</var> &lt; 1, the failure rate decreases over time (Infant Mortality).</li>
+                            <li>If <var>k</var> = 1, the failure rate is constant (Random Failures).</li>
+                            <li>If <var>k</var> &gt; 1, the failure rate increases over time (Wear-Out).</li>
+                        </ul>
+                    </li>
+                    <li><strong><var>&lambda;</var> (Scale):</strong> The characteristic life. It's the point in time where exactly 63.2% of the components have failed.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If you model an SSD, you might find <var>k</var> = 3 and <var>&lambda;</var> = 5 years. This means the drive works fine for a few years, but as it approaches year 5, the hazard rate spikes exponentially. If you used a constant failure rate (<var>k</var>=1), you would drastically underestimate the risk of failure in year 6.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>The Weibull distribution is a double-edged sword. It tells you exactly when your hardware will die, but it requires you to have historical data to calculate <var>k</var> and <var>&lambda;</var>. If you just guess, your reliability model is fiction. You need to actively monitor hardware age and usage.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="weibull">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Shape (k): <span id="v_k_weibull">1.5</span></div>
+                            <input type="range" id="k_weibull" min="0.5" max="4.0" step="0.1" value="1.5">
+                        </div>
+                        <div class="param-group">
+                            <div>Scale (λ): <span id="v_lam_weibull">4.0</span></div>
+                            <input type="range" id="lam_weibull" min="1.0" max="10.0" step="0.5" value="4.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Time to Fail: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Bathtub" in the Data Center <span class="scenario-tag">Backblaze HDD Stats</span></div>
+                <p>Backblaze publishes their drive failure stats. They don't fail randomly. You see the Weibull curve in action: bad batches fail immediately out of the box (infant mortality). Then, years of quiet stability. Then, at year 4 or 5, the failure rate spikes violently as the mechanical parts wear out.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank">Backblaze Quarterly Hard Drive Stats</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Silent Killer" <span class="scenario-tag">SSD / EBS Wear-Out</span></div>
+                <p>SSDs don't slow down gracefully to 0 IOPS. They work perfectly until they hit their NAND write limit, and then abruptly turn into a brick. The Weibull shape parameter <code>k > 1</code> models this terrifying cliff-edge hazard rate.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/fast12/fast12-final4.pdf" target="_blank">Meza et al., "A Large-Scale Study of Flash Memory Failures in the Field"</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Slow Death" <span class="scenario-tag">OOM Kill</span></div>
+                <p>A service with a slow memory leak. The probability of an OOM kill doesn't follow a coin flip. The hazard rate increases every hour the pod stays alive, until it reaches the absolute physical limit of RAM. This is late-stage Weibull wear-out applied to software.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.kernel.org/doc/html/latest/admin-guide/mm/concepts.html#oom-killer" target="_blank">Linux Kernel OOM Killer Documentation</a></div>
+            </div>
+
+            <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
+                <div class="tldr-eyebrow">The Core Problem: Knight Capital (2012)</div>
+                <div class="tldr-content">
+                    <p>Knight Capital lost $460 million in 45 minutes not because of a "heavy-tailed statistical anomaly" or a stochastic hardware blip. They collapsed because a deterministic human left an obsolete code path active on one of eight routing servers during a manual deployment. N-way redundancy cannot save you from deterministic state corruption.</p>
+                    <p><strong>The Lesson:</strong> Redundancy without independence provides absolutely zero protection. Throwing more nodes at a problem only works if the nodes fail randomly. If the failure is baked into the procedural pipeline, scaling up just means you scale the blast radius.</p>
+                </div>
+            </div>
+
+            <nav class="post-pager" aria-label="Series pagination">
+                <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
+                <a href="part-3-physics-of-time-traffic-and-queues.html">Part 3: Kingman's Formula & Queue Collapse →</a>
             </nav>
         </main>
 
         <footer class="site-footer">
             <div>© 2026 Saurav Sana</div>
             <div class="footer-links">
-                <a href="#">Github</a>
-                <a href="#">X / Twitter</a>
-                <a href="#">LinkedIn</a>
-                <a href="#">RSS</a>
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
             </div>
         </footer>
 
     </div>
+
+    <!-- Simulator & Theme Engine -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvasToSim = new Map();
+
+            // --- Theme Toggle Logic ---
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                // Set initial aria-pressed state
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+                    
+                    // Remove all theme classes
+                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                    
+                    // Set new theme
+                    root.setAttribute('data-theme', newTheme);
+                    root.classList.add(newTheme, 'theme-' + newTheme);
+                    
+                    // Update ARIA state
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
+                    
+                    // Save preference
+                    localStorage.setItem('theme', newTheme);
+
+                    // Redraw canvases
+                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
+                        const sim = canvasToSim.get(canvas);
+                        if (sim) sim.draw();
+                    });
+                });
+            }
+
+            function isLightMode() {
+                const root = document.documentElement;
+                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
+            }
+
+            function getCssVar(name) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            }
+
+            class Simulator {
+                constructor(stageElement) {
+                    this.type = stageElement.dataset.simType;
+                    this.canvas = stageElement.querySelector('.sim-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.samples = [];
+                    this.running = false;
+                    this.timer = null;
+                    this.params = {};
+
+                    this.statN = stageElement.querySelector('.stat-n');
+                    this.statMean = stageElement.querySelector('.stat-mean');
+                    this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnStep = stageElement.querySelector('.btn-step');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.bindInputs(stageElement);
+
+                    this.btnRun.onclick = () => this.toggleRun();
+                    this.btnStep.onclick = () => this.step(50);
+                    this.btnReset.onclick = () => this.reset();
+
+                    this.resize();
+                    window.addEventListener('resize', () => this.resize());
+
+                    canvasToSim.set(this.canvas, this);
+                    this.draw();
+                }
+
+                bindInputs(stage) {
+                    if (this.type === 'bernoulli') {
+                        const input = stage.querySelector('#p_bernoulli');
+                        const label = stage.querySelector('#v_p_bernoulli');
+                        this.params.p = parseFloat(input.value);
+                        input.oninput = (e) => {
+                            this.params.p = parseFloat(e.target.value);
+                            label.textContent = this.params.p.toFixed(2);
+                            this.reset();
+                        };
+                    } else if (this.type === 'binomial') {
+                        const inputN = stage.querySelector('#n_binomial');
+                        const labelN = stage.querySelector('#v_n_binomial');
+                        const inputP = stage.querySelector('#p_binomial');
+                        const labelP = stage.querySelector('#v_p_binomial');
+
+                        this.params.n = parseInt(inputN.value);
+                        this.params.p = parseFloat(inputP.value);
+
+                        inputN.oninput = (e) => { this.params.n = parseInt(e.target.value); labelN.textContent = this.params.n; this.reset(); };
+                        inputP.oninput = (e) => { this.params.p = parseFloat(e.target.value); labelP.textContent = this.params.p.toFixed(2); this.reset(); };
+                    } else if (this.type === 'weibull') {
+                        const inputK = stage.querySelector('#k_weibull');
+                        const labelK = stage.querySelector('#v_k_weibull');
+                        const inputL = stage.querySelector('#lam_weibull');
+                        const labelL = stage.querySelector('#v_lam_weibull');
+
+                        this.params.k = parseFloat(inputK.value);
+                        this.params.lam = parseFloat(inputL.value);
+
+                        inputK.oninput = (e) => { this.params.k = parseFloat(e.target.value); labelK.textContent = this.params.k.toFixed(1); this.reset(); };
+                        inputL.oninput = (e) => { this.params.lam = parseFloat(e.target.value); labelL.textContent = this.params.lam.toFixed(1); this.reset(); };
+                    }
+                }
+
+                resize() {
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = this.canvas.parentElement.getBoundingClientRect();
+                    const logicalW = rect.width - 48;
+                    const logicalH = 220;
+
+                    this.canvas.width = logicalW * dpr;
+                    this.canvas.height = logicalH * dpr;
+                    this.canvas.style.width = logicalW + 'px';
+                    this.canvas.style.height = logicalH + 'px';
+
+                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    this.ctx.scale(dpr, dpr);
+
+                    this.logicalW = logicalW;
+                    this.logicalH = logicalH;
+                    this.draw();
+                }
+
+                generateSample() {
+                    const u = Math.random();
+                    if (this.type === 'bernoulli') {
+                        return u < this.params.p ? 1 : 0;
+                    } else if (this.type === 'binomial') {
+                        let s = 0;
+                        for (let i = 0; i < this.params.n; i++) {
+                            if (u < this.params.p) s++;
+                        }
+                        return s;
+                    } else if (this.type === 'weibull') {
+                        return this.params.lam * Math.pow(-Math.log(1 - u), 1 / this.params.k);
+                    }
+                }
+
+                getRange() {
+                    if (this.type === 'bernoulli') return [0, 1];
+                    if (this.type === 'binomial') return [0, this.params.n];
+                    if (this.type === 'weibull') return [0, this.params.lam * 3];
+                }
+
+                isDiscrete() {
+                    return this.type === 'bernoulli' || this.type === 'binomial';
+                }
+
+                draw() {
+                    if (!this.ctx) return;
+                    const ctx = this.ctx;
+                    const W = this.logicalW;
+                    const H = this.logicalH;
+                    ctx.clearRect(0, 0, W, H);
+
+                    const light = isLightMode();
+                    const gridColor = light ? '#cbd5e1' : '#2a323e';
+                    const labelColor = light ? '#475569' : '#8b93a3';
+
+                    let barColor = getCssVar('--teal');
+                    if (this.type === 'binomial') barColor = getCssVar('--amber');
+                    if (this.type === 'weibull') barColor = getCssVar('--bad');
+
+                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    const plotW = W - pad.l - pad.r;
+                    const plotH = H - pad.t - pad.b;
+
+                    ctx.strokeStyle = gridColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(pad.l, H - pad.b);
+                    ctx.lineTo(W - pad.r, H - pad.b);
+                    ctx.stroke();
+
+                    if (this.samples.length === 0) {
+                        ctx.fillStyle = labelColor;
+                        ctx.font = '12px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        this.statN.textContent = '0';
+                        this.statMean.textContent = '–';
+                        return;
+                    }
+
+                    const [rmin, rmax] = this.getRange();
+                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
+                    const binWidth = (rmax - rmin) / bins;
+                    const counts = new Array(bins).fill(0);
+                    let sum = 0;
+
+                    this.samples.forEach(v => {
+                        sum += v;
+                        if (v >= rmin && v <= rmax) {
+                            let idx = Math.floor((v - rmin) / binWidth);
+                            if (idx >= bins) idx = bins - 1;
+                            counts[idx]++;
+                        }
+                    });
+
+                    const mean = sum / this.samples.length;
+                    const maxCount = Math.max(1, ...counts);
+                    const bw = plotW / bins;
+
+                    ctx.fillStyle = barColor;
+                    counts.forEach((c, i) => {
+                        const h = (c / maxCount) * plotH * 0.9;
+                        const x = pad.l + (i * bw);
+                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
+                    });
+
+                    if (mean >= rmin && mean <= rmax) {
+                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--bad');
+                        ctx.lineWidth = 2;
+                        ctx.moveTo(meanX, pad.t);
+                        ctx.lineTo(meanX, H - pad.b);
+                        ctx.stroke();
+
+                        ctx.fillStyle = getCssVar('--bad');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                    }
+
+                    this.statN.textContent = this.samples.length;
+                    this.statMean.textContent = mean.toFixed(2);
+                }
+
+                toggleRun() {
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                        return;
+                    }
+                    this.running = true;
+                    this.btnRun.textContent = '⏸ Pause';
+                    this.timer = setInterval(() => {
+                        this.step(15);
+                    }, 50);
+                }
+
+                step(n) {
+                    for (let i = 0; i < n; i++) {
+                        this.samples.push(this.generateSample());
+                    }
+                    this.draw();
+                }
+
+                reset() {
+                    this.samples = [];
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                    }
+                    this.draw();
+                }
+            }
+
+            document.querySelectorAll('.stage').forEach(stage => {
+                new Simulator(stage);
+            });
+        });
+    </script>
 </body>
 </html>

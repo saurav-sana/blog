@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="Hard physical truncation, uniform jitter, multinomial routing, and the math of architecture bottlenecks. Why probability models don't save you from a full disk.">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-7-architects-reality-check.html">
+
+    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                root.setAttribute('data-theme', initialTheme);
+                root.classList.add(initialTheme, 'theme-' + initialTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        /* =======================================================================
+           SERIES-ALIGNED STYLES & LAYOUT
+           ======================================================================= */
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        p { margin-bottom: 1.35rem; }
+        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
+
+        /* --- Quote Styling --- */
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
+        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+
+        /* --- Series Heading Row --- */
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+
+        /* --- TL;DR / Callout Boxes --- */
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
+        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        
+        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: 0.4rem; }
+
+        /* --- Math Block --- */
+        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
+        .math-block var { font-style: italic; color: var(--amber); }
+        
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation strong { color: var(--text); }
+
+        /* --- Simulation Stage (Tight Toolbar) --- */
+        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        
+        .sim-toolbar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+            flex-wrap: nowrap; 
+            overflow-x: auto; 
+            padding-bottom: 0.5rem;
+        }
+        
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group span { font-weight: 600; color: var(--text); float: right; }
+        
+        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
+        [data-theme="light"] button.sim-btn { color: #ffffff; }
+        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+        
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout span { color: var(--amber); font-weight: 600; }
+
+        /* --- Scenario Cards --- */
+        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-card p strong { color: var(--text); }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref a { color: var(--teal); text-decoration: none; }
+        .scenario-ref a:hover { text-decoration: underline; }
+
+        /* --- Post Pager --- */
+        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+
+        /* --- Theme Toggle Icon Visibility --- */
+        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
+        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+
+        @media (max-width: 650px) {
+            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-params { flex-direction: column; width: 100%; }
+            .param-group { width: 100%; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+
+        <main>
+            <div class="post-meta" style="margin-bottom: 0.5rem;">
+                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
+            </div>
+
+            <div class="series-heading-row">
+                <h1>The Architect's Reality Check</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">November 21, 2026 · Part 7 of 8</div>
+
+            <blockquote class="snarky-quote">
+                <p class="snarky-quote-text">“In theory, there is no difference between theory and practice. In practice, there is.”</p>
+                <p class="snarky-quote-author">— <strong><em>Jan L. A. van de Snepscheut</em></strong>, Computer Scientist</p>
+            </blockquote>
+
+            <p>As powerful as stochastic modeling is, a probability distribution describes the <em>shape</em> of an observation, not the <em>physical reality</em> of the machine. Math won't save you from a full disk, an expired TLS certificate, or a kernel panic.</p>
+
+            <p>Mathematical distributions extend to infinity. Physical systems do not. A Pareto tail might suggest an expected payload of 10GB, but if the proxy has a hard 2GB buffer limit, the math is irrelevant—the system simply crashes.</p>
+
+            <p>The best architect isn't the one who says, "We handle 50,000 RPS." It's the one who says, "Here is the error budget, here is the retry amplification factor, and here is the hard admission control limit that keeps our database from catching fire."</p>
+
+            <!-- ========================================== -->
+            <!-- 1. UNIFORM DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>1. The Uniform Distribution (Jitter)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Synchronized Panic</div>
+                <div class="tldr-content">
+                    <p>When a service fails, what do 10,000 clients do? They all retry at the exact same millisecond. This is the "Thundering Herd." The Uniform distribution is your defense mechanism. By injecting random, bounded noise (jitter) into your retry logic, you deliberately destroy the synchronization.</p>
+                    <p>It's the architectural equivalent of telling everyone in a burning building: "Please panic, but do it at a slightly different time so we don't clog the exit."</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability density function for a Uniform distribution, bounded between a minimum <var>a</var> and a maximum <var>b</var>:</p>
+            <div class="math-block">
+                <var>f</var>(<var>x</var>) = 1 / (<var>b</var> - <var>a</var>)  for  <var>a</var> &le; <var>x</var> &le; <var>b</var>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>a</var>:</strong> The minimum delay (e.g., 0 seconds).</li>
+                    <li><strong><var>b</var>:</strong> The maximum delay (e.g., 5 seconds).</li>
+                    <li>The formula says every value between <var>a</var> and <var>b</var> has an exactly equal probability of occurring.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If you set your jitter window from 0 to 5 seconds, the probability of any specific delay (like 2.3 seconds) is <code>1 / (5 - 0) = 20%</code>. This perfectly scatters 10,000 requests across a 5-second window, reducing the instantaneous load by a factor of 5.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Jitter doesn't reduce the <em>total</em> load; it just spreads it out. If your retry storm generates 1,000,000 requests, jittering them over 10 seconds still means 100,000 RPS hitting your database. You still need circuit breakers and admission control.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="uniform">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Min Jitter (a): <span id="v_a_uniform">0.0</span></div>
+                            <input type="range" id="a_uniform" min="0.0" max="5.0" step="0.1" value="0">
+                        </div>
+                        <div class="param-group">
+                            <div>Max Jitter (b): <span id="v_b_uniform">5.0</span></div>
+                            <input type="range" id="b_uniform" min="0.5" max="10.0" step="0.1" value="5.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Delay: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "AWS Retry Storm" <span class="scenario-tag">AWS SDK</span></div>
+                <p>When S3 had a minor hiccup, millions of clients retried simultaneously, turning a small blip into a massive outage. AWS introduced "Full Jitter" (random delay between 0 and max backoff) to prevent this.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank">AWS Architecture Blog: Exponential Backoff and Jitter</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Cron Job Stampede" <span class="scenario-tag">Kubernetes</span></div>
+                <p>If 500 pods run a cron job at exactly 00:00:00, the shared database will die. By adding a random jitter of 0-300 seconds to the cron schedule, you smooth out the spike and save the DB.</p>
+                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/" target="_blank">Kubernetes CronJob Documentation</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Thundering Herd" <span class="scenario-tag">GitHub 2018</span></div>
+                <p>A database partition caused application workers to stall. When the DB returned, every worker retried at the exact same millisecond. GitHub had to implement aggressive jitter and rate limiting to recover.</p>
+                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank">GitHub's October 21 Incident Report</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 2. MULTINOMIAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>2. The Multinomial Distribution (Routing)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: Rolling the Load-Balancer Die</div>
+                <div class="tldr-content">
+                    <p>Multinomial is the Binomial distribution generalized to more than two outcomes. If your load balancer randomly routes a request to one of 5 backend servers, it is rolling a 5-sided die.</p>
+                    <p>It models the exact distribution of requests across those 5 servers. The problem? Random routing guarantees that some servers will get more traffic than others, even if they are identical. It's pure variance.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of observing <var>x<sub>1</sub></var> requests on Server 1, <var>x<sub>2</sub></var> on Server 2, etc., out of <var>n</var> total requests:</p>
+            <div class="math-block">
+                <var>P</var> = (<var>n</var>! / (<var>x<sub>1</sub></var>! &middot; <var>x<sub>2</sub></var>! &middot; &hellip; &middot; <var>x<sub>k</sub></var>!)) &middot; <var>p<sub>1</sub></var><sup><var>x<sub>1</sub></var></sup> &middot; <var>p<sub>2</sub></var><sup><var>x<sub>2</sub></var></sup> &middot; &hellip;
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>n</var>:</strong> Total requests to distribute.</li>
+                    <li><strong><var>x<sub>1</sub></var>, <var>x<sub>2</sub></var>:</strong> The number of requests that hit Server 1, Server 2, etc.</li>
+                    <li><strong><var>p<sub>1</sub></var>, <var>p<sub>2</sub></var>:</strong> The probability of routing to Server 1, Server 2, etc. (e.g., 1/5 for 5 servers).</li>
+                </ul>
+                <p><strong>Worked Example:</strong> You have 5 servers and 10 requests. The chance that Server 1 gets exactly 5 requests (while the others split the remaining 5) is highly skewed, but mathematically probable. Randomness is lumpy.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Random load balancing (Multinomial) creates hot spots. If you have 5 servers and 10,000 requests, one server might get 2,500 requests while another gets 1,500. This is why we use "Least Connections" or "Consistent Hashing" instead of pure random routing.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="multinomial">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Buckets (Servers): <span id="v_kk_multinomial">5</span></div>
+                            <input type="range" id="kk_multinomial" min="2" max="10" step="1" value="5">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Hash Collision" <span class="scenario-tag">Consistent Hashing</span></div>
+                <p>If you use a naive modulo-based hash (`hash(key) % N`) and a server dies, the modulo changes, and <em>every single key</em> has to be re-routed. This causes a massive reshuffling of the load, taking down all servers.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.toptal.com/big-data/consistent-hashing" target="_blank">Consistent Hashing Algorithm</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Power of Two Choices" <span class="scenario-tag">Nginx / HAProxy</span></div>
+                <p>Instead of purely random routing, advanced load balancers pick two servers randomly and route to the one with fewer active connections. This mathematically reduces the max load by an exponential factor.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/tpds2001.pdf" target="_blank">Mitzenmacher, "The Power of Two Choices"</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Sticky Session" <span class="scenario-tag">AWS ELB</span></div>
+                <p>When you enable sticky sessions (session affinity), the load balancer routes all requests from a user to the same server. This creates a Multinomial distribution based on user traffic patterns, often creating hot servers.</p>
+                <div class="scenario-ref">Reference: <a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/sticky-sessions.html" target="_blank">AWS ALB Sticky Sessions</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 3. DIRICHLET DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>3. The Dirichlet Distribution (Traffic Splits)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: "I don't know the real split, but I have opinions."</div>
+                <div class="tldr-content">
+                    <p>The Beta distribution models a single probability (success vs. failure). The Dirichlet distribution is the multi-dimensional generalization. It models a set of probabilities that must sum to 1.0 (e.g., your traffic split across 3 geographic regions).</p>
+                    <p>If you are running a Blue/Green deployment, the Dirichlet distribution models your uncertainty about how much traffic each environment can safely handle before you flip the switch.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability density function for a Dirichlet distribution with parameters <var>&alpha;<sub>1</sub></var>...<var>&alpha;<sub>K</sub></var>:</p>
+            <div class="math-block">
+                <var>f</var>(<var>x<sub>1</sub></var>...<var>x<sub>K</sub></var>) = (1 / <var>B</var>(<var>&alpha;</var>)) &middot; &prod; <var>x<sub>i</sub></var><sup><var>&alpha;<sub>i</sub></var>-1</sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>&alpha;<sub>i</sub></var>:</strong> The weight/prior for each category (e.g., Region A has weight 2, Region B has weight 2, Region C has weight 2).</li>
+                    <li><strong><var>B</var>(<var>&alpha;</var>):</strong> The multivariate Beta function, a normalizing constant.</li>
+                    <li><strong>&prod;:</strong> The product of all categories.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If you have 3 regions with equal weights (<var>&alpha;</var> = 2,2,2), the mean traffic split is 33.3% each. But the variance is high. One region might randomly get 50% of the traffic on any given day, which requires dynamic capacity adjustments.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Dirichlet models assume the true split is static. In reality, traffic patterns shift dynamically. If you hardcode a 33/33/33 split, but one region's traffic drops to 10%, you are wasting 66% of your capacity in the other regions. You need dynamic load balancing, not static splits.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="dirichlet">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Region A Weight (α1): <span id="v_a1_dirichlet">2.0</span></div>
+                            <input type="range" id="a1_dirichlet" min="0.2" max="10.0" step="0.1" value="2.0">
+                        </div>
+                        <div class="param-group">
+                            <div>Region B Weight (α2): <span id="v_a2_dirichlet">2.0</span></div>
+                            <input type="range" id="a2_dirichlet" min="0.2" max="10.0" step="0.1" value="2.0">
+                        </div>
+                        <div class="param-group">
+                            <div>Region C Weight (α3): <span id="v_a3_dirichlet">2.0</span></div>
+                            <input type="range" id="a3_dirichlet" min="0.2" max="10.0" step="0.1" value="2.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Split: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "A/B Test" <span class="scenario-tag">Netflix / Growth</span></div>
+                <p>Netflix uses Bayesian A/B testing with Dirichlet distributions to dynamically allocate traffic to the variant that is currently winning. This minimizes the number of users exposed to the losing variant.</p>
+                <div class="scenario-ref">Reference: <a href="https://netflixtechblog.com/its-all-a-bout-testing-the-netflix-experimentation-platform-4e1ca458c15" target="_blank">Netflix Experimentation Platform</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Multi-Armed Bandit" <span class="scenario-tag">Thompson Sampling</span></div>
+                <p>Instead of a static 50/50 split, Thompson Sampling uses the Dirichlet distribution to dynamically shift traffic to the best-performing model or recommendation algorithm.</p>
+                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Thompson_sampling" target="_blank">Thompson Sampling (Multi-Armed Bandit)</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Traffic Shaping" <span class="scenario-tag">Istio</span></div>
+                <p>Istio allows you to split traffic based on percentages. If you are rolling out v2 of a service, the Dirichlet distribution models the uncertainty in the traffic weights and how they affect error rates.</p>
+                <div class="scenario-ref">Reference: <a href="https://istio.io/latest/docs/tasks/traffic-management/traffic-shifting/" target="_blank">Istio Traffic Shifting</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 4. HYPERGEOMETRIC DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>4. The Hypergeometric Distribution (Sampling)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: Pulling Servers from a Pool</div>
+                <div class="tldr-content">
+                    <p>If you are running a canary deployment or an audit, you sample a subset of servers from a larger pool. The Hypergeometric distribution models the number of "successes" (e.g., compromised servers) in a sample, drawn from a finite population.</p>
+                    <p>Unlike the Binomial distribution, Hypergeometric assumes <strong>sampling without replacement</strong>. Every server you pull out changes the probability of the next one. This is the reality of auditing a fixed fleet of instances.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of finding exactly <var>k</var> defective items in a sample of size <var>n</var>, drawn from a population of size <var>N</var> containing <var>K</var> defects:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = [ (<var>K</var> choose <var>k</var>) &middot; (<var>N</var> - <var>K</var> choose <var>n</var> - <var>k</var>) ] / (<var>N</var> choose <var>n</var>)
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>N</var>:</strong> Total population (e.g., 100 servers).</li>
+                    <li><strong><var>K</var>:</strong> Number of defective servers in the population (e.g., 8).</li>
+                    <li><strong><var>n</var>:</strong> Sample size (e.g., you audit 20 servers).</li>
+                    <li><strong><var>k</var>:</strong> Number of defects you find in your sample.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If you have 100 servers, 8 of which are compromised, and you sample 20, what's the chance you find exactly 2 compromised ones? The Hypergeometric formula gives about a <strong>28%</strong> chance. This tells you whether a clean audit is actually meaningful, or just dumb luck.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Hypergeometric assumes the population is finite and known. In a cloud environment, your pool of servers is constantly changing (autoscaling). If you audit 20 servers and find zero defects, it doesn't mean the fleet is clean. It just means the 20 servers you happened to audit were clean. You need statistically significant sample sizes.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="hypergeom">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Population (N): <span id="v_N_hypergeom">100</span></div>
+                            <input type="range" id="N_hypergeom" min="20" max="300" step="5" value="100">
+                        </div>
+                        <div class="param-group">
+                            <div>Defectives (K): <span id="v_K_hypergeom">8</span></div>
+                            <input type="range" id="K_hypergeom" min="1" max="50" step="1" value="8">
+                        </div>
+                        <div class="param-group">
+                            <div>Sample Size (n): <span id="v_n_hypergeom">20</span></div>
+                            <input type="range" id="n_hypergeom" min="1" max="100" step="1" value="20">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Defects: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Audit Sampling" <span class="scenario-tag">SOC 2 Compliance</span></div>
+                <p>When an auditor samples 20 servers out of 500 to verify security patches, they are using the Hypergeometric distribution to calculate the confidence interval. If they find 0 missing patches in the sample, what is the probability that the whole fleet is clean?</p>
+                <div class="scenario-ref">Reference: <a href="https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2" target="_blank">AICPA SOC 2 Auditing Standards</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Canary Analysis" <span class="scenario-tag">Kubernetes</span></div>
+                <p>When rolling out a canary to 5% of the fleet, you are sampling without replacement. If a bug affects 10% of your code paths, the Hypergeometric distribution tells you the probability of catching it in the canary.</p>
+                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#canary-deployment" target="_blank">Kubernetes Canary Deployments</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Disk Failure" <span class="scenario-tag">Backblaze</span></div>
+                <p>If you pull a batch of 50 hard drives from a rack of 1,000 drives, and you know 20 drives are failing, the Hypergeometric distribution tells you the expected number of failed drives in your batch.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank">Backblaze Hard Drive Stats</a></div>
+            </div>
+
+            <nav class="post-pager" aria-label="Series pagination">
+                <a href="part-6-state-empiricism-and-simulation.html">← Part 6: State, Empiricism, and the Simulation Fallacy</a>
+                <a href="part-8-stochastic-shape-of-ai-systems.html">Part 8: The AI/LLM Frontier →</a>
+            </nav>
+        </main>
+
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Simulator & Theme Engine -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvasToSim = new Map();
+
+            // --- Theme Toggle Logic ---
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+                    
+                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                    root.setAttribute('data-theme', newTheme);
+                    root.classList.add(newTheme, 'theme-' + newTheme);
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
+                    localStorage.setItem('theme', newTheme);
+
+                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
+                        const sim = canvasToSim.get(canvas);
+                        if (sim) sim.draw();
+                    });
+                });
+            }
+
+            function isLightMode() {
+                const root = document.documentElement;
+                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
+            }
+
+            function getCssVar(name) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            }
+
+            function randNormal() {
+                let u = 0, v = 0;
+                while (u === 0) u = Math.random();
+                while (v === 0) v = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function randGamma(s, c) {
+                if (s < 1) return randGamma(1 + s, c) * Math.pow(Math.random(), 1 / s);
+                let d = s - 1 / 3, e = 1 / Math.sqrt(9 * d);
+                while (true) {
+                    let x, v;
+                    do { x = randNormal(); v = 1 + e * x; } while (v <= 0);
+                    v = v * v * v;
+                    let u = Math.random();
+                    if (u < 1 - 0.0331 * x * x * x * x || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * c;
+                }
+            }
+
+            class Simulator {
+                constructor(stageElement) {
+                    this.type = stageElement.dataset.simType;
+                    this.canvas = stageElement.querySelector('.sim-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.samples = [];
+                    this.running = false;
+                    this.timer = null;
+                    this.params = {};
+
+                    this.statN = stageElement.querySelector('.stat-n');
+                    this.statMean = stageElement.querySelector('.stat-mean');
+                    this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnStep = stageElement.querySelector('.btn-step');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.bindInputs(stageElement);
+
+                    this.btnRun.onclick = () => this.toggleRun();
+                    this.btnStep.onclick = () => this.step(50);
+                    this.btnReset.onclick = () => this.reset();
+
+                    this.resize();
+                    window.addEventListener('resize', () => this.resize());
+
+                    canvasToSim.set(this.canvas, this);
+                    this.draw();
+                }
+
+                bindInputs(stage) {
+                    if (this.type === 'uniform') {
+                        const inputA = stage.querySelector('#a_uniform');
+                        const labelA = stage.querySelector('#v_a_uniform');
+                        const inputB = stage.querySelector('#b_uniform');
+                        const labelB = stage.querySelector('#v_b_uniform');
+
+                        this.params.a = parseFloat(inputA.value);
+                        this.params.b = parseFloat(inputB.value);
+
+                        inputA.oninput = (e) => { this.params.a = parseFloat(e.target.value); labelA.textContent = this.params.a.toFixed(1); this.reset(); };
+                        inputB.oninput = (e) => { this.params.b = parseFloat(e.target.value); labelB.textContent = this.params.b.toFixed(1); this.reset(); };
+                    } else if (this.type === 'multinomial') {
+                        const input = stage.querySelector('#kk_multinomial');
+                        const label = stage.querySelector('#v_kk_multinomial');
+                        this.params.kk = parseInt(input.value);
+                        input.oninput = (e) => {
+                            this.params.kk = parseInt(e.target.value);
+                            label.textContent = this.params.kk;
+                            this.reset();
+                        };
+                    } else if (this.type === 'dirichlet') {
+                        const inputA1 = stage.querySelector('#a1_dirichlet');
+                        const labelA1 = stage.querySelector('#v_a1_dirichlet');
+                        const inputA2 = stage.querySelector('#a2_dirichlet');
+                        const labelA2 = stage.querySelector('#v_a2_dirichlet');
+                        const inputA3 = stage.querySelector('#a3_dirichlet');
+                        const labelA3 = stage.querySelector('#v_a3_dirichlet');
+
+                        this.params.a1 = parseFloat(inputA1.value);
+                        this.params.a2 = parseFloat(inputA2.value);
+                        this.params.a3 = parseFloat(inputA3.value);
+
+                        inputA1.oninput = (e) => { this.params.a1 = parseFloat(e.target.value); labelA1.textContent = this.params.a1.toFixed(1); this.reset(); };
+                        inputA2.oninput = (e) => { this.params.a2 = parseFloat(e.target.value); labelA2.textContent = this.params.a2.toFixed(1); this.reset(); };
+                        inputA3.oninput = (e) => { this.params.a3 = parseFloat(e.target.value); labelA3.textContent = this.params.a3.toFixed(1); this.reset(); };
+                    } else if (this.type === 'hypergeom') {
+                        const inputN = stage.querySelector('#N_hypergeom');
+                        const labelN = stage.querySelector('#v_N_hypergeom');
+                        const inputK = stage.querySelector('#K_hypergeom');
+                        const labelK = stage.querySelector('#v_K_hypergeom');
+                        const inputn = stage.querySelector('#n_hypergeom');
+                        const labeln = stage.querySelector('#v_n_hypergeom');
+
+                        this.params.N = parseInt(inputN.value);
+                        this.params.K = parseInt(inputK.value);
+                        this.params.n = parseInt(inputn.value);
+
+                        inputN.oninput = (e) => { this.params.N = parseInt(e.target.value); labelN.textContent = this.params.N; this.reset(); };
+                        inputK.oninput = (e) => { this.params.K = parseInt(e.target.value); labelK.textContent = this.params.K; this.reset(); };
+                        inputn.oninput = (e) => { this.params.n = parseInt(e.target.value); labeln.textContent = this.params.n; this.reset(); };
+                    }
+                }
+
+                resize() {
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = this.canvas.parentElement.getBoundingClientRect();
+                    const logicalW = rect.width - 48;
+                    const logicalH = 220;
+
+                    this.canvas.width = logicalW * dpr;
+                    this.canvas.height = logicalH * dpr;
+                    this.canvas.style.width = logicalW + 'px';
+                    this.canvas.style.height = logicalH + 'px';
+
+                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    this.ctx.scale(dpr, dpr);
+
+                    this.logicalW = logicalW;
+                    this.logicalH = logicalH;
+                    this.draw();
+                }
+
+                generateSample() {
+                    const u = Math.random();
+                    if (this.type === 'uniform') {
+                        return this.params.a + u * (this.params.b - this.params.a);
+                    } else if (this.type === 'multinomial') {
+                        return Math.floor(u * this.params.kk);
+                    } else if (this.type === 'dirichlet') {
+                        let g1 = randGamma(this.params.a1, 1), g2 = randGamma(this.params.a2, 1), g3 = randGamma(this.params.a3, 1);
+                        return g1 / (g1 + g2 + g3);
+                    } else if (this.type === 'hypergeom') {
+                        let pop = [];
+                        for (let i = 0; i < this.params.N; i++) pop.push(i < this.params.K);
+                        let f = 0, idx = [...Array(this.params.N).keys()];
+                        for (let i = 0; i < Math.min(this.params.n, this.params.N); i++) {
+                            let j = Math.floor(u * idx.length);
+                            if (pop[idx[j]]) f++;
+                            idx.splice(j, 1);
+                        }
+                        return f;
+                    }
+                }
+
+                getRange() {
+                    if (this.type === 'uniform') return [this.params.a, this.params.b];
+                    if (this.type === 'multinomial') return [0, this.params.kk - 1];
+                    if (this.type === 'dirichlet') return [0, 1];
+                    if (this.type === 'hypergeom') return [0, Math.min(this.params.K, this.params.n)];
+                }
+
+                isDiscrete() {
+                    return this.type === 'multinomial' || this.type === 'hypergeom';
+                }
+
+                draw() {
+                    if (!this.ctx) return;
+                    const ctx = this.ctx;
+                    const W = this.logicalW;
+                    const H = this.logicalH;
+                    ctx.clearRect(0, 0, W, H);
+
+                    const light = isLightMode();
+                    const gridColor = light ? '#cbd5e1' : '#2a323e';
+                    const labelColor = light ? '#475569' : '#8b93a3';
+
+                    let barColor = getCssVar('--teal');
+                    if (this.type === 'multinomial') barColor = getCssVar('--amber');
+                    if (this.type === 'dirichlet') barColor = getCssVar('--good');
+                    if (this.type === 'hypergeom') barColor = getCssVar('--bad');
+
+                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    const plotW = W - pad.l - pad.r;
+                    const plotH = H - pad.t - pad.b;
+
+                    ctx.strokeStyle = gridColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(pad.l, H - pad.b);
+                    ctx.lineTo(W - pad.r, H - pad.b);
+                    ctx.stroke();
+
+                    if (this.samples.length === 0) {
+                        ctx.fillStyle = labelColor;
+                        ctx.font = '12px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        this.statN.textContent = '0';
+                        this.statMean.textContent = '–';
+                        return;
+                    }
+
+                    const [rmin, rmax] = this.getRange();
+                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
+                    const binWidth = (rmax - rmin) / bins;
+                    const counts = new Array(bins).fill(0);
+                    let sum = 0;
+
+                    this.samples.forEach(v => {
+                        sum += v;
+                        if (v >= rmin && v <= rmax) {
+                            let idx = Math.floor((v - rmin) / binWidth);
+                            if (idx >= bins) idx = bins - 1;
+                            counts[idx]++;
+                        }
+                    });
+
+                    const mean = sum / this.samples.length;
+                    const maxCount = Math.max(1, ...counts);
+                    const bw = plotW / bins;
+
+                    ctx.fillStyle = barColor;
+                    counts.forEach((c, i) => {
+                        const h = (c / maxCount) * plotH * 0.9;
+                        const x = pad.l + (i * bw);
+                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
+                    });
+
+                    if (mean >= rmin && mean <= rmax) {
+                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--bad');
+                        ctx.lineWidth = 2;
+                        ctx.moveTo(meanX, pad.t);
+                        ctx.lineTo(meanX, H - pad.b);
+                        ctx.stroke();
+
+                        ctx.fillStyle = getCssVar('--bad');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                    }
+
+                    this.statN.textContent = this.samples.length;
+                    this.statMean.textContent = mean.toFixed(2);
+                }
+
+                toggleRun() {
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                        return;
+                    }
+                    this.running = true;
+                    this.btnRun.textContent = '⏸ Pause';
+                    this.timer = setInterval(() => {
+                        this.step(15);
+                    }, 50);
+                }
+
+                step(n) {
+                    for (let i = 0; i < n; i++) {
+                        this.samples.push(this.generateSample());
+                    }
+                    this.draw();
+                }
+
+                reset() {
+                    this.samples = [];
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                    }
+                    this.draw();
+                }
+            }
+
+            document.querySelectorAll('.stage').forEach(stage => {
+                new Simulator(stage);
+            });
+        });
+    </script>
+</body>
+</html>
