@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="Token Sampling, Inference Queues, TTFT degradation, and the Compounding Failure of Autonomous Agents.">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+
+    <!-- Early Theme Initialization -->
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                root.setAttribute('data-theme', initialTheme);
+                root.classList.add(initialTheme, 'theme-' + initialTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* =======================================================================
+           DARK MODE OVERRIDES & TOKENS
+           ======================================================================= */
+        :where(:root) {
+            --bg: #0d1117;
+            --text: #f8fafc;
+            --muted: #a3adc2;
+            --muted-2: #8b949e;
+            --teal: #4fb8a6;
+            --amber: #D4A72C;
+            --bad: #e57373;
+            --good: #81c784;
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(255, 255, 255, 0.095);
+            --line: rgba(255, 255, 255, 0.18);
+            --line-soft: rgba(255, 255, 255, 0.1);
+            --tldr-bg: rgba(79, 184, 166, 0.12);
+        }
+
+        [data-theme="light"], .light, .theme-light {
+            --bg: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --muted-2: #64748b;
+            --teal: #0d9488;
+            --amber: #b45309;
+            --bad: #dc2626;
+            --good: #16a34a;
+            --panel: #f8fafc;
+            --panel-2: #f1f5f9;
+            --line: #e2e8f0;
+            --line-soft: #f1f5f9;
+            --tldr-bg: rgba(13, 148, 136, 0.06);
+        }
+
+        [data-theme="dark"], .dark, .theme-dark {
+            --bg: #0d1117 !important;
+            --text: #f8fafc !important;
+            --muted: #a3adc2 !important;
+            --muted-2: #8b949e !important;
+            --teal: #4fb8a6 !important;
+            --amber: #D4A72C !important;
+            --bad: #e57373 !important;
+            --good: #81c784 !important;
+            --panel: rgba(255, 255, 255, 0.06) !important;
+            --panel-2: rgba(255, 255, 255, 0.095) !important;
+            --line: rgba(255, 255, 255, 0.18) !important;
+            --line-soft: rgba(255, 255, 255, 0.1) !important;
+            --tldr-bg: rgba(79, 184, 166, 0.12) !important;
+        }
+
+        /* --- Theme Toggle Icon Visibility Fix --- */
+        .theme-toggle {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 0.4rem;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s ease;
+        }
+
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        
+        html[data-theme="light"] .theme-toggle .icon-moon, 
+        .light .theme-toggle .icon-moon,
+        .theme-light .theme-toggle .icon-moon { display: block !important; }
+
+        html[data-theme="dark"] .theme-toggle .icon-bulb, 
+        .dark .theme-toggle .icon-bulb,
+        .theme-dark .theme-toggle .icon-bulb { display: block !important; }
+
+        /* --- Page Adjustments --- */
+        body { background: var(--bg); color: var(--text); margin: 0; padding: 0; font-family: 'IBM Plex Sans', sans-serif; line-height: 1.7; }
+        .site-header { padding: 1.5rem 2rem 1rem 2rem; border-bottom: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: center;}
+        .site-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.75rem; }
+        .site-title__badge { background: var(--teal); color: #fff; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+        
+        main { margin: 2.5rem auto !important; padding: 0 1.5rem; max-width: 800px; }
+        
+        .byline { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.75rem; color: var(--teal); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem; }
+        .deck { font-size: 1.15rem; color: var(--muted); margin-top: 0.5rem; margin-bottom: 1.5rem; line-height: 1.5; }
+        
+        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; line-height: 1.15; color: var(--text); }
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.55rem; margin-top: 3rem; margin-bottom: 1.25rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        p, li { font-size: 1.05rem; margin-bottom: 1.35rem; }
+        ul { padding-left: 1.5rem; }
+        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
+
+        .snarky-quote { border-left: 3px solid var(--amber); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3rem 0; }
+        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+
+        .tldr-box { background: var(--tldr-bg); border-left: 3px solid var(--teal); padding: 1.5rem; margin: 2rem 0; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad); }
+        .tldr-box--amber { background: rgba(212, 167, 44, 0.08); border-left-color: var(--amber); }
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.85rem; font-weight: 600; color: var(--teal); }
+        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+
+        /* --- Taxonomy Cards Grid --- */
+        .taxonomy-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin: 2rem 0; }
+        @media (max-width: 768px) { .taxonomy-grid-3 { grid-template-columns: 1fr; } }
+        .tax-card { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 1.35rem; border-radius: 8px; display: flex; flex-direction: column; }
+        .tax-card h4 { font-family: 'Libre Franklin', sans-serif; margin: 0 0 0.5rem 0; font-size: 1.05rem; color: var(--text); }
+        .tax-card p { font-size: 0.9rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.55; }
+
+        /* --- Simulation Stage & Tabs --- */
+        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        
+        .stage-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 0.75rem; overflow-x: auto;}
+        .tab-btn { background: transparent; color: var(--muted); border: none; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; padding: 0.4rem 0.8rem; cursor: pointer; border-radius: 4px; transition: all 0.2s; white-space: nowrap;}
+        .tab-btn:hover { background: var(--panel-2); color: var(--text); }
+        .tab-btn.active { background: var(--panel-2); color: var(--teal); border: 1px solid var(--line); font-weight: 600;}
+
+        .stage-top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+        
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group span { font-weight: 600; color: var(--text); float: right; }
+
+        .controls { display: flex; gap: 0.5rem; align-items: center; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; }
+        [data-theme="light"] button.sim-btn { color: #ffffff; }
+        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+        [data-theme="light"] button.sim-btn.secondary { color: var(--text); }
+
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
+        
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout span { color: var(--amber); font-weight: 600; }
+
+        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+        .site-footer { border-top: 1px solid var(--line-soft); padding: 2rem; margin-top: 3rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <!-- Global Header -->
+    <header class="site-header">
+        <a href="../../index.html" class="site-title">
+            <span class="site-title__badge">SS</span>
+            <span>Saurav Sana | Field Notes</span>
+        </a>
+        <nav aria-label="Primary navigation" style="display:flex; gap:1.5rem; align-items:center;">
+            <a href="../../index.html" style="color:var(--muted); text-decoration:none; font-size:0.875rem;">Home</a>
+            <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+                <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                </svg>
+                <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <div style="margin-bottom: 0.75rem; font-family:'IBM Plex Mono', monospace; font-size:0.85rem;">
+            <a href="index.html" style="color: var(--muted); text-decoration: none;">← The Shape of Failure Series</a>
+        </div>
+
+        <div class="byline">The Shape of Failure · Part 8 of 8</div>
+        <div class="series-heading-row">
+            <h1>The Stochastic Shape of AI Systems</h1>
+        </div>
+        <p class="deck">Token Sampling, Inference Queues, and the Compounding Failure of Autonomous Agents.</p>
+        <div style="margin-bottom: 2rem; color: var(--muted); font-size: 0.9rem;">October 28, 2026 · AI Engineering & Orchestration</div>
+
+        <div class="snarky-quote">
+            <p class="snarky-quote-text">"You are trying to wrap five nines of reliability around a piece of software that fundamentally works by rolling dice very, very fast."</p>
+            <p class="snarky-quote-author">— <strong><em>Anonymous Staff Engineer</em></strong></p>
+        </div>
+
+        <p>In classical distributed systems, uncertainty is an environmental hazard—we build deterministic state machines and try to protect them from chaotic networks. In modern AI architectures, uncertainty is the compiler itself.</p>
+
+        <p>Large Language Models do not "execute" code in the traditional sense; they sample from categorical probability distributions over vocabularies. When you introduce agentic loops—where an LLM writes a database query, executes a tool, parses the response, and plans the next step—you take standard software failure rates and exponentiate them.</p>
+
+        <h2>The Anatomy of LLM Failures: TTFT vs. TPOT</h2>
+        
+        <p>Before we can engineer fault tolerance into an agent, we must separate <em>infrastructure failure</em> from <em>semantic failure</em>. They require entirely different mitigation strategies. Conflating the two is how you accidentally trigger a retry storm that takes down your entire inference cluster.</p>
+
+        <div class="taxonomy-grid-3">
+            <div class="tax-card" style="border-top-color: var(--teal);">
+                <h4>TTFT (Serving Queue)</h4>
+                <p><strong>Time To First Token.</strong> This is compute-bound. It measures the pre-fill phase where the KV-cache is allocated for the prompt. When the cache overflows, requests queue up. This failure is <em>deterministic</em> and behaves exactly like standard web traffic saturation.</p>
+            </div>
+            <div class="tax-card" style="border-top-color: var(--amber);">
+                <h4>TPOT (Decoding Phase)</h4>
+                <p><strong>Time Per Output Token.</strong> This is memory-bandwidth bound. Once generating, TPOT typically degrades gracefully under load until it hits a cliff. High TPOT means the model is working, just starving for memory IOPS.</p>
+            </div>
+            <div class="tax-card" style="border-top-color: var(--bad);">
+                <h4>Semantic Drift</h4>
+                <p><strong>Token Sampling Variance.</strong> The model generates valid JSON, but confidently hallucinates a non-existent parameter. This is <em>stochastic</em>. Retrying blindly without changing temperature or prompts rarely fixes this.</p>
+            </div>
+        </div>
+
+        <h2>The Mathematics of Agentic Compounding</h2>
+        
+        <p>If you build a ReAct (Reasoning + Acting) agent that needs to execute <code>N</code> independent reasoning steps to fulfill a user request, the probability of the entire workflow succeeding is exactly the same binomial logic we explored in Part 2, but applied to logical steps: $P_{success} = (P_{step})^N$.</p>
+
+        <p>When engineers transition from single-prompt chatbots to Agentic RAG or multi-step orchestration frameworks (like LangGraph or DSPy), they are often stunned by the sudden drop in reliability. A prompt that works 92% of the time feels "production ready." But an agent that relies on that prompt 6 times in a loop will fail nearly half the time.</p>
+
+        <h2>Interactive Simulation: Chain of Failure</h2>
+        
+        <p>Use the simulator below to model a fleet of Agent Workflows executing concurrently. Adjust the <strong>Pipeline Depth (Steps)</strong> to see how quickly reliability degrades as agents become more autonomous. Adjust the <strong>Step Reliability</strong> to see how much model quality matters.</p>
+
+        <div class="stage">
+            <div class="stage-tabs" id="tabContainer">
+                <button class="tab-btn active" data-key="pipeline">Agent Chain Collapse (Compound Prob)</button>
+            </div>
+
+            <div class="sim-params" id="paramsContainer">
+                <div class="param-group">
+                    <div>Step Reliability: <span id="v_p">0.90</span></div>
+                    <input type="range" id="param_p" min="0.5" max="0.99" step="0.01" value="0.90">
+                </div>
+                <div class="param-group">
+                    <div>Pipeline Depth: <span id="v_depth">5</span></div>
+                    <input type="range" id="param_depth" min="1" max="15" step="1" value="5">
+                </div>
+            </div>
+
+            <div class="stage-top-bar">
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); font-style: italic;" id="captionText">
+                    Expected Pipeline Success: 59.0%
+                </div>
+                <div class="controls">
+                    <button id="btnRun" class="sim-btn">▶ Run Workflow</button>
+                    <button id="btnReset" class="sim-btn secondary">Reset</button>
+                </div>
+            </div>
+
+            <canvas id="cv" width="800" height="260"></canvas>
+            
+            <div class="readout">
+                <div>Runs: <span id="statN">0</span></div>
+                <div>Actual Success Rate: <span id="statSuccess">–</span></div>
+            </div>
+        </div>
+
+        <h2>Architectural Patterns for Fault-Tolerant Agents</h2>
+
+        <div class="tldr-box tldr-box--warning">
+            <div class="tldr-eyebrow">The KV-Cache Eviction Cliff</div>
+            <p>Blindly retrying a failed agent step is dangerous. Because LLM generation is highly stateful, an agent stuck in a retry loop (e.g., trying to fix a malformed JSON output by asking the model to "try again") consumes enormous KV-cache memory on the inference server. If just 5% of your agents get stuck in loops, they will evict the cache for the other 95%, causing a catastrophic, system-wide latency spike.</p>
+        </div>
+
+        <p>To survive compound failure rates without taking down the infrastructure, autonomous pipelines require entirely different circuit breakers than standard microservices.</p>
+
+        <h3>1. Constraint-Guided Decoding</h3>
+        <p>Never rely on "prompt engineering" to guarantee JSON schemas or enum selections. Use grammar-constrained decoding at the inference engine level. By masking the logits during decoding, you force the probability of a structural formatting failure to zero, entirely eliminating one class of semantic drift.</p>
+
+        <h3>2. Deterministic Anchoring (GraphRAG)</h3>
+        <p>Stochastic models drift when they have to maintain complex entity relationships in their context window over long conversations. A robust pattern is to anchor the agent's memory in deterministic data structures. By integrating a Graph database (like Neo4j) to map relationships deterministically, the LLM is relegated to translating the graph's hard facts into natural language, rather than hallucinating the facts itself.</p>
+
+        <h3>3. Semantic Circuit Breakers</h3>
+        <p>HTTP 500s are easy to catch. But what if the model returns HTTP 200 with the payload: <em>"I'm sorry, I cannot fulfill that request."</em>? Your downstream agentic parser will crash trying to extract a SQL query from that sentence. Fault-tolerant agents implement "Semantic Circuit Breakers"—fast, regex-based or lightweight classifier checks that evaluate the <em>intent</em> of the response before passing it to the next node in the orchestration graph.</p>
+
+        <h3>4. SLM Fallback Routing</h3>
+        <p>When an agent step fails, hitting the primary, massive LLM again with an exponential backoff often just adds pressure to an already saturated TTFT queue. A highly effective resilience pattern is routing validation and simple retries to local Small Language Models (SLMs). Dedicated, fine-tuned models like Gemma or Qwen running via Ollama can act as fast, cheap fallback validators to un-stick a stalled agent loop without consuming the primary cluster's KV-cache.</p>
+
+        <p>We spent the earlier parts of this series learning to tame the chaos of hardware, network partitions, and queuing theory. With AI, we are inviting stochastic chaos directly into the application logic layer. The math of failure hasn't changed; we just have to apply it to our prompts, our orchestration graphs, and our token sampling strategies.</p>
+
+        <!-- Navigation -->
+        <nav class="post-pager" aria-label="Series pagination">
+            <a href="part-7-byzantine-faults.html">← Part 7: Byzantine Faults</a>
+            <a href="../../index.html#blog">Back to Blog Index →</a>
+        </nav>
+    </main>
+
+    <footer class="site-footer">
+        <div>© 2026 Saurav Sana</div>
+    </footer>
+
+    <!-- Simulator Script -->
+    <script>
+        (function() {
+            let state = { runs: 0, successes: 0, history: [], running: false };
+            let timer = null;
+            
+            const cv = document.getElementById('cv');
+            const ctx = cv.getContext('2d');
+            
+            const param_p = document.getElementById('param_p');
+            const param_depth = document.getElementById('param_depth');
+            const v_p = document.getElementById('v_p');
+            const v_depth = document.getElementById('v_depth');
+            const captionText = document.getElementById('captionText');
+            
+            function getCssVar(name) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            }
+            
+            function isLightMode() {
+                const root = document.documentElement;
+                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
+            }
+
+            function updateExpected() {
+                const p = parseFloat(param_p.value);
+                const depth = parseInt(param_depth.value);
+                const expected = Math.pow(p, depth) * 100;
+                captionText.textContent = `Expected Pipeline Success: ${expected.toFixed(1)}%`;
+            }
+
+            function draw() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = cv.parentElement.getBoundingClientRect();
+                cv.width = rect.width * dpr;
+                cv.height = 260 * dpr;
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(dpr, dpr);
+                const logicalW = rect.width;
+                const logicalH = 260;
+
+                ctx.clearRect(0, 0, logicalW, logicalH);
+                
+                const pad = {l: 40, r: 20, t: 20, b: 30};
+                const plotW = logicalW - pad.l - pad.r;
+                const plotH = logicalH - pad.t - pad.b;
+                
+                // Grid
+                const gridColor = isLightMode() ? '#cbd5e1' : '#2a323e';
+                ctx.strokeStyle = gridColor;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(pad.l, pad.t);
+                ctx.lineTo(pad.l, logicalH - pad.b);
+                ctx.lineTo(logicalW - pad.r, logicalH - pad.b);
+                ctx.stroke();
+
+                if (state.history.length === 0) {
+                    ctx.fillStyle = isLightMode() ? '#475569' : '#8b93a3';
+                    ctx.font = '13px "IBM Plex Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Click "▶ Run Workflow" to simulate agents...', logicalW/2, logicalH/2);
+                    return;
+                }
+
+                // We will plot the running success rate over time
+                const successRates = [];
+                let runningSuccesses = 0;
+                state.history.forEach((success, idx) => {
+                    if(success) runningSuccesses++;
+                    successRates.push(runningSuccesses / (idx + 1));
+                });
+
+                // Plot line
+                ctx.beginPath();
+                ctx.strokeStyle = getCssVar('--teal');
+                ctx.lineWidth = 2;
+                
+                const xStep = plotW / Math.max(100, successRates.length);
+                
+                successRates.forEach((rate, idx) => {
+                    const x = pad.l + (idx * xStep);
+                    const y = logicalH - pad.b - (rate * plotH);
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                // Draw expected line
+                const p = parseFloat(param_p.value);
+                const depth = parseInt(param_depth.value);
+                const expected = Math.pow(p, depth);
+                
+                ctx.beginPath();
+                ctx.strokeStyle = getCssVar('--amber');
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 5]);
+                const expY = logicalH - pad.b - (expected * plotH);
+                ctx.moveTo(pad.l, expY);
+                ctx.lineTo(logicalW - pad.r, expY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Y-axis labels
+                ctx.fillStyle = isLightMode() ? '#475569' : '#8b93a3';
+                ctx.font = '10px "IBM Plex Mono", monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('100%', pad.l - 8, pad.t + 4);
+                ctx.fillText('50%', pad.l - 8, pad.t + (plotH/2) + 4);
+                ctx.fillText('0%', pad.l - 8, logicalH - pad.b + 4);
+
+                // Update DOM
+                document.getElementById('statN').textContent = state.runs;
+                const actualRate = (state.successes / state.runs) * 100;
+                document.getElementById('statSuccess').textContent = actualRate.toFixed(1) + '%';
+            }
+
+            function simulateBatch() {
+                const p = parseFloat(param_p.value);
+                const depth = parseInt(param_depth.value);
+                
+                for(let i=0; i<5; i++) {
+                    let success = true;
+                    for(let step=0; step<depth; step++) {
+                        if (Math.random() > p) {
+                            success = false;
+                            break;
+                        }
+                    }
+                    state.history.push(success);
+                    state.runs++;
+                    if (success) state.successes++;
+                    
+                    // keep history manageable
+                    if(state.history.length > 300) {
+                        state.history.shift();
+                    }
+                }
+                
+                // Recalculate successes based on shifted array
+                if (state.history.length === 300) {
+                   state.successes = state.history.filter(Boolean).length;
+                   state.runs = 300;
+                }
+                
+                draw();
+            }
+
+            // Bind Events
+            param_p.addEventListener('input', (e) => {
+                v_p.textContent = parseFloat(e.target.value).toFixed(2);
+                state = { runs: 0, successes: 0, history: [], running: false };
+                updateExpected();
+                draw();
+            });
+            
+            param_depth.addEventListener('input', (e) => {
+                v_depth.textContent = e.target.value;
+                state = { runs: 0, successes: 0, history: [], running: false };
+                updateExpected();
+                draw();
+            });
+
+            document.getElementById('btnRun').onclick = () => {
+                if(state.running) { 
+                    state.running = false; 
+                    document.getElementById('btnRun').textContent = '▶ Run Workflow'; 
+                    clearInterval(timer); 
+                    return; 
+                }
+                state.running = true; 
+                document.getElementById('btnRun').textContent = '⏸ Pause';
+                timer = setInterval(simulateBatch, 50);
+            };
+            
+            document.getElementById('btnReset').onclick = () => { 
+                state = { runs: 0, successes: 0, history: [], running: false };
+                if (timer) clearInterval(timer);
+                document.getElementById('btnRun').textContent = '▶ Run Workflow'; 
+                draw(); 
+                document.getElementById('statN').textContent = '0';
+                document.getElementById('statSuccess').textContent = '–';
+            };
+
+            // Resize & Theme Listeners
+            window.addEventListener('resize', draw);
+            const observer = new MutationObserver(() => draw());
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+
+            // Theme Toggle Logic
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+                    
+                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                    root.setAttribute('data-theme', newTheme);
+                    root.classList.add(newTheme, 'theme-' + newTheme);
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+
+            // Init
+            updateExpected();
+            draw();
+        })();
+    </script>
+</body>
+</html>

@@ -3,23 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag() {
-            window.dataLayer.push(arguments);
-        }
+        function gtag() { window.dataLayer.push(arguments); }
         gtag('js', new Date());
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
-    
+
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 1: The Illusion of Determinism | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 1: The Illusion of Determinism | The Shape of Failure | Saurav Sana">
     <meta name="description" content="Why deterministic capacity narratives break down under variable demand; defining random variables, forecast distributions, capacity reserves, and financial risk measures (VaR).">
-    <meta name="keywords" content="Distributed Systems, Queueing Theory, Probability, SRE, FinOps, Latency Percentiles, Bimodal Distribution, Capacity Planning">
+    <meta name="keywords" content="Distributed Systems, Queueing Theory, Probability, SRE, FinOps, Latency Percentiles, Bimodal Distribution, Capacity Planning, Byzantine Failures, Crash Failures">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-1-illusion-of-determinism.html">
@@ -30,7 +28,7 @@
     <meta property="og:title" content="Part 1: The Illusion of Determinism | The Shape of Failure">
     <meta property="og:description" content="Breaking the PowerPoint Architecture Script and Translating Math into FinOps.">
     <meta property="og:image" content="https://saurav-sana.github.io/blog/assets/img/shape-of-failure-preview.png">
-    
+
     <!-- Twitter / X Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://saurav-sana.github.io/blog/series/shape-of-failure/part-1-illusion-of-determinism.html">
@@ -51,7 +49,7 @@
         "url": "https://saurav-sana.github.io/blog/"
       },
       "datePublished": "2026-10-17",
-      "dateModified": "2026-10-17",
+      "dateModified": "2026-10-18",
       "publisher": {
         "@type": "Organization",
         "name": "Saurav Sana | Field Notes",
@@ -76,92 +74,23 @@
                 var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
                 var initialTheme = saved || (prefersLight ? 'light' : 'dark');
                 root.setAttribute('data-theme', initialTheme);
-                root.classList.add(initialTheme, 'theme-' + initialTheme);
             } catch (e) {}
         })();
     </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
+    <!-- Shared design system -->
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
-    <script src="../../assets/js/theme-toggle.js"></script>
 
     <style>
-        /* =======================================================================
-            DARK MODE OVERRIDES & TOKENS
-            ======================================================================= */
-        :where(:root) {
-            --bg: #0d1117;
-            --text: #e6edf3;
-            --muted: #9ca3af;
-            --muted-2: #6e7681;
-            --teal: #4fb8a6;
-            --amber: #D4A72C;
-            --bad: #d97757;
-            --good: #7fb88f;
-            --panel: rgba(255, 255, 255, 0.06);
-            --panel-2: rgba(255, 255, 255, 0.095);
-            --line: rgba(255, 255, 255, 0.18);
-            --line-soft: rgba(255, 255, 255, 0.1);
-            --tldr-bg: rgba(79, 184, 166, 0.12);
-        }
+        /* Minimal overrides for elements unique to this article.
+           All colors, fonts, spacing, and core component styles
+           come from blog-theme.css. */
 
-        [data-theme="light"], .light, .theme-light {
-            --bg: #ffffff;
-            --text: #0f172a;
-            --muted: #475569;
-            --muted-2: #64748b;
-            --teal: #0d9488;
-            --amber: #b45309;
-            --bad: #dc2626;
-            --good: #16a34a;
-            --panel: #f8fafc;
-            --panel-2: #f1f5f9;
-            --line: #e2e8f0;
-            --line-soft: #f1f5f9;
-            --tldr-bg: rgba(13, 148, 136, 0.06);
-        }
-
-        [data-theme="dark"], .dark, .dark-mode, .theme-dark {
-            --panel: rgba(255, 255, 255, 0.06) !important;
-            --panel-2: rgba(255, 255, 255, 0.095) !important;
-            --line: rgba(255, 255, 255, 0.18) !important;
-            --line-soft: rgba(255, 255, 255, 0.1) !important;
-            --tldr-bg: rgba(79, 184, 166, 0.12) !important;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root:not([data-theme="light"]):not(.light):not(.theme-light) {
-                --panel: rgba(255, 255, 255, 0.06);
-                --panel-2: rgba(255, 255, 255, 0.095);
-                --line: rgba(255, 255, 255, 0.18);
-                --line-soft: rgba(255, 255, 255, 0.1);
-                --tldr-bg: rgba(79, 184, 166, 0.12);
-            }
-        }
-
-        /* --- Page Adjustments --- */
-        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
-        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
-        
-        .byline {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.75rem;
-            color: var(--teal);
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            margin-bottom: 0.5rem;
-        }
-
-        .deck {
-            font-family: 'IBM Plex Sans', sans-serif;
-            font-size: 1.15rem;
-            color: var(--muted);
-            margin-top: 0.5rem;
-            margin-bottom: 1.5rem;
-            line-height: 1.5;
-        }
-
+        /* Series heading row */
         .series-heading-row {
             display: flex;
             align-items: baseline;
@@ -171,29 +100,28 @@
         }
         .series-heading-row h1 {
             margin: 0;
-            font-size: 2.15rem;
             font-family: 'Libre Franklin', sans-serif;
             line-height: 1.15;
         }
 
-        /* --- Quote Styling --- */
+        /* Snarky quote (article-specific) */
         .snarky-quote {
-            border-left: 3px solid var(--amber, #D4A72C);
+            border-left: 3px solid var(--amber);
             padding: 0.1rem 0 0.1rem 1.25rem;
             margin: 2.5rem 0 3rem 0;
             background: transparent;
         }
         .snarky-quote-text {
-            font-family: 'Georgia', serif;
-            font-size: 1.15rem;
+            font-family: 'IBM Plex Serif', Georgia, serif;
+            font-size: 1.05rem;
             font-style: italic;
             color: var(--muted);
             line-height: 1.6;
             margin: 0 0 0.6rem 0;
         }
         .snarky-quote-author {
-            font-family: 'Georgia', serif;
-            font-size: 1.05rem;
+            font-family: 'IBM Plex Serif', Georgia, serif;
+            font-size: 1rem;
             color: var(--muted);
             margin: 0;
         }
@@ -203,29 +131,10 @@
             color: var(--text);
         }
 
-        /* --- Typography & Elements --- */
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.55rem; margin-top: 3rem; margin-bottom: 1.25rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
-        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
-        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
-        p { margin-bottom: 1.35rem; }
-        ol, ul { margin-bottom: 1.5rem; padding-left: 1.4rem; }
-        li { margin-bottom: 0.5rem; }
-
-        code {
-            background: var(--panel-2);
-            padding: 0.15rem 0.4rem;
-            border-radius: 4px;
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.85em;
-            color: var(--teal);
-            border: 1px solid var(--line);
-        }
-
-        /* --- Flowchart / Chain --- */
+        /* Flow chains (article-specific) */
         .flow-container {
             background: var(--panel);
             border: 1px solid var(--line);
-            border-radius: 8px;
             padding: 1.25rem 1.5rem;
             margin: 2rem 0;
             overflow-x: auto;
@@ -239,7 +148,7 @@
             margin-bottom: 0.85rem;
             font-weight: 600;
         }
-        .flow-label.anti { color: var(--bad); }
+        .flow-label.anti { color: var(--red); }
         .flow-chain {
             display: flex;
             align-items: center;
@@ -252,27 +161,77 @@
             background: var(--panel-2);
             border: 1px solid var(--line);
             padding: 0.45rem 0.75rem;
-            border-radius: 5px;
             color: var(--text);
             font-weight: 500;
         }
         .flow-arrow { color: var(--muted); font-weight: 600; }
-        .flow-chain.anti .flow-node { border-color: var(--bad); color: var(--bad); background: rgba(217, 119, 87, 0.06); }
-        .flow-chain.anti .flow-arrow { color: var(--bad); }
+        .flow-chain.anti .flow-node {
+            border-color: var(--red);
+            background: rgba(217, 100, 92, 0.06);
+        }
+        .flow-chain.anti .flow-arrow { color: var(--red); }
 
-        /* --- Taxonomy Cards --- */
-        .taxonomy-grid {
+        /* TL;DR / callout boxes (article-specific) */
+        .tldr-box {
+            background: rgba(79, 184, 166, 0.08);
+            border-left: 3px solid var(--teal);
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .tldr-box--amber {
+            background: rgba(232, 163, 61, 0.08);
+            border-left-color: var(--amber);
+        }
+        .tldr-box--warning {
+            background: rgba(217, 100, 92, 0.08);
+            border-left-color: var(--red);
+        }
+        .tldr-eyebrow {
+            font-family: 'IBM Plex Mono', Consolas, monospace;
+            color: var(--teal);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 0.85rem;
+            font-weight: 600;
+        }
+        .tldr-box--amber .tldr-eyebrow { color: var(--amber); }
+        .tldr-box--warning .tldr-eyebrow { color: var(--red); }
+        .tldr-content {
+            font-family: 'IBM Plex Sans', Arial, sans-serif;
+            color: var(--text);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .tldr-content p { margin: 0 0 0.75rem 0; font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 0 0; padding-left: 1.25rem; }
+        .tldr-content li { font-size: 0.95rem; margin-bottom: 0.45rem; }
+
+        /* Taxonomy cards (article-specific) */
+        .taxonomy-grid-3 {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.25rem;
             margin: 2rem 0;
+        }
+        .taxonomy-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+            margin: 2rem 0;
+        }
+        @media (max-width: 768px) {
+            .taxonomy-grid-3,
+            .taxonomy-grid-4 {
+                grid-template-columns: 1fr;
+            }
         }
         .tax-card {
             background: var(--panel);
             border: 1px solid var(--line);
             border-top: 3px solid var(--amber);
             padding: 1.35rem;
-            border-radius: 8px;
             display: flex;
             flex-direction: column;
         }
@@ -301,51 +260,12 @@
         }
         .tax-card .mitigation strong { color: var(--text); }
 
-        /* --- Callout / TL;DR Boxes --- */
-        .tldr-box {
-            background: var(--tldr-bg, rgba(79, 184, 166, 0.06));
-            border-left: 3px solid var(--teal, #4fb8a6);
-            padding: 1.5rem;
-            margin: 2rem 0;
-            border-radius: 0 8px 8px 0;
-        }
-        .tldr-box--amber {
-            background: rgba(212, 167, 44, 0.08);
-            border-left-color: var(--amber, #D4A72C);
-        }
-        .tldr-box--warning {
-            background: rgba(217, 119, 87, 0.08);
-            border-left-color: var(--bad, #d97757);
-        }
-        .tldr-eyebrow {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            color: var(--teal, #4fb8a6);
-            font-size: 0.75rem;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            margin-bottom: 0.85rem;
-            font-weight: 600;
-        }
-        .tldr-box--amber .tldr-eyebrow { color: var(--amber); }
-        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
-        .tldr-content {
-            font-family: 'IBM Plex Sans', Arial, sans-serif;
-            color: var(--text);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-        .tldr-content p { margin: 0 0 0.75rem 0; font-size: 0.95rem; }
-        .tldr-content p:last-child { margin-bottom: 0; }
-        .tldr-content ul { margin: 0.5rem 0 0 0; padding-left: 1.25rem; }
-        .tldr-content li { font-size: 0.95rem; margin-bottom: 0.45rem; }
-
-        /* --- Simulation Stage (Redesigned Single-Line Top Toolbar) --- */
+        /* Simulation stage – adapts the shared panel look */
         .stage {
             background: var(--panel);
             border: 1px solid var(--line);
             padding: 1.35rem 1.5rem;
             margin: 2rem 0;
-            border-radius: 8px;
         }
         .stage-top-bar {
             display: flex;
@@ -381,21 +301,18 @@
             flex: 0 0 auto !important;
             margin: 0 !important;
             background: var(--teal);
-            color: #0d1117;
+            color: var(--page);
             border: 1px solid transparent;
             padding: 0.42rem 0.9rem;
             font-weight: 600;
             cursor: pointer;
-            border-radius: 6px;
             font-family: 'IBM Plex Mono', Consolas, monospace;
             font-size: 0.78rem;
             line-height: 1.2;
             white-space: nowrap;
-            transition: all 0.16s ease;
+            transition: filter 0.16s ease, transform 0.16s ease;
         }
-        [data-theme="light"] button.sim-btn,
-        .light button.sim-btn,
-        .theme-light button.sim-btn {
+        [data-theme="light"] button.sim-btn {
             color: #ffffff;
         }
         button.sim-btn:hover {
@@ -411,7 +328,6 @@
             border-color: var(--teal) !important;
             color: var(--teal) !important;
         }
-
         .stage-legend {
             display: flex;
             align-items: center;
@@ -433,12 +349,10 @@
             border-radius: 2px;
             display: inline-block;
         }
-
         canvas {
             width: 100%;
             background: var(--panel-2);
             border: 1px solid var(--line-soft);
-            border-radius: 6px;
             display: block;
         }
         .readout {
@@ -451,12 +365,10 @@
             font-size: 0.8rem;
             background: var(--panel-2);
             padding: 0.75rem 1.15rem;
-            border-radius: 6px;
             border: 1px solid var(--line);
             flex-wrap: wrap;
         }
         .readout span { color: var(--amber); font-weight: 600; }
-
         @media (max-width: 600px) {
             .controls {
                 flex-wrap: wrap !important;
@@ -464,7 +376,7 @@
             }
         }
 
-        /* --- Post Pager Navigation (Next / Previous Format) --- */
+        /* Post pager */
         .post-pager {
             margin-top: 4rem;
             padding-top: 2rem;
@@ -498,13 +410,13 @@
                 <span class="site-title__badge">SS</span>
                 <span>Saurav Sana | Field Notes</span>
             </a>
-            
-            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
-                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
-                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
-                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
-                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+
+            <nav class="site-nav" aria-label="Primary navigation">
+                <a href="../../index.html">Home</a>
+                <a href="../../index.html#blog">Blog</a>
+                <a href="../../index.html#tags">Tags</a>
+                <a href="../../contact.html">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
                     </svg>
@@ -523,12 +435,12 @@
             </nav>
         </header>
 
-        <main>
+        <main class="article">
             <div class="post-meta" style="margin-bottom: 0.75rem;">
                 <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
             </div>
 
-            <div class="byline">The Shape of Failure · Part 1 of 7</div>
+            <div class="byline">The Shape of Failure · Part 1 of 8</div>
             <div class="series-heading-row">
                 <h1>The Illusion of Determinism</h1>
             </div>
@@ -538,11 +450,11 @@
             <!-- Quote -->
             <div class="snarky-quote">
                 <p class="snarky-quote-text">“If you measure latency using an average, you are measuring the average temperature of the hospital to see if an individual patient is dead.”</p>
-                <p class="snarky-quote-author">— <strong><em>Gil Tene, How NOT to Measure Latency</em></strong></p>
+                <p class="snarky-quote-author">— <strong><em>Gil Tene</em></strong>, How NOT to Measure Latency</p>
             </div>
 
             <p>Every distributed system is, underneath the YAML, RPC stubs, dashboards, and architecture diagrams, a machine operating under uncertainty.</p>
-            
+
             <p>Requests arrive unevenly. Payloads vary by orders of magnitude. Queues accumulate silently. Downstream dependencies stall. Hardware fails unevenly. Retries synchronize into destructive pulses. Tenants exhibit radically different traffic profiles. Components assumed to be independent turn out to share a rack, power domain, top-of-rack switch, hypervisor, control plane, DNS resolver, identity service, or deployment pipeline.</p>
 
             <p>The difficult problem in distributed systems is not merely failure; it is the <strong>shape of failure</strong>.</p>
@@ -552,7 +464,7 @@
             <p>Good distributed-system design makes uncertainty explicit, measures the assumptions behind it, and creates architectural failure boundaries that remain safe when those assumptions fail.</p>
 
             <h2>The Intellectual Spine &amp; The First Rule</h2>
-            
+
             <h3>The Central Thesis</h3>
             <p>Do not ask only: <em>"What is the average?"</em></p>
             <p>Ask: <strong>"What stochastic process produced this observation? What assumptions does my model make? What empirical evidence supports those assumptions? And what architectural decision changes if those assumptions are wrong?"</strong></p>
@@ -602,9 +514,9 @@
 
             <h3>The First Rule: A Distribution Is a Model, Not a Fact</h3>
             <p>A production metrics collector records raw timestamps, counters, and durations. It does not record labels stating <code>THIS REQUEST = LOG-NORMAL</code> or <code>THIS FAILURE = POISSON</code>.</p>
-            
+
             <p>Those labels are hypotheses imposed by engineers. Production systems are mixtures of deterministic state machines, stochastic traffic variation, temporal dependencies, common-cause failure couplings, non-linear feedback loops, workload regime changes, and hard physical limits.</p>
-            
+
             <p>The operational question is never: <em>"Which distribution does this metric follow?"</em> It is: <em>"Which model is sufficiently accurate for the decision I need to make?"</em></p>
 
             <div class="tldr-box">
@@ -622,7 +534,7 @@
             <h2>Three Taxonomies of Uncertainty</h2>
             <p>Distributed systems operate across three distinct classes of uncertainty. Treating them all as a single "randomness" problem leads to bad architecture.</p>
 
-            <div class="taxonomy-grid">
+            <div class="taxonomy-grid-3">
                 <div class="tax-card" style="border-top-color: var(--teal);">
                     <h4>Aleatory Uncertainty</h4>
                     <p><strong>Intrinsic Randomness.</strong> Irreducible variance inherent to the physical environment (e.g., microsecond-level packet jitter across wide-area networks).</p>
@@ -633,20 +545,46 @@
                     <p><strong>Incomplete Knowledge.</strong> Variance stemming from a lack of system data (e.g., the unknown failure distribution of a new third-party payment gateway under peak traffic).</p>
                     <span class="mitigation"><strong>Mitigation:</strong> Active instrumentation, canary deployments, empirical estimation, Bayesian updating.</span>
                 </div>
-                <div class="tax-card" style="border-top-color: var(--bad);">
+                <div class="tax-card" style="border-top-color: var(--muted-2);">
                     <h4>Model Risk</h4>
                     <p><strong>Structural Mischaracterization.</strong> The danger that the chosen mathematical formulation fundamentally misrepresents the operational process (e.g., treating correlated server failures as independent).</p>
                     <span class="mitigation"><strong>Mitigation:</strong> Stress testing, chaos engineering, scenario analysis, decoupled fallback architectures.</span>
                 </div>
             </div>
 
+            <h2>The Four Modalities of Distributed Faults</h2>
+            <p>Uncertainty manifests structurally in four distinct ways. Recognizing which fault domain your architecture is currently experiencing dictates whether you need a circuit breaker, a retry loop, or formal state verification.</p>
+
+            <div class="taxonomy-grid-4">
+                <div class="tax-card" style="border-top-color: var(--red);">
+                    <h4>Crash Failures (Fail-Stop)</h4>
+                    <p>The component completely halts execution and stays offline. In a fail-stop model, the failure is immediately detectable by peers.</p>
+                    <span class="mitigation"><strong>Model via:</strong> Bernoulli trials, Weibull degradation.</span>
+                </div>
+                <div class="tax-card" style="border-top-color: var(--amber);">
+                    <h4>Omission Failures</h4>
+                    <p>The component fails to receive requests or send responses, often due to buffer overflows, dropped packets, or silent network partitions.</p>
+                    <span class="mitigation"><strong>Model via:</strong> Negative Binomial counts, Poisson arrivals.</span>
+                </div>
+                <div class="tax-card" style="border-top-color: var(--teal);">
+                    <h4>Timing Failures (Performance)</h4>
+                    <p>The component returns the correct payload, but outside the required temporal window (e.g., GC pauses, cold-start latency, queue saturation).</p>
+                    <span class="mitigation"><strong>Model via:</strong> Erlang C queues, Extreme Value Theory.</span>
+                </div>
+                <div class="tax-card" style="border-top-color: var(--good);">
+                    <h4>Byzantine Failures</h4>
+                    <p>The component acts arbitrarily or maliciously, sending conflicting states to different peers, corrupting the consensus mechanism.</p>
+                    <span class="mitigation"><strong>Model via:</strong> Quorum Math, TLA+ State Checking.</span>
+                </div>
+            </div>
+
             <h2>Preface — In Defense of "It Depends"</h2>
             <p>A stakeholder asks: <em>"Why is the system slow?"</em></p>
-            
+
             <p>The accurate engineering answer is often: <em>"The p99 tail has drifted outward because traffic shifted toward an un-indexed cache-miss path, increasing service-time variance. Under our current 100-way synchronous fan-out, that variance is amplified to the point that 63% of parent requests experience tail stalls."</em></p>
-            
-            <p>The stakeholder wanted: <em style="color: var(--bad); text-decoration: line-through; opacity: 0.85;">"Server 4 is slow."</em></p>
-            
+
+            <p>The stakeholder wanted: <em style="color: var(--red); text-decoration: line-through; opacity: 0.85;">"Server 4 is slow."</em></p>
+
             <p>The phrase "it depends" becomes problematic only when treated as an excuse not to quantify the underlying dynamics. Mature systems engineering transforms "it depends" into actionable boundaries:</p>
 
             <div class="tldr-box">
@@ -656,7 +594,7 @@
             </div>
 
             <h2>The Illusion of Load Testing</h2>
-            
+
             <p>Standard staging benchmarks routinely feed systems a synthetic profile:<br>
             <code>Constant Arrival Rate</code> + <code>Homogeneous Payloads</code> + <code>Stable Latency</code> + <code>Independent Calls</code>.</p>
 
@@ -666,7 +604,7 @@
             <p>A deterministic benchmark of 1,000 requests per second proves only that the system functions under that specific deterministic trace. It provides zero guarantees of survivability against a burst of 1,000 requests landing in a 50-millisecond window, a coordinated client retry storm, or a whale tenant consuming 60% of shared database IOPS.</p>
 
             <p>Let's look at raw reality. The simulation below draws from a real, lumpy dataset. It's <strong>bimodal</strong>—meaning it has two massive peaks. Why? Because you have two distinct physical states in your system: <strong>Cache Hits</strong> (fast) and <strong>Cache Misses</strong> (slow).</p>
-            
+
             <p>Click <strong>Step 50</strong> a few times to see the shape form, then click <strong>Run Simulation</strong> and watch what happens to the <strong>Mean</strong> (the red line). The average latency sits in the literal "valley of death" between the two peaks. It represents a request state that almost never happens. If you capacity-plan for the average, you are provisioning for a hallucination.</p>
 
             <div class="tldr-box tldr-box--amber">
@@ -689,11 +627,11 @@
                 <div class="stage-legend">
                     <span class="legend-item"><span class="legend-dot" style="background: var(--teal);"></span>Cache Hits (~15ms)</span>
                     <span class="legend-item"><span class="legend-dot" style="background: var(--amber);"></span>Cache Misses (~85ms)</span>
-                    <span class="legend-item"><span class="legend-dot" style="background: var(--bad);"></span>Mean (The Lie)</span>
+                    <span class="legend-item"><span class="legend-dot" style="background: var(--red);"></span>Mean (The Lie)</span>
                 </div>
 
                 <canvas id="cv" width="800" height="320"></canvas>
-                
+
                 <div class="readout">
                     <div>Samples: <span id="statN">0</span></div>
                     <div>Mean: <span id="statMean">–</span></div>
@@ -703,16 +641,49 @@
             </div>
 
             <h2>Five Nines on a Five-Cent Budget</h2>
-            <p>A target availability of "five nines" (<code>A = 0.99999</code>) permits an annual downtime budget across a standard 365-day year of:</p>
 
-            <div class="tldr-box tldr-box--warning">
-                <div class="tldr-eyebrow">The Mathematical Reality of 99.999%</div>
-                <div class="tldr-content">
-                    <p style="font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 1rem;">
-                        365 days × 24 hours × 60 minutes × (1 - 0.99999)<br>
-                        = <strong style="font-size: 1.3rem; color: var(--text);">5.26 minutes of downtime per year.</strong>
-                    </p>
-                </div>
+            <p>A target availability of "five nines" (<code>A = 0.99999</code>) permits an annual downtime budget of exactly 5.26 minutes. But downtime math is just trivia if it ignores the economic physics: <strong>the cost of each additional "9" scales exponentially, not linearly.</strong></p>
+
+            <p>You cannot buy 99.999% by simply provisioning 10% more hardware. You buy it by fundamentally changing the failure domain architecture and removing humans from the critical path.</p>
+
+            <div class="flow-container">
+                <div class="flow-label">The Exponential Cost of Reliability</div>
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem;">
+                    <thead style="border-bottom: 2px solid var(--line); font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85rem; color: var(--teal);">
+                        <tr>
+                            <th style="padding: 0.75rem 0.5rem;">Target</th>
+                            <th style="padding: 0.75rem 0.5rem;">Downtime / Yr</th>
+                            <th style="padding: 0.75rem 0.5rem;">The Architectural Leap</th>
+                            <th style="padding: 0.75rem 0.5rem;">Cost Multiplier</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid var(--line-soft);">
+                            <td style="padding: 0.85rem 0.5rem; color: var(--text);"><strong>99%</strong><br><span style="font-size: 0.75rem; color: var(--muted);">2 Nines</span></td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--muted);">3.65 days</td>
+                            <td style="padding: 0.85rem 0.5rem; color: var(--muted);">Single region, active-passive. Standard backups. Human-driven incident response and manual failover.</td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--text);">1x (Baseline)</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--line-soft);">
+                            <td style="padding: 0.85rem 0.5rem; color: var(--text);"><strong>99.9%</strong><br><span style="font-size: 0.75rem; color: var(--muted);">3 Nines</span></td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--muted);">8.76 hours</td>
+                            <td style="padding: 0.85rem 0.5rem; color: var(--muted);">Multi-zone within a region. Automated load balancing, redundant state stores, and auto-scaling groups.</td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--good);">~3x to 5x</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--line-soft);">
+                            <td style="padding: 0.85rem 0.5rem; color: var(--text);"><strong>99.99%</strong><br><span style="font-size: 0.75rem; color: var(--muted);">4 Nines</span></td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--muted);">52.5 mins</td>
+                            <td style="padding: 0.85rem 0.5rem; color: var(--muted);">Multi-region active-active. Asynchronous data replication, circuit breakers, automated failover, and dedicated SREs.</td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--amber);">~10x to 25x</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.85rem 0.5rem; color: var(--text);"><strong>99.999%</strong><br><span style="font-size: 0.75rem; color: var(--muted);">5 Nines</span></td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--muted);">5.26 mins</td>
+                            <td style="padding: 0.85rem 0.5rem; color: var(--muted);">Global active-active. Synchronous consensus (Raft/Paxos), BGP anycast routing, custom transit, zero human-in-the-loop recovery.</td>
+                            <td style="padding: 0.85rem 0.5rem; font-family: 'IBM Plex Mono'; color: var(--red); font-weight: 700;">~50x to 100x+</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <p>Operating a cluster at 90% steady-state utilization to minimize infrastructure spend while promising five nines of availability introduces severe fragility. High utilization leaves minimal buffer capacity to absorb stochastic traffic spikes. As queue saturation approaches, waiting time diverges asymptotically. (This is Kingman's formula, which we will explore in Part 3).</p>
@@ -739,6 +710,7 @@
 
     </div>
 
+    <!-- Canvas Simulation Math & Render Code -->
     <script>
         (function () {
             const cv = document.getElementById('cv');
@@ -775,34 +747,32 @@
             function generateSample() {
                 let val;
                 if (Math.random() < 0.65) {
-                    val = 15 + 4 * randNormal(); // Cache Hit
+                    val = 15 + 4 * randNormal();
                 } else {
-                    val = 85 + 12 * Math.abs(randNormal()); // Cache Miss
+                    val = 85 + 12 * Math.abs(randNormal());
                 }
                 return Math.max(0, val);
             }
 
             function isLightMode() {
-                const root = document.documentElement;
-                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light') || root.classList.contains('theme-light');
+                return document.documentElement.getAttribute('data-theme') === 'light';
             }
 
             function draw() {
                 ctx.clearRect(0, 0, logicalWidth, logicalHeight);
 
                 const light = isLightMode();
-                const gridColor = light ? '#cbd5e1' : '#2a323e';
-                const labelColor = light ? '#475569' : '#8b93a3';
-                const hitBarColor = light ? 'rgba(13, 148, 136, 0.78)' : 'rgba(79, 184, 166, 0.75)';
-                const missBarColor = light ? 'rgba(180, 83, 9, 0.78)' : 'rgba(212, 167, 44, 0.75)';
-                const meanColor = light ? '#dc2626' : '#d97757';
-                const medColor = light ? '#0d9488' : '#4fb8a6';
+                const gridColor = light ? '#c8bfb0' : '#2b3340';
+                const labelColor = light ? '#6b6256' : '#8992a3';
+                const hitBarColor = light ? 'rgba(42, 122, 106, 0.78)' : 'rgba(79, 184, 166, 0.75)';
+                const missBarColor = light ? 'rgba(184, 114, 10, 0.78)' : 'rgba(232, 163, 61, 0.75)';
+                const meanColor = light ? '#b03030' : '#d9645c';
+                const medColor = light ? '#2a7a6a' : '#4fb8a6';
 
                 const pad = { l: 42, r: 22, t: 28, b: 40 };
                 const plotW = logicalWidth - pad.l - pad.r;
                 const plotH = logicalHeight - pad.t - pad.b;
 
-                // Draw axes
                 ctx.strokeStyle = gridColor;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -811,7 +781,6 @@
                 ctx.lineTo(logicalWidth - pad.r, logicalHeight - pad.b);
                 ctx.stroke();
 
-                // X axis labels
                 ctx.fillStyle = labelColor;
                 ctx.font = '12px "IBM Plex Mono", monospace';
                 ctx.textAlign = 'center';
@@ -833,7 +802,6 @@
                     return;
                 }
 
-                // Calculate histogram bins
                 const maxVal = 120;
                 const bins = 60;
                 const binWidth = maxVal / bins;
@@ -856,7 +824,6 @@
                 const sorted = [...samples].sort((a, b) => a - b);
                 const median = sorted[Math.floor(sorted.length / 2)];
 
-                // Render bars
                 const maxCount = Math.max(1, ...counts);
                 const barW = plotW / bins;
 
@@ -869,7 +836,6 @@
                     ctx.fillRect(x + 1, y, Math.max(1, barW - 2), h);
                 });
 
-                // Draw Mean Line
                 const meanX = pad.l + (mean / maxVal) * plotW;
                 if (mean >= 0 && mean <= maxVal) {
                     ctx.beginPath();
@@ -885,7 +851,6 @@
                     ctx.fillText('MEAN (' + mean.toFixed(0) + 'ms)', meanX, pad.t - 8);
                 }
 
-                // Draw Median Line
                 const medX = pad.l + (median / maxVal) * plotW;
                 if (median >= 0 && median <= maxVal) {
                     ctx.beginPath();
@@ -923,7 +888,6 @@
                 }
             }
 
-            // Controls
             document.getElementById('btnRun').onclick = () => {
                 if (isRunning) {
                     isRunning = false;
@@ -957,15 +921,32 @@
                 draw();
             };
 
-            // Redraw canvas when theme toggles
             const observer = new MutationObserver(() => draw());
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
             window.addEventListener('resize', resizeCanvas);
 
-            // Initialize
             resizeCanvas();
         })();
+
+        // Theme Toggle
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+
+                    root.setAttribute('data-theme', newTheme);
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+        });
     </script>
 </body>
 </html>

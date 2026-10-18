@@ -8,56 +8,848 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag() {
-            window.dataLayer.push(arguments);
-        }
+        function gtag() { window.dataLayer.push(arguments); }
         gtag('js', new Date());
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
+
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="Geometric retries, Negative Binomial fraud detection, Beta confidence intervals, and the PERT estimation trap.">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-6-state-empiricism-and-simulation.html">
+
+    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                root.setAttribute('data-theme', initialTheme);
+                root.classList.add(initialTheme, 'theme-' + initialTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        /* =======================================================================
+           SERIES-ALIGNED STYLES & LAYOUT
+           ======================================================================= */
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        p { margin-bottom: 1.35rem; }
+        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
+
+        /* --- Quote Styling --- */
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
+        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+
+        /* --- Series Heading Row --- */
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+
+        /* --- TL;DR / Callout Boxes --- */
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
+        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        
+        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: 0.4rem; }
+
+        /* --- Math Block --- */
+        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
+        .math-block var { font-style: italic; color: var(--amber); }
+        
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation strong { color: var(--text); }
+
+        /* --- Simulation Stage (Tight Toolbar) --- */
+        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        
+        .sim-toolbar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+            flex-wrap: nowrap; 
+            overflow-x: auto; 
+            padding-bottom: 0.5rem;
+        }
+        
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group span { font-weight: 600; color: var(--text); float: right; }
+        
+        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
+        [data-theme="light"] button.sim-btn { color: #ffffff; }
+        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+        
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout span { color: var(--amber); font-weight: 600; }
+
+        /* --- Scenario Cards --- */
+        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-card p strong { color: var(--text); }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref a { color: var(--teal); text-decoration: none; }
+        .scenario-ref a:hover { text-decoration: underline; }
+
+        /* --- Post Pager --- */
+        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+
+        /* --- Theme Toggle Icon Visibility --- */
+        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
+        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+
+        @media (max-width: 650px) {
+            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-params { flex-direction: column; width: 100%; }
+            .param-group { width: 100%; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
 
         <header class="site-header">
-            <a href="../../index.html" class="site-title">Saurav Sana</a>
-            <nav class="site-nav" aria-label="Primary navigation">
-                <a href="../../index.html">Home</a>
-                <a href="../../index.html">Blog</a>
-                <a href="#">Tags</a>
-                <a href="#">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
-                    <span class="icon-moon" aria-hidden="true">🌙</span>
-                    <span class="icon-bulb" aria-hidden="true">💡</span>
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
                 </button>
             </nav>
-
         </header>
-
 
         <main>
             <div class="post-meta" style="margin-bottom: 0.5rem;">
                 <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
             </div>
-            <h1>Part 6: Chaos, Jitter, and Whale Tenants</h1>
-            <div class="post-meta" style="margin-bottom: 2.5rem;">August 24, 2026</div>
 
-            <p>In any shared infrastructure processing global trade repositories, "whale tenants"—those contributing massively disproportional data volumes compared to the median—introduce dangerous queue jitter.</p>
+            <div class="series-heading-row">
+                <h1>State, Empiricism, and the Simulation Fallacy</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">November 14, 2026 · Part 6 of 8</div>
 
-            <p>Without strict partitioning strategies in underlying stores like Cosmos DB, these tenants can starve smaller clients during complex OTC derivative reconciliation tasks.</p>
+            <blockquote class="snarky-quote">
+                <p class="snarky-quote-text">“The definition of insanity is doing the same thing over and over again and expecting different results.”</p>
+                <p class="snarky-quote-author">— <strong><em>Often attributed to Albert Einstein</em></strong> (But probably Rita Mae Brown)</p>
+            </blockquote>
+
+            <p>Exponential backoff: politely waiting slightly longer before aggressively contributing to a DDoS attack on your own infrastructure.</p>
+
+            <p>The <strong>Geometric</strong> distribution models retries until success. But retries usually break independence—if you retry because a database is down, your retry makes it <em>more</em> down. <strong>Markov Models</strong> dictate circuit breaker state machines (CLOSED → OPEN → HALF-OPEN). <strong>Negative Binomial</strong> helps you distinguish a human mistyping a credit card from a botnet blasting combinations. And <strong>Beta</strong> distributions keep you honest when you only have 50 data points. </p>
+
+            <!-- ========================================== -->
+            <!-- 1. GEOMETRIC DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>1. The Geometric Distribution (The Retry Loop)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Infinite Loop</div>
+                <div class="tldr-content">
+                    <p>Think about the last time you tried to connect to a flaky Wi-Fi network. You click "Connect." It fails. You click again. It fails. You click again. The Geometric distribution models the number of trials required to get the <em>first</em> success.</p>
+                    <p>In distributed systems, this is your retry logic. Every time you hit a 500 error, you flip a coin: Success (1) or Fail (0). The Geometric distribution tells you how many attempts it will take. The problem? Retries are not independent. If the database is down, it stays down. Your retries just make it <em>more</em> down.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of needing exactly <var>k</var> trials to get the first success, where <var>p</var> is the probability of success on any given trial:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = (1 - <var>p</var>)<sup><var>k</var>-1</sup> &middot; <var>p</var>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>k</var>:</strong> The total number of attempts.</li>
+                    <li><strong><var>p</var>:</strong> The probability of success on any single attempt.</li>
+                    <li><strong>(1 - <var>p</var>)<sup><var>k</var>-1</sup>:</strong> The probability of failing <var>k</var>-1 times in a row before finally succeeding.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If your service has a 50% success rate (<var>p</var>=0.5), the probability that you need exactly 3 attempts is <code>0.5^2 * 0.5 = 0.125</code> (12.5%). If your success rate is only 10%, the probability of needing 3 attempts jumps to <code>0.9^2 * 0.1 = 0.081</code>.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>The Geometric distribution assumes that every attempt is independent of the last. In reality, failures are highly correlated (a.k.a. the thundering herd). If 1,000 clients all retry at the exact same millisecond, the success probability <var>p</var> drops dramatically for everyone.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="geometric">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Success Prob (p): <span id="v_p_geometric">0.40</span></div>
+                            <input type="range" id="p_geometric" min="0.05" max="0.90" step="0.01" value="0.40">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Attempts: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Congestion Collapse" <span class="scenario-tag">1986 Internet</span></div>
+                <p>In 1986, the early Internet experienced total congestion collapse. Routers dropped packets due to overload; endpoints responded by treating the drops as random and immediately retransmitting. They didn't realize they were part of a feedback loop. Throughput dropped by a factor of 1,000.</p>
+                <div class="scenario-ref">Reference: <a href="https://dl.acm.org/doi/10.1145/52324.52356" target="_blank">Jacobson, "Congestion Avoidance and Control" (1988)</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Retry Storm" <span class="scenario-tag">AWS SDK</span></div>
+                <p>The AWS SDK retries failed requests 3 times by default. When S3 has a minor hiccup, millions of clients retry simultaneously, turning a small blip into a massive outage. This is why AWS introduced the "Standard" retry mode with exponential backoff and jitter.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank">AWS Architecture Blog: Exponential Backoff and Jitter</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Circuit Breaker" <span class="scenario-tag">Netflix Hystrix</span></div>
+                <p>Netflix's Hystrix library models retries as a state machine. After N consecutive failures, the circuit opens and <em>stops</em> retrying entirely. This breaks the Geometric distribution by deliberately setting <var>p</var> = 0.</p>
+                <div class="scenario-ref">Reference: <a href="https://github.com/Netflix/Hystrix/wiki" target="_blank">Netflix Hystrix Wiki</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 2. NEGATIVE BINOMIAL DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>2. The Negative Binomial Distribution (The Fraud Bot)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: Racing Failures to the Finish Line</div>
+                <div class="tldr-content">
+                    <p>If Geometric is "how many tries until <em>one</em> success," Negative Binomial is "how many failures will I rack up before I get <var>r</var> successes."</p>
+                    <p>In fraud prevention, we use this to distinguish a human mistyping a CVV from a botnet blasting combinations. A human will usually get it right after 1-2 failures. A botnet will rack up 1,000 failures before it gets 10 successes. The shape of the failure distribution is radically different.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability of observing exactly <var>k</var> failures before achieving <var>r</var> successes, where <var>p</var> is the probability of success:</p>
+            <div class="math-block">
+                <var>P</var>(<var>X</var> = <var>k</var>) = (<var>k</var> + <var>r</var> - 1 choose <var>k</var>) &middot; (1 - <var>p</var>)<sup><var>k</var></sup> &middot; <var>p</var><sup><var>r</var></sup>
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>r</var>:</strong> The target number of successes you are waiting for.</li>
+                    <li><strong><var>k</var>:</strong> The number of failures observed.</li>
+                    <li><strong><var>p</var>:</strong> The probability of success on any single attempt.</li>
+                    <li><strong>(<var>k</var> + <var>r</var> - 1 choose <var>k</var>):</strong> The number of ways to arrange those failures and successes.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> You want to see 5 successful logins (<var>r</var>=5). The system has a 30% success rate for suspicious IPs (<var>p</var>=0.3). What's the probability of seeing exactly 10 failures first? The math gives roughly <strong>8.4%</strong>. If you see 100 failures, the probability drops to near zero.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Negative Binomial assumes failures are independent. If an attacker is doing credential stuffing, they are hitting thousands of different accounts. Each failure doesn't decrease their probability of success on the next account. You need to model the failure rate at the <em>tenant</em> level, not the request level.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="negbinomial">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Target Successes (r): <span id="v_r_negbinomial">5</span></div>
+                            <input type="range" id="r_negbinomial" min="1" max="20" step="1" value="5">
+                        </div>
+                        <div class="param-group">
+                            <div>Success Prob (p): <span id="v_p_negbinomial">0.30</span></div>
+                            <input type="range" id="p_negbinomial" min="0.05" max="0.90" step="0.01" value="0.30">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Failures: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Velocity Check" <span class="scenario-tag">Stripe Radar</span></div>
+                <p>Stripe uses statistical models to distinguish a user who forgot their password from a botnet. A human might fail 3 times and then succeed. A botnet will fail 1,000 times and only succeed 2 times. The ratio of failures to successes is the tell.</p>
+                <div class="scenario-ref">Reference: <a href="https://stripe.com/docs/radar" target="_blank">Stripe Radar Fraud Detection</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Consumer Lag" <span class="scenario-tag">Apache Kafka</span></div>
+                <p>Kafka consumers retry failed messages. If a poison message fails repeatedly, the consumer can rack up thousands of retries before the DLQ (Dead Letter Queue) kicks in. Negative Binomial models the expected backlog of poison messages.</p>
+                <div class="scenario-ref">Reference: <a href="https://kafka.apache.org/documentation/#consumerconfigs" target="_blank">Kafka Consumer Configuration</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Canary Analysis" <span class="scenario-tag">Spinnaker</span></div>
+                <p>When rolling out a canary, Spinnaker analyzes the number of failures before achieving a statistically significant number of successes. If the failure count exceeds the Negative Binomial threshold, it automatically rolls back.</p>
+                <div class="scenario-ref">Reference: <a href="https://spinnaker.io/docs/guides/user/canary/" target="_blank">Spinnaker Canary Analysis</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 3. BETA DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>3. The Beta Distribution (The Confidence Trap)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: "60% Sure. Ask me again after one more data point."</div>
+                <div class="tldr-content">
+                    <p>You run an A/B test. Version A gets 10 clicks out of 20. Version B gets 12 clicks out of 20. Which is better? The Beta distribution models the <em>probability of probabilities</em>. It tells you how confident you should be in your conversion rate.</p>
+                    <p>When you have very little data, the Beta distribution is wide and flat. It says "Your conversion rate could be anywhere from 10% to 90%." As you collect more data, the distribution narrows and sharpens. It's the mathematically correct way to say "I don't know yet."</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The probability density function for a Beta distribution, defined by shape parameters <var>&alpha;</var> (successes + 1) and <var>&beta;</var> (failures + 1):</p>
+            <div class="math-block">
+                <var>f</var>(<var>x</var>; <var>&alpha;</var>, <var>&beta;</var>) = (<var>x</var><sup><var>&alpha;</var>-1</sup> &middot; (1-<var>x</var>)<sup><var>&beta;</var>-1</sup>) / <var>B</var>(<var>&alpha;</var>, <var>&beta;</var>)
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>&alpha;</var> (Alpha):</strong> The number of observed successes + 1 (your "prior" successes).</li>
+                    <li><strong><var>&beta;</var> (Beta):</strong> The number of observed failures + 1 (your "prior" failures).</li>
+                    <li><strong><var>B</var>(<var>&alpha;</var>, <var>&beta;</var>):</strong> The Beta function, a normalizing constant to make the area under the curve equal 1.</li>
+                </ul>
+                <p><strong>Worked Example:</strong> You test a new feature with 4 successes and 8 failures. Your <var>&alpha;</var> = 5 and <var>&beta;</var> = 9. The mean of the Beta distribution is <code>5 / (5+9) = 35.7%</code>. But the variance is high. The true conversion rate could be anywhere from 15% to 60%.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>If you deploy a canary and it serves 100 requests with 0 errors, you might assume the error rate is 0%. The Beta distribution disagrees. With <var>&alpha;</var>=1 and <var>&beta;</var>=101, the 95th percentile of the error rate is still ~3%. You cannot prove a system is safe with a small sample size.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="beta">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Prior Successes (α): <span id="v_a_beta">4.0</span></div>
+                            <input type="range" id="a_beta" min="0.5" max="30.0" step="0.5" value="4.0">
+                        </div>
+                        <div class="param-group">
+                            <div>Prior Failures (β): <span id="v_b_beta">8.0</span></div>
+                            <input type="range" id="b_beta" min="0.5" max="30.0" step="0.5" value="8.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "A/B Test" <span class="scenario-tag">Netflix / Growth</span></div>
+                <p>Netflix uses Bayesian A/B testing to decide which artwork gets the most clicks. They model the click-through rate as a Beta distribution, constantly updating the posterior as new data comes in.</p>
+                <div class="scenario-ref">Reference: <a href="https://netflixtechblog.com/its-all-a-bout-testing-the-netflix-experimentation-platform-4e1ca458c15" target="_blank">Netflix Experimentation Platform</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Blast Radius" <span class="scenario-tag">Chaos Engineering</span></div>
+                <p>When injecting a failure, you want to be 95% confident that the blast radius is less than 1% of traffic. The Beta distribution tells you how many requests you need to test to achieve that confidence.</p>
+                <div class="scenario-ref">Reference: <a href="https://principlesofchaos.org/" target="_blank">Principles of Chaos Engineering</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Cold Start" <span class="scenario-tag">Thompson Sampling</span></div>
+                <p>Multi-armed bandit algorithms use the Beta distribution to balance exploration (trying new arms) and exploitation (using the best-known arm). It's how recommendation engines avoid getting stuck in a local maximum.</p>
+                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Thompson_sampling" target="_blank">Thompson Sampling</a></div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 4. TRIANGULAR / PERT DISTRIBUTION -->
+            <!-- ========================================== -->
+            <h2>4. The Triangular / PERT Distribution (The Human Estimate)</h2>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: The Planning Fallacy</div>
+                <div class="tldr-content">
+                    <p>You ask an engineer how long a migration will take. They say, "Best case, 2 days. Worst case, 10 days. Most likely, 4 days." This is a Triangular distribution. It is the mathematical representation of human optimism.</p>
+                    <p>The PERT (Program Evaluation and Review Technique) distribution is a smoothed version of the Triangular distribution. It weighs the "Most Likely" estimate more heavily, reflecting the fact that human estimates are usually clustered around a mode, but we acknowledge the long tail of delays.</p>
+                </div>
+            </div>
+
+            <h3>The Math</h3>
+            <p>The PERT distribution is defined by three parameters: <var>a</var> (optimistic), <var>m</var> (most likely), and <var>b</var> (pessimistic). The mean of the PERT distribution is heavily weighted toward <var>m</var>:</p>
+            <div class="math-block">
+                Mean = (<var>a</var> + 4<var>m</var> + <var>b</var>) / 6
+            </div>
+            
+            <div class="math-explanation">
+                <strong>Let's decode this:</strong>
+                <ul>
+                    <li><strong><var>a</var>:</strong> The absolute best-case scenario (e.g., 2 days).</li>
+                    <li><strong><var>m</var>:</strong> The most likely scenario (e.g., 4 days).</li>
+                    <li><strong><var>b</var>:</strong> The absolute worst-case scenario (e.g., 10 days).</li>
+                </ul>
+                <p><strong>Worked Example:</strong> If <var>a</var>=2, <var>m</var>=4, and <var>b</var>=10, the PERT mean is <code>(2 + 16 + 10) / 6 = 4.67 days</code>. Notice how the 10-day worst case pulls the mean from 4 to 4.67. The PERT distribution mathematically penalizes you for having a long tail.</p>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-content">
+                    <p>Engineers systematically underestimate the worst case (<var>b</var>). They assume "nothing will go wrong." The PERT distribution is only as good as the <var>b</var> you give it. If your worst case is actually 30 days, and you put 10, your entire project plan is mathematically doomed.</p>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation</h3>
+            <div class="stage" data-sim-type="pert">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <div>Optimistic (a): <span id="v_a_pert">1.0</span></div>
+                            <input type="range" id="a_pert" min="0" max="5.0" step="0.1" value="1.0">
+                        </div>
+                        <div class="param-group">
+                            <div>Most Likely (m): <span id="v_m_pert">3.0</span></div>
+                            <input type="range" id="m_pert" min="0.5" max="8.0" step="0.1" value="3.0">
+                        </div>
+                        <div class="param-group">
+                            <div>Pessimistic (b): <span id="v_b_pert">6.0</span></div>
+                            <input type="range" id="b_pert" min="1" max="12.0" step="0.1" value="6.0">
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn btn-run">▶ Run</button>
+                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <div class="readout">
+                    <div>Samples: <span class="stat-n">0</span></div>
+                    <div>Mean Estimate: <span class="stat-mean">–</span></div>
+                </div>
+            </div>
+
+            <h3>Scenarios & Case Studies</h3>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Story Points" <span class="scenario-tag">Jira / Agile</span></div>
+                <p>Story points are essentially PERT estimates in disguise. When a team says "This is a 3, but could be an 8," they are implicitly defining the <var>a</var>, <var>m</var>, and <var>b</var> parameters.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.atlassian.com/agile/project-management/estimation" target="_blank">Atlassian: Agile Estimation</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Incident Recovery" <span class="scenario-tag">Post-Mortem</span></div>
+                <p>During a major incident, the Incident Commander asks "How long until we restore service?" The PERT distribution is used to give a realistic estimate (e.g., "Optimistically 15 mins, realistically 45, worst case 2 hours").</p>
+                <div class="scenario-ref">Reference: <a href="https://response.pagerduty.com/" target="_blank">PagerDuty Incident Response</a></div>
+            </div>
+            <div class="scenario-card">
+                <div class="scenario-title">The "Cost Estimation" <span class="scenario-tag">FinOps</span></div>
+                <p>When migrating to the cloud, finance teams use PERT to estimate the monthly bill. If they only use the "Most Likely" figure, they will blow their budget when the tail event (egress fees, over-provisioning) hits.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.finops.org/introduction/what-is-finops/" target="_blank">FinOps Foundation</a></div>
+            </div>
+
+            <nav class="post-pager" aria-label="Series pagination">
+                <a href="part-5-heavy-tails-and-extremes.html">← Part 5: Heavy Tails and Extremes</a>
+                <a href="part-7-architects-reality-check">Part 7: The Architect's Reality Check →</a>
+            </nav>
         </main>
 
-
         <footer class="site-footer">
-            <div>© 2026 Saurav Sana. All rights reserved.</div>
+            <div>© 2026 Saurav Sana</div>
             <div class="footer-links">
-                <a href="#">Github</a>
-                <a href="#">X/Twitter</a>
-                <a href="#">LinkedIn</a>
-                <a href="#">RSS</a>
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
             </div>
         </footer>
 
     </div>
 
+    <!-- Simulator & Theme Engine -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvasToSim = new Map();
+
+            // --- Theme Toggle Logic ---
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+                    
+                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                    root.setAttribute('data-theme', newTheme);
+                    root.classList.add(newTheme, 'theme-' + newTheme);
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
+                    localStorage.setItem('theme', newTheme);
+
+                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
+                        const sim = canvasToSim.get(canvas);
+                        if (sim) sim.draw();
+                    });
+                });
+            }
+
+            function isLightMode() {
+                const root = document.documentElement;
+                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
+            }
+
+            function getCssVar(name) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            }
+
+            function randNormal() {
+                let u = 0, v = 0;
+                while (u === 0) u = Math.random();
+                while (v === 0) v = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function randGamma(s, c) {
+                if (s < 1) return randGamma(1 + s, c) * Math.pow(Math.random(), 1 / s);
+                let d = s - 1 / 3, e = 1 / Math.sqrt(9 * d);
+                while (true) {
+                    let x, v;
+                    do { x = randNormal(); v = 1 + e * x; } while (v <= 0);
+                    v = v * v * v;
+                    let u = Math.random();
+                    if (u < 1 - 0.0331 * x * x * x * x || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * c;
+                }
+            }
+
+            function randBeta(a, b) {
+                let x = randGamma(a, 1), y = randGamma(b, 1);
+                return x / (x + y);
+            }
+
+            class Simulator {
+                constructor(stageElement) {
+                    this.type = stageElement.dataset.simType;
+                    this.canvas = stageElement.querySelector('.sim-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.samples = [];
+                    this.running = false;
+                    this.timer = null;
+                    this.params = {};
+
+                    this.statN = stageElement.querySelector('.stat-n');
+                    this.statMean = stageElement.querySelector('.stat-mean');
+                    this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnStep = stageElement.querySelector('.btn-step');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.bindInputs(stageElement);
+
+                    this.btnRun.onclick = () => this.toggleRun();
+                    this.btnStep.onclick = () => this.step(50);
+                    this.btnReset.onclick = () => this.reset();
+
+                    this.resize();
+                    window.addEventListener('resize', () => this.resize());
+
+                    canvasToSim.set(this.canvas, this);
+                    this.draw();
+                }
+
+                bindInputs(stage) {
+                    if (this.type === 'geometric') {
+                        const input = stage.querySelector('#p_geometric');
+                        const label = stage.querySelector('#v_p_geometric');
+                        this.params.p = parseFloat(input.value);
+                        input.oninput = (e) => {
+                            this.params.p = parseFloat(e.target.value);
+                            label.textContent = this.params.p.toFixed(2);
+                            this.reset();
+                        };
+                    } else if (this.type === 'negbinomial') {
+                        const inputR = stage.querySelector('#r_negbinomial');
+                        const labelR = stage.querySelector('#v_r_negbinomial');
+                        const inputP = stage.querySelector('#p_negbinomial');
+                        const labelP = stage.querySelector('#v_p_negbinomial');
+
+                        this.params.r = parseInt(inputR.value);
+                        this.params.p = parseFloat(inputP.value);
+
+                        inputR.oninput = (e) => { this.params.r = parseInt(e.target.value); labelR.textContent = this.params.r; this.reset(); };
+                        inputP.oninput = (e) => { this.params.p = parseFloat(e.target.value); labelP.textContent = this.params.p.toFixed(2); this.reset(); };
+                    } else if (this.type === 'beta') {
+                        const inputA = stage.querySelector('#a_beta');
+                        const labelA = stage.querySelector('#v_a_beta');
+                        const inputB = stage.querySelector('#b_beta');
+                        const labelB = stage.querySelector('#v_b_beta');
+
+                        this.params.a = parseFloat(inputA.value);
+                        this.params.b = parseFloat(inputB.value);
+
+                        inputA.oninput = (e) => { this.params.a = parseFloat(e.target.value); labelA.textContent = this.params.a.toFixed(1); this.reset(); };
+                        inputB.oninput = (e) => { this.params.b = parseFloat(e.target.value); labelB.textContent = this.params.b.toFixed(1); this.reset(); };
+                    } else if (this.type === 'pert') {
+                        const inputA = stage.querySelector('#a_pert');
+                        const labelA = stage.querySelector('#v_a_pert');
+                        const inputM = stage.querySelector('#m_pert');
+                        const labelM = stage.querySelector('#v_m_pert');
+                        const inputB = stage.querySelector('#b_pert');
+                        const labelB = stage.querySelector('#v_b_pert');
+
+                        this.params.a = parseFloat(inputA.value);
+                        this.params.m = parseFloat(inputM.value);
+                        this.params.b = parseFloat(inputB.value);
+
+                        inputA.oninput = (e) => { this.params.a = parseFloat(e.target.value); labelA.textContent = this.params.a.toFixed(1); this.reset(); };
+                        inputM.oninput = (e) => { this.params.m = parseFloat(e.target.value); labelM.textContent = this.params.m.toFixed(1); this.reset(); };
+                        inputB.oninput = (e) => { this.params.b = parseFloat(e.target.value); labelB.textContent = this.params.b.toFixed(1); this.reset(); };
+                    }
+                }
+
+                resize() {
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = this.canvas.parentElement.getBoundingClientRect();
+                    const logicalW = rect.width - 48;
+                    const logicalH = 220;
+
+                    this.canvas.width = logicalW * dpr;
+                    this.canvas.height = logicalH * dpr;
+                    this.canvas.style.width = logicalW + 'px';
+                    this.canvas.style.height = logicalH + 'px';
+
+                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    this.ctx.scale(dpr, dpr);
+
+                    this.logicalW = logicalW;
+                    this.logicalH = logicalH;
+                    this.draw();
+                }
+
+                generateSample() {
+                    const u = Math.random();
+                    if (this.type === 'geometric') {
+                        let k = 1;
+                        while (u >= this.params.p) k++;
+                        return k;
+                    } else if (this.type === 'negbinomial') {
+                        let s = 0, f = 0;
+                        while (s < this.params.r) {
+                            if (u < this.params.p) s++;
+                            else f++;
+                        }
+                        return f;
+                    } else if (this.type === 'beta') {
+                        return randBeta(this.params.a, this.params.b);
+                    } else if (this.type === 'pert') {
+                        let a = Math.min(this.params.a, this.params.m, this.params.b);
+                        let b = Math.max(this.params.a, this.params.m, this.params.b);
+                        let c = Math.max(a, Math.min(this.params.m, b));
+                        let Fc = (c - a) / (b - a);
+                        if (u < Fc) return a + Math.sqrt(u * (b - a) * (c - a));
+                        return b - Math.sqrt((1 - u) * (b - a) * (b - c));
+                    }
+                }
+
+                getRange() {
+                    if (this.type === 'geometric') return [1, Math.ceil(5 / this.params.p)];
+                    if (this.type === 'negbinomial') return [0, Math.ceil(this.params.r * 6 / this.params.p)];
+                    if (this.type === 'beta') return [0, 1];
+                    if (this.type === 'pert') return [Math.min(this.params.a, this.params.m, this.params.b), Math.max(this.params.a, this.params.m, this.params.b)];
+                }
+
+                isDiscrete() {
+                    return this.type === 'geometric' || this.type === 'negbinomial';
+                }
+
+                draw() {
+                    if (!this.ctx) return;
+                    const ctx = this.ctx;
+                    const W = this.logicalW;
+                    const H = this.logicalH;
+                    ctx.clearRect(0, 0, W, H);
+
+                    const light = isLightMode();
+                    const gridColor = light ? '#cbd5e1' : '#2a323e';
+                    const labelColor = light ? '#475569' : '#8b93a3';
+
+                    let barColor = getCssVar('--teal');
+                    if (this.type === 'negbinomial') barColor = getCssVar('--amber');
+                    if (this.type === 'beta') barColor = getCssVar('--good');
+                    if (this.type === 'pert') barColor = getCssVar('--bad');
+
+                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    const plotW = W - pad.l - pad.r;
+                    const plotH = H - pad.t - pad.b;
+
+                    ctx.strokeStyle = gridColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(pad.l, H - pad.b);
+                    ctx.lineTo(W - pad.r, H - pad.b);
+                    ctx.stroke();
+
+                    if (this.samples.length === 0) {
+                        ctx.fillStyle = labelColor;
+                        ctx.font = '12px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        this.statN.textContent = '0';
+                        this.statMean.textContent = '–';
+                        return;
+                    }
+
+                    const [rmin, rmax] = this.getRange();
+                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
+                    const binWidth = (rmax - rmin) / bins;
+                    const counts = new Array(bins).fill(0);
+                    let sum = 0;
+
+                    this.samples.forEach(v => {
+                        sum += v;
+                        if (v >= rmin && v <= rmax) {
+                            let idx = Math.floor((v - rmin) / binWidth);
+                            if (idx >= bins) idx = bins - 1;
+                            counts[idx]++;
+                        }
+                    });
+
+                    const mean = sum / this.samples.length;
+                    const maxCount = Math.max(1, ...counts);
+                    const bw = plotW / bins;
+
+                    ctx.fillStyle = barColor;
+                    counts.forEach((c, i) => {
+                        const h = (c / maxCount) * plotH * 0.9;
+                        const x = pad.l + (i * bw);
+                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
+                    });
+
+                    if (mean >= rmin && mean <= rmax) {
+                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--bad');
+                        ctx.lineWidth = 2;
+                        ctx.moveTo(meanX, pad.t);
+                        ctx.lineTo(meanX, H - pad.b);
+                        ctx.stroke();
+
+                        ctx.fillStyle = getCssVar('--bad');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                    }
+
+                    this.statN.textContent = this.samples.length;
+                    this.statMean.textContent = mean.toFixed(2);
+                }
+
+                toggleRun() {
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                        return;
+                    }
+                    this.running = true;
+                    this.btnRun.textContent = '⏸ Pause';
+                    this.timer = setInterval(() => {
+                        this.step(15);
+                    }, 50);
+                }
+
+                step(n) {
+                    for (let i = 0; i < n; i++) {
+                        this.samples.push(this.generateSample());
+                    }
+                    this.draw();
+                }
+
+                reset() {
+                    this.samples = [];
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                    }
+                    this.draw();
+                }
+            }
+
+            document.querySelectorAll('.stage').forEach(stage => {
+                new Simulator(stage);
+            });
+        });
+    </script>
 </body>
 </html>
