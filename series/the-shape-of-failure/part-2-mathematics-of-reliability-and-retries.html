@@ -19,7 +19,7 @@
     <meta name="description" content="Why n-way replication is theater when your failure domains overlap, and the real math of things breaking.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
 
     <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
     <script>
@@ -198,9 +198,11 @@
 
             <p>Welcome to the mathematics of things breaking. In systems design, we routinely calculate cluster reliability using simple probabilities. We spin up three database replicas, calculate the probability of one dying, and proudly declare our architecture "highly available" because we assume that if Server A dies, Server B is completely unaffected.</p>
 
-            <p>This assumption is what we call <strong>Replication Theater</strong>. True independence in the cloud is a myth. Components assumed to be mathematically independent turn out to share a rack, a power domain, a Top-of-Rack switch, a hypervisor, a control plane, or a deployment pipeline. You don't have three independent servers; you have three tenants in the same burning building.</p>
+            <p>This is <strong>Replication Theater</strong>: counting replicas without checking whether their failure modes are actually independent. Cloud components can share a rack, power domain, network path, control plane, identity provider, region, or deployment pipeline. Three replicas are useful only to the extent that they can fail separately—and that separation has to be verified, not inferred from three boxes in a diagram.</p>
 
-            <p>To accurately model failures, we must map our architecture to the correct statistical distribution. Applying the wrong mathematical model to an infrastructure failure is how you end up paging on-call engineers at 3 AM for a phantom metric.</p>
+            <p>The useful question is not simply “Which distribution should I use?” It is “What process generates this failure, and which assumptions does my model need?” A probability distribution describes a pattern; it does not explain a shared switch, a bad rollout, a memory leak, or a human entering the wrong command. Model the mechanism first, then decide whether a distribution is a reasonable approximation.</p>
+
+            <p class="math-explanation">The interactive charts use synthetic samples, not production telemetry. Continuous runs retain the latest 5,000 observations so the browser remains responsive; reset a simulation to start a fresh sample.</p>
 
             <!-- ========================================== -->
             <!-- 1. BERNOULLI DISTRIBUTION -->
@@ -211,8 +213,8 @@
                 <div class="tldr-eyebrow">The Intuition: The Binary Reality</div>
                 <div class="tldr-content">
                     <p>Forget the cluster. Forget the fleet. Forget the 99.99% SLA dashboard. Think about <em>one single request</em> happening right now. Did the HTTP request succeed, or did it return a 500? Did the server boot, or did it hang?</p>
-                    <p>Everything in your complex distributed system eventually bottoms out here: <strong>a single binary event</strong>. A user clicks "buy," and either the transaction goes through or it doesn't. There is no "partially degraded" in a strict Bernoulli model. It is a single coin flip: Success (1) or Fail (0).</p>
-                    <p>When an S3 load balancer drops <em>your</em> specific packet, you are a 0. The user doesn't care that the fleet is healthy; their specific coin flip just landed on tails.</p>
+                    <p>For a particular request and a clearly defined outcome, we can encode success as <strong>1</strong> and failure as <strong>0</strong>. A Bernoulli variable is deliberately simple: it does not represent “partially degraded.” Real requests may time out, return an error, or succeed too slowly; your measurement contract must decide which outcomes count as failure before you assign the 0.</p>
+                    <p>For an individual request, the fleet-wide health dashboard is not the same thing as the user’s outcome. One failed request can be a Bernoulli observation even when the rest of the service is healthy. The important caveat: request outcomes are not automatically independent—one outage can fail thousands of requests together.</p>
                 </div>
             </div>
 
@@ -234,7 +236,7 @@
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>The Bernoulli distribution tells you the probability of <em>one</em> event. It tells you absolutely nothing about the system as a whole. If you average out 1,000,000 requests and get a 99.9% success rate, you are masking the fact that 1,000 users just experienced a hard 0.</p>
+                    <p>A Bernoulli model describes one defined trial; it does not, by itself, describe how trials depend on one another. If exactly 1,000,000 requests have a 99.9% success rate, 1,000 requests failed—but they may belong to fewer than 1,000 users, and they may be clustered in a short outage. Report the aggregate, then inspect time windows, tenant/user impact, and correlated failures.</p>
                 </div>
             </div>
 
@@ -244,7 +246,7 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Success Prob (p): <span id="v_p_bernoulli">0.70</span></div>
-                            <input type="range" id="p_bernoulli" min="0.01" max="0.99" step="0.01" value="0.70">
+                            <input type="range" id="p_bernoulli" aria-label="Bernoulli probability of success" min="0.01" max="0.99" step="0.01" value="0.70">
                         </div>
                     </div>
                     <div class="controls">
@@ -253,7 +255,7 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Bernoulli request outcomes"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Value: <span class="stat-mean">–</span></div>
@@ -263,18 +265,18 @@
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Single User Perspective" <span class="scenario-tag">AWS S3</span></div>
-                <p>"It works for 99.99% of people" is useless to the one user who just saw their payment fail. When an S3 load balancer drops <em>your</em> specific packet, you are a 0. The fleet is irrelevant. You have experienced a perfect, unadulterated Bernoulli failure.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/message/41926/" target="_blank">AWS S3 2017 Post-Mortem (Typo took down the fleet)</a></div>
+                <p>A request-level success indicator is a Bernoulli observation, but the 2017 S3 disruption was not simply a load balancer dropping one unlucky packet. AWS reported that an incorrectly entered operational command removed more servers than intended, affecting critical S3 subsystems in the Northern Virginia region. The incident is a better lesson in shared operational dependencies than in independent request failures.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/message/41926/" target="_blank" rel="noopener noreferrer">AWS S3 2017 Post-Mortem (Typo took down the fleet)</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Single Point of Truth" <span class="scenario-tag">HashiCorp Vault</span></div>
-                <p>A master key unsealing an encrypted node. There is no such thing as "partially unlocked." It either accepts the cryptographic shard and opens, or it stays shut. It is the ultimate binary state.</p>
-                <div class="scenario-ref">Reference: <a href="https://developer.hashicorp.com/vault/docs/concepts/seal" target="_blank">Vault Seal/Unseal Architecture</a></div>
+                <p>Vault’s sealed/unsealed status is a binary state, but the transition can depend on a threshold of key shares and other operational conditions. A binary outcome can be modeled as 0/1; that alone does not mean the underlying process is a single independent coin flip.</p>
+                <div class="scenario-ref">Reference: <a href="https://developer.hashicorp.com/vault/docs/concepts/seal" target="_blank" rel="noopener noreferrer">Vault Seal/Unseal Architecture</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Ruthless Executioner" <span class="scenario-tag">Kubernetes Liveness Probe</span></div>
-                <p>Every 10 seconds, the Kubelet asks the pod "Are you alive?" The pod's response is a Bernoulli trial. If it returns three 0s in a row, the pod is killed. The Kubelet doesn't care if the pod is "a little bit tired."</p>
-                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank">Kubernetes Liveness Probe Docs</a></div>
+                <p>With the common default settings, a liveness probe runs every 10 seconds and the default failure threshold is three consecutive failures; both values are configurable. The kubelet then restarts the container according to the probe configuration. Treating each probe as Bernoulli can be a useful first approximation, but consecutive failures are often correlated—for example, during CPU starvation or a dependency stall.</p>
+                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank" rel="noopener noreferrer">Kubernetes Liveness Probe Docs</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -285,9 +287,9 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: The Architecture Review Lie</div>
                 <div class="tldr-content">
-                    <p>If a Bernoulli trial is one server flipping a coin, the Binomial distribution is 100 servers flipping coins at the exact same time. It models the probability of exactly <var>k</var> simultaneous failures in a cluster.</p>
-                    <p>This is the math your cloud architect used when they said, "With 5 replicas, the chance of losing quorum is statistically zero!" It assumes every server is perfectly independent.</p>
-                    <p><strong>The fatal flaw:</strong> The architecture diagram says "3 AZs, 3 independent replicas." The physical reality is one Top-of-Rack switch losing power, causing 20 servers to land on tails at the exact same millisecond. They aren't independent coins; they are coins glued together.</p>
+                    <p>If each of <var>n</var> nodes has the same failure probability <var>p</var>, and their outcomes are independent over the interval being modeled, the Binomial distribution gives the probability that exactly <var>k</var> nodes fail. The trials do not have to happen at the exact same instant; what matters is the defined observation window and the model’s assumptions.</p>
+                    <p>This is the kind of calculation that can support a quorum-risk estimate—but only after you define the time window, what counts as a node failure, and whether the node failures are independent. A tiny number from a simplified model is not proof that quorum loss is impossible.</p>
+                    <p><strong>The failure mode to look for:</strong> the architecture diagram says “three replicas,” but all three depend on the same network path, identity service, deployment artifact, or control plane. A shared dependency can create correlated failures. Separate availability zones help only when the relevant dependencies and failure paths are actually separated.</p>
                 </div>
             </div>
 
@@ -301,16 +303,16 @@
                 <strong>Let's decode this:</strong>
                 <ul>
                     <li><strong>(<var>n</var> choose <var>k</var>):</strong> This is the combinatorics part. It calculates the number of different ways <var>k</var> nodes can fail out of <var>n</var> total nodes. (e.g., If node 1 and 2 fail, or node 2 and 3 fail).</li>
-                    <li><strong><var>p</var><sup><var>k</var></sup>:</strong> The probability that exactly <var>k</var> nodes fail.</li>
+                    <li><strong><var>p</var><sup><var>k</var></sup>:</strong> The probability that a specified set of <var>k</var> nodes fail, before accounting for which set failed and whether the remaining nodes survive.</li>
                     <li><strong>(1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>:</strong> The probability that the remaining <var>n</var> - <var>k</var> nodes survive.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> You have a 5-node database cluster (<var>n</var> = 5). Each node has a 1% chance of dying (<var>p</var> = 0.01). What is the probability that exactly 2 nodes fail? (Which would cause you to lose quorum). The math says <strong>0.097%</strong>. Looks safe, right? But this math assumes the failures are independent.</p>
+                <p><strong>Worked example:</strong> In a five-voter cluster, a majority is three. If exactly two nodes fail, three remain and quorum is still available (assuming the remaining nodes can communicate). Under an independent Binomial model with <var>n</var> = 5 and per-node failure probability <var>p</var> = 0.01, the probability of exactly two failures is about <strong>0.097%</strong>. The probability of losing a three-node majority by having at least three nodes fail is about <strong>0.000985%</strong>. Those numbers are conditional on the independence assumption; a shared network partition or common-mode defect needs a different model.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>The Binomial distribution is dangerously optimistic. It assumes failures are independent coin flips. But in the real world, failures are highly correlated. If you deploy a bad kernel update, <var>p</var> doesn't stay at 1%; it jumps to 100% for every single node.</p>
+                    <p>The Binomial model is not “wrong”; it is conditional. It becomes misleading when shared causes violate its independence assumption. A defective rollout can affect many nodes together, but it is not accurate to say the failure probability automatically becomes 100% for every node: exposure, platform, timing, configuration, and recovery behavior matter. Model the common cause explicitly or test the assumption against incident data.</p>
                 </div>
             </div>
 
@@ -320,11 +322,11 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Fleet Size (n): <span id="v_n_binomial">50</span></div>
-                            <input type="range" id="n_binomial" min="10" max="200" step="10" value="50">
+                            <input type="range" id="n_binomial" aria-label="Number of nodes in the Binomial simulation" min="10" max="200" step="10" value="50">
                         </div>
                         <div class="param-group">
                             <div>Fail Prob (p): <span id="v_p_binomial">0.10</span></div>
-                            <input type="range" id="p_binomial" min="0.01" max="0.5" step="0.01" value="0.10">
+                            <input type="range" id="p_binomial" aria-label="Independent failure probability for each node" min="0.01" max="0.5" step="0.01" value="0.10">
                         </div>
                     </div>
                     <div class="controls">
@@ -333,28 +335,39 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated independent node-failure counts"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Failures: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean Failures: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (n × p): <span class="stat-theory">–</span></div>
                 </div>
             </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">When a shared cause exists</div>
+                <div class="tldr-content">
+                    <p>For two replicas, suppose <var>q</var> is the probability of a common outage that takes both out, and <var>p</var> is each replica’s residual failure probability when that common outage does not occur. Under those simplified assumptions:</p>
+                    <div class="math-block">P( both fail ) = <var>q</var> + (1 − <var>q</var>)<var>p</var><sup>2</sup></div>
+                    <p>This is a teaching model, not a universal formula for every dependency graph. Its point is that a shared-cause term can dominate the tiny independent-failure term. Estimate or bound <var>q</var> from architecture and incident evidence rather than quietly setting it to zero.</p>
+                </div>
+            </div>
+            <p class="math-explanation">The simulation draws a fresh random value for every node, so each node is an independent trial. The expected number of failures is <code>n × p</code>; the observed sample mean will fluctuate around it. This simulation intentionally excludes shared causes such as a common network, deployment, or control-plane failure.</p>
 
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Correlated Poison" <span class="scenario-tag">CrowdStrike 2024</span></div>
-                <p>You have 100,000 Windows servers. You assume the chance of all failing is mathematically zero. But they didn't flip independent coins; they all downloaded the exact same kernel-level update payload. The probability wasn't independent; it was <code>p = 1</code> for everyone who received the update. The Binomial assumption shattered.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.crowdstrike.com/falcon-content-update-remediation-and-guidance-hub/" target="_blank">CrowdStrike Channel File 291 Root Cause Analysis</a></div>
+                <p>A faulty content-configuration update triggered widespread Windows crashes on affected hosts. CrowdStrike’s root-cause analysis describes a mismatch between the number of input fields expected by the sensor and the number supplied by the update, resulting in an out-of-bounds memory read. This is a common-mode software/deployment failure—not evidence that every Windows host had a 100% failure probability. Staged rollouts, canaries, compatibility validation, and fast rollback reduce the size of the blast radius.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.crowdstrike.com/en-us/blog/channel-file-291-rca-available/" target="_blank" rel="noopener noreferrer">CrowdStrike Channel File 291 Root Cause Analysis</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Quorum Illusion" <span class="scenario-tag">Raft / Paxos</span></div>
-                <p>You have a 5-node cluster. You assume 2 can die safely. But if the shared Top-of-Rack switch dies, all 5 nodes lose network connection simultaneously. The quorum is gone instantly. The Binomial formula assumes the failures are independent, but physical infrastructure is a shared single point of failure.</p>
-                <div class="scenario-ref">Reference: <a href="https://raft.github.io/raft.pdf" target="_blank">Ongaro & Ousterhout, "In Search of an Understandable Consensus Algorithm" (Raft Paper)</a></div>
+                <p>In a five-voter consensus group, two unavailable voters can be tolerated only if the other three can communicate and elect or maintain a leader as required by the protocol. A shared network failure can prevent a majority from communicating even when the processes are still running. The failure domain is therefore not just “node up/down”; it can include connectivity and partition topology.</p>
+                <div class="scenario-ref">Reference: <a href="https://raft.github.io/raft.pdf" target="_blank" rel="noopener noreferrer">Ongaro & Ousterhout, "In Search of an Understandable Consensus Algorithm" (Raft Paper)</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Self-Inflicted DDoS" <span class="scenario-tag">Redis Cache Stampede</span></div>
-                <p>A popular cache key expires. 10,000 clients simultaneously miss the cache and slam the database at the same millisecond. The database drops 80% of the queries. It wasn't random load; it was highly correlated timing.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank">Facebook, "Scaling Memcache at Facebook" (NSDI '13)</a></div>
+                <p>A popular key expiring can cause a cache stampede: many requests miss together and overwhelm the backing store. The exact request count and failure percentage depend on workload and system behavior, so treat this as an illustrative scenario rather than a universal outcome. Request coalescing, leases, jittered expiration, stale-while-revalidate, and bounded origin concurrency can reduce the synchronized burst.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener noreferrer">Facebook, "Scaling Memcache at Facebook" (NSDI '13)</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -365,18 +378,18 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: The Ticking Time Bomb</div>
                 <div class="tldr-content">
-                    <p>Hardware doesn't flip coins. Hardware gets tired and dies. The Weibull distribution models the <em>hazard rate</em> over time. It creates the infamous "Bathtub Curve," which has three distinct phases:</p>
+                    <p>Hardware lifetime is not always well described by a constant failure probability. The Weibull distribution is useful because its <em>hazard rate</em> can decrease, stay constant, or increase with age depending on its shape parameter. One ordinary two-parameter Weibull distribution does <strong>not</strong> produce the full “bathtub curve” by itself; that pattern generally needs multiple failure mechanisms or a more flexible model. <a href="https://www.sciencedirect.com/science/article/pii/S0951832013003074" target="_blank" rel="noopener noreferrer">Reliability engineering literature</a> discusses this limitation explicitly.</p>
                     <ul>
-                        <li><strong>Infant Mortality (Early Life):</strong> High failure rate right out of the box. (Think: a bad batch of hard drives, or a botched Kubernetes deployment).</li>
-                        <li><strong>Useful Life (Middle):</strong> A flat, random failure rate. (Think: standard operating conditions where failures are purely random).</li>
-                        <li><strong>Wear-Out (Late Life):</strong> A terrifying spike in failures as physical components degrade. (Think: mechanical drives hitting their spin limit, or a memory leak finally hitting OOM).</li>
+                        <li><strong>Decreasing hazard (<var>k</var> &lt; 1):</strong> Early failures are more likely among newly operating units, and the hazard falls with age. A defective batch can produce this pattern.</li>
+                        <li><strong>Constant hazard (<var>k</var> = 1):</strong> The exponential distribution is the special case with a constant hazard rate.</li>
+                        <li><strong>Increasing hazard (<var>k</var> &gt; 1):</strong> Failure hazard increases with age. This may fit some wear-out mechanisms, but it is not proof that a specific device or service follows Weibull behavior.</li>
                     </ul>
-                    <p>If you use Bernoulli for hardware, you'll budget for the flat middle and get absolutely destroyed by the cliff at the end.</p>
+                    <p>A Bernoulli variable can still describe whether a component failed during a fixed interval. A lifetime model answers a different question: how does failure risk change with age? Choose the model to match the question and the observed data—not because a particular component “must” follow a famous curve.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability density function for a Weibull distribution, where <var>k</var> is the shape parameter (determines the bathtub curve shape) and <var>&lambda;</var> is the scale parameter (the characteristic life):</p>
+            <p>The probability density function for a Weibull distribution, where <var>k</var> is the shape parameter (it controls whether the hazard decreases, stays constant, or increases) and <var>&lambda;</var> is the scale parameter (the characteristic life):</p>
             <div class="math-block">
                 <var>f</var>(<var>x</var>; <var>&lambda;</var>, <var>k</var>) = (<var>k</var> / <var>&lambda;</var>) &middot; (<var>x</var> / <var>&lambda;</var>)<sup><var>k</var> - 1</sup> &middot; <var>e</var><sup>-(<var>x</var>/<var>&lambda;</var>)<sup><var>k</var></sup></sup>
             </div>
@@ -384,7 +397,7 @@
             <div class="math-explanation">
                 <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>k</var> (Shape):</strong> This is the magic number.
+                    <li><strong><var>k</var> (Shape):</strong> This parameter determines the direction of the Weibull hazard trend.
                         <ul>
                             <li>If <var>k</var> &lt; 1, the failure rate decreases over time (Infant Mortality).</li>
                             <li>If <var>k</var> = 1, the failure rate is constant (Random Failures).</li>
@@ -393,13 +406,13 @@
                     </li>
                     <li><strong><var>&lambda;</var> (Scale):</strong> The characteristic life. It's the point in time where exactly 63.2% of the components have failed.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you model an SSD, you might find <var>k</var> = 3 and <var>&lambda;</var> = 5 years. This means the drive works fine for a few years, but as it approaches year 5, the hazard rate spikes exponentially. If you used a constant failure rate (<var>k</var>=1), you would drastically underestimate the risk of failure in year 6.</p>
+                <p><strong>Illustrative example:</strong> Suppose lifetime data were reasonably fit by a two-parameter Weibull with <var>k</var> = 3 and <var>&lambda;</var> = 5 years. The hazard increases with age, and about 63.2% of modeled lifetimes end by five years. That does <em>not</em> mean each drive is safe until year five or that the hazard suddenly spikes at that point. Fit the parameters to the relevant population and account for censored observations before using the model for planning.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>The Weibull distribution is a double-edged sword. It tells you exactly when your hardware will die, but it requires you to have historical data to calculate <var>k</var> and <var>&lambda;</var>. If you just guess, your reliability model is fiction. You need to actively monitor hardware age and usage.</p>
+                    <p>The Weibull distribution does not tell you exactly when an individual component will die. It describes a population-level lifetime pattern. Estimate <var>k</var> and <var>&lambda;</var> from relevant data, inspect fit and uncertainty, and account for right-censored units that have not failed yet. Guessed parameters can be useful for sensitivity analysis, but label them as assumptions rather than measured facts.</p>
                 </div>
             </div>
 
@@ -409,11 +422,11 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Shape (k): <span id="v_k_weibull">1.5</span></div>
-                            <input type="range" id="k_weibull" min="0.5" max="4.0" step="0.1" value="1.5">
+                            <input type="range" id="k_weibull" aria-label="Weibull shape parameter" min="0.5" max="4.0" step="0.1" value="1.5">
                         </div>
                         <div class="param-group">
                             <div>Scale (λ): <span id="v_lam_weibull">4.0</span></div>
-                            <input type="range" id="lam_weibull" min="1.0" max="10.0" step="0.5" value="4.0">
+                            <input type="range" id="lam_weibull" aria-label="Weibull scale parameter" min="1.0" max="10.0" step="0.5" value="4.0">
                         </div>
                     </div>
                     <div class="controls">
@@ -422,7 +435,7 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Weibull lifetimes"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Time to Fail: <span class="stat-mean">–</span></div>
@@ -432,27 +445,38 @@
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Bathtub" in the Data Center <span class="scenario-tag">Backblaze HDD Stats</span></div>
-                <p>Backblaze publishes their drive failure stats. They don't fail randomly. You see the Weibull curve in action: bad batches fail immediately out of the box (infant mortality). Then, years of quiet stability. Then, at year 4 or 5, the failure rate spikes violently as the mechanical parts wear out.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank">Backblaze Quarterly Hard Drive Stats</a></div>
+                <p>Backblaze publishes fleet-level drive statistics that can help engineers investigate age, model, and cohort effects. Do not infer a universal bathtub curve—or a fixed year-four/five wear-out cliff—from a summary chart alone. Drive populations differ, and observed annualized failure rates should be interpreted alongside sample size, drive age, workload, model, and the published methodology.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank" rel="noopener noreferrer">Backblaze Quarterly Hard Drive Stats</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Silent Killer" <span class="scenario-tag">SSD / EBS Wear-Out</span></div>
-                <p>SSDs don't slow down gracefully to 0 IOPS. They work perfectly until they hit their NAND write limit, and then abruptly turn into a brick. The Weibull shape parameter <code>k > 1</code> models this terrifying cliff-edge hazard rate.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/fast12/fast12-final4.pdf" target="_blank">Meza et al., "A Large-Scale Study of Flash Memory Failures in the Field"</a></div>
+                <p>Flash storage can fail through several mechanisms, including wear, controller faults, firmware issues, and power-related events; reaching a rated endurance figure does not imply every SSD abruptly becomes unusable. A Weibull with <code>k &gt; 1</code> can represent an increasing hazard when supported by data, but it is not a universal SSD failure law. For managed cloud volumes, the provider abstracts much of the physical device behavior.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/fast12/fast12-final4.pdf" target="_blank" rel="noopener noreferrer">Meza et al., "A Large-Scale Study of Flash Memory Failures in the Field"</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Slow Death" <span class="scenario-tag">OOM Kill</span></div>
-                <p>A service with a slow memory leak. The probability of an OOM kill doesn't follow a coin flip. The hazard rate increases every hour the pod stays alive, until it reaches the absolute physical limit of RAM. This is late-stage Weibull wear-out applied to software.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.kernel.org/doc/html/latest/admin-guide/mm/concepts.html#oom-killer" target="_blank">Linux Kernel OOM Killer Documentation</a></div>
+                <p>A memory leak is often better diagnosed from the memory-growth rate, workload, restart history, and container limit than by assuming a Weibull lifetime. If many instances show variable time-to-OOM, a lifetime distribution may summarize those observations—but first check whether the process is driven by a roughly deterministic resource trajectory.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.kernel.org/doc/html/latest/admin-guide/mm/concepts.html#oom-killer" target="_blank" rel="noopener noreferrer">Linux Kernel OOM Killer Documentation</a></div>
             </div>
 
             <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
                 <div class="tldr-eyebrow">The Core Problem: Knight Capital (2012)</div>
                 <div class="tldr-content">
-                    <p>Knight Capital lost $460 million in 45 minutes not because of a "heavy-tailed statistical anomaly" or a stochastic hardware blip. They collapsed because a deterministic human left an obsolete code path active on one of eight routing servers during a manual deployment. N-way redundancy cannot save you from deterministic state corruption.</p>
-                    <p><strong>The Lesson:</strong> Redundancy without independence provides absolutely zero protection. Throwing more nodes at a problem only works if the nodes fail randomly. If the failure is baked into the procedural pipeline, scaling up just means you scale the blast radius.</p>
+                    <p>Knight Capital’s 2012 trading incident is a reminder that catastrophic failures are not always random component lifetimes. A deployment left obsolete code active on one of the firm’s trading servers, and the resulting behavior produced enormous losses in minutes. Replicating the same flawed software, configuration, or procedure can reproduce the same defect—or make its blast radius larger. Redundancy is not a substitute for safe rollout, configuration consistency, and tested rollback.</p>
+                    <p><strong>The lesson:</strong> Redundancy helps against the failure modes it was designed to tolerate. It offers less protection against shared dependencies and common-mode defects, but it is not “zero protection” in every correlated-failure scenario. Map failure domains, limit shared dependencies, use staged changes, and test failover and recovery under realistic conditions.</p>
                 </div>
             </div>
+
+            <h2>Before You Trust the Reliability Number</h2>
+            <p>A distribution is a model, not a warranty. Before turning a calculated probability into an architecture decision, write down the event being modeled, the observation window, the data source, and the assumptions about dependence. Separate random component failures from common-cause events such as a bad release, shared identity dependency, regional disruption, or operator error.</p>
+            <ul>
+                <li><strong>Define the outcome:</strong> process crash, request failure, lost quorum, and failed recovery are different events.</li>
+                <li><strong>Define the window:</strong> “1% failure probability” is meaningless without saying per request, per hour, per year, or per deployment.</li>
+                <li><strong>Check dependence:</strong> replicas that share software, configuration, network paths, credentials, or rollout procedures may fail together.</li>
+                <li><strong>Validate the model:</strong> compare predictions with observed incidents, account for censored lifetime data, and label assumed parameters honestly.</li>
+                <li><strong>Design the control:</strong> use failure-domain separation, canaries, staged rollout, rollback, recovery tests, and monitoring to reduce either the probability or the impact of failure.</li>
+            </ul>
+            <p>In other words: don’t ask probability to rescue an architecture from a failure mode you never modeled.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
@@ -499,8 +523,8 @@
                     // Update ARIA state
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
                     
-                    // Save preference
-                    localStorage.setItem('theme', newTheme);
+                    // Persist preference when browser storage is available.
+                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
                     // Redraw canvases
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
@@ -531,6 +555,7 @@
 
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statMean = stageElement.querySelector('.stat-mean');
+                    this.statTheory = stageElement.querySelector('.stat-theory');
                     this.btnRun = stageElement.querySelector('.btn-run');
                     this.btnStep = stageElement.querySelector('.btn-step');
                     this.btnReset = stageElement.querySelector('.btn-reset');
@@ -607,11 +632,12 @@
                     if (this.type === 'bernoulli') {
                         return u < this.params.p ? 1 : 0;
                     } else if (this.type === 'binomial') {
-                        let s = 0;
+                        // Each node gets its own independent Bernoulli trial.
+                        let failures = 0;
                         for (let i = 0; i < this.params.n; i++) {
-                            if (u < this.params.p) s++;
+                            if (Math.random() < this.params.p) failures++;
                         }
-                        return s;
+                        return failures;
                     } else if (this.type === 'weibull') {
                         return this.params.lam * Math.pow(-Math.log(1 - u), 1 / this.params.k);
                     }
@@ -620,7 +646,10 @@
                 getRange() {
                     if (this.type === 'bernoulli') return [0, 1];
                     if (this.type === 'binomial') return [0, this.params.n];
-                    if (this.type === 'weibull') return [0, this.params.lam * 3];
+                    if (this.type === 'weibull') {
+                        const observedMax = this.samples.length ? Math.max(...this.samples) : 0;
+                        return [0, Math.max(this.params.lam * 3, observedMax * 1.02)];
+                    }
                 }
 
                 isDiscrete() {
@@ -661,6 +690,7 @@
                         ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
                         this.statN.textContent = '0';
                         this.statMean.textContent = '–';
+                        if (this.statTheory) this.statTheory.textContent = (this.params.n * this.params.p).toFixed(2);
                         return;
                     }
 
@@ -707,6 +737,7 @@
 
                     this.statN.textContent = this.samples.length;
                     this.statMean.textContent = mean.toFixed(2);
+                    if (this.statTheory) this.statTheory.textContent = (this.params.n * this.params.p).toFixed(2);
                 }
 
                 toggleRun() {
@@ -726,6 +757,11 @@
                 step(n) {
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
+                    }
+                    // Keep the latest observations so continuous runs stay responsive.
+                    const maxSamples = 5000;
+                    if (this.samples.length > maxSamples) {
+                        this.samples.splice(0, this.samples.length - maxSamples);
                     }
                     this.draw();
                 }
