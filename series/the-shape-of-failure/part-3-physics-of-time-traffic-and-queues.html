@@ -16,10 +16,10 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Poisson Bursts, Pipeline Delays, and Kingman's Saturation Trap. Why 95% CPU utilization means your database is technically alive, but practically dead.">
+    <meta name="description" content="Poisson arrivals, pipeline delays, and Kingman’s saturation trap: why queueing delay can rise sharply near capacity.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-3-physics-of-time-traffic-and-queues.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-3-physics-of-time-traffic-and-queues.html">
 
     <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
     <script>
@@ -196,7 +196,7 @@
                 <p class="snarky-quote-author">— <strong><em>Baron Schwartz</em></strong>, Systems Performance Author</p>
             </blockquote>
 
-            <p>Queueing theory is the math that explains why 95% CPU utilization means your database is technically alive, but practically experiencing the heat death of the universe. As saturation approaches 100%, queue delay doesn't scale linearly—it diverges asymptotically. Your latency doesn't just double; it tends toward infinity.</p>
+            <p>Queueing theory explains why a service can look healthy while users experience painful latency. In a simple stable single-server queue, as utilization approaches 100% while arrival and service variability remain nonzero, expected waiting time can grow sharply and the idealized model diverges as utilization approaches one. Real systems have finite queues, timeouts, admission controls, multiple servers, and changing workloads—so the result is not “infinite latency” in production, but often rising tail latency, queue growth, and dropped or timed-out work.</p>
 
             <p>To understand why, we have to model the three distinct physical mechanics of any queue: how things arrive, how long they take to serve, and what happens when you chain them together.</p>
 
@@ -208,8 +208,8 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: The Bus Stop</div>
                 <div class="tldr-content">
-                    <p>Poisson models uncoordinated arrivals. Think of a bus stop in a major city. Buses don't arrive on a perfect 10-minute schedule. You wait, nobody comes for 20 minutes, and then three buses arrive at the exact same time.</p>
-                    <p>In distributed systems, this is the traffic hitting your load balancer. It assumes arrivals are independent. One user clicking "buy" doesn't mathematically dictate when the next user clicks. But when traffic spikes, they cluster. Your system must be sized to handle the <em>variance</em> of these bursts, not just the average rate.</p>
+                    <p>A Poisson process is a useful model for arrivals that occur independently at a roughly constant average rate. Think of a bus stop where arrival times are not scheduled. It can produce quiet intervals and short bursts, but it does not model every kind of burst: scheduled jobs, retries, promotions, and other coordinated traffic can be much more correlated.</p>
+                    <p>In distributed systems, this can be a first approximation for traffic reaching a load balancer. The model assumes independent increments and a constant rate over the interval being modeled. Real traffic often changes by time of day and can be correlated across users or services. Capacity planning should therefore examine measured burstiness and time windows—not just the daily average or a Poisson fit.</p>
                 </div>
             </div>
 
@@ -227,23 +227,24 @@
                     <li><strong><var>e</var>:</strong> Euler's number (approx 2.718).</li>
                     <li><strong><var>k</var>!:</strong> Factorial (e.g., 4! = 4 × 3 × 2 × 1 = 24).</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your average rate is 10 requests/sec (<var>&lambda;</var> = 10), what is the chance of getting exactly 15 requests in one second? The formula gives roughly <strong>3.4%</strong>. What about 30 requests in one second? The probability drops to almost zero. But if you get 100 servers all bursting at once, those "almost zero" events become your daily reality.</p>
+                <p><strong>Worked Example:</strong> If your average rate is 10 requests/sec (<var>&lambda;</var> = 10), what is the chance of getting exactly 15 requests in one second? The formula gives roughly <strong>3.4%</strong>. For λ = 10, the probability of exactly 30 arrivals in one second is about 0.000017% (approximately 1.7 × 10⁻⁷), under the Poisson assumptions. Do not interpret a rare single-window event as automatically becoming common because there are many servers: aggregate risk depends on the number of windows, dependence between sources, and whether the model fits the observed traffic. Synchronized clients can create bursts for a different reason—the arrivals are correlated, so the independent-arrival model is the wrong model.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>The Poisson distribution assumes arrivals are completely uncoordinated. But the moment you add a "retry button" to your frontend, or a cron job that runs at exactly 12:00 AM, you break the assumption. Correlated retries create synchronized storms that violate the smooth Poisson curve.</p>
+                    <p>A homogeneous Poisson process assumes independent increments and a constant rate; it is not a universal model of production traffic. Retries after a shared outage and cron jobs scheduled for the same instant can synchronize arrivals. Use jitter, backoff, request coalescing, and admission control to reduce that correlation—and validate the arrival model against telemetry.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation</h3>
+            <p class="math-explanation"><strong>How to read it:</strong> These are synthetic samples, not production telemetry. The Poisson sampler uses an exact algorithm for lower rates and a normal approximation for λ ≥ 30; treat that high-rate mode as an approximation. The demo retains at most 5,000 samples to keep the page responsive.</p>
             <div class="stage" data-sim-type="poisson">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Avg Arrivals (λ): <span id="v_lam_poisson">12</span></div>
-                            <input type="range" id="lam_poisson" min="0.5" max="40" step="0.5" value="12">
+                            <input type="range" id="lam_poisson" aria-label="Average Poisson arrivals per interval lambda" min="0.5" max="40" step="0.5" value="12">
                         </div>
                     </div>
                     <div class="controls">
@@ -252,7 +253,7 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Value: <span class="stat-mean">–</span></div>
@@ -262,18 +263,18 @@
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Thundering Herd" <span class="scenario-tag">GitHub 2018</span></div>
-                <p>A database partition caused application workers to stall. When the database returned, every single worker retried their connection at the exact same millisecond. It wasn't a Poisson arrival rate; it was a synchronized, correlated surge that overwhelmed the connection pool.</p>
-                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank">GitHub's October 21 Incident Report</a></div>
+                <p>GitHub’s October 21, 2018 incident was triggered by a 43-second network partition during routine network maintenance. Automated database failover created divergent database states across regions, and the resulting unsupported topology contributed to prolonged service degradation. It is a valuable example of a short disturbance producing a long recovery—but GitHub’s published postmortem does not describe the incident as every worker retrying at the same millisecond or as a connection-pool thundering herd.</p>
+                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank" rel="noopener noreferrer">GitHub's October 21 Incident Report</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Midnight Cron" <span class="scenario-tag">Scheduled Jobs</span></div>
-                <p>Every day at 00:00 UTC, 50,000 cron jobs fire simultaneously. The average load over 24 hours is perfectly fine. But the Poisson math breaks down because the arrivals are perfectly synchronized.</p>
-                <div class="scenario-ref">Reference: <a href="https://cronjob.xyz/" target="_blank">The Cron Job Problem (Jitter is mandatory)</a></div>
+                <p>Imagine 50,000 scheduled jobs configured for the same minute. The daily average can look harmless while the scheduled arrival rate is sharply concentrated. This is a hypothetical illustration, not a measured claim about a particular fleet. Randomize schedules with jitter and enforce concurrency limits.</p>
+                <div class="scenario-ref">Reference: <a href="https://cronjob.xyz/" target="_blank" rel="noopener noreferrer">The Cron Job Problem (Jitter is mandatory)</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Load Balancer Tick" <span class="scenario-tag">Keep-Alive Synchronization</span></div>
-                <p>All HTTP keep-alive connections default to exactly 60 seconds. At second 60, every connection re-establishes simultaneously, creating a burst of TCP handshakes that looks nothing like a Poisson curve.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_1410_03_gregg.pdf" target="_blank">Brendan Gregg, "The Use of Performance Metrics"</a></div>
+                <p>Connection lifetimes and keep-alive policies vary by client, proxy, load balancer, and server; there is no universal 60-second default. However, synchronized connection expiry or coordinated health checks can create handshake bursts. Add bounded connection churn and jitter where appropriate, and inspect actual connection-lifetime settings before diagnosing this pattern.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_1410_03_gregg.pdf" target="_blank" rel="noopener noreferrer">Brendan Gregg, "The Use of Performance Metrics"</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -284,13 +285,13 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: The Memoryless Bus</div>
                 <div class="tldr-content">
-                    <p>If Poisson models <em>how many</em> arrive, Exponential models <em>how long</em> you wait between them. It is the "memoryless" distribution: the chance of the next event happening in the next 10 seconds is exactly the same, regardless of how long you've already been waiting.</p>
-                    <p>Your CPU doesn't "remember" that it has been processing a request for 50ms. At 51ms, the probability of it finishing in the next millisecond is identical to what it was at 1ms. This is why long-tail latencies are so brutal: the distribution has no memory of the fact that it's already ruined your SLA.</p>
+                    <p>For a homogeneous Poisson process, the inter-arrival times follow an exponential distribution. It is memoryless: conditional on an event not having happened yet, the distribution of the additional wait is the same as it was at the start. This is a property of the model—not a rule that every production service or CPU follows.</p>
+                    <p>If a request’s service time really were exponential, its remaining service time would be memoryless. Real request durations often are not: work size, cache state, downstream calls, scheduling, and pauses all matter. The exponential model is useful when its assumptions fit; it should not be used to explain every latency tail.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability density function for the time between arrivals, given a rate <var>&lambda;</var>:</p>
+            <p>The probability density function for an exponential random variable with rate <var>&lambda;</var> (units: 1/time) is:</p>
             <div class="math-block">
                 <var>f</var>(<var>x</var>) = <var>&lambda;</var> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>
             </div>
@@ -308,7 +309,7 @@
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>The exponential distribution assumes service times are random and memoryless. In reality, your system has cache hits (very fast) and cache misses (very slow). Real-world service times are <strong>Log-Normal</strong> (multiplicative compounding), not Exponential. If you size your queues using exponential math, the p99 tail will blindside you.</p>
+                    <p>An exponential service-time model assumes a constant hazard rate. Real service times can be mixtures (for example, cache hits and cache misses), log-normal-like, heavy-tailed, multimodal, or shaped by queues and pauses. There is no single distribution that describes all production services. Fit candidate models to representative telemetry, validate tail quantiles, and use the model that matches the workload and decision.</p>
                 </div>
             </div>
 
@@ -318,7 +319,7 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Service Rate (λ): <span id="v_lam_exponential">1.0</span></div>
-                            <input type="range" id="lam_exponential" min="0.1" max="5.0" step="0.1" value="1.0">
+                            <input type="range" id="lam_exponential" aria-label="Exponential rate lambda" min="0.1" max="5.0" step="0.1" value="1.0">
                         </div>
                     </div>
                     <div class="controls">
@@ -327,7 +328,7 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Wait Time: <span class="stat-mean">–</span></div>
@@ -337,18 +338,18 @@
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Timeout Illusion" <span class="scenario-tag">gRPC Deadlines</span></div>
-                <p>You set a 200ms timeout. But because service times follow an exponential distribution, the tail can stretch out to infinity. The mean is 100ms, but 5% of requests take longer than 300ms. You didn't solve the queue; you just moved the error to the client.</p>
-                <div class="scenario-ref">Reference: <a href="https://grpc.io/docs/guides/deadlines/" target="_blank">gRPC Deadline Propagation</a></div>
+                <p>Suppose service time is exponential with mean 100 ms (rate 10/s). Then P(T > 200 ms) = e⁻² ≈ 13.5%, and P(T > 300 ms) = e⁻³ ≈ 5.0%. A 200 ms deadline can bound how long the caller waits, but it does not by itself cancel downstream work or remove queued load. Propagate deadlines, cancel work where safe, and use bounded queues and concurrency limits.</p>
+                <div class="scenario-ref">Reference: <a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener noreferrer">gRPC Deadline Propagation</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Cold Start" <span class="scenario-tag">AWS Lambda</span></div>
-                <p>A Lambda function that usually runs in 50ms suddenly takes 2 seconds because of a cold start. The exponential distribution assumes the hazard rate is constant. Cold starts violate this by introducing a massive, heavy tail.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/compute/operating-lambda-performance-optimization-part-1/" target="_blank">AWS Lambda Performance Optimization</a></div>
+                <p>A serverless invocation may have a fast warm path and a slower initialization path. That mixture can create a multimodal latency distribution; it is not necessarily an exponential tail. Measure cold-start frequency and duration separately, then decide whether provisioned concurrency, initialization changes, or a looser SLO is justified.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/compute/operating-lambda-performance-optimization-part-1/" target="_blank" rel="noopener noreferrer">AWS Lambda Performance Optimization</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "GC Pause" <span class="scenario-tag">JVM Stop-the-World</span></div>
-                <p>Your JVM serves requests in 5ms. But when the Garbage Collector runs, it stops the world for 500ms. The exponential memoryless property is broken by deterministic pauses.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.oreilly.com/library/view/java-performance-the/9781449363512/" target="_blank">Scott Oaks, "Java Performance: The Definitive Guide"</a></div>
+                <p>A stop-the-world garbage-collection pause can add a shared delay to many requests, producing correlated latency spikes rather than independent exponential service times. Actual pause behavior depends on the collector, heap, workload, and configuration; measure pause distributions and consider low-pause collectors only after profiling.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.oreilly.com/library/view/java-performance-the/9781449363512/" target="_blank" rel="noopener noreferrer">Scott Oaks, "Java Performance: The Definitive Guide"</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -359,13 +360,13 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: The Assembly Line</div>
                 <div class="tldr-content">
-                    <p>Erlang models the sum of multiple sequential exponential stages. Think of an assembly line: Stage 1 takes a random amount of time, Stage 2 takes a random amount of time, etc. The total time is the sum of all stages.</p>
-                    <p>This is your modern microservice architecture. A request hits the API Gateway, then the Auth service, then the User service, then the Database, then the Cache. Every hop adds variance. As you add more stages (higher Erlang <var>k</var>), the distribution becomes less "lumpy" and more tightly clustered around the mean. It becomes <em>less</em> chaotic but <em>more</em> predictable.</p>
+                    <p>The Erlang distribution models the sum of k independent exponential stages that share the same rate λ. It is a special case of the gamma distribution. It can be a useful pipeline model when each stage’s duration is approximately exponential and independent; real microservice hops often violate one or both assumptions.</p>
+                    <p>A sequential request path can be approximated as a sum of stage durations. Under the Erlang assumptions, increasing k while holding each stage rate fixed increases the mean total time (k/λ) and reduces the coefficient of variation (1/√k). If instead you hold the total mean fixed while increasing the number of equal stages, the sum becomes more concentrated relative to that mean. This mathematical result does not mean adding real services automatically makes a system more predictable: shared dependencies, queueing, retries, and correlated pauses can dominate.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability density function for a sum of <var>k</var> exponential stages, each with rate <var>&lambda;</var>:</p>
+            <p>The probability density for a sum of <var>k</var> independent exponential stages with the same rate <var>&lambda;</var> (a special case of the gamma distribution) is:</p>
             <div class="math-block">
                 <var>f</var>(<var>x</var>) = (<var>&lambda;</var><sup><var>k</var></sup> &middot; <var>x</var><sup><var>k</var>-1</sup> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>) / (<var>k</var>-1)!
             </div>
@@ -377,13 +378,13 @@
                     <li><strong><var>&lambda;</var>:</strong> The service rate of each stage.</li>
                     <li><strong><var>x</var>:</strong> The total time to traverse all stages.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you have a 3-stage pipeline (<var>k</var>=3), and each stage has a rate of 1 per second (<var>&lambda;</var>=1), the mean time is 3 seconds. The Erlang distribution tells you that the probability of the whole pipeline taking exactly 3 seconds is roughly <strong>27%</strong>. This is why multi-step checkout flows feel more predictable but take longer.</p>
+                <p><strong>Worked Example:</strong> If you have a 3-stage pipeline (<var>k</var>=3), and each stage has a rate of 1 per second (<var>&lambda;</var>=1), the mean time is 3 seconds. For k = 3 and λ = 1 s⁻¹, the mean total time is 3 seconds. Because this is a continuous distribution, the probability of taking exactly 3.000… seconds is zero; the density at x = 3 seconds is 9e⁻³/2 ≈ 0.224 per second. A probability requires an interval, such as P(2.5 s ≤ T ≤ 3.5 s).</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap</div>
                 <div class="tldr-content">
-                    <p>Erlang makes you think your pipeline is stable because the variance shrinks. But every stage you add to your architecture increases the <em>mean</em> latency. You can have a beautifully stable pipeline that is completely useless because the mean latency is 10 seconds. Little's Law (Concurrency = Throughput × Latency) dictates that you will need 10x more threads to maintain throughput.</p>
+                    <p>Little’s Law states L = λW for a stable system, where L is the long-run average number of items in the system, λ is throughput, and W is average time in the system. If throughput stays constant while average latency rises tenfold, average in-flight concurrency also rises tenfold. That does not automatically mean ten times as many threads are needed: async I/O, CPU-bound work, queueing, and per-request resource use change the implementation implications.</p>
                 </div>
             </div>
 
@@ -393,11 +394,11 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Stages (k): <span id="v_k_erlang">3</span></div>
-                            <input type="range" id="k_erlang" min="1" max="10" step="1" value="3">
+                            <input type="range" id="k_erlang" aria-label="Number of Erlang stages k" min="1" max="10" step="1" value="3">
                         </div>
                         <div class="param-group">
                             <div>Rate/Stage (λ): <span id="v_lam_erlang">1.0</span></div>
-                            <input type="range" id="lam_erlang" min="0.2" max="4.0" step="0.1" value="1.0">
+                            <input type="range" id="lam_erlang" aria-label="Erlang rate per stage lambda" min="0.2" max="4.0" step="0.1" value="1.0">
                         </div>
                     </div>
                     <div class="controls">
@@ -406,7 +407,7 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
                 <div class="readout">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Total Time: <span class="stat-mean">–</span></div>
@@ -415,26 +416,35 @@
 
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Fan-Out Trap" <span class="scenario-tag">Microservices</span></div>
-                <p>A single page load triggers 20 sequential microservice calls. Even if each call has a 99.9% success rate, the probability of the whole page loading successfully is 0.999^20 = 98%. And the Erlang mean latency is 20x that of a single service.</p>
-                <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank">Dan Luu, "Latency Pitfalls"</a></div>
+                <div class="scenario-title">The "Dependency-Chain Trap" <span class="scenario-tag">Microservices</span></div>
+                <p>If a request requires 20 sequential dependencies, each succeeds with probability 0.999, and failures are independent, the probability all 20 succeed is 0.999²⁰ ≈ 98.0%. This is a dependency-chain example, not fan-out. Total latency is the sum of stage latencies, but it follows an Erlang distribution only if the stages are independent exponentials with a common rate.</p>
+                <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank" rel="noopener noreferrer">Dan Luu, "Latency Pitfalls"</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Checkout Flow" <span class="scenario-tag">Stripe / E-Commerce</span></div>
-                <p>A checkout involves: Cart validation → Inventory check → Payment authorization → Fraud check → Order creation. Five distinct Erlang stages. If you only test the final success rate, you miss the compound latency of the sequential pipeline.</p>
-                <div class="scenario-ref">Reference: <a href="https://stripe.com/docs/payments/checkout" target="_blank">Stripe Checkout Architecture</a></div>
+                <p>A checkout may include cart validation, inventory checks, payment authorization, fraud checks, and order creation. These are five conceptual stages, not automatically five Erlang stages: the Erlang model requires independent exponential durations with the same rate. Measure each stage and the end-to-end path, including queue time, retries, and dependency failures.</p>
+                <div class="scenario-ref">Reference: <a href="https://stripe.com/docs/payments/checkout" target="_blank" rel="noopener noreferrer">Stripe Checkout Architecture</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Retry Loop" <span class="scenario-tag">Exponential Backoff</span></div>
-                <p>Every time a service fails and retries, it adds another Erlang stage to the request. A single request that retries 3 times has effectively traversed 4 sequential stages, each with its own exponential delay.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
+                <p>Retries can add extra attempts and backoff time to a request, but they do not automatically create Erlang-distributed stages. Retry paths are conditional on failure, often correlated with overload, and can amplify the load on a struggling dependency. Use bounded retries, exponential backoff with jitter, retry budgets, and cancellation when the caller no longer needs the result.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
+            </div>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">Queueing Theory: Kingman’s Approximation</div>
+                <div class="tldr-content">
+                    <p>For a stable GI/G/1 queue (general inter-arrival and service-time distributions, one server), a commonly used approximation is:</p>
+                    <div class="math-block">E[W<sub>q</sub>] ≈ <span style="white-space:nowrap;">(ρ / (1 − ρ))</span> · <span style="white-space:nowrap;">((c<sub>a</sub><sup>2</sup> + c<sub>s</sub><sup>2</sup>) / 2)</span> · E[S]</div>
+                    <p>Here ρ is utilization, c<sub>a</sub> is the coefficient of variation of inter-arrival times, c<sub>s</sub> is the coefficient of variation of service times, and E[S] is mean service time. It is an approximation, not a universal law for every multi-server architecture.</p>
+                </div>
             </div>
 
             <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
                 <div class="tldr-eyebrow">The Core Problem: Kingman's Formula</div>
                 <div class="tldr-content">
-                    <p>All three distributions converge into Kingman's Formula, which describes the wait time in a heavily loaded queue. The formula states that as utilization approaches 100% (ρ → 1), the wait time approaches infinity. Shopify handles Black Friday by enforcing virtual waiting rooms—strict admission control that deliberately sheds load to prevent utilization from hitting that mathematical cliff.</p>
-                    <p style="margin-top: 0.5rem;"><strong>The Lesson:</strong> You cannot buy your way out of a queue with more CPUs. You have to limit the number of people allowed in the line.</p>
+                    <p>A useful bridge from arrival and service variability to queueing delay is Kingman’s approximation for a stable GI/G/1 queue: E[Wq] ≈ (ρ/(1−ρ)) × ((ca² + cs²)/2) × E[S], where ρ is utilization, ca is the coefficient of variation of inter-arrival times, cs is the coefficient of variation of service times, and E[S] is mean service time. It is an approximation under specific single-server assumptions—not a formula that all distributions “converge into.” With variability held fixed, the utilization multiplier is 19 at ρ = 0.95 and 99 at ρ = 0.99. Real multi-server systems need an appropriate model or measurements. Virtual waiting rooms and admission control can protect capacity, but avoid attributing a specific strategy to a company without a source.</p>
+                    <p style="margin-top: 0.5rem;"><strong>The lesson:</strong> More capacity can reduce utilization and queueing delay, but it is not a substitute for controlling overload. Bound queues, apply admission control, shed or defer noncritical work, and use autoscaling with enough headroom for its reaction time.</p>
                 </div>
             </div>
 
@@ -476,7 +486,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    localStorage.setItem('theme', newTheme);
+                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Theme still works for this page view. */ }
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -600,7 +610,9 @@
                     } else if (this.type === 'erlang') {
                         let s = 0;
                         for (let i = 0; i < this.params.k; i++) {
-                            s += -Math.log(1 - u) / this.params.lam;
+                            // Each stage gets an independent exponential draw.
+                            const stageU = Math.random();
+                            s += -Math.log(1 - stageU) / this.params.lam;
                         }
                         return s;
                     }
@@ -608,8 +620,8 @@
 
                 getRange() {
                     if (this.type === 'poisson') return [0, Math.ceil(this.params.lam * 3 + 10)];
-                    if (this.type === 'exponential') return [0, 6 / this.params.lam];
-                    if (this.type === 'erlang') return [0, (this.params.k / this.params.lam) * 4 + 2];
+                    if (this.type === 'exponential') return [0, Math.max(6 / this.params.lam, ...this.samples) * 1.02];
+                    if (this.type === 'erlang') return [0, Math.max((this.params.k / this.params.lam) * 4 + 2, ...this.samples) * 1.02];
                 }
 
                 isDiscrete() {
@@ -713,8 +725,15 @@
                 }
 
                 step(n) {
-                    for (let i = 0; i < n; i++) {
+                    // Keep the interactive demo responsive during long runs.
+                    const maxSamples = 5000;
+                    for (let i = 0; i < n && this.samples.length < maxSamples; i++) {
                         this.samples.push(this.generateSample());
+                    }
+                    if (this.samples.length >= maxSamples && this.running) {
+                        this.running = false;
+                        clearInterval(this.timer);
+                        this.btnRun.textContent = '▶ Run';
                     }
                     this.draw();
                 }
@@ -736,4 +755,4 @@
         });
     </script>
 </body>
-</html>
+</html> 
