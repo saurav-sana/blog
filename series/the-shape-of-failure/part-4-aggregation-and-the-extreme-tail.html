@@ -89,7 +89,7 @@
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
-        /* --- Simulation Stage (Tight Toolbar) --- */
+        /* --- Simulation Stage --- */
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
         .sim-toolbar { 
@@ -141,10 +141,10 @@
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
         @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
-            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -205,9 +205,10 @@
                 <div class="tldr-content">
                     <p>If a single microservice has a p99 latency of 200ms, that means 1% of requests take longer than 200ms. But if your homepage calls <strong>100 microservices in parallel</strong>, the probability that <em>at least one</em> of them hits that 1% tail is:</p>
                     <p style="text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; margin: 1rem 0; color: var(--amber);">
-                        P(at least one slow) = 1 - (0.99)^100 ≈ 63.4%
+                        P(at least one slow) = 1 - (0.99)^100 &asymp; 63.4%
                     </p>
                     <p>This means <strong>63% of your users will experience tail latency</strong> on every single page load, even though every individual service is "healthy." Synchronous fan-out mathematically guarantees failure.</p>
+                    <p style="margin-top: 0.75rem; font-size: 0.85rem; opacity: 0.8;"><em>(Note: This calculation assumes the 100 service calls are statistically independent. If they share a downstream dependency, the failure rate is even worse.)</em></p>
                 </div>
             </div>
 
@@ -253,11 +254,11 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Mean (μ): <span id="v_mu_normal">0.0</span></div>
-                            <input type="range" id="mu_normal" min="-5" max="5" step="0.1" value="0">
+                            <input type="range" id="mu_normal" aria-label="Normal distribution mean mu" min="-5" max="5" step="0.1" value="0">
                         </div>
                         <div class="param-group">
                             <div>Std Dev (σ): <span id="v_sig_normal">1.0</span></div>
-                            <input type="range" id="sig_normal" min="0.2" max="4.0" step="0.1" value="1.0">
+                            <input type="range" id="sig_normal" aria-label="Normal distribution standard deviation sigma" min="0.2" max="4.0" step="0.1" value="1.0">
                         </div>
                     </div>
                     <div class="controls">
@@ -266,10 +267,11 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
-                <div class="readout">
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated normal distribution"></canvas>
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (μ): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
@@ -332,7 +334,7 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Degrees of Freedom: <span id="v_df_studentt">4</span></div>
-                            <input type="range" id="df_studentt" min="1" max="60" step="1" value="4">
+                            <input type="range" id="df_studentt" aria-label="Student t degrees of freedom" min="1" max="60" step="1" value="4">
                         </div>
                     </div>
                     <div class="controls">
@@ -341,10 +343,11 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
-                <div class="readout">
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated student t distribution"></canvas>
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (0): <span class="stat-theory">0.00</span></div>
                 </div>
             </div>
 
@@ -407,11 +410,11 @@
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Log-Mean (μ): <span id="v_mu_lognormal">0.3</span></div>
-                            <input type="range" id="mu_lognormal" min="-1.0" max="2.0" step="0.1" value="0.3">
+                            <input type="range" id="mu_lognormal" aria-label="Log-normal distribution log mean mu" min="-1.0" max="2.0" step="0.1" value="0.3">
                         </div>
                         <div class="param-group">
                             <div>Log-Std Dev (σ): <span id="v_sig_lognormal">0.6</span></div>
-                            <input type="range" id="sig_lognormal" min="0.1" max="1.5" step="0.05" value="0.6">
+                            <input type="range" id="sig_lognormal" aria-label="Log-normal distribution log standard deviation sigma" min="0.1" max="1.5" step="0.05" value="0.6">
                         </div>
                     </div>
                     <div class="controls">
@@ -420,10 +423,11 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220"></canvas>
-                <div class="readout">
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated log-normal distribution"></canvas>
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean: <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
@@ -482,7 +486,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    localStorage.setItem('theme', newTheme);
+                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -519,6 +523,7 @@
 
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statMean = stageElement.querySelector('.stat-mean');
+                    this.statTheory = stageElement.querySelector('.stat-theory');
                     this.btnRun = stageElement.querySelector('.btn-run');
                     this.btnStep = stageElement.querySelector('.btn-step');
                     this.btnReset = stageElement.querySelector('.btn-reset');
@@ -530,7 +535,10 @@
                     this.btnReset.onclick = () => this.reset();
 
                     this.resize();
-                    window.addEventListener('resize', () => this.resize());
+                    
+                    // Use ResizeObserver for reliable chart resizing
+                    this.resizeObserver = new ResizeObserver(() => this.resize());
+                    this.resizeObserver.observe(this.canvas.parentElement);
 
                     canvasToSim.set(this.canvas, this);
                     this.draw();
@@ -609,6 +617,7 @@
                 getRange() {
                     if (this.type === 'normal') return [this.params.mu - 4 * this.params.sig, this.params.mu + 4 * this.params.sig];
                     if (this.type === 'studentt') return [-6, 6];
+                    // For lognormal, set a fixed reasonable upper bound to prevent constant axis jumping
                     if (this.type === 'lognormal') return [0, Math.exp(this.params.mu + 3.5 * this.params.sig)];
                 }
 
@@ -642,6 +651,16 @@
                     ctx.lineTo(pad.l, H - pad.b);
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
+
+                    // Calculate Theoretical Mean
+                    let theoreticalMean = 0;
+                    if (this.type === 'normal') theoreticalMean = this.params.mu;
+                    if (this.type === 'studentt') theoreticalMean = 0;
+                    if (this.type === 'lognormal') theoreticalMean = Math.exp(this.params.mu + (this.params.sig * this.params.sig) / 2);
+                    
+                    if (this.statTheory) {
+                        this.statTheory.textContent = theoreticalMean.toFixed(2);
+                    }
 
                     if (this.samples.length === 0) {
                         ctx.fillStyle = labelColor;
@@ -679,6 +698,7 @@
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
+                    // Draw Observed Mean Line
                     if (mean >= rmin && mean <= rmax) {
                         const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
                         ctx.beginPath();
@@ -691,7 +711,25 @@
                         ctx.fillStyle = getCssVar('--bad');
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
+                    }
+
+                    // Draw Expected Mean Line
+                    const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
+                    if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--amber');
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.moveTo(expX, pad.t);
+                        ctx.lineTo(expX, H - pad.b);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        ctx.fillStyle = getCssVar('--amber');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('EXPECTED', expX, pad.t - 5);
                     }
 
                     this.statN.textContent = this.samples.length;
@@ -715,6 +753,11 @@
                 step(n) {
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
+                    }
+                    // Keep the latest observations so continuous runs stay responsive.
+                    const maxSamples = 5000;
+                    if (this.samples.length > maxSamples) {
+                        this.samples.splice(0, this.samples.length - maxSamples);
                     }
                     this.draw();
                 }

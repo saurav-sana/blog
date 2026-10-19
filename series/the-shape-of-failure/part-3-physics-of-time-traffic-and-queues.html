@@ -89,7 +89,7 @@
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
-        /* --- Simulation Stage (Tight Toolbar) --- */
+        /* --- Simulation Stage --- */
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
         .sim-toolbar { 
@@ -141,10 +141,10 @@
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
         @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
-            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -227,7 +227,7 @@
                     <li><strong><var>e</var>:</strong> Euler's number (approx 2.718).</li>
                     <li><strong><var>k</var>!:</strong> Factorial (e.g., 4! = 4 × 3 × 2 × 1 = 24).</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your average rate is 10 requests/sec (<var>&lambda;</var> = 10), what is the chance of getting exactly 15 requests in one second? The formula gives roughly <strong>3.4%</strong>. For λ = 10, the probability of exactly 30 arrivals in one second is about 0.000017% (approximately 1.7 × 10⁻⁷), under the Poisson assumptions. Do not interpret a rare single-window event as automatically becoming common because there are many servers: aggregate risk depends on the number of windows, dependence between sources, and whether the model fits the observed traffic. Synchronized clients can create bursts for a different reason—the arrivals are correlated, so the independent-arrival model is the wrong model.</p>
+                <p><strong>Worked Example:</strong> If your average rate is 10 requests/sec (<var>&lambda;</var> = 10), what is the chance of getting exactly 15 requests in one second? The formula gives roughly <strong>3.4%</strong>. For λ = 10, the probability of exactly 30 arrivals in one second is about 0.000017% (approximately 1.7 × 10⁻⁷), under the Poisson assumptions. Synchronized clients can create bursts for a different reason—the arrivals are correlated, so the independent-arrival model is the wrong model.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -254,9 +254,10 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Value: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (λ): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
@@ -329,9 +330,10 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Wait Time: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (1/λ): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
@@ -408,9 +410,10 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Mean Total Time: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Mean (k/λ): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
@@ -431,19 +434,20 @@
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
             </div>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">Queueing Theory: Kingman’s Approximation</div>
-                <div class="tldr-content">
-                    <p>For a stable GI/G/1 queue (general inter-arrival and service-time distributions, one server), a commonly used approximation is:</p>
-                    <div class="math-block">E[W<sub>q</sub>] ≈ <span style="white-space:nowrap;">(ρ / (1 − ρ))</span> · <span style="white-space:nowrap;">((c<sub>a</sub><sup>2</sup> + c<sub>s</sub><sup>2</sup>) / 2)</span> · E[S]</div>
-                    <p>Here ρ is utilization, c<sub>a</sub> is the coefficient of variation of inter-arrival times, c<sub>s</sub> is the coefficient of variation of service times, and E[S] is mean service time. It is an approximation, not a universal law for every multi-server architecture.</p>
-                </div>
-            </div>
-
             <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
                 <div class="tldr-eyebrow">The Core Problem: Kingman's Formula</div>
                 <div class="tldr-content">
-                    <p>A useful bridge from arrival and service variability to queueing delay is Kingman’s approximation for a stable GI/G/1 queue: E[Wq] ≈ (ρ/(1−ρ)) × ((ca² + cs²)/2) × E[S], where ρ is utilization, ca is the coefficient of variation of inter-arrival times, cs is the coefficient of variation of service times, and E[S] is mean service time. It is an approximation under specific single-server assumptions—not a formula that all distributions “converge into.” With variability held fixed, the utilization multiplier is 19 at ρ = 0.95 and 99 at ρ = 0.99. Real multi-server systems need an appropriate model or measurements. Virtual waiting rooms and admission control can protect capacity, but avoid attributing a specific strategy to a company without a source.</p>
+                    <p>A useful bridge from arrival and service variability to queueing delay is Kingman’s approximation for a stable GI/G/1 queue:</p>
+                    <div class="math-block" style="font-size: 1.1rem; padding: 1rem;">
+                        E[W<sub>q</sub>] &asymp; ( &rho; / (1 - &rho;) ) &middot; ( (c<sub>a</sub><sup>2</sup> + c<sub>s</sub><sup>2</sup>) / 2 ) &middot; E[S]
+                    </div>
+                    <ul style="margin-bottom: 1rem;">
+                        <li><strong>&rho; (Utilization):</strong> The percentage of time the server is busy.</li>
+                        <li><strong>c<sub>a</sub>:</strong> The coefficient of variation of inter-arrival times.</li>
+                        <li><strong>c<sub>s</sub>:</strong> The coefficient of variation of service times.</li>
+                        <li><strong>E[S]:</strong> The mean service time.</li>
+                    </ul>
+                    <p>It is an approximation under specific single-server assumptions—not a formula that all distributions “converge into.” With variability held fixed, the utilization multiplier is 19 at &rho; = 0.95 and 99 at &rho; = 0.99. Real multi-server systems need an appropriate model or measurements.</p>
                     <p style="margin-top: 0.5rem;"><strong>The lesson:</strong> More capacity can reduce utilization and queueing delay, but it is not a substitute for controlling overload. Bound queues, apply admission control, shed or defer noncritical work, and use autoscaling with enough headroom for its reaction time.</p>
                 </div>
             </div>
@@ -486,7 +490,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Theme still works for this page view. */ }
+                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -532,6 +536,7 @@
 
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statMean = stageElement.querySelector('.stat-mean');
+                    this.statTheory = stageElement.querySelector('.stat-theory');
                     this.btnRun = stageElement.querySelector('.btn-run');
                     this.btnStep = stageElement.querySelector('.btn-step');
                     this.btnReset = stageElement.querySelector('.btn-reset');
@@ -543,7 +548,10 @@
                     this.btnReset.onclick = () => this.reset();
 
                     this.resize();
-                    window.addEventListener('resize', () => this.resize());
+                    
+                    // Use ResizeObserver for reliable chart resizing
+                    this.resizeObserver = new ResizeObserver(() => this.resize());
+                    this.resizeObserver.observe(this.canvas.parentElement);
 
                     canvasToSim.set(this.canvas, this);
                     this.draw();
@@ -610,7 +618,6 @@
                     } else if (this.type === 'erlang') {
                         let s = 0;
                         for (let i = 0; i < this.params.k; i++) {
-                            // Each stage gets an independent exponential draw.
                             const stageU = Math.random();
                             s += -Math.log(1 - stageU) / this.params.lam;
                         }
@@ -619,9 +626,10 @@
                 }
 
                 getRange() {
+                    // Use fixed parameter-based ranges to prevent the axis from jumping wildly
                     if (this.type === 'poisson') return [0, Math.ceil(this.params.lam * 3 + 10)];
-                    if (this.type === 'exponential') return [0, Math.max(6 / this.params.lam, ...this.samples) * 1.02];
-                    if (this.type === 'erlang') return [0, Math.max((this.params.k / this.params.lam) * 4 + 2, ...this.samples) * 1.02];
+                    if (this.type === 'exponential') return [0, Math.max(6 / this.params.lam, 1)];
+                    if (this.type === 'erlang') return [0, Math.max((this.params.k / this.params.lam) * 4 + 2, 1)];
                 }
 
                 isDiscrete() {
@@ -647,6 +655,7 @@
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
+                    // Draw Axes
                     ctx.strokeStyle = gridColor;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
@@ -654,6 +663,16 @@
                     ctx.lineTo(pad.l, H - pad.b);
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
+
+                    // Update Theory Readout even if no samples
+                    let theoreticalMean = 0;
+                    if (this.type === 'poisson') theoreticalMean = this.params.lam;
+                    if (this.type === 'exponential') theoreticalMean = 1 / this.params.lam;
+                    if (this.type === 'erlang') theoreticalMean = this.params.k / this.params.lam;
+                    
+                    if (this.statTheory) {
+                        this.statTheory.textContent = theoreticalMean.toFixed(2);
+                    }
 
                     if (this.samples.length === 0) {
                         ctx.fillStyle = labelColor;
@@ -670,6 +689,7 @@
                     const binWidth = (rmax - rmin) / bins;
                     const counts = new Array(bins).fill(0);
                     let sum = 0;
+                    let offChart = 0;
 
                     this.samples.forEach(v => {
                         sum += v;
@@ -677,6 +697,8 @@
                             let idx = Math.floor((v - rmin) / binWidth);
                             if (idx >= bins) idx = bins - 1;
                             counts[idx]++;
+                        } else {
+                            offChart++;
                         }
                     });
 
@@ -684,6 +706,7 @@
                     const maxCount = Math.max(1, ...counts);
                     const bw = plotW / bins;
 
+                    // Draw Bars
                     ctx.fillStyle = barColor;
                     counts.forEach((c, i) => {
                         const h = (c / maxCount) * plotH * 0.9;
@@ -691,6 +714,7 @@
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
+                    // Draw Observed Mean Line
                     if (mean >= rmin && mean <= rmax) {
                         const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
                         ctx.beginPath();
@@ -703,7 +727,25 @@
                         ctx.fillStyle = getCssVar('--bad');
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
+                    }
+
+                    // Draw Expected Mean Line
+                    const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
+                    if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--amber');
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.moveTo(expX, pad.t);
+                        ctx.lineTo(expX, H - pad.b);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        ctx.fillStyle = getCssVar('--amber');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('EXPECTED', expX, pad.t - 5);
                     }
 
                     this.statN.textContent = this.samples.length;
@@ -725,15 +767,13 @@
                 }
 
                 step(n) {
-                    // Keep the interactive demo responsive during long runs.
-                    const maxSamples = 5000;
-                    for (let i = 0; i < n && this.samples.length < maxSamples; i++) {
+                    for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    if (this.samples.length >= maxSamples && this.running) {
-                        this.running = false;
-                        clearInterval(this.timer);
-                        this.btnRun.textContent = '▶ Run';
+                    // Keep the latest observations so continuous runs stay responsive.
+                    const maxSamples = 5000;
+                    if (this.samples.length > maxSamples) {
+                        this.samples.splice(0, this.samples.length - maxSamples);
                     }
                     this.draw();
                 }
@@ -755,4 +795,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
