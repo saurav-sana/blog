@@ -141,10 +141,10 @@
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
         @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; }
+            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
-            .controls { justify-content: flex-start; margin-top: 0.5rem; }
+            .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -256,7 +256,7 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Bernoulli request outcomes"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Value: <span class="stat-mean">–</span></div>
                 </div>
@@ -265,7 +265,7 @@
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Single User Perspective" <span class="scenario-tag">AWS S3</span></div>
-                <p>A request-level success indicator is a Bernoulli observation, but the 2017 S3 disruption was not simply a load balancer dropping one unlucky packet. AWS reported that an incorrectly entered operational command removed more servers than intended, affecting critical S3 subsystems in the Northern Virginia region. The incident is a better lesson in shared operational dependencies than in independent request failures.</p>
+                <p>A request-level success indicator is a Bernoulli observation, but the 2017 S3 disruption was not simply a load balancer dropping one unlucky packet. AWS reported that an incorrectly entered operational command removed more servers than intended, affecting critical S3 subsystems in the Northern Virginia region. The incident is a better lesson in <strong>Model Risk</strong>—the architecture had independent replicas, but the operational control plane was a shared single point of failure.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/message/41926/" target="_blank" rel="noopener noreferrer">AWS S3 2017 Post-Mortem (Typo took down the fleet)</a></div>
             </div>
             <div class="scenario-card">
@@ -307,6 +307,7 @@
                     <li><strong>(1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>:</strong> The probability that the remaining <var>n</var> - <var>k</var> nodes survive.</li>
                 </ul>
                 <p><strong>Worked example:</strong> In a five-voter cluster, a majority is three. If exactly two nodes fail, three remain and quorum is still available (assuming the remaining nodes can communicate). Under an independent Binomial model with <var>n</var> = 5 and per-node failure probability <var>p</var> = 0.01, the probability of exactly two failures is about <strong>0.097%</strong>. The probability of losing a three-node majority by having at least three nodes fail is about <strong>0.000985%</strong>. Those numbers are conditional on the independence assumption; a shared network partition or common-mode defect needs a different model.</p>
+                <p><em>Bridge to Part 3:</em> When the fleet size (<var>n</var>) is massive, but the failure probability (<var>p</var>) is incredibly tiny, the Binomial distribution converges mathematically into the Poisson distribution—which we will use to model traffic bursts in the next part.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -336,22 +337,24 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated independent node-failure counts"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean Failures: <span class="stat-mean">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean (n × p): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">When a shared cause exists</div>
+            <p class="math-explanation">
+                <strong>Note:</strong> This simulation forces every node to fail independently (each draws a fresh random number). In the real world, a shared top-of-rack switch or a bad deployment creates <strong>correlated failures</strong>. Your real-world histogram will have a massive spike at the far right, not a neat bell curve.
+            </p>
+
+            <div class="tldr-box tldr-box--warning" style="margin-top: 2rem;">
+                <div class="tldr-eyebrow">The Core Problem: Knight Capital (2012)</div>
                 <div class="tldr-content">
-                    <p>For two replicas, suppose <var>q</var> is the probability of a common outage that takes both out, and <var>p</var> is each replica’s residual failure probability when that common outage does not occur. Under those simplified assumptions:</p>
-                    <div class="math-block">P( both fail ) = <var>q</var> + (1 − <var>q</var>)<var>p</var><sup>2</sup></div>
-                    <p>This is a teaching model, not a universal formula for every dependency graph. Its point is that a shared-cause term can dominate the tiny independent-failure term. Estimate or bound <var>q</var> from architecture and incident evidence rather than quietly setting it to zero.</p>
+                    <p>Knight Capital’s 2012 trading incident is a reminder that catastrophic failures are not always random component lifetimes. A deployment left obsolete code active on one of the firm’s trading servers, and the resulting behavior produced enormous losses in minutes. Replicating the same flawed software, configuration, or procedure can reproduce the same defect—or make its blast radius larger. Redundancy is not a substitute for safe rollout, configuration consistency, and tested rollback.</p>
+                    <p><strong>The lesson:</strong> Redundancy helps against the failure modes it was designed to tolerate. It offers less protection against shared dependencies and common-mode defects. Map failure domains, limit shared dependencies, use staged changes, and test failover and recovery under realistic conditions.</p>
                 </div>
             </div>
-            <p class="math-explanation">The simulation draws a fresh random value for every node, so each node is an independent trial. The expected number of failures is <code>n × p</code>; the observed sample mean will fluctuate around it. This simulation intentionally excludes shared causes such as a common network, deployment, or control-plane failure.</p>
 
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
@@ -406,7 +409,7 @@
                     </li>
                     <li><strong><var>&lambda;</var> (Scale):</strong> The characteristic life. It's the point in time where exactly 63.2% of the components have failed.</li>
                 </ul>
-                <p><strong>Illustrative example:</strong> Suppose lifetime data were reasonably fit by a two-parameter Weibull with <var>k</var> = 3 and <var>&lambda;</var> = 5 years. The hazard increases with age, and about 63.2% of modeled lifetimes end by five years. That does <em>not</em> mean each drive is safe until year five or that the hazard suddenly spikes at that point. Fit the parameters to the relevant population and account for censored observations before using the model for planning.</p>
+                <p><strong>Illustrative example:</strong> Suppose lifetime data were reasonably fit by a two-parameter Weibull with <var>k</var> = 3 and <var>&lambda;</var> = 5 years. The hazard increases with age, and about 63.2% of modeled lifetimes end by five years. That does <em>not</em> mean each drive is safe until year five, nor that the hazard suddenly spikes at that exact point. The hazard rate is continuously increasing. A drive that survives to year 4 is already much more likely to fail in year 5 than it was in year 1. Fit the parameters to the relevant population and account for censored observations before using the model for planning.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -436,7 +439,7 @@
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Weibull lifetimes"></canvas>
-                <div class="readout">
+                <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Mean Time to Fail: <span class="stat-mean">–</span></div>
                 </div>
@@ -457,14 +460,6 @@
                 <div class="scenario-title">The "Slow Death" <span class="scenario-tag">OOM Kill</span></div>
                 <p>A memory leak is often better diagnosed from the memory-growth rate, workload, restart history, and container limit than by assuming a Weibull lifetime. If many instances show variable time-to-OOM, a lifetime distribution may summarize those observations—but first check whether the process is driven by a roughly deterministic resource trajectory.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.kernel.org/doc/html/latest/admin-guide/mm/concepts.html#oom-killer" target="_blank" rel="noopener noreferrer">Linux Kernel OOM Killer Documentation</a></div>
-            </div>
-
-            <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
-                <div class="tldr-eyebrow">The Core Problem: Knight Capital (2012)</div>
-                <div class="tldr-content">
-                    <p>Knight Capital’s 2012 trading incident is a reminder that catastrophic failures are not always random component lifetimes. A deployment left obsolete code active on one of the firm’s trading servers, and the resulting behavior produced enormous losses in minutes. Replicating the same flawed software, configuration, or procedure can reproduce the same defect—or make its blast radius larger. Redundancy is not a substitute for safe rollout, configuration consistency, and tested rollback.</p>
-                    <p><strong>The lesson:</strong> Redundancy helps against the failure modes it was designed to tolerate. It offers less protection against shared dependencies and common-mode defects, but it is not “zero protection” in every correlated-failure scenario. Map failure domains, limit shared dependencies, use staged changes, and test failover and recovery under realistic conditions.</p>
-                </div>
             </div>
 
             <h2>Before You Trust the Reliability Number</h2>
@@ -504,7 +499,6 @@
             // --- Theme Toggle Logic ---
             const themeBtn = document.querySelector('.theme-toggle');
             if (themeBtn) {
-                // Set initial aria-pressed state
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
                 themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
 
@@ -513,20 +507,13 @@
                     const current = root.getAttribute('data-theme') || 'dark';
                     const newTheme = current === 'light' ? 'dark' : 'light';
                     
-                    // Remove all theme classes
                     root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
-                    
-                    // Set new theme
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
-                    
-                    // Update ARIA state
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
                     
-                    // Persist preference when browser storage is available.
                     try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
-                    // Redraw canvases
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
                         if (sim) sim.draw();
@@ -567,7 +554,8 @@
                     this.btnReset.onclick = () => this.reset();
 
                     this.resize();
-                    window.addEventListener('resize', () => this.resize());
+                    this.resizeObserver = new ResizeObserver(() => this.resize());
+                    this.resizeObserver.observe(this.canvas.parentElement);
 
                     canvasToSim.set(this.canvas, this);
                     this.draw();
@@ -632,7 +620,6 @@
                     if (this.type === 'bernoulli') {
                         return u < this.params.p ? 1 : 0;
                     } else if (this.type === 'binomial') {
-                        // Each node gets its own independent Bernoulli trial.
                         let failures = 0;
                         for (let i = 0; i < this.params.n; i++) {
                             if (Math.random() < this.params.p) failures++;
@@ -732,7 +719,28 @@
                         ctx.fillStyle = getCssVar('--bad');
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('MEAN', meanX, pad.t - 5);
+                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
+                    }
+
+                    // Draw Expected Mean Line for Binomial
+                    if (this.type === 'binomial') {
+                        const expected = this.params.n * this.params.p;
+                        const expX = pad.l + ((expected - rmin) / (rmax - rmin)) * plotW;
+                        if (expected >= rmin && expected <= rmax) {
+                            ctx.beginPath();
+                            ctx.strokeStyle = getCssVar('--amber');
+                            ctx.lineWidth = 1.5;
+                            ctx.setLineDash([4, 4]);
+                            ctx.moveTo(expX, pad.t);
+                            ctx.lineTo(expX, H - pad.b);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+
+                            ctx.fillStyle = getCssVar('--amber');
+                            ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('EXPECTED', expX, pad.t - 5);
+                        }
                     }
 
                     this.statN.textContent = this.samples.length;
@@ -758,7 +766,6 @@
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    // Keep the latest observations so continuous runs stay responsive.
                     const maxSamples = 5000;
                     if (this.samples.length > maxSamples) {
                         this.samples.splice(0, this.samples.length - maxSamples);
