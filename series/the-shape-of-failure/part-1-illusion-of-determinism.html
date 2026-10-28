@@ -32,9 +32,9 @@
     <!-- Twitter / X Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-1-illusion-of-determinism.html">
-    <meta property="twitter:title" content="Part 1: The Illusion of Determinism | The Shape of Failure">
-    <meta property="twitter:description" content="A practical guide to modeling uncertainty, validating assumptions, and translating reliability targets into engineering and FinOps decisions.">
-    <meta property="twitter:image" content="https://saurav-sana.github.io/blog/assets/img/shape-of-failure-preview.png">
+    <meta name="twitter:title" content="Part 1: The Illusion of Determinism | The Shape of Failure">
+    <meta name="twitter:description" content="A practical guide to modeling uncertainty, validating assumptions, and translating reliability targets into engineering and FinOps decisions.">
+    <meta name="twitter:image" content="https://saurav-sana.github.io/blog/assets/img/shape-of-failure-preview.png">
 
     <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json">
@@ -49,7 +49,7 @@
         "url": "https://saurav-sana.github.io/blog/"
       },
       "datePublished": "2026-10-17",
-      "dateModified": "2026-10-28",
+      "dateModified": "2026-10-29",
       "publisher": {
         "@type": "Organization",
         "name": "Saurav Sana | Field Notes",
@@ -65,7 +65,7 @@
     }
     </script>
 
-    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <!-- Early Theme Initialization -->
     <script>
         (function () {
             try {
@@ -82,7 +82,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
-    <!-- KaTeX (math rendering) -->
+    <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -209,8 +209,8 @@
         }
         .scenario-kicker .evidence::before { content: "· "; }
         .scenario[data-accent="amber"] .scenario-kicker { color: var(--amber); }
-        .scenario[data-accent="red"] .scenario-kicker { color: var(--red); }
-        .scenario[data-accent="gray"] .scenario-kicker { color: var(--muted); }
+        .scenario[data-accent="red"]   .scenario-kicker { color: var(--red); }
+        .scenario[data-accent="gray"]  .scenario-kicker { color: var(--muted); }
 
         .scenario ul { margin: 0.4rem 0 1.25rem 0; }
         .scenario li { font-size: 0.97rem; }
@@ -221,8 +221,8 @@
             margin: 1.5rem 0 0 0;
         }
         .scenario[data-accent="amber"] .solution { border-left-color: var(--amber); }
-        .scenario[data-accent="red"] .solution { border-left-color: var(--red); }
-        .scenario[data-accent="gray"] .solution { border-left-color: var(--muted-2); }
+        .scenario[data-accent="red"]   .solution { border-left-color: var(--red); }
+        .scenario[data-accent="gray"]  .solution { border-left-color: var(--muted-2); }
         .solution strong {
             font-family: 'IBM Plex Mono', Consolas, monospace;
             font-size: 0.78rem;
@@ -522,12 +522,12 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">Recurring Architecture Spine &amp; Epistemic Honesty</div>
                 <div class="tldr-content">
-                    <p>To keep this guide grounded in real systems rather than textbook trivia, we will trace one recurring production architecture across every section: a <strong>Multi-Tenant Analytics Gateway</strong> (stateless DuckDB + Apache Arrow query workers reading Apache Iceberg tables over object storage, with Redis metadata caching and multi-AZ routing).</p>
-                    <p><strong>A note on evidence:</strong> Throughout this article, we explicitly distinguish between <em>Documented Industry Evidence</em> (published findings from Google SRE, AWS, and systems literature) and <em>Illustrative Engineering Calculations</em> (reproducible mathematical scenarios showing how to compute parameters, validate models, and size controls).</p>
+                    <p>To keep this guide grounded in real systems rather than textbook trivia, we trace one recurring production architecture across every section: a <strong>Multi-Tenant Analytics Gateway</strong> (stateless DuckDB + Apache Arrow query workers reading Apache Iceberg tables over object storage, with Redis metadata caching and multi-AZ routing).</p>
+                    <p><strong>A note on evidence:</strong> Throughout this article, we explicitly distinguish between <em>Documented Industry Evidence</em> (published empirical findings from Google SRE, AWS, and systems literature) and <em>Illustrative Engineering Calculations</em> (reproducible mathematical scenarios showing how to compute parameters, validate hypotheses, and size controls under explicitly stated assumptions).</p>
                 </div>
             </div>
 
-            <h2>The Intellectual Spine &amp; The First Rule</h2>
+            <h2>1. The Intellectual Spine &amp; The Modeling Workflow</h2>
 
             <h3>The Central Thesis</h3>
             <p>Do not ask only: <em>"What is the average?"</em></p>
@@ -546,9 +546,9 @@
                     <span class="flow-arrow">→</span>
                     <span class="flow-node">Candidate Model</span>
                     <span class="flow-arrow">→</span>
-                    <span class="flow-node">Validation</span>
+                    <span class="flow-node">Validation &amp; Falsification</span>
                     <span class="flow-arrow">→</span>
-                    <span class="flow-node">Decision</span>
+                    <span class="flow-node">Operational Control</span>
                 </div>
             </div>
 
@@ -583,9 +583,9 @@
 
             <p>The operational question is never: <em>"Which distribution does this metric follow?"</em> It is: <em>"Which model is sufficiently accurate for the decision I need to make?"</em></p>
 
-            <h2>Four Places Where Textbook Models Collide with Production</h2>
+            <h2>2. Four Places Where Textbook Models Collide with Production</h2>
 
-            <p>Below are the four classic places where unvalidated textbook models collide with production physics—paired with reproducible calculations and concrete engineering controls.</p>
+            <p>Below are the four classic scenarios where unvalidated textbook models collide with production physics—paired with reproducible calculations and concrete engineering controls.</p>
 
             <!-- ============ SCENARIO A ============ -->
             <section class="scenario" id="timeouts-lognormal">
@@ -593,16 +593,16 @@
                 <p class="scenario-kicker">Worked Scenario A · Gateway timeout sizing &amp; censoring <span class="evidence">Illustrative calculation + Google SRE grounding</span></p>
 
                 <h4>The Core Trap: Fitting One Curve to Multiple Realities</h4>
-                <p>When setting a timeout (e.g., how long our lightweight DuckDB query gateway waits before dropping a request), engineers often try to fit their latency data to a single continuous probability curve, like a Log-Normal or Weibull distribution.</p>
-                <p>Neither distribution is inherently inappropriate for latency within a single regime. The trap is that continuous unimodal curves assume a single smooth decay, whereas real-world systems execute across <strong>finite mixtures of distinct paths</strong>:</p>
+                <p>When setting a timeout (e.g., how long our query gateway waits before dropping a downstream worker call), engineers often try to fit empirical latency to a single continuous probability curve, like a Log-Normal or Weibull distribution.</p>
+                <p>Neither distribution is inherently invalid for latency within a single regime. The trap is that continuous unimodal curves assume a single smooth decay, whereas real distributed architectures execute across <strong>finite mixtures of distinct paths</strong>. In this scenario's workload profile:</p>
                 <ul>
-                    <li><strong>Path A (85% of traffic):</strong> Hits a fast local memory cache (Arrow/Redis) and completes in ~18 ms.</li>
-                    <li><strong>Path B (15% of traffic):</strong> Misses the cache and requires cold object-store reads (S3), metadata lock acquisition, or hits garbage collection (GC) pauses and hypervisor stalls, taking 100–300 ms.</li>
+                    <li><strong>Path A (85% of traffic):</strong> Hits local Arrow memory or Redis cache and completes in ~18 ms.</li>
+                    <li><strong>Path B (15% of traffic):</strong> Misses the cache, requiring cold object-store reads (S3/Iceberg manifests), metadata locks, or hitting GC pauses, taking 100–300 ms.</li>
                 </ul>
-                <p>When you force a single unimodal curve over both populations, the huge volume of fast 18 ms cache hits drags the math down, smoothing over the multimodal "cliff" where cache misses occur and yielding a dangerous timeout estimate.</p>
+                <p>When you force a single unimodal curve over both populations, the volume of fast 18 ms cache hits drags the fitted mean and variance down, smoothing over the multimodal "cliff" where cold storage queries execute and yielding an artificially tight, dangerous timeout estimate.</p>
 
                 <h4>Random Variable &amp; Empirical Setup</h4>
-                <p>Let \(X\) be downstream query latency (ms) measured from request dispatch to last response byte on our multi-tenant analytics gateway. Suppose 1,000,000 representative requests yield these empirical quantiles versus an unsegmented Log-Normal fit:</p>
+                <p>Let \(X\) be downstream query latency (ms) measured from request dispatch to last response byte. Suppose 1,000,000 representative requests yield these empirical quantiles versus an unsegmented Log-Normal fit:</p>
 
                 <div class="table-wrap">
                     <table class="data-table">
@@ -625,19 +625,19 @@
                                 <td><strong>p95</strong></td>
                                 <td>95 ms</td>
                                 <td>68 ms</td>
-                                <td>Unimodal fit underestimates the sudden transition to cold S3 reads.</td>
+                                <td>Unimodal fit underestimates the transition to cold S3 reads.</td>
                             </tr>
                             <tr>
                                 <td><strong>p99</strong></td>
                                 <td>180 ms</td>
                                 <td>112 ms</td>
-                                <td>Multi-partition object-store reads + metadata lock contention kick in; the curve is blind to it.</td>
+                                <td>Multi-partition object-store reads + metadata lock contention kick in; curve is blind to it.</td>
                             </tr>
                             <tr>
                                 <td><strong>p99.9</strong></td>
                                 <td>280 ms</td>
                                 <td>190 ms</td>
-                                <td>Tail regime; naive fit misses empirical p99.9 by 32%, killing healthy cold-cache queries if used as a timeout.</td>
+                                <td>Tail regime; naive fit misses empirical p99.9 by 32%, killing healthy cold queries if used as a timeout.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -645,21 +645,21 @@
 
                 $$\text{Exceedances above 280 ms (p99.9)} = 1{,}000{,}000 \times 0.001 = 1{,}000 \text{ requests per million}$$
 
-                <h4>The Timeout Censoring &amp; Retry Trap</h4>
-                <p>Why 280 ms is an investigation starting point, not an automatic timeout: if you set a hard downstream timeout at 280 ms, roughly 1,000 requests per million are cut off. Two failure modes immediately follow:</p>
+                <h4>The Timeout Censoring &amp; Late-Completion Trap</h4>
+                <p>Setting a downstream timeout exactly at the p99.9 mark of 280 ms cuts off roughly 1,000 requests per million. However, <strong>exceeding a threshold is not identical to structural failure</strong>. Two severe failure modes follow:</p>
                 <ul>
-                    <li><strong>Statistical Censoring &amp; False Failures:</strong> Cutting off 1,000 requests does not mean those requests were broken—many are legitimate cold-cache queries that would have succeeded at 295 ms. Worse, your telemetry records them simply as "280 ms (Timed Out)," censoring the true tail latency distribution.</li>
-                    <li><strong>Zombie Work &amp; Retry Storms:</strong> If the gateway times out the request without cancelling the backend worker, immediate client retries create up to 1,000 <em>additional</em> downstream attempts while the original 1,000 queries continue executing in the background as zombie work—doubling load on an already slow backend.</li>
+                    <li><strong>Statistical Censoring &amp; Obscured Latency:</strong> Terminating those 1,000 requests does not mean they were deadlocked—many were legitimate queries that would have completed successfully at 295 ms. Telemetry merely records them as "280 ms (Timed Out)," permanently censoring the true tail distribution.</li>
+                    <li><strong>Zombie Work &amp; Load Amplification:</strong> If the gateway times out the caller socket without cancelling the backend worker, immediate client retries create up to 1,000 <em>additional</em> concurrent queries while the original 1,000 jobs continue consuming CPU and memory in the background.</li>
                 </ul>
 
-                <h4>How the Engineering Controls Fix It</h4>
+                <h4>Engineering Controls</h4>
                 <ul>
-                    <li><strong>Engineering control 1 (population separation):</strong> Never lump all traffic into one latency graph. Segment HDR Histograms by <code>cache_state</code> (hit vs. miss), <code>tenant_tier</code>, and <code>query_class</code> before evaluating tail quantiles.</li>
-                    <li><strong>Engineering control 2 (deadline &amp; cancellation propagation):</strong> Propagate remaining caller deadline (<code>grpc-timeout</code> / <code>X-Deadline-Ms</code>) down the stack and wire socket close events directly to <code>duckdb_interrupt()</code> so timed-out queries immediately abort and release CPU and memory.</li>
-                    <li><strong>Engineering control 3 (retry accounting):</strong> Track timeout-induced retry rates alongside raw timeout counts to detect when an overly tight timeout is actively amplifying backend load.</li>
+                    <li><strong>Population separation:</strong> Never lump all traffic into one latency histogram. Segment telemetry by <code>cache_state</code> (hit vs. miss), <code>tenant_tier</code>, and <code>query_class</code> before evaluating tail quantiles.</li>
+                    <li><strong>Deadline &amp; cancellation propagation:</strong> Propagate remaining caller deadlines (<code>grpc-timeout</code> / <code>X-Deadline-Ms</code>) down the stack. Wire socket close events directly to <code>duckdb_interrupt()</code> so abandoned queries immediately abort.</li>
+                    <li><strong>Instrumentation of censored outcomes:</strong> Specifically instrument <code>timeout_censored_requests</code>, socket cancellation acknowledgments, continuing background worker threads, and late successful completions. This allows engineering to determine whether a timeout is protecting capacity or merely hiding unfinished work.</li>
                 </ul>
 
-                <p class="solution"><strong>The solution.</strong> Start with stratified <strong>empirical percentiles</strong> (e.g., HDR Histogram data separated by cache hit/miss and request class) and test candidate curves against out-of-sample tail quantiles. Account for timeout censoring, set timeouts within caller deadlines, propagate cancellation, and budget for retries so abandoned work does not keep consuming capacity.</p>
+                <p class="solution"><strong>The solution.</strong> Base operational timeouts on stratified empirical percentiles rather than unimodal curve fits. Pair caller timeouts with end-to-end cancellation propagation and monitor late completions to ensure abandoned work does not consume capacity.</p>
             </section>
 
             <!-- ============ SCENARIO B ============ -->
@@ -668,34 +668,33 @@
                 <p class="scenario-kicker">Worked Scenario B · Sizing burst headroom with the Generalized Pareto <span class="evidence">Illustrative calculation + NIST statistical reference</span></p>
 
                 <h4>The Core Trap: Using Center-Fitted Math to Predict Tail Disasters</h4>
-                <p>A convenient distribution fitted to the center of observed data (such as a Gaussian bell curve or standard Poisson model) severely underestimates rare extremes when its tail assumptions do not match the data-generating process. Normal and Poisson models are not universally wrong, but Gaussian tails decay exponentially fast, whereas real distributed systems exhibit heavy tails (power-law decay). Extrapolating a center-fitted model to answer a high-consequence tail question creates dangerous blind spots.</p>
+                <p>A convenient distribution fitted to the center of observed telemetry (such as a Gaussian or standard Poisson model) severely underestimates rare extremes when tail assumptions do not match reality. Gaussian tails decay exponentially fast ($e^{-x^2}$), whereas distributed systems subject to resource contention exhibit heavy power-law tails. Extrapolating a center-fitted model into high-consequence tails creates dangerous blind spots.</p>
 
-                <h4>Random Variable &amp; Peaks-Over-Threshold (POT) Setup</h4>
-                <p>Suppose our analytics platform experiences periodic latency spikes during heavy reporting windows, and the team must decide how much worker capacity and deadline headroom to reserve. Instead of modeling all data, we apply a <strong>Peaks-Over-Threshold (POT)</strong> analysis above a high threshold \(u = 500\,\text{ms}\), where 1% (\(0.01\)) of all requests exceed 500 ms:</p>
+                <h4>Assumed Scenario Parameters &amp; Peaks-Over-Threshold (POT) Setup</h4>
+                <p>Suppose our gateway experiences periodic latency spikes during peak reporting windows. We apply a <strong>Peaks-Over-Threshold (POT)</strong> formulation above a high threshold \(u = 500\,\text{ms}\), where empirical telemetry indicates 1% (\(0.01\)) of all requests exceed \(u\):</p>
                 <ul>
-                    <li><strong>Exceedance variable (\(Y\)):</strong> For any request \(X\) that passes \(u = 500\,\text{ms}\), let \(Y = X - 500\) represent the extra time spent above the threshold.</li>
-                    <li><strong>Generalized Pareto Distribution (GPD) parameters:</strong> Fitting a GPD strictly to those top 1% exceedances yields a scale parameter \(\beta = 100\,\text{ms}\) (dispersion of spikes) and a shape parameter \(\xi = 0.2\). Because \(\xi &gt; 0\), the tail exhibits heavy power-law decay.</li>
+                    <li><strong>Exceedance variable (\(Y\)):</strong> For any request \(X\) exceeding \(u = 500\,\text{ms}\), let \(Y = X - 500\) represent the excess duration.</li>
+                    <li><strong>Assumed fitted GPD parameters:</strong> For this illustrative scenario, we assume a fitted Generalized Pareto Distribution (GPD) with scale parameter \(\beta = 100\,\text{ms}\) and shape parameter \(\xi = 0.2\). Because \(\xi &gt; 0\), the tail exhibits heavy power-law decay. <em>(In production, these parameters must be derived using parameter stability plots and profile likelihood confidence intervals across candidate thresholds.)</em></li>
                 </ul>
 
                 <p>The conditional survival function for exceeding an additional duration \(y\) beyond \(u\) is:</p>
 
                 $$P(Y &gt; y \mid X &gt; u) = \left(1 + \frac{\xi\,y}{\beta}\right)^{-1/\xi}$$
 
-                <p>To calculate the probability of a request exceeding 1 second (\(X &gt; 1000\,\text{ms}\), which means an exceedance of \(y = 1000 - 500 = 500\,\text{ms}\) above the threshold):</p>
+                <p>To calculate the probability of a request exceeding 1 second (\(X &gt; 1000\,\text{ms}\), meaning an excess of \(y = 1000 - 500 = 500\,\text{ms}\)):</p>
 
                 $$\begin{aligned}
                 P(X &gt; 1000 \mid X &gt; 500) &= \left(1 + \frac{0.2 \times 500}{100}\right)^{-1/0.2} = (1 + 1)^{-5} = 2^{-5} = 0.03125 \;(3.125\%) \\[6pt]
                 P(X &gt; 1000) &= P(X &gt; 500) \times P(X &gt; 1000 \mid X &gt; 500) = 0.01 \times 0.03125 = 0.0003125 \;(\approx 313 \text{ per million requests})
                 \end{aligned}$$
 
-                <h4>How the Engineering Controls Fix It</h4>
-                <p>The fitted model estimates that approximately 313 requests per million will exceed 1 second. Rather than treating this as an absolute guarantee, engineers use it as an operational boundary:</p>
+                <h4>Engineering Controls</h4>
                 <ul>
-                    <li><strong>Engineering control 1 (de-clustering &amp; threshold validation):</strong> If a storage volume freezes for 5 seconds, 200 concurrent queries waiting on that drive will spike simultaneously—that is <em>one</em> correlated event, not 200 independent samples. De-cluster temporally correlated spikes, check threshold sensitivity across \(u \in [400, 650]\,\text{ms}\), and validate predictions against held-out stress periods.</li>
-                    <li><strong>Engineering control 2 (bulkhead lanes &amp; load shedding):</strong> Use GPD return-level estimates to size <strong>isolated heavy-query bulkhead lanes</strong>, configure <strong>load-shedding thresholds</strong>, and enforce byte-weighted memory admission semaphores so those ~313 monster queries per million cannot starve regular traffic.</li>
+                    <li><strong>De-clustering &amp; threshold stability:</strong> Correlated infrastructure stalls (such as a shared SSD pause or GC pause) cause concurrent queries to spike together. De-cluster temporally correlated bursts into distinct exceedance events, verify parameter stability across \(u \in [400, 650]\,\text{ms}\), and validate predictions against held-out stress windows.</li>
+                    <li><strong>Bulkhead lanes &amp; admission caps:</strong> Use EVT return-level estimates to size <strong>isolated heavy-query bulkhead lanes</strong>, calibrate load-shedding admission controllers, and configure memory admission semaphores so the ~313 monster queries per million cannot exhaust memory pools.</li>
                 </ul>
 
-                <p class="solution"><strong>The solution.</strong> When the decision concerns rare exceedances beyond the bulk of observed data, <strong>Extreme Value Theory (EVT)</strong>—using Block Maxima or Peaks-Over-Threshold (Generalized Pareto Distribution, GPD)—provides a principled tail model. Verify threshold stability, de-cluster dependent bursts, and check confidence intervals before sizing capacity reserves.</p>
+                <p class="solution"><strong>The solution.</strong> When modeling rare events far out in the tail, use <strong>Extreme Value Theory (EVT)</strong> rather than center-fitted curves. Verify threshold stability, de-cluster correlated bursts, and account for parameter estimation error before sizing capacity reserves.</p>
             </section>
 
             <!-- ============ SCENARIO C ============ -->
@@ -704,19 +703,12 @@
                 <p class="scenario-kicker">Worked Scenario C · The utilization cliff in a single-server queue <span class="evidence">Illustrative calculation + queueing physics</span></p>
 
                 <h4>The Core Trap: Confusing Service Time with Total Response Time</h4>
-                <p>If you are designing a high-throughput service (like an Apache Iceberg manifest reconciliation engine or query worker pool), knowing the standalone distribution of how fast a worker processes a request (service time \(S\)) is useless on its own.</p>
-                <p>Unless requests arrive on a perfectly spaced conveyor belt, random bunches in arrival times cause queues to form. As utilization \(\rho\) approaches 100%, the server has zero idle gaps left to drain those random bunches, and waiting time rises sharply and nonlinearly. If you only model service time, you miss the explosive interaction between arrival bursts, service variance, and utilization.</p>
+                <p>When sizing worker pools or commit engines, knowing the isolated service-time distribution (how fast a worker processes a job, \(S\)) is insufficient. Requests arrive stochastically; random bunches form queues. As utilization \(\rho\) approaches 100%, idle gaps vanish, and waiting time explodes nonlinearly.</p>
 
-                <h4>Random Variable &amp; Kingman’s Approximation</h4>
-                <p>Consider a single serialized commit queue where mean service time is \(\mathbb{E}[S] = 10\,\text{ms}\) (maximum capacity \(\mu = 100\,\text{requests/s}\)). Assume arrivals are approximately Poisson (squared coefficient of variation of interarrival times \(c_a^2 = 1\)) and service-time variability is \(c_s^2 = 1\). Under Kingman’s GI/G/1 approximation, the mean time spent waiting in line (\(W_q\)) before execution even begins is:</p>
+                <h4>Kingman’s Approximation &amp; Single-Server Nuance</h4>
+                <p>Consider a serialized commit queue where mean service time is \(\mathbb{E}[S] = 10\,\text{ms}\) (maximum capacity \(\mu = 100\,\text{req/s}\)). Assume arrivals are approximately Poisson (squared coefficient of variation \(c_a^2 = 1\)) and service-time variability is \(c_s^2 = 1\). Under Kingman’s GI/G/1 heavy-traffic approximation, the mean queue wait time (\(W_q\)) is:</p>
 
                 $$W_q \approx \left(\frac{c_a^2 + c_s^2}{2}\right) \cdot \left(\frac{\rho}{1-\rho}\right) \cdot \mathbb{E}[S]$$
-
-                <ul>
-                    <li><strong>Variability factor (\(\frac{c_a^2 + c_s^2}{2}\)):</strong> Captures burstiness in arrivals (\(c_a^2\)) and variation in job sizes (\(c_s^2\)). For standard random traffic, \(\frac{1+1}{2} = 1\).</li>
-                    <li><strong>Utilization cliff (\(\frac{\rho}{1-\rho}\)):</strong> As utilization \(\rho \to 1\), the denominator \((1-\rho) \to 0\), causing queue wait times to explode toward infinity.</li>
-                    <li><strong>Little’s Law (\(L = \lambda W\)):</strong> The mean number of in-flight requests consuming memory (\(L\)) equals the arrival rate (\(\lambda\)) multiplied by total response time (\(W = W_q + \mathbb{E}[S]\)).</li>
-                </ul>
 
                 <div class="table-wrap">
                     <table class="data-table">
@@ -724,9 +716,9 @@
                             <tr>
                                 <th scope="col">Utilization \(\rho\)</th>
                                 <th scope="col">Arrival Rate \(\lambda\)</th>
-                                <th scope="col">Utilization Multiplier \(\left(\frac{\rho}{1-\rho}\right)\)</th>
-                                <th scope="col">Approx. Queue Wait \(W_q\)</th>
-                                <th scope="col">Total Response Time \(W = W_q + \mathbb{E}[S]\)</th>
+                                <th scope="col">Multiplier \(\left(\frac{\rho}{1-\rho}\right)\)</th>
+                                <th scope="col">Mean Queue Wait \(W_q\)</th>
+                                <th scope="col">Total Time \(W = W_q + \mathbb{E}[S]\)</th>
                                 <th scope="col">Mean In-Flight Work \(L = \lambda W\)</th>
                             </tr>
                         </thead>
@@ -759,7 +751,7 @@
                                 <td><strong>95%</strong></td>
                                 <td>95 req/s</td>
                                 <td>\(19\times\)</td>
-                                <td><strong>190 ms (\(19 \times \mathbb{E}[S]\)!)</strong></td>
+                                <td><strong>190 ms (\(19 \times \mathbb{E}[S]\))</strong></td>
                                 <td><strong>200 ms</strong></td>
                                 <td><strong>19.0 requests</strong></td>
                             </tr>
@@ -767,16 +759,16 @@
                     </table>
                 </div>
 
-                <p><strong>Scope &amp; nuance:</strong> At 95% utilization, the server still executes the task in 10 ms, but the caller experiences a <strong>200 ms response time</strong> because the task spent 190 ms waiting in line. Worse, if arrivals are burstier than Poisson (e.g., synchronized client cron jobs firing at the top of the minute with \(c_a^2 = 4\)), the variability term jumps to \(\frac{4+1}{2} = 2.5\), multiplying that queue wait another \(2.5\times\)! (Note: multi-worker pools require GI/G/c models or discrete-event simulation validated against production traces.)</p>
+                <p><strong>Scope &amp; modeling limits:</strong> At 95% utilization, the server executes the query in 10 ms, but the caller waits 200 ms. Note that Kingman's formula approximates <em>mean</em> queue wait in a single-server queue; it does not predict tail quantiles (\(p99\)), nor does it directly model a multi-server worker pool. For production worker pools, validate with multi-server GI/G/c models or trace-driven discrete-event simulation.</p>
 
-                <h4>How the Engineering Controls Fix It</h4>
+                <h4>Engineering Controls</h4>
                 <ul>
-                    <li><strong>Engineering control 1 (bounded queues &amp; admission control):</strong> Never allow unbounded FIFO queues in memory. Reject (HTTP 429) or defer work immediately at the door when expected queue wait exceeds the caller's deadline.</li>
-                    <li><strong>Engineering control 2 (separate telemetry &amp; Little's Law reconciliation):</strong> Instrument <code>queue_wait_ms</code> separately from <code>service_exec_ms</code> so engineers do not waste hours debugging database execution code when latency spikes are actually caused by queue backlog. Use Little’s Law (\(L = \lambda W\)) to reconcile throughput, concurrency, and latency.</li>
-                    <li><strong>Engineering control 3 (per-tenant concurrency quotas):</strong> Reserve concurrency slots per tenant and query class so one noisy tenant cannot push shared utilization past the nonlinear cliff.</li>
+                    <li><strong>Bounded queues &amp; early shedding:</strong> Enforce hard queue length limits. Reject (HTTP 429) or shed load immediately at the gateway when expected queue wait exceeds caller deadline budgets.</li>
+                    <li><strong>Disaggregated instrumentation:</strong> Record <code>queue_wait_ms</code> separately from <code>service_exec_ms</code>. Reconcile concurrency, throughput, and latency using Little’s Law (\(L = \lambda W\)) to detect whether latency degradation is caused by slow execution or queue queuing.</li>
+                    <li><strong>Per-tenant concurrency quotas:</strong> Allocate explicit concurrency tokens per tenant so a single noisy client cannot monopolize shared server capacity.</li>
                 </ul>
 
-                <p class="solution"><strong>The solution.</strong> Model the <strong>arrival process</strong> (homogeneous Poisson is a baseline, not a law for bursty traffic), the <strong>service-time distribution</strong>, utilization \(\rho\), concurrency limits via Little’s Law (\(L = \lambda W\)), and feedback loops such as retries that multiply offered load during a stall.</p>
+                <p class="solution"><strong>The solution.</strong> Model arrival burstiness, service variance, and utilization together. Decouple queue wait from execution telemetry, and bound in-flight work with admission control before utilization reaches the nonlinear cliff.</p>
             </section>
 
             <!-- ============ SCENARIO D ============ -->
@@ -785,241 +777,168 @@
                 <p class="scenario-kicker">Worked Scenario D · Two-replica API with a shared failure domain <span class="evidence">Illustrative calculation + conditional reliability</span></p>
 
                 <h4>The Core Trap: Assuming Servers Fail Like Independent Coin Flips</h4>
-                <p>A Bernoulli trial is a classic coin flip: the outcome of one flip has zero causal effect on the next. Historically, architects sized replica redundancy using this naive math—assuming that if Server A has a 1% (\(0.01\)) probability of being unavailable during an observation window, and Server B has a 1% (\(0.01\)) probability, the probability of both failing simultaneously is \(0.01 \times 0.01 = 0.0001\) (0.01% downtime, or "Four Nines").</p>
-                <p>In modern cloud environments, independence is a strong hypothesis to verify, not a default. Even across racks or zones, replicas frequently share a <strong>Common-Cause Failure (CCF)</strong> domain: a top-of-rack switch, power bus, OIDC identity service, DNS resolver, schema migration lock, or CI/CD configuration rollout.</p>
+                <p>A classic reliability error is assuming redundant replicas fail independently. If Replica A has an observed unavailability probability of ~1% over an observation window, naive coin-flip math suggests that running two replicas reduces simultaneous failure probability to \(0.01 \times 0.01 = 0.0001\) (0.01% downtime, or "Four Nines").</p>
+                <p>In production cloud topologies, true independence is rare. Replicas share <strong>Common-Cause Failure (CCF)</strong> domains: top-of-rack switches, power buses, IAM/OIDC identity providers, DNS resolvers, container registries, or shared CI/CD release pipelines.</p>
 
-                <h4>Random Variable &amp; Shared Failure Floor Math</h4>
-                <p>Consider two active-active replicas serving our gateway API over a defined observation window. We separate unavailability into two distinct probabilities:</p>
+                <h4>Corrected Shared-Failure vs. Independent Baseline Math</h4>
+                <p>Consider two active-active replicas serving our gateway API over a defined observation window. We define failures using two distinct event probabilities:</p>
                 <ul>
-                    <li><strong>Common-cause failure probability (\(q = 0.002\), or 0.2%):</strong> The probability of a shared dependency outage (e.g., bad config push or IAM outage) that takes down <em>both</em> replicas simultaneously.</li>
-                    <li><strong>Conditional independent failure probability (\(p = 0.01\), or 1%):</strong> The probability that a single replica fails on its own (e.g., localized hardware fault), given that the common-cause event has <em>not</em> occurred.</li>
+                    <li><strong>Common-cause failure probability (\(q = 0.002\), or 0.2%):</strong> The probability of a shared dependency outage taking down both replicas simultaneously over the observation window. <em>(Note: \(q\) is an event probability over this window, not an automatic annual calendar floor; downtime depends on outage duration.)</em></li>
+                    <li><strong>Conditional residual failure probability (\(p = 0.01\), or 1%):</strong> The probability that a replica fails independently, given that the common-cause event has <em>not</em> occurred.</li>
                 </ul>
 
-                <p>A total outage (both replicas down) occurs if the shared dependency fails (\(q\)), <strong>or</strong> if the shared dependency survives (\(1-q\)) and both replicas suffer simultaneous independent failures (\(p^2\)):</p>
+                <p>Each replica's true <strong>marginal unavailability probability</strong> (\(p_m\)) is:</p>
 
-                $$\begin{aligned}
-                P_{\text{indep}}(\text{both fail}) &= p^2 = 0.01^2 = 0.0001 \;(0.01\%) \\[6pt]
-                P(\text{one replica down}) &= q + (1-q)\,p = 0.002 + (0.998 \times 0.01) = 0.01198 \;(1.198\%) \\[6pt]
-                P_{\text{ccf}}(\text{both fail}) &= q + (1-q)\,p^2 = 0.002 + (0.998 \times 0.0001) = 0.0020998 \;(0.20998\%)
-                \end{aligned}$$
+                $$p_m = q + (1 - q)\,p = 0.002 + (0.998 \times 0.01) = 0.01198 \;(1.198\%)$$
 
-                $$\text{Risk underestimation factor} = \frac{P_{\text{ccf}}(\text{both fail})}{P_{\text{indep}}(\text{both fail})} = \frac{0.0020998}{0.0001} \approx 21\times$$
+                <p>If the two replicas were genuinely independent with this exact same marginal risk, the joint failure probability would be:</p>
 
-                <h4>How the Engineering Controls Fix It</h4>
-                <p>Your system is <strong>21 times more likely to suffer a total outage</strong> than naive coin-flip math promised. Worse, because \(q = 0.002\) acts as a hard availability floor, adding a 3rd, 10th, or 100th replica barely moves the needle (\(P_{\text{ccf}} \to q = 0.002\)) because a single shared control-plane failure still takes down all replicas at once.</p>
-                <ul>
-                    <li><strong>Engineering control 1 (failure-domain mapping &amp; static stability):</strong> Map replicas against every physical and logical dependency (zones, racks, DNS, IAM, control planes). Build <strong>static stability</strong> into the data plane by caching identity keys and routing state locally so replicas survive a central control-plane outage.</li>
-                    <li><strong>Engineering control 2 (correlated chaos testing):</strong> Do not just test unplugging a single node. Run fault-injection experiments that sever a <em>shared dependency</em> (or simulate a bad config rollout), verifying that failover paths do not depend on the exact same broken component as the primary path.</li>
-                </ul>
+                $$P_{\text{indep}}(\text{both fail}) = p_m^2 = (0.01198)^2 \approx 0.00014352 \;(0.01435\%)$$
 
-                <p class="solution"><strong>The solution.</strong> Define the exact observation interval and model <strong>common-cause failures</strong> explicitly using fault trees or reliability block diagrams. Identify and fault-inject shared dependency paths rather than assuming extra replicas automatically multiply your nines.</p>
-            </section>
+                <p>Under the common-cause model, joint failure occurs if the shared dependency fails (\(q\)), <strong>or</strong> if it survives and both replicas fail independently (\((1-q)p^2\)):</p>
 
-            <!-- ============ PREVIEW: RETRY AMPLIFICATION ============ -->
-            <section class="scenario" id="retry-preview">
-                <h3>5. Preview of Part 2: Retry Amplification &amp; Feedback Loops</h3>
-                <p class="scenario-kicker">Worked Scenario I · Multi-layer retry amplification <span class="evidence">AWS Builder's Library grounding</span></p>
+                $$P_{\text{ccf}}(\text{both fail}) = q + (1 - q)\,p^2 = 0.002 + (0.998 \times 0.0001) = 0.0020998 \;(0.20998\%)$$
 
-                <h4>The Core Trap: Operational Controls That Multiply Failure</h4>
-                <p>Part 1 focuses on how statistical models describe observations. Part 2 addresses an even more dangerous phenomenon: how naive operational controls <strong>change the data-generating process itself</strong> during a stall.</p>
+                $$\text{Risk Underestimation Factor} = \frac{P_{\text{ccf}}(\text{both fail})}{P_{\text{indep}}(\text{both fail})} = \frac{0.0020998}{0.00014352} \approx \mathbf{14.63\times}$$
 
-                <h4>Combinatorial Retry Explosion</h4>
-                <p>Suppose a request traverses a 5-layer service chain (1: Client &rarr; 2: Edge Gateway &rarr; 3: Auth Service &rarr; 4: Query Router &rarr; 5: Storage Worker) calling the Database as the non-retrying terminal dependency. If each of the 5 caller layers is configured to independently make up to \(r = 3\) attempts (the original call + 2 retries) when a downstream dependency slows down:</p>
-
-                $$N_{\text{attempts}} = r^{L} = 3^{5} = 243 \text{ terminal database calls per top-level request}$$
-
-                <p>This is a worst-case structural bound when every attempt fails or times out in a retry-triggering manner, not an expected average amplification factor in every incident. However, as AWS’s published guidance on timeouts, retries, and backoff warns, independent multi-layer retries multiply offered load on an already failing dependency and lock distributed systems into <strong>metastable overload</strong>—where the system cannot recover even after the original trigger disappears.</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (single-layer retry ownership):</strong> Assign retry responsibility to a <strong>single designated layer</strong> in the call stack; deeper layers must fail fast and return errors upward without retrying.</li>
-                    <li><strong>Engineering control 2 (backoff, jitter &amp; idempotency):</strong> Enforce end-to-end deadlines, use exponential backoff with full jitter to de-correlate retry waves, and retry only transient errors on idempotent operations (enforced via idempotency keys).</li>
-                    <li><strong>Engineering control 3 (client-side retry budgets):</strong> Cap retry volume using token-bucket <strong>retry budgets</strong> (e.g., max 10% extra traffic) and monitor retry attempts separately from original requests.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution (developed fully in Part 2).</strong> Treat retries as dynamic load amplifiers. Eliminate nested retry loops, enforce strict per-process retry budgets, and shed excess load before retry storms trigger metastable collapse.</p>
-            </section>
-
-            <!-- ============ TAXONOMIES OF UNCERTAINTY ============ -->
-            <h2>Three Taxonomies of Uncertainty</h2>
-            <p>Distributed systems operate across three distinct classes of uncertainty. Treating them all as a single "randomness" problem leads to flawed architecture. Specifically, engineers must know <strong>what collecting more telemetry can solve—and what it cannot</strong>.</p>
-
-            <section class="scenario" id="uncertainty-aleatory">
-                <h3>1. Aleatory Uncertainty — Intrinsic Randomness</h3>
-                <p class="scenario-kicker">Taxonomy Class 1 · Irreducible workload variance <span class="evidence">Can more data fix it? No</span></p>
-
-                <h4>The Mechanism &amp; Case Study E1 (Traffic Variation)</h4>
-                <p>Aleatory uncertainty is the irreducible variance inherent to the physical or user workload, even after years of observation. For example, an established API receives 10,000 req/min on average (\(\approx 166.7\,\text{req/s}\)), but actual per-second arrivals fluctuate wildly due to uncoordinated human bursts. Collecting five more years of logs will never make every second contain exactly 167 requests.</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (capacity headroom &amp; multiplexing):</strong> Maintain utilization headroom below the nonlinear queueing cliff and aggregate workloads to benefit from statistical multiplexing.</li>
-                    <li><strong>Engineering control 2 (bounded queues &amp; admission control):</strong> Enforce strict queue bounds, autoscale with sufficient lead time, and apply admission control calibrated to empirical burst distributions.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Because more telemetry cannot reduce intrinsic randomness, absorb routine variance with <strong>capacity buffers</strong> and cap extreme bursts with <strong>admission control</strong>.</p>
-            </section>
-
-            <section class="scenario" id="uncertainty-epistemic">
-                <h3>2. Epistemic Uncertainty — Incomplete Knowledge</h3>
-                <p class="scenario-kicker">Taxonomy Class 2 · Sparse data on unfamiliar regimes <span class="evidence">Can more data fix it? Yes</span></p>
-
-                <h4>The Mechanism &amp; Case Study E2 (New Dependency)</h4>
-                <p>Epistemic uncertainty stems from missing information or sparse observations on an unfamiliar dependency or unexercised system state. For example, a newly integrated payment gateway exhibits 2 failures in 100 calls (2% observed rate). With only 100 trials, the true underlying failure rate is not known to be 2%—its statistical confidence/credible interval remains wide.</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (controlled traffic exposure):</strong> Use canary deployments, shadow traffic, and progressive rollouts to gather sample volume safely without risking full production traffic.</li>
-                    <li><strong>Engineering control 2 (Bayesian updating &amp; defensive bounds):</strong> Continuously narrow credible intervals as telemetry arrives while enforcing strict dependency timeouts and circuit breakers.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Reduce epistemic ignorance systematically through <strong>staged experimentation, shadow testing, and active telemetry collection</strong> before committing to high-throughput SLAs.</p>
-            </section>
-
-            <section class="scenario" id="uncertainty-model-risk">
-                <h3>3. Model Risk — Structural Mischaracterization</h3>
-                <p class="scenario-kicker">Taxonomy Class 3 · Flawed mathematical assumptions <span class="evidence">Can more data fix it? Only if used to falsify the model</span></p>
-
-                <h4>The Mechanism &amp; Case Study E3 (Broken Independence)</h4>
-                <p>Model risk occurs when the chosen mathematical equation fundamentally misrepresents the underlying operational mechanism—such as multiplying independent failure probabilities (\(p^2\)) for two replicas that share a single regional identity provider (Scenario D), or fitting a single unimodal curve across a bimodal cache/storage execution path (Scenario A).</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (out-of-sample falsification):</strong> Continuously test fitted curves against held-out tail quantiles (\(p99.9\)) and stress-period telemetry to expose where the mathematical curve diverges from reality.</li>
-                    <li><strong>Engineering control 2 (dependency-graph &amp; chaos auditing):</strong> Perform explicit failure-mode and dependency-graph analysis backed by correlated fault-injection experiments and decoupled static fallbacks.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Feeding millions of new data points into the wrong equation only produces a more confident wrong answer. Eliminate model risk by <strong>auditing physical system topology and falsifying assumptions against tail observations</strong>.</p>
-            </section>
-
-            <!-- ============ MODALITIES OF DISTRIBUTED FAULTS ============ -->
-            <h2>The Four Modalities of Distributed Faults</h2>
-            <p><strong>Crucial distinction:</strong> Crash, omission, timing, and Byzantine behaviors are <em>fault semantics</em>—not probability distributions. Never assign a textbook distribution to a fault class automatically. First identify the fault semantic, define the measurable random variable, and then validate a separate statistical or formal protocol model.</p>
-
-            <section class="scenario" id="fault-crash">
-                <h3>1. Crash / Fail-Stop Failures</h3>
-                <p class="scenario-kicker">Fault Modality 1 · Abrupt process termination <span class="evidence">State halt vs. detection nuance</span></p>
-
-                <h4>Scenario &amp; What to Measure</h4>
-                <p>A query worker process terminates abruptly (e.g., OOM-kill, kernel panic, or segfault) and stops executing steps. <em>Nuance:</em> True <strong>fail-stop</strong> is a stronger assumption than merely crashing—it assumes peers can reliably detect that the process halted rather than merely stalled across an asynchronous network.</p>
-                <p><strong>What to measure/model:</strong> Crash rate per observation window, time-to-failure (using Weibull or exponential survival models only when supported by telemetry), and full recovery duration.</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (fenced leases):</strong> Pair health detection and heartbeats with monotonically increasing <strong>lease fencing tokens</strong> so a node that was assumed dead cannot corrupt storage if it wakes up later.</li>
-                    <li><strong>Engineering control 2 (idempotent recovery):</strong> Automate container restart/rescheduling and design work checkpoints to be safely replayable without duplicate side effects.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Never trust a timeout alone to prove a peer has crashed. Combine automated supervisor restarts with <strong>fencing tokens</strong> at the storage layer to guarantee safety.</p>
-            </section>
-
-            <section class="scenario" id="fault-omission">
-                <h3>2. Omission Failures</h3>
-                <p class="scenario-kicker">Fault Modality 2 · Silent message drops <span class="evidence">Send / receive omission semantics</span></p>
-
-                <h4>Scenario &amp; What to Measure</h4>
-                <p>Requests or responses disappear silently during a network glitch, NIC ring-buffer drop, switch congestion event, or asymmetric routing partition without crashing the sending or receiving node.</p>
-                <p><strong>What to measure/model:</strong> Packet/RPC loss counts, timeout rates, retry outcomes, and partition durations (applying homogeneous Poisson or Gilbert-Elliott burst-loss models only if empirical inter-loss times fit).</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (durable outbox &amp; sequencing):</strong> Use durable messaging or transactional outbox patterns paired with monotonic sequence numbers to detect gaps.</li>
-                    <li><strong>Engineering control 2 (bounded retries with reconciliation):</strong> Combine deadline-bounded, jittered retries with periodic background state reconciliation.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Handle silent message loss by making all retryable mutations <strong>idempotent</strong> and verifying delivery through explicit acknowledgments and state reconciliation.</p>
-            </section>
-
-            <section class="scenario" id="fault-timing">
-                <h3>3. Timing Failures (Performance)</h3>
-                <p class="scenario-kicker">Fault Modality 3 · Correct payload delivered too late <span class="evidence">Deadline violation semantics</span></p>
-
-                <h4>Scenario &amp; What to Measure</h4>
-                <p>A worker responds with a valid payload, but <em>after</em> the caller's deadline has expired due to GC pauses, cold starts, noisy-neighbor CPU throttling, or queue saturation.</p>
-                <p><strong>What to measure/model:</strong> Stratified end-to-end latency distributions, deadline-miss rates, and queue wait time (\(W_q\)) instrumented separately from active execution time (\(S\)).</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (admission control &amp; deadline propagation):</strong> Reject overloaded requests early, maintain capacity headroom, and propagate remaining deadline budgets so downstream workers abort expired work.</li>
-                    <li><strong>Engineering control 2 (ambiguity resolution):</strong> Explicitly resolve outcome ambiguity when a call times out (e.g., querying transaction status to verify whether the timed-out operation actually committed).</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Treat slow responses as a distinct failure mode from crashes: <strong>propagate cancellation</strong> to stop zombie work and resolve commit ambiguity before re-issuing mutations.</p>
-            </section>
-
-            <section class="scenario" id="fault-byzantine">
-                <h3>4. Byzantine Failures</h3>
-                <p class="scenario-kicker">Fault Modality 4 · Arbitrary, corrupted, or conflicting behavior <span class="evidence">Integrity &amp; protocol safety semantics</span></p>
-
-                <h4>Scenario &amp; What to Measure</h4>
-                <p>A buggy, bit-flipped, misconfigured, or compromised participant sends conflicting state, silent data corruption, or malformed payloads to different peers while appearing healthy to basic heartbeats.</p>
-                <p><strong>What to measure/model:</strong> Protocol safety invariants, checksum/signature verification failures, conflicting message counts, and adversarial threat bounds—<em>not</em> a latency histogram.</p>
-
-                <h4>How the Engineering Controls Fix It</h4>
-                <ul>
-                    <li><strong>Engineering control 1 (cryptographic &amp; checksum verification):</strong> Enforce end-to-end payload checksums (CRC32C/SHA-256), strict schema validation, and mTLS/cryptographic authentication on every boundary.</li>
-                    <li><strong>Engineering control 2 (formal verification &amp; quorum checks):</strong> Validate state-machine safety invariants using formal specification tools (such as <strong>TLA+</strong>) and apply quorum or Byzantine Fault Tolerant (BFT) state verification where untrusted faults apply.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Latency curves and simple retries cannot fix corrupted state. Defend against Byzantine and corruption faults using <strong>end-to-end checksums, strict state invariants, and formally verified protocols</strong>.</p>
-            </section>
-
-            <h2>Preface — How to Talk to Business (In Defense of "It Depends")</h2>
-
-            <p>A VP of Product drops into the incident Slack channel: <em>"Why is checkout slow?"</em></p>
-
-            <p>The accurate engineering answer is usually a beautiful, terrifying truth: <em>"The p99 tail has drifted outward because a thundering herd shifted traffic toward an un-indexed cache-miss path, increasing service-time variance. With our 100-way synchronous fan-out, a parent request completes only when its slowest child completes."</em></p>
-
-            <p>The VP of Product blinks. They just wanted: <em class="struck">"Server 4 is on fire. We rebooted it."</em></p>
-
-            <p>The phrase "it depends" is the most hated phrase in business. It sounds like an excuse to evade accountability. But in distributed systems, "it depends" is literally the physics of the environment.</p>
-
-            <p>To bridge this gap, mature engineering transforms vague statements like "the system collapses" into <strong>measurable operational boundaries</strong>: queue depth, admission rejection rate, deadline-miss rate, or backlog drain time.</p>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Translation Framework</div>
-                <div class="tldr-content">
-                    <p>Instead of stopping at "It depends," translate the math into measurable FinOps and UX decisions:</p>
-                    <ul>
-                        <li><strong>The Variable:</strong> "It depends on [Business Lever]—e.g., the ratio of uncached ad-hoc queries we allow free-tier tenants to run concurrently."</li>
-                        <li><strong>The Measurable Range:</strong> "At our normal 80% cache-hit ratio, p99 latency stays below 180 ms and queue wait is under 20 ms."</li>
-                        <li><strong>The Saturation Boundary:</strong> "If burst traffic pushes worker utilization past 90% (queue depth &gt; 64), deadline-miss rates exceed 15% and backlog drain time exceeds 4 minutes."</li>
-                        <li><strong>The Business Choice:</strong> "To protect checkout SLAs when queue depth hits 64, our admission controller will shed free-tier analytics with HTTP 429. Do you approve this policy?"</li>
-                    </ul>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Model Configuration</th>
+                                <th scope="col">Joint Failure Probability</th>
+                                <th scope="col">Relative Risk Ratio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Independent Replicas (Matched Marginal Risk \(p_m = 1.198\%\))</strong></td>
+                                <td>0.01435% (\(1.44 \times 10^{-4}\))</td>
+                                <td>\(1.0\times\) (baseline)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Replicas with Shared Failure Mode (\(q = 0.2\%\))</strong></td>
+                                <td>0.20998% (\(2.10 \times 10^{-3}\))</td>
+                                <td><strong>14.63× higher risk</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+
+                <p><em>(Note on baseline selection: Comparing \(P_{\text{ccf}}\) to \(p^2 = 0.01\%\) yields an apparent 21× ratio, but that comparison artificially drops the shared failure probability from the single-node baseline. Matched marginal risk demonstrates that the true underestimation factor relative to independent nodes is 14.63×.)</em></p>
+
+                <h4>Engineering Controls</h4>
+                <ul>
+                    <li><strong>Static stability:</strong> Decouple data plane runtime execution from control plane availability. Replicas should cache authorization keys, routing maps, and configuration locally so they continue serving traffic during a central IAM, DNS, or orchestrator outage.</li>
+                    <li><strong>Correlated chaos testing:</strong> Run fault-injection experiments that sever shared dependencies (or simulate corrupted config rollouts) rather than testing only single-node terminations.</li>
+                </ul>
+
+                <p class="solution"><strong>The solution.</strong> Define explicit observation windows and model common-cause failures using fault trees or reliability block diagrams. Adding extra replicas yields rapidly diminishing returns unless shared dependency domains are eliminated.</p>
+            </section>
+
+            <h2>3. Retry Amplification: Bridge to Part 2</h2>
+
+            <section class="scenario" id="retry-preview">
+                <h3>Worked Scenario I: Multi-Layer Retry Amplification</h3>
+                <p class="scenario-kicker">Worst-Case Structural Bound <span class="evidence">AWS Builder's Library grounding</span></p>
+
+                <p>While statistical models describe observations, naive operational controls can <strong>change the data-generating process itself</strong> during an incident. The most common feedback mechanism is nested retries.</p>
+
+                <p>Suppose a request traverses a 5-layer service chain (1: Client &rarr; 2: Edge Gateway &rarr; 3: Auth Service &rarr; 4: Query Router &rarr; 5: Storage Worker) calling the Database as the non-retrying terminal dependency. If each of the 5 caller layers independently executes up to \(r = 3\) attempts (original call + 2 retries):</p>
+
+                $$N_{\text{attempts}} = r^{L} = 3^{5} = 243 \text{ terminal calls per top-level request}$$
+
+                <p><strong>Boundary conditions:</strong> The \(3^5 = 243\) multiplier represents a worst-case structural bound under the assumptions that every layer retries the entire downstream call tree, that every attempt fails in a retry-triggering manner, and that all calls reach the terminal dependency. Actual amplification depends on the call topology, retry conditions, cancellation propagation, and deadline expiration. However, as documented in AWS Builder's Library guidance, uncoordinated retries routinely drive systems into <strong>metastable overload</strong>, where the system remains stalled long after the original trigger clears.</p>
+
+                <h4>Engineering Controls</h4>
+                <ul>
+                    <li><strong>Single-layer retry ownership:</strong> Assign retry authority to exactly one layer (typically the edge gateway or end client); intermediate microservices must fail fast and propagate status codes without retrying.</li>
+                    <li><strong>Jitter &amp; retry budgets:</strong> Enforce exponential backoff with full jitter to de-correlate retry waves. Limit retry volume using token-bucket retry budgets (e.g., maximum 10% additional traffic over primary requests).</li>
+                </ul>
+
+                <p class="solution"><strong>The solution (developed fully in Part 2).</strong> Treat retries as dynamic load multipliers. Eliminate nested retry loops, enforce client-side retry budgets, and propagate deadline cancellations down the call stack.</p>
+            </section>
+
+            <h2>4. Taxonomies of Uncertainty and Fault Modalities</h2>
+
+            <h3>Three Taxonomies of Uncertainty</h3>
+            <p>Treating all uncertainty as generic "noise" leads to flawed architecture. Engineers must distinguish what collecting more data can resolve from what it cannot:</p>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Uncertainty Class</th>
+                            <th scope="col">Underlying Mechanism</th>
+                            <th scope="col">Can More Data Fix It?</th>
+                            <th scope="col">Architectural Mitigation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Aleatory</strong></td>
+                            <td>Intrinsic physical or workload randomness (e.g., arrival fluctuations).</td>
+                            <td><strong>No.</strong> Variance is irreducible.</td>
+                            <td>Capacity headroom, statistical multiplexing, and admission shedding.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Epistemic</strong></td>
+                            <td>Incomplete knowledge or sparse data (e.g., a newly deployed dependency).</td>
+                            <td><strong>Yes.</strong> Additional telemetry narrows credible intervals.</td>
+                            <td>Canary deployments, shadow traffic, and progressive rollouts.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Model Risk</strong></td>
+                            <td>Flawed mathematical assumptions (e.g., assuming independent replica failures).</td>
+                            <td><strong>Only if used to falsify</strong> the model's structural assumptions.</td>
+                            <td>Out-of-sample stress testing, chaos auditing, and static fallback paths.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <h2>The Illusion of Load Testing, Mixtures &amp; Correlated Bursts</h2>
+            <h3>The Four Modalities of Distributed Faults</h3>
+            <p><strong>Crucial distinction:</strong> Crash, omission, timing, and Byzantine behaviors describe <em>fault semantics</em>—how systems fail—not probability distributions. Never assign a textbook curve to a fault class without validating measurable variables:</p>
+            <ul>
+                <li><strong>Crash / Fail-Stop:</strong> Process halts abruptly. <em>Control:</em> Automated restarts combined with lease fencing tokens at storage layers so partitioned nodes cannot corrupt state.</li>
+                <li><strong>Omission:</strong> Silent packet or message drops. <em>Control:</em> Transactional outbox patterns, idempotent mutations, and explicit sequence gap detection.</li>
+                <li><strong>Timing (Performance):</strong> Correct payload delivered after caller deadline. <em>Control:</em> Deadline budget propagation (aborting expired downstream work) and status reconciliation.</li>
+                <li><strong>Byzantine:</strong> Arbitrary, corrupted, or conflicting behavior. <em>Control:</em> End-to-end payload checksums (CRC32C/SHA-256), cryptographic verification, and formally verified protocols (e.g., TLA+ specifications).</li>
+            </ul>
 
-            <p>Standard staging benchmarks routinely feed systems a clean synthetic profile: <em>constant arrival rate</em> + <em>homogeneous payloads</em> + <em>stable latency</em> + <em>independent calls</em>.</p>
+            <h2>5. Load Testing, Bimodal Mixtures &amp; Fan-Out Amplification</h2>
 
-            <p>Production reality often presents a harsher regime: <em>arrival bursts</em> + <em>skewed payloads</em> + <em>correlated retries</em> + <em>GC pauses</em> + <em>multi-tenant contention</em>.</p>
-
-            <p>Not every production workload is bursty, and not every benchmark is useless—rather, <strong>a benchmark establishes evidence only for the workload and conditions tested</strong>. Furthermore, closed-loop load generators (where virtual users wait for a response before sending the next request) automatically throttle themselves when the system slows down, hiding overload unless you test with open-loop arrival schedules.</p>
+            <p>Standard load benchmarks routinely feed systems a sanitized profile: constant arrivals, uniform payloads, and independent requests. Production introduces arrival bursts, skewed payloads, and multitenancy.</p>
 
             <section class="scenario" id="mixture-fanout">
                 <h3>Worked Scenario G: Bimodal Mixture Math &amp; Fan-Out Tail Amplification</h3>
                 <p class="scenario-kicker">Mixture moments + fan-out <span class="evidence">Google "The Tail at Scale" grounding</span></p>
 
-                <p><strong>1. Why the mean describes neither execution path.</strong> Suppose 80% of gateway requests are cache hits (normal with \(\mu_1 = 15\), \(\sigma_1^2 = 16\)) and 20% are cache misses (an 85 ms shift plus a half-normal tail, giving \(\mu_2 \approx 94.57\), \(\sigma_2^2 \approx 52.33\)). The exact mixture moments are:</p>
+                <p><strong>1. Why the mean describes neither execution path.</strong> Suppose a different tenant workload exhibits 80% cache hits (normal with \(\mu_1 = 15\), \(\sigma_1^2 = 16\)) and 20% cache misses (shifted half-normal with \(\mu_2 \approx 94.57\), \(\sigma_2^2 \approx 52.33\)). The exact mixture moments are:</p>
 
                 $$\mathbb{E}[X] = 0.80(15) + 0.20(94.57) \approx 30.9\ \text{ms}$$
 
                 $$\mathrm{Var}(X) = \underbrace{0.80(16) + 0.20(52.33)}_{\text{within-path}} + \underbrace{0.80 \cdot 0.20\,(15 - 94.57)^2}_{\text{between-path}} \approx 1036\ \text{ms}^2 \quad (\sigma \approx 32.2\ \text{ms})$$
 
-                <p>The quantiles follow the mixture: \(p_{50} \approx 16\) ms and \(p_{95} \approx 99\) ms. Notice that the mean of 30.9 ms sits in an empty valley where essentially no requests actually execute, and that almost all of the variance comes from the gap between the two paths, not from noise within either one.</p>
+                <p>The mixture mean of 30.9 ms sits in an empty valley where virtually no queries execute. Between-path variance accounts for over 90% of total variance.</p>
 
-                <p><strong>2. Distributed fan-out amplification.</strong> Now suppose a parent query fans out to \(N = 100\) independent downstream shard calls, and each child call has just a \(p = 1\%\) probability of exceeding a target deadline:</p>
+                <p><strong>2. Distributed fan-out amplification.</strong> When a root query fans out to \(N = 100\) independent downstream shards, each having a \(p = 1\%\) probability of exceeding a deadline:</p>
 
                 $$\begin{aligned}
-                P(\text{all 100 children finish within deadline}) &= (1-p)^{N} = 0.99^{100} \approx 0.366 \\[6pt]
-                P(\text{parent delayed by} \geq 1 \text{ slow child}) &= 1 - 0.99^{100} \approx 0.634
+                P(\text{all 100 children meet deadline}) &= (1-p)^{N} = 0.99^{100} \approx 0.366 \\[6pt]
+                P(\text{parent delayed by} \geq 1 \text{ slow child}) &= 1 - 0.99^{100} \approx 0.634 \;(63.4\%)
                 \end{aligned}$$
 
-                <p>This is the exact mathematical mechanism documented in Google’s <em>The Tail at Scale</em>, which reported a real production service where the 99th-percentile latency was 10 ms for a single leaf request, but jumped to 140 ms when waiting for all fanned-out requests to finish. <strong>Engineering controls:</strong> Bound fan-out width and concurrency, test with open-loop burst generators, and use partial results or hedged requests (dispatching a secondary read after the p95 mark) where idempotency permits.</p>
+                <p>As documented in Google’s <em>The Tail at Scale</em>, tail amplification turns rare child stalls into common parent delays.</p>
+
+                <h4>Engineering Controls on Fan-Out</h4>
+                <ul>
+                    <li><strong>Bounded Hedged Requests:</strong> Dispatching a duplicate secondary read after the p95 mark can significantly reduce tail latency. However, <strong>hedged requests create extra work</strong>. Recommend them only for eligible idempotent operations, where spare capacity exists, with delayed execution, cancellation of losing attempts, and a strictly bounded hedge budget (e.g., maximum 2% extra calls).</li>
+                    <li><strong>Partial Results:</strong> Return partial data sets only where the application’s business correctness contract explicitly permits partial aggregation.</li>
+                </ul>
             </section>
 
-            <p>Click <strong>Run Simulation</strong> or adjust the mixture and fan-out sliders below to watch how synthetic bimodal traffic drags the mean into a no-man's-land valley while fan-out multiplies tail stalls. <em>(Note: This simulator is a synthetic mathematical model, not telemetry from a live incident.)</em></p>
+            <p>Below is an interactive simulation demonstrating synthetic bimodal latency and fan-out tail amplification. <em>(Note: This simulator uses synthetic statistical models to illustrate mechanics, not telemetry from a live incident.)</em></p>
 
             <div class="stage">
                 <div class="stage-bar">
@@ -1053,7 +972,7 @@
                 </div>
 
                 <div class="canvas-wrap">
-                    <canvas id="cv" width="800" height="320" role="img" aria-label="Synthetic bimodal latency histogram. Cache hits are shown in teal, cache misses in amber, with mean and median markers. Numeric summary statistics are provided below."></canvas>
+                    <canvas id="cv" width="800" height="320" role="img" aria-label="Synthetic bimodal latency histogram showing cache hits and misses with sample mean marker."></canvas>
                 </div>
 
                 <div class="readout">
@@ -1067,35 +986,49 @@
                 </div>
             </div>
 
-            <h2>Five Nines: Availability Budgets and the Economics of Resilience</h2>
+            <h2>6. Availability Economics &amp; Production Decision Framework</h2>
 
-            <p>A target availability of "five nines" (\(A = 0.99999\)) corresponds to about <strong>5.256 minutes</strong> of unavailability in a 365-day year. Using calendar arithmetic, the annual unavailability budget \(D\) is:</p>
-
-            $$\begin{aligned}
-            D &= (1 - A) \times 365 \times 24 \times 60 \\
-              &= (1 - 0.99999) \times 525{,}600 \approx 5.256 \text{ minutes per year}
-            \end{aligned}$$
+            <h3>Availability Targets as Evaluative Questions</h3>
+            <p>A target of "five nines" allows ~5.256 minutes of annual downtime. However, uptime percentages do not prescribe rigid architectural rules. The required engineering controls depend on incident frequency, recovery behavior, and the service's SLI definition:</p>
 
             <div class="table-wrap">
                 <table class="data-table">
                     <thead>
                         <tr>
                             <th scope="col">Availability Target</th>
-                            <th scope="col">Annual Unavailability Budget (365-day year)</th>
-                            <th scope="col">Operational &amp; SLO Nuance</th>
+                            <th scope="col">Annual Downtime Equivalent (365 Days)</th>
+                            <th scope="col">Architectural Questions to Answer</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td><strong>99% (Two Nines)</strong></td><td>3.65 days</td><td>Baseline single-region availability; manual recovery tolerable.</td></tr>
-                        <tr><td><strong>99.9% (Three Nines)</strong></td><td>8.76 hours</td><td>Standard multi-AZ redundancy with automated health failover.</td></tr>
-                        <tr><td><strong>99.95% (Three-and-a-Half Nines)</strong></td><td>4.38 hours</td><td>Requires strict canary gating, fast rollback, and dependency timeouts.</td></tr>
-                        <tr><td><strong>99.99% (Four Nines)</strong></td><td>52.56 minutes</td><td>Requires cellular isolation, static stability, and automated recovery under 60s.</td></tr>
-                        <tr><td><strong>99.999% (Five Nines)</strong></td><td>5.256 minutes</td><td>Requires eliminating shared control-plane faults (\(q &lt; 10^{-5}\)) and sub-second failover.</td></tr>
+                        <tr>
+                            <td><strong>99% (Two Nines)</strong></td>
+                            <td>3.65 days</td>
+                            <td>Is manual recovery acceptable during an outage?</td>
+                        </tr>
+                        <tr>
+                            <td><strong>99.9% (Three Nines)</strong></td>
+                            <td>8.76 hours</td>
+                            <td>What are the dominant outage causes and automated failover recovery times?</td>
+                        </tr>
+                        <tr>
+                            <td><strong>99.95% (Three-and-a-Half Nines)</strong></td>
+                            <td>4.38 hours</td>
+                            <td>How much error budget is consumed by regular deployments and dependency stalls?</td>
+                        </tr>
+                        <tr>
+                            <td><strong>99.99% (Four Nines)</strong></td>
+                            <td>52.56 minutes</td>
+                            <td>Have failover, automated rollback, and cell isolation been empirically tested against the actual SLO?</td>
+                        </tr>
+                        <tr>
+                            <td><strong>99.999% (Five Nines)</strong></td>
+                            <td>5.256 minutes</td>
+                            <td>Can the architecture tolerate correlated failures, partial brownouts, and control-plane outages within the remaining budget?</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-
-            <p>Note that wall-clock uptime is only one way to define an SLO: production SRE teams frequently use <strong>rolling windows</strong> and <strong>request-based availability SLIs</strong> (successful requests divided by total valid requests), where partial brownouts or peak-hour incidents burn error budget much faster than off-peak maintenance.</p>
 
             <!-- FINOPS INTERACTIVE SIMULATION -->
             <div class="stage">
@@ -1110,7 +1043,7 @@
                 </div>
 
                 <div class="canvas-wrap">
-                    <canvas id="cvFinops" width="800" height="250" role="img" aria-label="Illustrative normalized cost index curve from two nines to five nines. The curve is a scenario assumption, not measured industry cost data."></canvas>
+                    <canvas id="cvFinops" width="800" height="250" role="img" aria-label="Illustrative normalized cost index curve from two nines to five nines."></canvas>
                 </div>
 
                 <div class="stat-row">
@@ -1119,8 +1052,8 @@
                         <div class="stat-value" id="fDowntime">52.56 mins</div>
                     </div>
                     <div>
-                        <div class="stat-label">Architectural Considerations</div>
-                        <div class="stat-value small" id="fArch">Regional resilience: evaluate regional failure modes, replication lag, failover time, and dependency independence.</div>
+                        <div class="stat-label">Design Options to Evaluate</div>
+                        <div class="stat-value small" id="fArch">Evaluate regional failure modes, replication lag, failover time, data-loss objectives, and dependency independence.</div>
                     </div>
                     <div>
                         <div class="stat-label">Illustrative Cost Index</div>
@@ -1128,18 +1061,18 @@
                     </div>
                 </div>
             </div>
-            <p id="finopsNote" class="sim-note">The curve above is an <strong>illustrative scenario curve</strong> (normalized to 1× at 99% and 80× at 99.999%), not an empirical industry law. Use the investment calculator below to replace arbitrary multipliers with explicit incident minutes, business loss per minute, and annual engineering cost.</p>
+            <p id="finopsNote" class="sim-note">The curve above is an <strong>illustrative scenario model</strong> (normalized to 1× at 99% and 80× at 99.999%), not an empirical industry law. Use the business-impact calculator below to evaluate specific incident minutes, business loss, and mitigation costs.</p>
 
-            <!-- Worked Scenario H -->
-            <section class="scenario" id="actuarial-roi" data-accent="amber">
-                <h3>Worked Scenario H: Actuarial SLO &amp; Failover Investment Calculator</h3>
-                <p class="scenario-kicker">Editable business-impact model</p>
+            <!-- Scenario H: Business-Impact Model -->
+            <section class="scenario" id="business-roi" data-accent="amber">
+                <h3>Worked Scenario H: Annualized Business-Impact &amp; Mitigation Model</h3>
+                <p class="scenario-kicker">Illustrative decision model <span class="evidence">Deterministic cost-benefit calculation</span></p>
 
-                <p>Suppose your API has a <strong>99.99% target</strong> (52.56 min/yr budget) and currently loses <strong>40 minutes/year</strong> to incidents. A proposed failover upgrade reduces downtime to <strong>15 minutes/year</strong> (saving 25 minutes), but adds infrastructure, operational complexity, and new split-brain testing costs. With \(m\) as incident minutes per year, \(\ell\) as business loss per minute, and \(C\) as the annual mitigation cost, the expected net value is:</p>
+                <p>Suppose an API targeting <strong>99.99%</strong> (52.56 min/yr budget) currently averages <strong>40 minutes/year</strong> of downtime. A proposed multi-region failover upgrade reduces expected downtime to <strong>15 minutes/year</strong> (saving 25 minutes), but introduces additional infrastructure, maintenance, and testing costs. With \(m\) as incident minutes per year, \(\ell\) as business loss per minute, and \(C\) as annualized engineering cost, the net expected value is:</p>
 
                 $$\text{Net EV} = (m_{\text{now}} - m_{\text{after}}) \times \ell - C = 25 \times 5000 - 90{,}000 = +35{,}000 \text{ USD/yr}$$
 
-                <p>Adjust the sliders to evaluate whether the marginal reduction in expected business loss justifies the annual engineering cost:</p>
+                <p><em>(Note: This model calculates deterministic cost avoidance for stated inputs. A full actuarial model would incorporate incident frequency distributions, variance in loss rates, and residual risk of failover failure.)</em></p>
 
                 <div class="stage">
                     <div class="params">
@@ -1165,15 +1098,12 @@
                         <div>Avoided Downtime: <span id="roiSavedMin">25 min/yr</span></div>
                         <div>Avoided Business Loss: <span id="roiAvoidedLoss">$125,000/yr</span></div>
                         <div>Annualized Tech Cost: <span id="roiTechCost">$90,000/yr</span></div>
-                        <div>Net Actuarial EV: <span id="roiNetEV" style="color: var(--teal);">+$35,000/yr (Justified)</span></div>
+                        <div>Net Annualized EV: <span id="roiNetEV" style="color: var(--teal);">+$35,000/yr (Justified)</span></div>
                     </div>
                 </div>
             </section>
 
-            <h2>Worked-Model Summary &amp; Production Decision Framework</h2>
-
-            <p>Never let a curve-fitting exercise become the end of the engineering workflow. A statistical model must either change a concrete production control—such as a timeout, worker count, queue bound, retry budget, or availability investment—or be labeled as exploratory.</p>
-
+            <h3>The Production Decision Framework</h3>
             <div class="table-wrap">
                 <table class="data-table">
                     <thead>
@@ -1235,17 +1165,15 @@
                 <div class="tldr-eyebrow">Reusable Checklist · From Telemetry to an Engineering Decision</div>
                 <div class="tldr-content">
                     <ol>
-                        <li><strong>Define the Decision &amp; Random Variable:</strong> State the exact control you are configuring and the measured boundary (e.g., gateway receipt of request until last response byte delivered).</li>
-                        <li><strong>Collect Representative, Stratified Telemetry:</strong> Capture request class, tenant, payload size, cache state, deployment version, queue wait, service time, retries, cancellations, and outcome.</li>
-                        <li><strong>Select Candidate Models from the Mechanism:</strong> Use empirical quantiles for timeouts, mixture models for distinct execution paths, queueing models/simulation for waiting time, or EVT for supported tail-exceedance questions.</li>
-                        <li><strong>Validate &amp; Attempt to Falsify Assumptions:</strong> Check quantile errors (p95/p99/p99.9), temporal autocorrelation, workload shifts, sample size, and whether failures were censored by existing timeouts.</li>
-                        <li><strong>Make the Architectural Decision:</strong> Translate the validated model into a bounded queue, deadline policy, concurrency limit, reserved capacity buffer, retry budget, or decoupled fallback.</li>
-                        <li><strong>Monitor &amp; Revalidate Continuously:</strong> Compare predicted outcomes with subsequent production observations and refit whenever deployments, traffic profiles, topologies, or dependencies change.</li>
+                        <li><strong>Define the Decision &amp; Random Variable:</strong> State the exact parameter you are configuring and the measured boundary (e.g., gateway receipt until last byte delivered).</li>
+                        <li><strong>Collect Stratified Telemetry:</strong> Capture request class, tenant tier, payload size, cache state, queue wait, service time, retries, and late completions.</li>
+                        <li><strong>Select Candidate Models from the Mechanism:</strong> Use empirical quantiles for timeouts, mixture models for distinct paths, queueing models for waiting time, or EVT for rare tail exceedances.</li>
+                        <li><strong>Attempt to Falsify Assumptions:</strong> Check quantile errors on held-out windows, temporal autocorrelation, sample size, and whether past failures were censored by tight timeouts.</li>
+                        <li><strong>Implement Architectural Controls:</strong> Translate validated models into bounded queues, deadline policies, concurrency limits, retry budgets, or decoupled fallback paths.</li>
+                        <li><strong>Monitor Continuously:</strong> Track predicted vs. observed distributions and recalibrate whenever deployments, topologies, or dependencies change.</li>
                     </ol>
                 </div>
             </div>
-
-            <p>Understanding the shape of your failure is the only way to translate infrastructure dollars into actual risk reduction. It's the difference between buying insurance based on actuarial science, and buying insurance based on a magic 8-ball.</p>
 
             <!-- Academic References Block -->
             <div class="academic-references">
@@ -1298,7 +1226,6 @@
 
     <!-- Interactive Simulations -->
     <script>
-        // CSS Variable Reader helper to sync Canvas colors with blog-theme.css
         function getThemeColor(varName, fallback) {
             const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
             return val || fallback;
@@ -1531,23 +1458,19 @@
             }
 
             function designConsiderations(n) {
-                if (n < 3) return 'Baseline: define SLOs, remove single points of failure, automate and test recovery, and measure actual incident duration.';
-                if (n < 4) return 'Stronger in-region resilience: evaluate zone redundancy, dependency isolation, safe deployments, and tested failover.';
-                if (n < 4.75) return 'Regional resilience: evaluate regional failure modes, replication lag, failover time, data-loss objectives, and dependency independence.';
-                return 'Very high target: validate end-to-end failure domains, automated recovery, capacity during failover, dependency behavior, and the cost of residual correlated failures.';
+                if (n < 3) return 'Evaluate SLO definitions, single points of failure, recovery automation, and incident telemetry.';
+                if (n < 4) return 'Evaluate zone redundancy, dependency blast radius, safe deployment pipelines, and automated failover.';
+                if (n < 4.75) return 'Evaluate regional failure modes, replication lag, failover time, data-loss objectives, and dependency independence.';
+                return 'Evaluate cross-region failure domains, automated recovery, failover capacity headroom, and correlated fault tolerance.';
             }
 
             function resizeCanvas() {
                 const dpr = window.devicePixelRatio || 1;
                 const rect = cv.parentElement.getBoundingClientRect();
                 logicalWidth = Math.max(280, rect.width);
-                cv.width = logicalWidth * dpr;
-                cv.height = logicalHeight * dpr;
-                cv.style.width = logicalWidth + 'px';
-                cv.style.height = logicalHeight + 'px';
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.scale(dpr, dpr);
-                draw();
+                cv.width = logicalWidth * dpr; cv.height = logicalHeight * dpr;
+                cv.style.width = logicalWidth + 'px'; cv.style.height = logicalHeight + 'px';
+                ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr); draw();
             }
 
             function draw() {
