@@ -16,10 +16,15 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Poisson arrivals, pipeline delays, and Kingman’s saturation trap: why queueing delay can rise sharply near capacity.">
+    <meta name="description" content="Poisson arrivals, exponential service times, Erlang pipelines, finite queues, Little’s Law, and Kingman’s approximation—with explicit assumptions, case studies, and production controls.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-3-physics-of-time-traffic-and-queues.html">
+
+    <!-- KaTeX CSS & JS CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}], throwOnError: false });"></script>
 
     <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
     <script>
@@ -43,88 +48,141 @@
 
     <style>
         /* =======================================================================
-           SERIES-ALIGNED STYLES & LAYOUT
+           EDITORIAL CLEAN TYPOGRAPHY & LAYOUT (NO BACKGROUND CARDS)
            ======================================================================= */
 
-        /* --- Page Adjustments --- */
         .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
-        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+        main { margin-top: 2rem !important; padding-top: 0 !important; max-width: 780px; margin-left: auto; margin-right: auto; }
 
-        /* --- Typography & Elements --- */
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
-        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
-        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
-        p { margin-bottom: 1.35rem; }
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.65rem; margin-top: 4rem; margin-bottom: 1.25rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--line-soft); color: var(--text); letter-spacing: -0.01em; }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2.25rem; margin-bottom: 0.85rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.75; color: var(--text); }
+        p { margin-bottom: 1.4rem; }
         code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
 
-        /* --- Quote Styling --- */
-        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
-        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
-        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
-        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+        /* --- Editorial Quote Styling --- */
+        .snarky-quote { border-left: 2px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.5rem; margin: 3rem 0; background: transparent; }
+        .snarky-quote-text { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.2rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; color: var(--muted); margin: 0; letter-spacing: 0.02em; }
+        .snarky-quote-author strong { font-weight: 600; color: var(--text); font-style: normal; }
 
-        /* --- Series Heading Row --- */
         .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; letter-spacing: -0.02em; }
 
-        /* --- TL;DR / Callout Boxes --- */
-        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
-        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
-        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        /* --- Clean Editorial Callouts (Transparent / No Background Cards) --- */
+        .editorial-callout { border-left: 2px solid var(--teal, #4fb8a6); padding: 0.5rem 0 0.5rem 1.5rem; margin: 2rem 0; background: transparent; }
+        .editorial-callout--warning { border-left-color: var(--bad, #d97757); }
+        .editorial-callout--math { border-left-color: var(--amber); }
         
-        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
-        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
-        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        .callout-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.75rem; font-weight: 600; }
+        .editorial-callout--warning .callout-eyebrow { color: var(--bad); }
+        .editorial-callout--math .callout-eyebrow { color: var(--amber); }
         
-        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
-        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
-        .tldr-content p:last-child { margin-bottom: 0; }
-        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
-        .tldr-content li { margin-bottom: 0.4rem; }
+        .callout-content p { margin: 0 0 0.85rem 0; color: var(--text); font-size: 1.02rem; }
+        .callout-content p:last-child { margin-bottom: 0; }
+        .callout-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .callout-content li { margin-bottom: 0.35rem; }
 
-        /* --- Math Block --- */
-        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
-        .math-block var { font-style: italic; color: var(--amber); }
+        /* --- Math Equation Styling (KaTeX Integration) --- */
+        .math-display { margin: 1.75rem 0; text-align: center; overflow-x: auto; padding: 0.5rem 0; font-size: 1.15em; color: var(--text); }
         
-        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation { font-size: 0.98rem; color: var(--muted); margin: 1.25rem 0; padding-left: 1.25rem; border-left: 1px solid var(--line); }
         .math-explanation strong { color: var(--text); }
+        .math-explanation ul { margin: 0.5rem 0 0.75rem 0; padding-left: 1.25rem; }
+        .math-explanation li { margin-bottom: 0.35rem; font-size: 0.95rem; }
 
-        /* --- Simulation Stage --- */
-        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        /* --- Worked Scenarios (Clean Editorial Format) --- */
+        .worked-section { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 1.5rem 0; margin: 2rem 0; }
+        .worked-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--teal); font-weight: 600; margin-bottom: 0.85rem; }
+        .worked-section p { font-size: 1rem; margin-bottom: 0.85rem; }
+        .worked-section p:last-child { margin-bottom: 0; }
+        .worked-steps { font-family: 'IBM Plex Mono', monospace; font-size: 0.84rem; background: var(--panel-2); padding: 1rem 1.25rem; border-radius: 4px; border: 1px solid var(--line-soft); margin: 1rem 0; line-height: 1.65; color: var(--text); overflow-x: auto; }
+
+        /* --- Compact Fully-Horizontal Simulation Stage --- */
+        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1rem 1.25rem; margin: 2.25rem 0; border-radius: 6px; }
         
         .sim-toolbar { 
             display: flex; 
             justify-content: space-between; 
-            align-items: flex-end; 
+            align-items: center; 
             gap: 1rem; 
-            margin-bottom: 1rem; 
-            flex-wrap: nowrap; 
-            overflow-x: auto; 
-            padding-bottom: 0.5rem;
+            margin-bottom: 0.75rem; 
+            flex-wrap: wrap; 
         }
         
-        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
-        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
-        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
-        .param-group span { font-weight: 600; color: var(--text); float: right; }
+        .sim-params { 
+            display: flex; 
+            gap: 1.25rem; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            background: var(--panel-2); 
+            padding: 0.45rem 0.85rem; 
+            border-radius: 4px; 
+            border: 1px solid var(--line-soft); 
+        }
         
-        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
-        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
+        .param-group { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem;
+            font-family: 'IBM Plex Mono', monospace; 
+            font-size: 0.76rem; 
+            color: var(--muted); 
+            white-space: nowrap;
+        }
+        
+        .param-group input[type=range] { 
+            width: 85px; 
+            accent-color: var(--teal); 
+            height: 4px; 
+            cursor: pointer;
+        }
+        
+        .param-group span { 
+            font-weight: 600; 
+            color: var(--text); 
+            min-width: 24px;
+            text-align: right;
+        }
+        
+        .controls { 
+            display: flex; 
+            flex-direction: row; 
+            gap: 0.4rem; 
+            align-items: center; 
+            flex-wrap: nowrap; 
+            flex-shrink: 0; 
+        }
+        
+        button.sim-btn { 
+            background: var(--teal); 
+            color: #0d1117; 
+            border: 1px solid transparent; 
+            padding: 0.38rem 0.8rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            border-radius: 4px; 
+            font-family: 'IBM Plex Mono', monospace; 
+            font-size: 0.75rem; 
+            transition: all 0.16s ease; 
+            white-space: nowrap; 
+        }
+        
         [data-theme="light"] button.sim-btn { color: #ffffff; }
         button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
         button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
         
-        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
-        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 4px; display: block; }
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; background: var(--panel-2); padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid var(--line); flex-wrap: wrap; }
         .readout span { color: var(--amber); font-weight: 600; }
 
         /* --- Scenario Cards --- */
-        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
-        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-card { border-left: 2px solid var(--line); padding-left: 1.25rem; margin: 1.75rem 0; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.75rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.95rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.6; }
         .scenario-card p strong { color: var(--text); }
-        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); margin-top: 0.4rem; }
         .scenario-ref a { color: var(--teal); text-decoration: none; }
         .scenario-ref a:hover { text-decoration: underline; }
 
@@ -141,10 +199,11 @@
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
         @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
-            .sim-params { flex-direction: column; width: 100%; }
-            .param-group { width: 100%; }
-            .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
+            .sim-toolbar { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+            .sim-params { flex-direction: column; align-items: stretch; width: 100%; gap: 0.5rem; }
+            .param-group { justify-content: space-between; }
+            .param-group input[type=range] { width: 140px; }
+            .controls { justify-content: flex-start; }
         }
     </style>
 </head>
@@ -189,62 +248,85 @@
             <div class="series-heading-row">
                 <h1>The Physics of Time, Traffic, and Queues</h1>
             </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">October 24, 2026 · Part 3 of 8</div>
+            <div class="post-meta" style="margin-bottom: 1.5rem;">October 24, 2026 · Part 3 of 8</div>
 
             <blockquote class="snarky-quote">
                 <p class="snarky-quote-text">“Utilization is not a target. It is a limit.”</p>
-                <p class="snarky-quote-author">— <strong><em>Baron Schwartz</em></strong>, Systems Performance Author</p>
+                <p class="snarky-quote-author">— <strong>Baron Schwartz</strong>, Systems Performance Author</p>
             </blockquote>
 
-            <p>Queueing theory explains why a service can look healthy while users experience painful latency. In a simple stable single-server queue, as utilization approaches 100% while arrival and service variability remain nonzero, expected waiting time can grow sharply and the idealized model diverges as utilization approaches one. Real systems have finite queues, timeouts, admission controls, multiple servers, and changing workloads—so the result is not “infinite latency” in production, but often rising tail latency, queue growth, and dropped or timed-out work.</p>
+            <p>Every quarter, a well-meaning FinOps spreadsheet warrior looks at an observability dashboard, sees an event streaming cluster running at 70% average CPU utilization, and declares victory by scaling down worker nodes. Two days later, CPU sits at a "healthy, cost-optimized" 91%, the Grafana gauges are still green, and your regulatory reporting pipeline is silently breaching compliance SLAs.</p>
 
-            <p>To understand why, we have to model the three distinct physical mechanics of any queue: how things arrive, how long they take to serve, and what happens when you chain them together.</p>
+            <p>Why? Because capacity planning based on averages assumes traffic arrives like a Swiss train schedule and executes in deterministic lockstep. In reality, requests arrive in random clusters, execution times jitter wildly, and queues act as mathematical amplifiers for both. As utilization approaches 100%, waiting time doesn't grow linearly—it goes vertical.</p>
+
+            <p>To understand why a system can be simultaneously "healthy" on average and unusable in practice, model the arrival process (Poisson), service-time variability (Exponential as one baseline), sequential latency (Erlang), finite-queue overload, and the relationship between throughput, time, and concurrency (Little’s Law), alongside Kingman’s GI/G/1 waiting-time approximation. Each model has assumptions that must be tested against production telemetry.</p>
 
             <!-- ========================================== -->
             <!-- 1. POISSON DISTRIBUTION -->
             <!-- ========================================== -->
             <h2>1. The Poisson Distribution (Arrivals)</h2>
 
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Bus Stop</div>
-                <div class="tldr-content">
-                    <p>A Poisson process is a useful model for arrivals that occur independently at a roughly constant average rate. Think of a bus stop where arrival times are not scheduled. It can produce quiet intervals and short bursts, but it does not model every kind of burst: scheduled jobs, retries, promotions, and other coordinated traffic can be much more correlated.</p>
-                    <p>In distributed systems, this can be a first approximation for traffic reaching a load balancer. The model assumes independent increments and a constant rate over the interval being modeled. Real traffic often changes by time of day and can be correlated across users or services. Capacity planning should therefore examine measured burstiness and time windows—not just the daily average or a Poisson fit.</p>
+            <div class="editorial-callout">
+                <div class="callout-eyebrow">The Intuition: The Unscheduled Bus Stop</div>
+                <div class="callout-content">
+                    <p>Imagine standing at a bus stop where buses arrive at an average rate of 4 per hour, completely independently of one another. You will not see a bus every 15 minutes on the dot. You will wait 40 minutes in the rain, and then three buses will show up bumper-to-bumper because randomness naturally clumps.</p>
+                    <p>In distributed streaming systems, the <strong>Poisson distribution</strong> is a useful baseline for counts of arrivals when events occur independently, at a roughly stable average rate over the window being modelled. It is not a universal traffic law: coordinated clients, synchronized retries, scheduled jobs, and feedback loops can violate those assumptions. Use telemetry to test whether the model is defensible at the timescale that matters.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability of observing exactly <var>k</var> arrivals in a fixed time window, given an average arrival rate of <var>&lambda;</var>:</p>
-            <div class="math-block">
-                <var>P</var>(<var>X</var> = <var>k</var>) = (<var>&lambda;</var><sup><var>k</var></sup> &middot; <var>e</var><sup>-<var>&lambda;</var></sup>) / <var>k</var>!
+            <p>The probability of observing exactly $k$ arrivals in a fixed time window, given an average arrival rate of $\lambda$ events per window, is given by the Poisson Probability Mass Function (PMF):</p>
+            
+            <div class="math-display">
+                $$P(X = k) = \frac{\lambda^k \cdot e^{-\lambda}}{k!}$$
             </div>
             
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
+                <strong>Decoding the parameters:</strong>
                 <ul>
-                    <li><strong><var>&lambda;</var> (Lambda):</strong> The average arrival rate (e.g., 50 requests per second).</li>
-                    <li><strong><var>k</var>:</strong> The actual number of requests you are calculating the probability for.</li>
-                    <li><strong><var>e</var>:</strong> Euler's number (approx 2.718).</li>
-                    <li><strong><var>k</var>!:</strong> Factorial (e.g., 4! = 4 × 3 × 2 × 1 = 24).</li>
+                    <li><strong>$\lambda$ (Lambda):</strong> The expected (average) number of arrivals in your chosen time window. Crucially, for a Poisson distribution, the <strong>Variance also equals $\lambda$</strong> ($\sigma^2 = \lambda$).</li>
+                    <li><strong>$k$:</strong> The exact integer number of requests arriving in that window ($k = 0, 1, 2, \dots$).</li>
+                    <li><strong>$e$:</strong> Euler's constant ($\approx 2.71828$), the base of natural decay.</li>
+                    <li><strong>$k!$:</strong> Factorial of $k$ (the number of ways $k$ arrivals can permute).</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your average rate is 10 requests/sec (<var>&lambda;</var> = 10), what is the chance of getting exactly 15 requests in one second? The formula gives roughly <strong>3.4%</strong>. For λ = 10, the probability of exactly 30 arrivals in one second is about 0.000017% (approximately 1.7 × 10⁻⁷), under the Poisson assumptions. Synchronized clients can create bursts for a different reason—the arrivals are correlated, so the independent-arrival model is the wrong model.</p>
             </div>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>A homogeneous Poisson process assumes independent increments and a constant rate; it is not a universal model of production traffic. Retries after a shared outage and cron jobs scheduled for the same instant can synchronize arrivals. Use jitter, backoff, request coalescing, and admission control to reduce that correlation—and validate the arrival model against telemetry.</p>
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: The 100ms Micro-Burst &amp; The 5-Slot Buffer</div>
+                <p>Consider a simplified admission model: a service sees an average of <strong>20 requests per second</strong>, and we count arrivals in fixed, non-overlapping <strong>100ms windows</strong>. For this calculation only, assume a window can admit at most five new arrivals and has no carry-over queue or service during the window. A real queue must also account for current occupancy, service completions, and arrivals across window boundaries; the Poisson count alone does not determine whether a real request is rejected.</p>
+                <p>How often do you drop traffic when your server is "only 20% utilized"? Let's do the math for a 100ms ($0.1\text{s}$) window:</p>
+                <div class="worked-steps">
+                    Window Rate: $\lambda = 20 \text{ req/s} \times 0.1\text{s} = 2.0$ arrivals per 100ms<br>
+                    Base Decay: $e^{-2} \approx 0.13534$<br><br>
+                    $P(X = 0) = \frac{2^0 \cdot 0.13534}{0!} = 0.1353$ (13.53% — dead quiet)<br>
+                    $P(X = 1) = \frac{2^1 \cdot 0.13534}{1!} = 0.2707$ (27.07%)<br>
+                    $P(X = 2) = \frac{2^2 \cdot 0.13534}{2!} = 0.2707$ (27.07% — the average)<br>
+                    $P(X = 3) = \frac{2^3 \cdot 0.13534}{3!} = 0.1804$ (18.04%)<br>
+                    $P(X = 4) = \frac{2^4 \cdot 0.13534}{4!} = 0.0902$ (9.02%)<br>
+                    $P(X = 5) = \frac{2^5 \cdot 0.13534}{5!} = 0.0361$ (3.61% — queue full)<br>
+                    ------------------------------------------------------------<br>
+                    Cumulative Safe Probability: $P(X \le 5) = 0.9834$ (98.34%)<br>
+                    <strong>Overflow Probability: $P(X \ge 6) = 1 - 0.9834 = 0.0166$ (1.66%)</strong>
+                </div>
+                <p><strong>The Punchline:</strong> Under this Poisson model, <strong>1.66% of 100ms windows contain six or more arrivals</strong>. There are 600 such windows in a minute, so that is about <strong>10 overflow-sized windows per minute on average</strong> under the toy admission rule—not a prediction of exactly ten rejected requests. Actual rejection rates depend on queue occupancy, service completions, and how admission is implemented. A green minute-level CPU average can still hide short bursts.</p>
+            </div>
+
+            <div class="editorial-callout editorial-callout--math">
+                <div class="callout-eyebrow">Telemetry Check: The Dispersion Index ($D = \sigma^2 / \mu$)</div>
+                <div class="callout-content">
+                    <p>For Poisson counts, the Dispersion Index (variance-to-mean ratio) is <strong>1.0</strong>. A value materially above 1 suggests overdispersion at the measured window size, but there is no universal cutoff such as 1.5 that automatically invalidates a model. Measure several window sizes, inspect autocorrelation and burst duration, and compare candidate models against held-out telemetry before sizing buffers. Overdispersion is a diagnostic clue—not proof of one particular distribution or cause.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation</h3>
-            <p class="math-explanation"><strong>How to read it:</strong> These are synthetic samples, not production telemetry. The Poisson sampler uses an exact algorithm for lower rates and a normal approximation for λ ≥ 30; treat that high-rate mode as an approximation. The demo retains at most 5,000 samples to keep the page responsive.</p>
+            <p class="math-explanation"><strong>How to read it:</strong> Adjust $\lambda$ and hit <strong>Run</strong>. Watch how wide the histogram spreads even when the average rate is steady. Notice that for small $\lambda$, the distribution is heavily skewed right; as $\lambda$ grows, its standard deviation grows proportionally to $\sqrt{\lambda}$. For large $\lambda$, this browser demo samples using a rounded normal approximation to Poisson rather than an exact Poisson algorithm, so treat the histogram as an illustration, not a validation tool.</p>
+            
             <div class="stage" data-sim-type="poisson">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Avg Arrivals (λ): <span id="v_lam_poisson">12</span></div>
+                            <span>Avg Arrivals (λ):</span>
                             <input type="range" id="lam_poisson" aria-label="Average Poisson arrivals per interval lambda" min="0.5" max="40" step="0.5" value="12">
+                            <span id="v_lam_poisson">12</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -261,56 +343,85 @@
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Thundering Herd" <span class="scenario-tag">GitHub 2018</span></div>
-                <p>GitHub’s October 21, 2018 incident was triggered by a 43-second network partition during routine network maintenance. Automated database failover created divergent database states across regions, and the resulting unsupported topology contributed to prolonged service degradation. It is a valuable example of a short disturbance producing a long recovery—but GitHub’s published postmortem does not describe the incident as every worker retrying at the same millisecond or as a connection-pool thundering herd.</p>
-                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank" rel="noopener noreferrer">GitHub's October 21 Incident Report</a></div>
+                <div class="scenario-title">The "43-Second Glitch, 24-Hour Hangover" <span class="scenario-tag">GitHub 2018</span></div>
+                <p>On October 21, 2018, a brief network partition between GitHub data-center facilities triggered a chain of database failover and recovery problems. Although the network disruption itself was brief, restoring a consistent and healthy service state took much longer; GitHub’s post-incident analysis describes the prolonged recovery and the operational consequences. The lesson is not that every short partition creates a long outage, but that failover, backlog, replication, and recovery procedures can dominate the duration of an incident.</p>
+                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank" rel="noopener noreferrer">GitHub's October 21 Post-Incident Analysis</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Midnight Cron" <span class="scenario-tag">Scheduled Jobs</span></div>
-                <p>Imagine 50,000 scheduled jobs configured for the same minute. The daily average can look harmless while the scheduled arrival rate is sharply concentrated. This is a hypothetical illustration, not a measured claim about a particular fleet. Randomize schedules with jitter and enforce concurrency limits.</p>
-                <div class="scenario-ref">Reference: <a href="https://cronjob.xyz/" target="_blank" rel="noopener noreferrer">The Cron Job Problem (Jitter is mandatory)</a></div>
+                <div class="scenario-title">The Self-Inflicted DDoS (`0 0 * * *`) <span class="scenario-tag">Scheduled Jobs</span></div>
+                <p>Synthetic example: 50,000 tenants schedule a daily report at midnight. The day-wide average is only $50{,}000/86{,}400 \approx 0.58$ jobs/s, but synchronized scheduling can create a large burst at the top of the hour. Spreading starts uniformly across 15 minutes reduces the average launch rate during that window to about $50{,}000/900 \approx 55.6$ jobs/s, before accounting for retries or variable job duration. Jitter reduces synchronization; it does <em>not</em> guarantee a Poisson process. Combine it with concurrency limits, queueing, and rate-aware admission.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Adding Jitter to Scheduled Workloads</a></div>
             </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Load Balancer Tick" <span class="scenario-tag">Keep-Alive Synchronization</span></div>
-                <p>Connection lifetimes and keep-alive policies vary by client, proxy, load balancer, and server; there is no universal 60-second default. However, synchronized connection expiry or coordinated health checks can create handshake bursts. Add bounded connection churn and jitter where appropriate, and inspect actual connection-lifetime settings before diagnosing this pattern.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_1410_03_gregg.pdf" target="_blank" rel="noopener noreferrer">Brendan Gregg, "The Use of Performance Metrics"</a></div>
+
+            <!-- ========================================== -->
+            <!-- FINITE QUEUE: OVERLOAD AND BACKLOG GROWTH -->
+            <!-- ========================================== -->
+            <h2>Finite Queues: When Arrival Rate Exceeds Capacity</h2>
+            <p>Probability models describe variability; a capacity balance explains whether backlog can remain bounded. If the sustained arrival rate exceeds the sustained service rate, a finite queue eventually fills. This is a fluid approximation that ignores short-term randomness, but it is useful for first-order overload planning.</p>
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: A Bounded Queue Fills in Ten Seconds</div>
+                <p>A consumer receives <strong>120 requests/s</strong>, can complete <strong>100 requests/s</strong>, and has <strong>200 waiting slots</strong>. Start with an empty queue and assume constant rates, no drops, and no additional scaling.</p>
+                <div class="worked-steps">
+                    Net backlog growth = arrival rate − service rate<br>
+                    $120 - 100 = 20$ requests/s<br><br>
+                    Time to fill = queue capacity / net growth<br>
+                    $200 / 20 = \mathbf{10\text{ seconds}}$
+                </div>
+                <p>Once the queue fills, the system must reject, shed, or defer excess work; otherwise memory or latency can grow without bound elsewhere. This calculation is a fluid baseline, not an exact prediction under bursty arrivals or variable service times.</p>
+                <p><strong>Engineering controls:</strong> bound queue length and queued age, propagate deadlines, reject work that cannot finish within its remaining budget, shed low-priority work, apply per-tenant limits, and scale only when added capacity can arrive before the queue fills. After the burst, drain rate is service capacity minus new arrivals; if arrivals remain at 120/s while capacity is 100/s, the backlog never drains.</p>
             </div>
 
             <!-- ========================================== -->
             <!-- 2. EXPONENTIAL DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>2. The Exponential Distribution (Wait Times)</h2>
+            <h2>2. The Exponential Distribution (Service Times)</h2>
 
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Memoryless Bus</div>
-                <div class="tldr-content">
-                    <p>For a homogeneous Poisson process, the inter-arrival times follow an exponential distribution. It is memoryless: conditional on an event not having happened yet, the distribution of the additional wait is the same as it was at the start. This is a property of the model—not a rule that every production service or CPU follows.</p>
-                    <p>If a request’s service time really were exponential, its remaining service time would be memoryless. Real request durations often are not: work size, cache state, downstream calls, scheduling, and pauses all matter. The exponential model is useful when its assumptions fit; it should not be used to explain every latency tail.</p>
+            <div class="editorial-callout">
+                <div class="callout-eyebrow">The Intuition: The Memoryless Curse</div>
+                <div class="callout-content">
+                    <p>If arrivals follow a Poisson process, the <strong>time gap between arrivals</strong> follows an <strong>Exponential distribution</strong>. Queueing theorists also love using it as the baseline model for <strong>service time</strong> (how long a worker takes to process one request) in an $M/M/1$ queue.</p>
+                    <p>Its defining quirk is the <strong>memoryless property</strong>: the coin has no memory of past flips. In an exponential world, if a request has already been running for 50ms, the probability that it needs <em>another</em> 20ms is identical to a brand-new request needing 20ms. The universe does not owe your query a completion just because it has already wasted your CPU cycles.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for an exponential random variable with rate <var>&lambda;</var> (units: 1/time) is:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = <var>&lambda;</var> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>
+            <p>For a service or arrival process with rate $\mu$ (where mean service time is $1/\mu$), the Probability Density Function (PDF) and the Tail Survival Function are:</p>
+            
+            <div class="math-display">
+                $$f(t) = \mu \cdot e^{-\mu t} \quad \Big| \quad P(T > t) = e^{-\mu t}$$
             </div>
             
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
+                <strong>Decoding the parameters:</strong>
                 <ul>
-                    <li><strong><var>&lambda;</var>:</strong> The rate of events (e.g., 2 events per second).</li>
-                    <li><strong><var>x</var>:</strong> The time you are waiting (e.g., 0.5 seconds).</li>
-                    <li><strong><var>e</var>:</strong> Euler's number.</li>
+                    <li><strong>$\mu$ (Service Rate):</strong> The completion rate (e.g., $\mu = 100\text{ req/sec}$, meaning mean service time $E[T] = 1/\mu = 10\text{ms}$).</li>
+                    <li><strong>$t$:</strong> The elapsed time threshold you are evaluating ($t \ge 0$).</li>
+                    <li><strong>$P(T > t) = e^{-\mu t}$:</strong> The <strong>Survival Function</strong>—the exact probability that a request takes <em>longer</em> than time $t$ and blows past your deadline.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If the average service rate is 100 requests per second (<var>&lambda;</var> = 100), what is the probability that a specific request takes longer than 10 milliseconds (<var>x</var> = 0.01s)? The math says <code>e^(-100 * 0.01) = e^-1</code>, which is roughly <strong>36.8%</strong>. That means over a third of your requests take longer than 10ms.</p>
             </div>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>An exponential service-time model assumes a constant hazard rate. Real service times can be mixtures (for example, cache hits and cache misses), log-normal-like, heavy-tailed, multimodal, or shaped by queues and pauses. There is no single distribution that describes all production services. Fit candidate models to representative telemetry, validate tail quantiles, and use the model that matches the workload and decision.</p>
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: The 30ms gRPC Deadline Assassination</div>
+                <p>Your team builds a pricing microservice with an average execution time of <strong>10ms</strong> ($\mu = 100\text{ req/s} = 0.1\text{ req/ms}$). During an architecture review, someone proposes setting a strict upstream gRPC timeout of <strong>30ms</strong>, arguing: <em>"30ms is 3x the average latency! Only broken requests take 3x the average!"</em></p>
+                <p>Assuming exponentially distributed service times, let's see what happens when you deploy that timeout:</p>
+                <div class="worked-steps">
+                    Mean Service Time: $E[T] = \frac{1}{\mu} = 10\text{ms}$ ($\mu = 0.1\text{ ms}^{-1}$)<br><br>
+                    1. How many requests take longer than the 10ms "average"?<br>
+                        $P(T > 10\text{ms}) = e^{-(0.1 \times 10)} = e^{-1} \approx \mathbf{36.79\%}$<br>
+                        (Note: Median latency is $\frac{\ln(2)}{\mu} = 6.93\text{ms}$. Most requests are fast, a long tail pulls the mean up.)<br><br>
+                    2. How many requests exceed the 30ms gRPC deadline?<br>
+                        $P(T > 30\text{ms}) = e^{-(0.1 \times 30)} = e^{-3} \approx \mathbf{0.0498\ (4.98\%)}$<br><br>
+                    3. Where is the actual p99 latency?<br>
+                        $0.01 = e^{-0.1 \times t} \implies t = \frac{-\ln(0.01)}{0.1} = \frac{4.605}{0.1} = \mathbf{46.05\text{ms}}$
+                </div>
+                <p><strong>The Punchline:</strong> In this exponential service-time model, a 30ms threshold is exceeded by about <strong>4.98% of requests</strong>. This is a modelled service-time exceedance, not automatically the end-to-end gRPC timeout rate: queueing, network transit, and downstream work also consume the deadline. Propagate deadlines, cancel work when callers abandon it, and use bounded retries with backoff and jitter so timed-out work does not multiply load.</p>
+            </div>
+
+            <div class="editorial-callout editorial-callout--math">
+                <div class="callout-eyebrow">Telemetry Check: Bimodal Mixture Reality ($c_s^2$)</div>
+                <div class="callout-content">
+                    <p>The Exponential distribution has a Coefficient of Variation ($c_s = \sigma / \mu$) of exactly <strong>1.0</strong>. Real production services feature bimodal distributions: 90% cache hits at 1ms, and 10% cache misses hitting Postgres at 80ms ($c_s \gg 1$). Furthermore, Stop-the-World garbage collection pauses violate independence by freezing all worker threads simultaneously. Never treat service times as purely exponential if your telemetry exhibits heavy-tailed Pareto spikes.</p>
                 </div>
             </div>
 
@@ -319,8 +430,9 @@
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Service Rate (λ): <span id="v_lam_exponential">1.0</span></div>
+                            <span>Service Rate (μ):</span>
                             <input type="range" id="lam_exponential" aria-label="Exponential rate lambda" min="0.1" max="5.0" step="0.1" value="1.0">
+                            <span id="v_lam_exponential">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -337,57 +449,62 @@
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Timeout Illusion" <span class="scenario-tag">gRPC Deadlines</span></div>
-                <p>Suppose service time is exponential with mean 100 ms (rate 10/s). Then P(T > 200 ms) = e⁻² ≈ 13.5%, and P(T > 300 ms) = e⁻³ ≈ 5.0%. A 200 ms deadline can bound how long the caller waits, but it does not by itself cancel downstream work or remove queued load. Propagate deadlines, cancel work where safe, and use bounded queues and concurrency limits.</p>
-                <div class="scenario-ref">Reference: <a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener noreferrer">gRPC Deadline Propagation</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Cold Start" <span class="scenario-tag">AWS Lambda</span></div>
-                <p>A serverless invocation may have a fast warm path and a slower initialization path. That mixture can create a multimodal latency distribution; it is not necessarily an exponential tail. Measure cold-start frequency and duration separately, then decide whether provisioned concurrency, initialization changes, or a looser SLO is justified.</p>
+                <div class="scenario-title">The "Bimodal Cold Start" <span class="scenario-tag">AWS Lambda</span></div>
+                <p>Serverless functions don't follow a single exponential curve—they are a mixture model. Warm invocations resolve in 15ms, while cold starts pulling a bloated container image or initializing a heavy DI framework take 1,800ms. If you alert on average latency, a 1% cold-start rate hides effortlessly inside the mean while ruining your p99 SLO.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/compute/operating-lambda-performance-optimization-part-1/" target="_blank" rel="noopener noreferrer">AWS Lambda Performance Optimization</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "GC Pause" <span class="scenario-tag">JVM Stop-the-World</span></div>
-                <p>A stop-the-world garbage-collection pause can add a shared delay to many requests, producing correlated latency spikes rather than independent exponential service times. Actual pause behavior depends on the collector, heap, workload, and configuration; measure pause distributions and consider low-pause collectors only after profiling.</p>
+                <div class="scenario-title">The "Stop-the-World Guillotine" <span class="scenario-tag">JVM GC Pauses</span></div>
+                <p>Exponential models assume every request draws an independent random ticket. A Stop-the-World Garbage Collection pause violates independence by freezing all 200 worker threads simultaneously for 400ms. When the JVM wakes up, every in-flight request has breached its SLA simultaneously, and the ingress queue is packed with angry retries.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.oreilly.com/library/view/java-performance-the/9781449363512/" target="_blank" rel="noopener noreferrer">Scott Oaks, "Java Performance: The Definitive Guide"</a></div>
             </div>
 
             <!-- ========================================== -->
             <!-- 3. ERLANG DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>3. The Erlang Distribution (Pipelines)</h2>
+            <h2>3. The Erlang Distribution (Sequential Pipelines)</h2>
 
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Assembly Line</div>
-                <div class="tldr-content">
-                    <p>The Erlang distribution models the sum of k independent exponential stages that share the same rate λ. It is a special case of the gamma distribution. It can be a useful pipeline model when each stage’s duration is approximately exponential and independent; real microservice hops often violate one or both assumptions.</p>
-                    <p>A sequential request path can be approximated as a sum of stage durations. Under the Erlang assumptions, increasing k while holding each stage rate fixed increases the mean total time (k/λ) and reduces the coefficient of variation (1/√k). If instead you hold the total mean fixed while increasing the number of equal stages, the sum becomes more concentrated relative to that mean. This mathematical result does not mean adding real services automatically makes a system more predictable: shared dependencies, queueing, retries, and correlated pauses can dominate.</p>
+            <div class="editorial-callout">
+                <div class="callout-eyebrow">The Intuition: The Microservice Relay Race</div>
+                <div class="callout-content">
+                    <p>What happens when a single request has to pass sequentially through <strong>Ingress &rarr; Schema Validation &rarr; Enrichment &rarr; Partition Router &rarr; Storage Write</strong> before returning an acknowledgement? If each of those $k$ stages has an independent, identically distributed exponential duration with rate $\lambda$, and the request waits for all stages sequentially, the sum of stage durations follows an <strong>Erlang-$k$ distribution</strong>. Real stages may be correlated, have different rates, overlap, or contain queueing; validate these assumptions before using the curve as a production predictor.</p>
+                    <p>Unlike the Exponential curve (which peaks at $t = 0$), the Erlang distribution has a hump in the middle. You can no longer get lucky and finish in $0.1\text{ms}$, because the request has to survive $k$ consecutive hops. Near-zero latencies become less likely, the mean multiplies by $k$, and variances add across independent stages ($\sigma_{\text{total}}^2 = k / \lambda^2$). This is a latency-sum model; it is not the product of stage success probabilities and does not by itself model end-to-end reliability.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density for a sum of <var>k</var> independent exponential stages with the same rate <var>&lambda;</var> (a special case of the gamma distribution) is:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = (<var>&lambda;</var><sup><var>k</var></sup> &middot; <var>x</var><sup><var>k</var>-1</sup> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>) / (<var>k</var>-1)!
+            <p>The Probability Density Function (PDF) and Tail Survival Function for the sum of $k$ independent exponential stages, each with the same rate $\lambda$, are:</p>
+            
+            <div class="math-display">
+                $$f(x) = \frac{\lambda^k \cdot x^{k-1} \cdot e^{-\lambda x}}{(k-1)!} \quad \Big| \quad P(T > x) = e^{-\lambda x} \sum_{n=0}^{k-1} \frac{(\lambda x)^n}{n!}$$
             </div>
             
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
+                <strong>Decoding the parameters:</strong>
                 <ul>
-                    <li><strong><var>k</var> (Shape):</strong> The number of sequential stages in your pipeline.</li>
-                    <li><strong><var>&lambda;</var>:</strong> The service rate of each stage.</li>
-                    <li><strong><var>x</var>:</strong> The total time to traverse all stages.</li>
+                    <li><strong>$k$ (Shape):</strong> The integer number of sequential hops or pipeline stages ($k = 1, 2, 3, \dots$).</li>
+                    <li><strong>$\lambda$ (Rate):</strong> The service rate of <em>each individual stage</em>. Mean $E[T] = k / \lambda$.</li>
+                    <li><strong>Why $P(T > x)$ is a sum:</strong> A pipeline takes longer than time $x$ if and only if strictly fewer than $k$ stages have completed by time $x$.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you have a 3-stage pipeline (<var>k</var>=3), and each stage has a rate of 1 per second (<var>&lambda;</var>=1), the mean time is 3 seconds. For k = 3 and λ = 1 s⁻¹, the mean total time is 3 seconds. Because this is a continuous distribution, the probability of taking exactly 3.000… seconds is zero; the density at x = 3 seconds is 9e⁻³/2 ≈ 0.224 per second. A probability requires an interval, such as P(2.5 s ≤ T ≤ 3.5 s).</p>
             </div>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Little’s Law states L = λW for a stable system, where L is the long-run average number of items in the system, λ is throughput, and W is average time in the system. If throughput stays constant while average latency rises tenfold, average in-flight concurrency also rises tenfold. That does not automatically mean ten times as many threads are needed: async I/O, CPU-bound work, queueing, and per-request resource use change the implementation implications.</p>
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: The 3-Hop Pipeline vs. The 50ms API Gateway SLA</div>
+                <p>Your API Gateway enforces an end-to-end SLA of <strong>50ms</strong>. To fulfill a request, your orchestrator calls <strong>3 sequential microservices</strong> ($k = 3$: Auth, Profile, Billing). Each service takes an average of <strong>10ms</strong> ($\lambda = 0.1\text{ ms}^{-1}$). The expected total latency is $E[T] = 3 / 0.1 = 30\text{ms}$.</p>
+                <p>What percentage of user requests breach the <strong>50ms SLA</strong> ($x = 50\text{ms}$)? Plugging $\lambda x = 5$ and $k = 3$ into the Erlang Survival formula:</p>
+                <div class="worked-steps">
+                    Dimensionless Budget: $\lambda x = 0.1 \text{ ms}^{-1} \times 50\text{ms} = 5.0$<br>
+                    Base Decay: $e^{-5} \approx 0.006738$<br><br>
+                    Sum terms for $n = 0$ to $k - 1$ ($n = 0, 1, 2$ stages completed by 50ms):<br>
+                    $n = 0$: $\frac{5^0}{0!} = 1.0$<br>
+                    $n = 1$: $\frac{5^1}{1!} = 5.0$<br>
+                    $n = 2$: $\frac{5^2}{2!} = \frac{25}{2} = 12.5$<br>
+                    ------------------------------------------------------------<br>
+                    Series Sum = $1.0 + 5.0 + 12.5 = 18.5$<br><br>
+                    <strong>SLA Breach Probability: $P(T > 50\text{ms}) = 0.006738 \times 18.5 = 0.12465$ (12.47%)</strong>
                 </div>
+                <p><strong>The Punchline:</strong> Even though each individual microservice averages a snappy 10ms and the pipeline averages 30ms, <strong>12.47% of your users—roughly 1 in 8 requests—will fail the 50ms SLA</strong> because variances add up across sequential hops.</p>
             </div>
 
             <h3>Interactive Simulation</h3>
@@ -395,12 +512,14 @@
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Stages (k): <span id="v_k_erlang">3</span></div>
+                            <span>Stages (k):</span>
                             <input type="range" id="k_erlang" aria-label="Number of Erlang stages k" min="1" max="10" step="1" value="3">
+                            <span id="v_k_erlang">3</span>
                         </div>
                         <div class="param-group">
-                            <div>Rate/Stage (λ): <span id="v_lam_erlang">1.0</span></div>
+                            <span>Rate (λ):</span>
                             <input type="range" id="lam_erlang" aria-label="Erlang rate per stage lambda" min="0.2" max="4.0" step="0.1" value="1.0">
+                            <span id="v_lam_erlang">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -417,38 +536,50 @@
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Dependency-Chain Trap" <span class="scenario-tag">Microservices</span></div>
-                <p>If a request requires 20 sequential dependencies, each succeeds with probability 0.999, and failures are independent, the probability all 20 succeed is 0.999²⁰ ≈ 98.0%. This is a dependency-chain example, not fan-out. Total latency is the sum of stage latencies, but it follows an Erlang distribution only if the stages are independent exponentials with a common rate.</p>
-                <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank" rel="noopener noreferrer">Dan Luu, "Latency Pitfalls"</a></div>
+                <div class="scenario-title">The "Death by 20 Paper Cuts" <span class="scenario-tag">Microservice Chains</span></div>
+                <p>When an architecture diagram looks like the London Underground and a single request traverses 20 sequential microservice hops, each boasting "three nines" ($99.9\%$) availability, end-to-end reliability plummets to $0.999^{20} = 98.02\%$. Worse, every hop adds network serialization, Envoy proxy traversal, and queueing jitter—turning fast local functions into a slow Erlang march.</p>
+                <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank" rel="noopener noreferrer">Dan Luu, "Latency Pitfalls in Distributed Systems"</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Checkout Flow" <span class="scenario-tag">Stripe / E-Commerce</span></div>
-                <p>A checkout may include cart validation, inventory checks, payment authorization, fraud checks, and order creation. These are five conceptual stages, not automatically five Erlang stages: the Erlang model requires independent exponential durations with the same rate. Measure each stage and the end-to-end path, including queue time, retries, and dependency failures.</p>
-                <div class="scenario-ref">Reference: <a href="https://stripe.com/docs/payments/checkout" target="_blank" rel="noopener noreferrer">Stripe Checkout Architecture</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Retry Loop" <span class="scenario-tag">Exponential Backoff</span></div>
-                <p>Retries can add extra attempts and backoff time to a request, but they do not automatically create Erlang-distributed stages. Retry paths are conditional on failure, often correlated with overload, and can amplify the load on a struggling dependency. Use bounded retries, exponential backoff with jitter, retry budgets, and cancellation when the caller no longer needs the result.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
+                <div class="scenario-title">The "Synchronous Checkout Gauntlet" <span class="scenario-tag">Stripe / E-Commerce</span></div>
+                <p>A naive checkout endpoint runs Cart Validation &rarr; Tax Calculation &rarr; Fraud Scoring &rarr; Card Auth &rarr; Ledger Write &rarr; Email Receipt synchronously in the user's request path ($k = 6$). High-scale payment architectures ruthlessly collapse synchronous stages—executing Fraud and Tax in parallel or pushing Ledger/Receipts onto asynchronous durable queues—to shrink $k$ on the critical path.</p>
+                <div class="scenario-ref">Reference: <a href="https://stripe.com/blog/payment-api-design" target="_blank" rel="noopener noreferrer">Stripe Engineering: Designing Robust Payment APIs</a></div>
             </div>
 
-            <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
-                <div class="tldr-eyebrow">The Core Problem: Kingman's Formula</div>
-                <div class="tldr-content">
-                    <p>A useful bridge from arrival and service variability to queueing delay is Kingman’s approximation for a stable GI/G/1 queue:</p>
-                    <div class="math-block" style="font-size: 1.1rem; padding: 1rem;">
-                        E[W<sub>q</sub>] &asymp; ( &rho; / (1 - &rho;) ) &middot; ( (c<sub>a</sub><sup>2</sup> + c<sub>s</sub><sup>2</sup>) / 2 ) &middot; E[S]
+            <!-- ========================================== -->
+            <!-- 4. KINGMAN'S FORMULA & FLAGSHIP CASE STUDY -->
+            <!-- ========================================== -->
+            <div class="editorial-callout editorial-callout--warning" style="margin-top: 4rem;">
+                <div class="callout-eyebrow">The Grand Unification: Little’s Law, Kingman’s Approximation &amp; The 91% Utilization Trap</div>
+                <div class="callout-content">
+                    <p>Consider a <strong>hypothetical single serial processing lane</strong>—for example, one hot partition or one effectively single-server queue in a financial trade-ingestion path. This is intentionally <em>not</em> a prediction for an entire multi-worker AKS cluster. The example shows how variability and high utilization can amplify waiting time when a GI/G/1 approximation is appropriate.</p>
+                    <p>Assume the lane receives <strong>50 events/s</strong> and can complete <strong>55 events/s</strong>. Its mean service time is therefore $E[S]=1/55\text{ s}\approx18.18\text{ ms}$ and utilization is $\rho=50/55\approx90.9\%$. For the illustrative calculation, assume squared coefficients of variation $c_a^2=3.5$ and $c_s^2=4.2$.</p>
+                    <p>Kingman’s GI/G/1 approximation estimates the <em>mean queueing delay</em> as:</p>
+                    
+                    <div class="math-display">
+                        $$E[W_q] \approx \left( \frac{\rho}{1-\rho} \right) \cdot \left( \frac{c_a^2+c_s^2}{2} \right) \cdot E[S]$$
                     </div>
-                    <ul style="margin-bottom: 1rem;">
-                        <li><strong>&rho; (Utilization):</strong> The percentage of time the server is busy.</li>
-                        <li><strong>c<sub>a</sub>:</strong> The coefficient of variation of inter-arrival times.</li>
-                        <li><strong>c<sub>s</sub>:</strong> The coefficient of variation of service times.</li>
-                        <li><strong>E[S]:</strong> The mean service time.</li>
+                    
+                    <ul>
+                        <li><strong>Utilization multiplier:</strong> $0.909/(1-0.909)\approx10.0$</li>
+                        <li><strong>Variability multiplier:</strong> $(3.5+4.2)/2=3.85$</li>
+                        <li><strong>Approximate mean queue wait:</strong> $10.0\times3.85\times18.18\text{ ms}\approx700\text{ ms}$</li>
+                        <li><strong>Approximate mean time in system:</strong> $700+18.18\approx718\text{ ms}$</li>
                     </ul>
-                    <p>It is an approximation under specific single-server assumptions—not a formula that all distributions “converge into.” With variability held fixed, the utilization multiplier is 19 at &rho; = 0.95 and 99 at &rho; = 0.99. Real multi-server systems need an appropriate model or measurements.</p>
-                    <p style="margin-top: 0.5rem;"><strong>The lesson:</strong> More capacity can reduce utilization and queueing delay, but it is not a substitute for controlling overload. Bound queues, apply admission control, shed or defer noncritical work, and use autoscaling with enough headroom for its reaction time.</p>
+
+                    <p style="margin-top: 1.25rem;"><strong>Interpretation:</strong> in this illustrative single-server model, a lane at about 91% utilization can have a mean wait that overwhelms a 200ms processing objective. The inputs are hypothetical, and Kingman’s formula is an approximation for a stable GI/G/1 queue—not a direct predictor for an arbitrary multi-server cluster. For a multi-worker service, model the actual topology and validate against trace/queue telemetry or discrete-event simulation.</p>
+
+                    <p><strong>Little’s Law ($L=\lambda W$):</strong> if the lane is stable and its long-run throughput is 50 events/s, a mean time in system of 0.718s implies:</p>
+                    
+                    <div class="math-display">
+                        $$L=50\text{ events/s}\times0.718\text{ s}\approx35.9\text{ events in the system on average}$$
+                    </div>
+                    
+                    <p>This is the average number of events in the defined system boundary—not 36 open database connections, Cosmos DB operations, or transactions by definition. Those quantities require separate measurements and a resource model. A downstream RU-throttling event and an optimistic-concurrency conflict are different failure mechanisms; do not infer either from Little’s Law alone. If downstream latency rises, capacity may fall and utilization may exceed 100%, at which point the queue is unstable unless admission or capacity changes.</p>
+
+                    <p><strong>Engineering controls:</strong> measure arrival rate, completion rate, queue depth and age, service-time distribution, and per-stage latency; keep utilization headroom; enforce bounded queues and deadline-aware admission; apply retry budgets with exponential backoff and jitter; separate hot partitions/tenants; and validate tail latency under representative burst and payload distributions. Treat the model as a hypothesis to test, not as proof of a production incident.</p>
                 </div>
             </div>
 
@@ -549,7 +680,6 @@
 
                     this.resize();
                     
-                    // Use ResizeObserver for reliable chart resizing
                     this.resizeObserver = new ResizeObserver(() => this.resize());
                     this.resizeObserver.observe(this.canvas.parentElement);
 
@@ -582,10 +712,10 @@
                         const inputL = stage.querySelector('#lam_erlang');
                         const labelL = stage.querySelector('#v_lam_erlang');
 
-                        this.params.k = parseInt(inputK.value);
+                        this.params.k = parseInt(inputK.value, 10);
                         this.params.lam = parseFloat(inputL.value);
 
-                        inputK.oninput = (e) => { this.params.k = parseInt(e.target.value); labelK.textContent = this.params.k; this.reset(); };
+                        inputK.oninput = (e) => { this.params.k = parseInt(e.target.value, 10); labelK.textContent = this.params.k; this.reset(); };
                         inputL.oninput = (e) => { this.params.lam = parseFloat(e.target.value); labelL.textContent = this.params.lam.toFixed(1); this.reset(); };
                     }
                 }
@@ -593,7 +723,7 @@
                 resize() {
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = rect.width - 48;
+                    const logicalW = Math.max(260, rect.width - 48);
                     const logicalH = 220;
 
                     this.canvas.width = logicalW * dpr;
@@ -626,7 +756,6 @@
                 }
 
                 getRange() {
-                    // Use fixed parameter-based ranges to prevent the axis from jumping wildly
                     if (this.type === 'poisson') return [0, Math.ceil(this.params.lam * 3 + 10)];
                     if (this.type === 'exponential') return [0, Math.max(6 / this.params.lam, 1)];
                     if (this.type === 'erlang') return [0, Math.max((this.params.k / this.params.lam) * 4 + 2, 1)];
@@ -655,7 +784,6 @@
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
-                    // Draw Axes
                     ctx.strokeStyle = gridColor;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
@@ -664,7 +792,6 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    // Update Theory Readout even if no samples
                     let theoreticalMean = 0;
                     if (this.type === 'poisson') theoreticalMean = this.params.lam;
                     if (this.type === 'exponential') theoreticalMean = 1 / this.params.lam;
@@ -689,7 +816,6 @@
                     const binWidth = (rmax - rmin) / bins;
                     const counts = new Array(bins).fill(0);
                     let sum = 0;
-                    let offChart = 0;
 
                     this.samples.forEach(v => {
                         sum += v;
@@ -697,8 +823,6 @@
                             let idx = Math.floor((v - rmin) / binWidth);
                             if (idx >= bins) idx = bins - 1;
                             counts[idx]++;
-                        } else {
-                            offChart++;
                         }
                     });
 
@@ -706,7 +830,6 @@
                     const maxCount = Math.max(1, ...counts);
                     const bw = plotW / bins;
 
-                    // Draw Bars
                     ctx.fillStyle = barColor;
                     counts.forEach((c, i) => {
                         const h = (c / maxCount) * plotH * 0.9;
@@ -714,7 +837,6 @@
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
-                    // Draw Observed Mean Line
                     if (mean >= rmin && mean <= rmax) {
                         const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
                         ctx.beginPath();
@@ -730,7 +852,6 @@
                         ctx.fillText('OBSERVED', meanX, pad.t - 5);
                     }
 
-                    // Draw Expected Mean Line
                     const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
                     if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
                         ctx.beginPath();
@@ -745,7 +866,7 @@
                         ctx.fillStyle = getCssVar('--amber');
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('EXPECTED', expX, pad.t - 5);
+                        ctx.fillText('EXPECTED', expX, pad.t + 12);
                     }
 
                     this.statN.textContent = this.samples.length;
@@ -770,7 +891,6 @@
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    // Keep the latest observations so continuous runs stay responsive.
                     const maxSamples = 5000;
                     if (this.samples.length > maxSamples) {
                         this.samples.splice(0, this.samples.length - maxSamples);
