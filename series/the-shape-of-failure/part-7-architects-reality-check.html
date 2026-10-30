@@ -16,12 +16,24 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Hard physical truncation, uniform jitter, multinomial routing, and the math of architecture bottlenecks. Why probability models don't save you from a full disk.">
+    <meta name="description" content="Hard capacity boundaries, uniform retry desynchronization, multinomial routing variance, Dirichlet traffic shares, and hypergeometric shuffle sharding. Why probability models don't save you from a full disk.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-7-architects-reality-check.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
 
-    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
+    <meta property="og:title" content="Part 7: The Architect's Reality Check | The Shape of Failure">
+    <meta property="og:description" content="Hard capacity boundaries, M/M/1/K bounds, multinomial load variance, Dirichlet traffic shares, and hypergeometric shuffle sharding.">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
+    <meta property="twitter:title" content="Part 7: The Architect's Reality Check | The Shape of Failure">
+    <meta property="twitter:description" content="Hard capacity boundaries, M/M/1/K bounds, multinomial load variance, Dirichlet traffic shares, and hypergeometric shuffle sharding.">
+
+    <!-- Early Theme Initialization -->
     <script>
         (function () {
             try {
@@ -43,31 +55,26 @@
 
     <style>
         /* =======================================================================
-           SERIES-ALIGNED STYLES & LAYOUT
+            SERIES-ALIGNED STYLES & LAYOUT
            ======================================================================= */
 
-        /* --- Page Adjustments --- */
         .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
         main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
 
-        /* --- Typography & Elements --- */
         h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
         h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
         p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
         p { margin-bottom: 1.35rem; }
         code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
 
-        /* --- Quote Styling --- */
         .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
         .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
         .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
         .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
 
-        /* --- Series Heading Row --- */
         .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
         .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
 
-        /* --- TL;DR / Callout Boxes --- */
         .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
         .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
         .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
@@ -80,16 +87,19 @@
         .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
         .tldr-content p:last-child { margin-bottom: 0; }
         .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
-        .tldr-content li { margin-bottom: 0.4rem; }
+        .tldr-content li { margin-bottom: 0.4rem; font-size: 0.95rem; }
 
-        /* --- Math Block --- */
         .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
         .math-block var { font-style: italic; color: var(--amber); }
         
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
-        /* --- Simulation Stage (Tight Toolbar) --- */
+        .reality-table { width: 100%; border-collapse: collapse; margin: 1.75rem 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.92rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+        .reality-table th { background: var(--panel-2); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); }
+        .reality-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--line-soft); color: var(--text); vertical-align: top; line-height: 1.5; }
+        .reality-table tr:last-child td { border-bottom: none; }
+
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
         .sim-toolbar { 
@@ -98,14 +108,13 @@
             align-items: flex-end; 
             gap: 1rem; 
             margin-bottom: 1rem; 
-            flex-wrap: nowrap; 
-            overflow-x: auto; 
-            padding-bottom: 0.5rem;
+            flex-wrap: wrap; 
         }
         
-        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
+        .sim-params { display: flex; gap: 1.5rem; flex-wrap: wrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
         .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
         .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group select { margin-top: 0.4rem; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; }
         .param-group span { font-weight: 600; color: var(--text); float: right; }
         
         .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
@@ -118,22 +127,19 @@
         .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
         .readout span { color: var(--amber); font-weight: 600; }
 
-        /* --- Scenario Cards --- */
         .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
-        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.92rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.6; }
         .scenario-card p strong { color: var(--text); }
-        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
         .scenario-ref a { color: var(--teal); text-decoration: none; }
         .scenario-ref a:hover { text-decoration: underline; }
 
-        /* --- Post Pager --- */
         .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
         .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
         .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
 
-        /* --- Theme Toggle Icon Visibility --- */
         .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
         .theme-toggle:hover { color: var(--teal); }
         .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
@@ -141,7 +147,7 @@
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
         @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
+            .sim-toolbar { flex-direction: column; align-items: stretch; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
@@ -189,65 +195,126 @@
             <div class="series-heading-row">
                 <h1>The Architect's Reality Check</h1>
             </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">November 21, 2026 · Part 7 of 8</div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">Part 7 of 8 · October 2026</div>
 
             <blockquote class="snarky-quote">
                 <p class="snarky-quote-text">“In theory, there is no difference between theory and practice. In practice, there is.”</p>
                 <p class="snarky-quote-author">— <strong><em>Jan L. A. van de Snepscheut</em></strong>, Computer Scientist</p>
             </blockquote>
 
-            <p>As powerful as stochastic modeling is, a probability distribution describes the <em>shape</em> of an observation, not the <em>physical reality</em> of the machine. Math won't save you from a full disk, an expired TLS certificate, or a kernel panic.</p>
+            <p>Over the first six parts of this series, we treated distributed systems as continuous stochastic processes. Useful? Immensely. Sufficient? Not even close. Probability distributions describe the variability of workloads and resource consumption. They do not, by themselves, guarantee that a system can absorb the resulting demand.</p>
 
-            <p>Mathematical distributions extend to infinity. Physical systems do not. A Pareto tail might suggest an expected payload of 10GB, but if the proxy has a hard 2GB buffer limit, the math is irrelevant—the system simply crashes.</p>
+            <p>Production infrastructure operates under finite resource constraints: memory limits, queue capacities, connection pools, storage capacity, network buffers and throughput ceilings. When demand approaches these <strong>hard capacity boundaries</strong>, system behavior changes abruptly. An NGINX request may be rejected with HTTP 413, a container may be terminated by the OOM killer, a database may reject new connections, or a storage write may fail with ENOSPC. The distribution tells us how frequently demand approaches the boundary. The architecture determines what happens when it gets there.</p>
 
-            <p>The best architect isn't the one who says, "We handle 50,000 RPS." It's the one who says, "Here is the error budget, here is the retry amplification factor, and here is the hard admission control limit that keeps our database from catching fire."</p>
+            <p>Before designing controls, architects must distinguish between five fundamentally different phenomena that are routinely conflated in incident reports:</p>
+
+            <div class="math-explanation">
+                <ul>
+                    <li><strong>Hard Capacity Ceilings:</strong> Physical storage or throughput limits reached (e.g., SSD storage space exhausted with <code>ENOSPC</code>, or IOPS saturation causing severe queueing delay).</li>
+                    <li><strong>Finite Queue Capacity:</strong> Memory limits cap connection backlogs (e.g., kernel <code>somaxconn</code> or NIC ring buffer limits). Arriving work cannot be queued and is dropped.</li>
+                    <li><strong>Admission Rejection:</strong> An intentional edge policy actively sheds load (e.g., <code>HTTP 429 Too Many Requests</code>, token bucket shedding) to protect internal throughput. Rejected requests must remain visible in workload accounting.</li>
+                    <li><strong>Cooperative Cancellation vs. Unpropagated Timeouts:</strong> A request aborted by an <code>HTTP 504</code> gateway timeout at 30,000ms gives us a <em>right-censored</em> observation. However, we must establish whether the underlying operation continued executing in the background (wasting resources as a zombie worker) or was cancelled via deadline propagation.</li>
+                </ul>
+            </div>
+
+            <p>Confusing censoring with truncation corrupts your performance metrics. If you simply calculate p99 on completed requests while omitting timed-out and rejected requests, you convince yourself that your system is healthy right as it sheds half its traffic.</p>
+
+            <div class="tldr-box tldr-box--warning">
+                <div class="tldr-eyebrow">The Architect's Law of Hard Capacity Boundaries</div>
+                <div class="tldr-content">
+                    <p>Junior engineers ask, <em>"How do we scale to handle 50,000 RPS?"</em> Principal Architects ask, <em>"What happens at 50,001 RPS when the connection pool is saturated, the retry storm amplifies ingress by 4&times;, and the WAL disk hits 100% write saturation?"</em></p>
+                    <p>We do not study probability distributions just to admire our outages. We use bounded, discrete, and conjugate distributions to actively <strong>desynchronize, route, adapt, and isolate</strong> traffic before it hits hard operational cliffs.</p>
+                </div>
+            </div>
+
+            <table class="reality-table" aria-label="Comparison of Mathematical Theory vs Hardware Reality">
+                <thead>
+                    <tr>
+                        <th>Mathematical Abstraction</th>
+                        <th>Physical Hardware Boundary</th>
+                        <th>Architectural Control Plane</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Unbounded Queue (<var>M/M/1</var>, <var>L</var> &rarr; &infin;)</td>
+                        <td>NIC ring buffer / Kernel <code>somaxconn</code> / JVM heap ceiling</td>
+                        <td>Finite queue models (<var>M/M/1/K</var>) + Token Bucket admission + Concurrency limits</td>
+                    </tr>
+                    <tr>
+                        <td>Synchronized Retry Impulse (&delta;(<var>t</var>))</td>
+                        <td>Mutex contention / Database connection pool exhaustion</td>
+                        <td><strong>Continuous Uniform</strong> Jitter (Full or Decorrelated) + Retry budgets</td>
+                    </tr>
+                    <tr>
+                        <td>Stateless Random Routing</td>
+                        <td>Multinomial variance tax / Hot-shard CPU saturation</td>
+                        <td><strong>Multinomial</strong> variance reduction via Power of Two Choices (<code>P2C</code>) &amp; cost-aware routing</td>
+                    </tr>
+                    <tr>
+                        <td>Uncertain Categorical Shares</td>
+                        <td>Static canary routing burning monthly error budgets</td>
+                        <td><strong>Dirichlet</strong>-Categorical traffic mix estimation + Circuit breakers</td>
+                    </tr>
+                    <tr>
+                        <td>Independent Finite Sampling</td>
+                        <td>Correlated multi-tenant poison pills / Shared blast radius</td>
+                        <td><strong>Hypergeometric</strong> Combinatorial Shuffle Sharding</td>
+                    </tr>
+                </tbody>
+            </table>
 
             <!-- ========================================== -->
             <!-- 1. UNIFORM DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>1. The Uniform Distribution (Jitter)</h2>
+            <h2>1. The Uniform Distribution (Jitter &amp; Desynchronization)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Synchronized Panic</div>
+                <div class="tldr-eyebrow">The Intuition: Breaking the Synchronized Panic</div>
                 <div class="tldr-content">
-                    <p>When a service fails, what do 10,000 clients do? They all retry at the exact same millisecond. This is the "Thundering Herd." The Uniform distribution is your defense mechanism. By injecting random, bounded noise (jitter) into your retry logic, you deliberately destroy the synchronization.</p>
-                    <p>It's the architectural equivalent of telling everyone in a burning building: "Please panic, but do it at a slightly different time so we don't clog the exit."</p>
+                    <p>When a downstream dependency blips for 200ms, what do 10,000 upstream worker threads do? If configured with deterministic backoff (e.g., 1s, 2s, 4s), they sleep in lockstep and wake up simultaneously to hammer the recovering service. This is a <strong>phase-locked retry storm</strong>.</p>
+                    <p>The continuous Uniform distribution is your primary weapon against phase-locking. By injecting maximum-entropy noise (jitter) into retry timers and scheduled jobs, you deliberately destroy temporal correlation. It tells a recovering cluster: <em>"Spread the arrival intensity evenly across time."</em></p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability density function for a Uniform distribution, bounded between a minimum <var>a</var> and a maximum <var>b</var>:</p>
+            <p>The probability density function (PDF) for a continuous Uniform distribution bounded on the interval [<var>a</var>, <var>b</var>] is constant:</p>
             <div class="math-block">
-                <var>f</var>(<var>x</var>) = 1 / (<var>b</var> - <var>a</var>)  for  <var>a</var> &le; <var>x</var> &le; <var>b</var>
+                <var>f</var>(<var>x</var>) = 1 / (<var>b</var> &minus; <var>a</var>) &nbsp;&nbsp;for&nbsp;&nbsp; <var>a</var> &le; <var>x</var> &le; <var>b</var>
             </div>
             
             <div class="math-explanation">
                 <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>a</var>:</strong> The minimum delay (e.g., 0 seconds).</li>
-                    <li><strong><var>b</var>:</strong> The maximum delay (e.g., 5 seconds).</li>
-                    <li>The formula says every value between <var>a</var> and <var>b</var> has an exactly equal probability of occurring.</li>
+                    <li><strong><var>a</var>:</strong> The minimum delay floor (e.g., <code>0</code> seconds in AWS "Full Jitter").</li>
+                    <li><strong><var>b</var>:</strong> The maximum delay ceiling for attempt <var>r</var>, typically capped exponential backoff: <code>min(cap, base &middot; 2<sup>r</sup>)</code>.</li>
+                    <li><strong>Mean &amp; Variance:</strong> The expected wait is <var>&mu;</var> = (<var>a</var> + <var>b</var>) / 2, and the variance is <var>&sigma;</var><sup>2</sup> = (<var>b</var> &minus; <var>a</var>)<sup>2</sup> / 12. Standard deviation is <var>&sigma;</var> = (<var>b</var> &minus; <var>a</var>) / &radic;<span style="text-decoration:overline;">12</span>.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you set your jitter window from 0 to 5 seconds, the probability of any specific delay (like 2.3 seconds) is <code>1 / (5 - 0) = 20%</code>. This perfectly scatters 10,000 requests across a 5-second window, reducing the instantaneous load by a factor of 5.</p>
+                <p><strong>Worked Example:</strong> Suppose 10,000 clients fail simultaneously and apply Full Jitter across <var>a</var> = 0s to <var>b</var> = 5s. The density is <code>1 / (5 &minus; 0) = 0.20 s<sup>&minus;1</sup></code>. Over any 1-second interval, assuming observation lies entirely within the window, the expected arrival count is:</p>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                    E[X] = 10,000 &times; (1 / 5) = 2,000 requests<br>
+                    Var(X) = 10,000 &times; (0.2) &times; (0.8) = 1,600 &implies; &sigma; &approx; 40 requests
+                </div>
+                <p>Instead of an instantaneous Dirac impulse of 10,000 requests in 1 millisecond, the database receives an <strong>expected arrival rate of 2,000 RPS</strong> over 5 seconds. Jitter flattens the expected arrival rate, though independent random arrivals still create minor statistical fluctuations around the mean.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The Principal Architect's Trap: Conservation of Work</div>
                 <div class="tldr-content">
-                    <p>Jitter doesn't reduce the <em>total</em> load; it just spreads it out. If your retry storm generates 1,000,000 requests, jittering them over 10 seconds still means 100,000 RPS hitting your database. You still need circuit breakers and admission control.</p>
+                    <p>Jitter flattens <em>peak</em> instantaneous arrival rate, but it does <strong>not</strong> reduce the total volume of work. By Little's Law (<var>L</var> = <var>&lambda;</var><var>W</var>), if a retry storm generates 1,000,000 attempts and you spread them across 10 seconds, you are still driving 100,000 RPS into downstream workers. If your database saturates at 25,000 RPS, uniform jitter merely guarantees it suffocates evenly rather than in periodic spikes. Jitter <em>must</em> be paired with client-side <strong>retry budgets</strong> (e.g., maximum 10% retry allowance) and server-side <strong>concurrency limits</strong>.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Uniform Delay Desynchronization</h3>
             <div class="stage" data-sim-type="uniform">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Min Jitter (a): <span id="v_a_uniform">0.0</span></div>
-                            <input type="range" id="a_uniform" aria-label="Uniform minimum delay a" min="0.0" max="5.0" step="0.1" value="0">
+                            <div>Min Delay (a): <span id="v_a_uniform">0.0</span>s</div>
+                            <input type="range" id="a_uniform" aria-label="Uniform minimum delay a" min="0.0" max="4.5" step="0.1" value="0.0">
                         </div>
                         <div class="param-group">
-                            <div>Max Jitter (b): <span id="v_b_uniform">5.0</span></div>
+                            <div>Max Delay (b): <span id="v_b_uniform">5.0</span>s</div>
                             <input type="range" id="b_uniform" aria-label="Uniform maximum delay b" min="0.5" max="10.0" step="0.1" value="5.0">
                         </div>
                     </div>
@@ -257,74 +324,90 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Uniform distribution"></canvas>
+                <canvas class="sim-canvas" role="img" aria-label="Histogram of simulated Uniform distribution retry delays"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
+                    <div>Observed Mean: <span class="stat-mean">–</span>s</div>
+                    <div>Theoretical Mean: <span class="stat-theory">–</span>s</div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "AWS Retry Storm" <span class="scenario-tag">AWS SDK</span></div>
-                <p>When S3 had a minor hiccup, millions of clients retried simultaneously, turning a small blip into a massive outage. AWS introduced "Full Jitter" (random delay between 0 and max backoff) to prevent this.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank">AWS Architecture Blog: Exponential Backoff and Jitter</a></div>
+                <div class="scenario-title">Full Jitter vs. Equal Jitter <span class="scenario-tag">AWS Architecture</span></div>
+                <p>Marc Brooker's simulations for the AWS Architecture Blog demonstrated that standard exponential backoff maintains phase-synchronized clusters. Under high contention across 100 contending clients, Full Jitter (<code>sleep = uniform(0, min(cap, base &times; 2^attempt))</code>) cut completion time and call counts by over half compared to deterministic backoff, eliminating the harmonic waves that stall recovering dependencies.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener noreferrer">AWS Architecture Blog: Exponential Backoff and Jitter</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Cron Job Stampede" <span class="scenario-tag">Kubernetes</span></div>
-                <p>If 500 pods run a cron job at exactly 00:00:00, the shared database will die. By adding a random jitter of 0-300 seconds to the cron schedule, you smooth out the spike and save the DB.</p>
-                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/" target="_blank">Kubernetes CronJob Documentation</a></div>
+                <div class="scenario-title">Cache Stampedes &amp; TTL Desynchronization <span class="scenario-tag">Redis / Memcached</span></div>
+                <p>When batch workers populate caches with rigid expiration values (e.g., <code>TTL = 3600s</code>), all keys evaporate simultaneously an hour later. The backend is flooded with concurrent cache-miss recomputations. If the application has a strict maximum freshness requirement, a safer strategy is <code>TTL = 3600 &minus; uniform(0, 300)</code>, which spreads expiration times without extending the maximum permitted TTL. Pair this with single-flight request coalescing (e.g., NGINX <code>proxy_cache_lock</code>) so only 1 thread rebuilds the cache while others await the lock.</p>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Thundering Herd" <span class="scenario-tag">GitHub 2018</span></div>
-                <p>A database partition caused application workers to stall. When the DB returned, every worker retried at the exact same millisecond. GitHub had to implement aggressive jitter and rate limiting to recover.</p>
-                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank">GitHub's October 21 Incident Report</a></div>
+                <div class="scenario-title">Control-Plane Reconnection Surges <span class="scenario-tag">Edge &amp; Gateway Recovery</span></div>
+                <p>Following a transient network partition between edge ingress and an identity cluster, tens of thousands of client SDKs simultaneously attempt handshake reconnections. In architectures lacking client jitter, the reconnect storm immediately crashes the TLS termination tier. Robust edge clients enforce uniform randomized backoff before opening new transport connections.</p>
             </div>
 
             <!-- ========================================== -->
             <!-- 2. MULTINOMIAL DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>2. The Multinomial Distribution (Routing)</h2>
+            <h2>2. The Multinomial Distribution (Stateless Routing &amp; Hot Shards)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Rolling the Load-Balancer Die</div>
+                <div class="tldr-eyebrow">The Intuition: The "Balls-into-Bins" Variance Tax</div>
                 <div class="tldr-content">
-                    <p>Multinomial is the Binomial distribution generalized to more than two outcomes. If your load balancer randomly routes a request to one of 5 backend servers, it is rolling a 5-sided die.</p>
-                    <p>It models the exact distribution of requests across those 5 servers. The problem? Random routing guarantees that some servers will get more traffic than others, even if they are identical. It's pure variance.</p>
+                    <p>The Multinomial distribution models the allocation of <var>n</var> independent requests across <var>k</var> distinct servers when routed by fixed probabilities <var>p<sub>1</sub></var>, &hellip;, <var>p<sub>k</sub></var>. It generalizes the Binomial distribution from two outcomes to arbitrary categorical destinations.</p>
+                    <p>Stateless load balancing is routinely justified with: <em>"10 servers means 10% load per server."</em> This assumption holds in expectation over large request batches, but across narrow scheduling windows, random routing is notoriously uneven.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability of observing <var>x<sub>1</sub></var> requests on Server 1, <var>x<sub>2</sub></var> on Server 2, etc., out of <var>n</var> total requests:</p>
+            <p>The joint probability of observing exactly <var>x<sub>1</sub></var>, &hellip;, <var>x<sub>k</sub></var> requests across <var>k</var> servers out of <var>n</var> arrivals (where &sum;<var>x<sub>i</sub></var> = <var>n</var>):</p>
             <div class="math-block">
-                <var>P</var> = (<var>n</var>! / (<var>x<sub>1</sub></var>! &middot; <var>x<sub>2</sub></var>! &middot; &hellip; &middot; <var>x<sub>k</sub></var>!)) &middot; <var>p<sub>1</sub></var><sup><var>x<sub>1</sub></var></sup> &middot; <var>p<sub>2</sub></var><sup><var>x<sub>2</sub></var></sup> &middot; &hellip;
+                <var>P</var>(<var>X<sub>1</sub></var>=<var>x<sub>1</sub></var>, &hellip;, <var>X<sub>k</sub></var>=<var>x<sub>k</sub></var>) = [ <var>n</var>! / (&prod; <var>x<sub>i</sub></var>!) ] &middot; &prod; <var>p<sub>i</sub></var><sup><var>x<sub>i</sub></var></sup>
             </div>
             
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>n</var>:</strong> Total requests to distribute.</li>
-                    <li><strong><var>x<sub>1</sub></var>, <var>x<sub>2</sub></var>:</strong> The number of requests that hit Server 1, Server 2, etc.</li>
-                    <li><strong><var>p<sub>1</sub></var>, <var>p<sub>2</sub></var>:</strong> The probability of routing to Server 1, Server 2, etc. (e.g., 1/5 for 5 servers).</li>
-                </ul>
-                <p><strong>Worked Example:</strong> You have 5 servers and 10 requests. The chance that Server 1 gets exactly 5 requests (while the others split the remaining 5) is highly skewed, but mathematically probable. Randomness is lumpy.</p>
+                <strong>Worked Example (Balls into Bins):</strong>
+                <p>Suppose 10 concurrent requests arrive at an edge gateway and are routed independently across 5 identical servers (<var>p<sub>i</sub></var> = 0.20). The expected load is <var>E[X<sub>i</sub>]</var> = 10 / 5 = 2.0 requests per server.</p>
+                <p>What is the probability that a specific server (say Server 1) receives &ge;5 requests?</p>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                    P(X<sub>1</sub> &ge; 5) = &sum;<sub>j=5..10</sub> C(10, j) (0.2)<sup>j</sup> (0.8)<sup>10&minus;j</sup> &approx; 3.28%
+                </div>
+                <p>Now consider the cluster-wide question: <strong>What is the probability that <em>at least one</em> of the 5 servers receives 5 or more requests?</strong></p>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                    P(max<sub>i</sub> X<sub>i</sub> &ge; 5) &approx; 16.37%
+                </div>
+                <p>Roughly <strong>1 out of every 6 request batches</strong> lands at least 5 concurrent queries on a single node—more than double its expected capacity—while adjacent nodes sit idle.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The Principal Architect's Trap: Multinomial Routing vs. P2C &amp; Heterogeneous Cost</div>
                 <div class="tldr-content">
-                    <p>Random load balancing (Multinomial) creates hot spots. If you have 5 servers and 10,000 requests, one server might get 2,500 requests while another gets 1,500. This is why we use "Least Connections" or "Consistent Hashing" instead of pure random routing.</p>
+                    <p>Strictly speaking, multinomial allocation assumes independent assignments with fixed destination probabilities. Power of Two Choices (P2C) does not satisfy this assumption because its routing decision depends dynamically on current server loads. Multinomial describes baseline random routing; P2C describes an adaptive sequential allocation mechanism that alters the maximum load distribution.</p>
+                    <p>Furthermore, processing costs are heavy-tailed: 95 requests might be 2ms cache hits while 5 requests are 8-second analytic aggregations. Three outstanding requests are not equivalent across servers when workloads are heterogeneous. This necessitates moving from least-request routing to <strong>CPU-aware or cost-aware least-outstanding-work routing</strong>.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Batch Allocation &amp; Maximum Server Load</h3>
+            <p style="font-size: 0.92rem; color: var(--muted); margin-top: -0.5rem;"><em>Simulating batches of <var>N</var> = 100 requests arriving across <var>K</var> servers. We track the distribution of the <strong>Maximum Server Load</strong> (<var>max X<sub>i</sub></var>) under Pure Random routing vs. Power of Two Choices (P2C):</em></p>
+            
             <div class="stage" data-sim-type="multinomial">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Buckets (Servers): <span id="v_kk_multinomial">5</span></div>
-                            <input type="range" id="kk_multinomial" aria-label="Number of multinomial buckets" min="2" max="10" step="1" value="5">
+                            <div>Servers (K): <span id="v_kk_multinomial">5</span></div>
+                            <input type="range" id="kk_multinomial" aria-label="Number of multinomial servers" min="3" max="15" step="1" value="5">
+                        </div>
+                        <div class="param-group">
+                            <div>Batch Size (N): <span id="v_nn_multinomial">100</span></div>
+                            <input type="range" id="nn_multinomial" aria-label="Requests per batch" min="20" max="300" step="10" value="100">
+                        </div>
+                        <div class="param-group">
+                            <div>Routing Policy</div>
+                            <select id="policy_multinomial" aria-label="Routing algorithm policy">
+                                <option value="random">1 Choice (Random)</option>
+                                <option value="p2c" selected>2 Choices (P2C)</option>
+                            </select>
                         </div>
                     </div>
                     <div class="controls">
@@ -333,82 +416,90 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Multinomial bucket index"></canvas>
+                <canvas class="sim-canvas" role="img" aria-label="Histogram of Maximum Server Load per batch"></canvas>
                 <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
+                    <div>Simulated Batches: <span class="stat-n">0</span></div>
+                    <div>Observed Mean Max Load: <span class="stat-mean">–</span></div>
+                    <div>Ideal Min Floor (&lceil;N/K&rceil;): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Hash Collision" <span class="scenario-tag">Consistent Hashing</span></div>
-                <p>If you use a naive modulo-based hash (`hash(key) % N`) and a server dies, the modulo changes, and <em>every single key</em> has to be re-routed. This causes a massive reshuffling of the load, taking down all servers.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.toptal.com/big-data/consistent-hashing" target="_blank">Consistent Hashing Algorithm</a></div>
+                <div class="scenario-title">The Power of Two Random Choices (P2C) <span class="scenario-tag">Mitzenmacher / Service Meshes</span></div>
+                <p>Michael Mitzenmacher proved that in a balls-into-bins model throwing <var>n</var> items into <var>n</var> bins, picking 1 random bin results in a maximum load of <code>O(ln n / ln ln n)</code>. However, picking <strong>two candidate bins uniformly at random</strong> and assigning the request to the less-loaded bin collapses the maximum load to <code>ln ln n / ln 2 + O(1)</code>. Modern load balancers (such as Envoy, Linkerd, and HAProxy) use P2C with least-request tracking to eliminate hot shards without requiring a centralized, globally synchronized state coordinator.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/tpds2001.pdf" target="_blank" rel="noopener noreferrer">Mitzenmacher (2001), "The Power of Two Choices in Randomized Load Balancing"</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Power of Two Choices" <span class="scenario-tag">Nginx / HAProxy</span></div>
-                <p>Instead of purely random routing, advanced load balancers pick two servers randomly and route to the one with fewer active connections. This mathematically reduces the max load by an exponential factor.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/tpds2001.pdf" target="_blank">Mitzenmacher, "The Power of Two Choices"</a></div>
+                <div class="scenario-title">Authentication API Load Balancing &amp; Partition Skew <span class="scenario-tag">Edge Security Architecture</span></div>
+                <p>Consider an enterprise authentication gateway processing 20,000 req/sec across 10 stateless API instances. Stateless P2C balances incoming HTTP transport connections evenly (~2,000 req/sec per node). However, if requests are partitioned into downstream caches by <code>tenant_id</code> to maintain local session state, a single enterprise tenant accounting for 40% of corporate logins will channel 8,000 req/sec directly into one stateful cache bucket. Architectural mitigation requires separating stateless TLS/JWT validation routing from partition-pinned session lookups.</p>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Sticky Session" <span class="scenario-tag">AWS ELB</span></div>
-                <p>When you enable sticky sessions (session affinity), the load balancer routes all requests from a user to the same server. This creates a Multinomial distribution based on user traffic patterns, often creating hot servers.</p>
-                <div class="scenario-ref">Reference: <a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/sticky-sessions.html" target="_blank">AWS ALB Sticky Sessions</a></div>
+                <div class="scenario-title">Consistent Hashing with Bounded Loads <span class="scenario-tag">Google Research / Vimeo</span></div>
+                <p>Consistent hashing routes keys with high affinity, but non-uniform key frequencies (Zipfian demand) form persistent storage hotspots. Mirrokni et al. developed Consistent Hashing with Bounded Loads: each node is restricted to at most <code>(1 + &epsilon;) &times; average_load</code>. When a node reaches this capacity threshold, overflow keys spill to the next consecutive node on the hash ring, placing a strict mathematical upper bound on multinomial hash skew.</p>
+                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1608.01350" target="_blank" rel="noopener noreferrer">Mirrokni et al., "Consistent Hashing with Bounded Loads" (ACM STOC)</a></div>
             </div>
 
             <!-- ========================================== -->
             <!-- 3. DIRICHLET DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>3. The Dirichlet Distribution (Traffic Splits)</h2>
+            <h2>3. The Dirichlet Distribution (Adaptive Traffic Splits &amp; Categorical Mix)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: "I don't know the real split, but I have opinions."</div>
+                <div class="tldr-eyebrow">The Intuition: A Probability Distribution Over Probabilities</div>
                 <div class="tldr-content">
-                    <p>The Beta distribution models a single probability (success vs. failure). The Dirichlet distribution is the multi-dimensional generalization. It models a set of probabilities that must sum to 1.0 (e.g., your traffic split across 3 geographic regions).</p>
-                    <p>If you are running a Blue/Green deployment, the Dirichlet distribution models your uncertainty about how much traffic each environment can safely handle before you flip the switch.</p>
+                    <p>In Part 5, we used the Beta distribution to represent uncertainty regarding a single binary success rate. The <strong>Dirichlet distribution</strong> is the multivariate generalization of Beta, defined across a simplex where the components sum to <code>1.0</code> (&sum;<var>x<sub>i</sub></var> = 1). Crucially, Dirichlet serves as the <strong>conjugate prior to the Categorical and Multinomial distributions</strong>.</p>
+                    <p>When an adaptive routing controller tracks traffic shares or error mixes across three or more endpoints, the Dirichlet distribution provides the mathematical framework for tracking uncertainty over competing categorical outcomes.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability density function for a Dirichlet distribution with parameters <var>&alpha;<sub>1</sub></var>...<var>&alpha;<sub>K</sub></var>:</p>
+            <p>The probability density function for a Dirichlet distribution parameterized by concentration vector <var>&alpha;</var> = [<var>&alpha;<sub>1</sub></var>, &hellip;, <var>&alpha;<sub>K</sub></var>] with <var>&alpha;<sub>i</sub></var> &gt; 0:</p>
             <div class="math-block">
-                <var>f</var>(<var>x<sub>1</sub></var>...<var>x<sub>K</sub></var>) = (1 / <var>B</var>(<var>&alpha;</var>)) &middot; &prod; <var>x<sub>i</sub></var><sup><var>&alpha;<sub>i</sub></var>-1</sup>
+                <var>f</var>(<var>x<sub>1</sub></var>, &hellip;, <var>x<sub>K</sub></var>; <var>&alpha;</var>) = [ 1 / <var>B</var>(<var>&alpha;</var>) ] &middot; &prod;<sub><var>i</var>=1</sub><sup><var>K</var></sup> <var>x<sub>i</sub></var><sup><var>&alpha;<sub>i</sub></var> &minus; 1</sup>
             </div>
             
             <div class="math-explanation">
                 <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>&alpha;<sub>i</sub></var>:</strong> The weight/prior for each category (e.g., Region A has weight 2, Region B has weight 2, Region C has weight 2).</li>
-                    <li><strong><var>B</var>(<var>&alpha;</var>):</strong> The multivariate Beta function, a normalizing constant.</li>
-                    <li><strong>&prod;:</strong> The product of all categories.</li>
+                    <li><strong><var>x<sub>i</sub></var>:</strong> The categorical probability fraction allocated to category <var>i</var>.</li>
+                    <li><strong><var>&alpha;<sub>i</sub></var>:</strong> Pseudo-counts representing prior beliefs combined with observed categorical outcomes. A symmetric prior like <var>&alpha;</var> = <code>[1,1,1]</code> represents a flat uniform prior over the simplex, whereas <code>[2,2,2]</code> is a weakly informative symmetric prior favoring equal proportions with moderate concentration.</li>
+                    <li><strong>Expected Share:</strong> The posterior mean is <code>E[X<sub>i</sub>] = &alpha;<sub>i</sub> / &alpha;<sub>0</sub></code>, where <code>&alpha;<sub>0</sub> = &sum; &alpha;<sub>i</sub></code>.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you have 3 regions with equal weights (<var>&alpha;</var> = 2,2,2), the mean traffic split is 33.3% each. But the variance is high. One region might randomly get 50% of the traffic on any given day, which requires dynamic capacity adjustments.</p>
+                <p><strong>Worked Example (Estimating Categorical Traffic Distribution):</strong> An enterprise gateway receives requests from three inference regions. We want to estimate the probability that an independently selected request is successfully completed by each region, conditional on observing a successful regional outcome. Starting with a symmetric prior <var>&alpha;</var> = <code>[1, 1, 1]</code>:</p>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                    Region A: 18 successful outcomes, Region B: 3, Region C: 3<br>
+                    &alpha;<sub>posterior</sub> = [1 + 18, 1 + 3, 1 + 3] = [19, 4, 4]<br>
+                    E[X<sub>A</sub>] = 19 / 27 = 70.37%<br>
+                    E[X<sub>B</sub>] = E[X<sub>C</sub>] = 4 / 27 = 14.81%
+                </div>
+                <p><em>Architectural Note:</em> These proportions describe posterior categorical distribution among successful outcomes, not individual regional success probabilities. For individual arm success rates in multi-armed bandits, use independent Beta-Bernoulli posteriors ($\theta_i \sim \text{Beta}(a_i, b_i)$) rather than Dirichlet.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The Principal Architect's Trap: Closed-Loop Instability in Feedback Loops</div>
                 <div class="tldr-content">
-                    <p>Dirichlet models assume the true split is static. In reality, traffic patterns shift dynamically. If you hardcode a 33/33/33 split, but one region's traffic drops to 10%, you are wasting 66% of your capacity in the other regions. You need dynamic load balancing, not static splits.</p>
+                    <p>Adaptive routing introduces a feedback loop: traffic shifts toward Region A &rarr; queue depth and utilization increase &rarr; p99 latency deteriorates &rarr; controller shifts traffic elsewhere. Without damping, capacity awareness, and feedback stabilization, the controller oscillates wildly, mistaking its own traffic-induced congestion for a persistent regional failure.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Dirichlet Simplex Sampling</h3>
+            <p style="font-size: 0.92rem; color: var(--muted); margin-top: -0.5rem;"><em>Simulating sampled traffic allocation vectors <var>X</var> &sim; <code>Dir(&alpha;<sub>A</sub>, &alpha;<sub>B</sub>, &alpha;<sub>C</sub>)</code>. The histogram shows the marginal distribution for Destination A:</em></p>
+            
             <div class="stage" data-sim-type="dirichlet">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Region A Weight (α1): <span id="v_a1_dirichlet">2.0</span></div>
-                            <input type="range" id="a1_dirichlet" aria-label="Dirichlet alpha 1" min="0.2" max="10.0" step="0.1" value="2.0">
+                            <div>Region A (α1): <span id="v_a1_dirichlet">2.0</span></div>
+                            <input type="range" id="a1_dirichlet" aria-label="Dirichlet alpha 1" min="0.5" max="25.0" step="0.5" value="2.0">
                         </div>
                         <div class="param-group">
-                            <div>Region B Weight (α2): <span id="v_a2_dirichlet">2.0</span></div>
-                            <input type="range" id="a2_dirichlet" aria-label="Dirichlet alpha 2" min="0.2" max="10.0" step="0.1" value="2.0">
+                            <div>Region B (α2): <span id="v_a2_dirichlet">2.0</span></div>
+                            <input type="range" id="a2_dirichlet" aria-label="Dirichlet alpha 2" min="0.5" max="25.0" step="0.5" value="2.0">
                         </div>
                         <div class="param-group">
-                            <div>Region C Weight (α3): <span id="v_a3_dirichlet">2.0</span></div>
-                            <input type="range" id="a3_dirichlet" aria-label="Dirichlet alpha 3" min="0.2" max="10.0" step="0.1" value="2.0">
+                            <div>Region C (α3): <span id="v_a3_dirichlet">2.0</span></div>
+                            <input type="range" id="a3_dirichlet" aria-label="Dirichlet alpha 3" min="0.5" max="25.0" step="0.5" value="2.0">
                         </div>
                     </div>
                     <div class="controls">
@@ -417,74 +508,79 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Dirichlet component"></canvas>
+                <canvas class="sim-canvas" role="img" aria-label="Histogram of sampled Dirichlet traffic share for Region A"></canvas>
                 <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
+                    <div>Simulated Samples: <span class="stat-n">0</span></div>
+                    <div>Observed Region A Mean: <span class="stat-mean">–</span></div>
+                    <div>Expected Region A Share: <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "A/B Test" <span class="scenario-tag">Netflix / Growth</span></div>
-                <p>Netflix uses Bayesian A/B testing with Dirichlet distributions to dynamically allocate traffic to the variant that is currently winning. This minimizes the number of users exposed to the losing variant.</p>
-                <div class="scenario-ref">Reference: <a href="https://netflixtechblog.com/its-all-a-bout-testing-the-netflix-experimentation-platform-4e1ca458c15" target="_blank">Netflix Experimentation Platform</a></div>
+                <div class="scenario-title">Multi-Armed Bandits &amp; Dynamic Canaries <span class="scenario-tag">Netflix / Spotify Delivery</span></div>
+                <p>Static Canary splits (e.g., locking a new service release to exactly 10% for four hours) expose users to broken dependencies longer than necessary. Bayesian bandits dynamically sample candidate routing weights from updated posterior distributions, rapidly routing traffic away from an unhealthy deployment variant while preserving sufficient statistical power to confirm canary health.</p>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Multi-Armed Bandit" <span class="scenario-tag">Thompson Sampling</span></div>
-                <p>Instead of a static 50/50 split, Thompson Sampling uses the Dirichlet distribution to dynamically shift traffic to the best-performing model or recommendation algorithm.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Thompson_sampling" target="_blank">Thompson Sampling (Multi-Armed Bandit)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Traffic Shaping" <span class="scenario-tag">Istio</span></div>
-                <p>Istio allows you to split traffic based on percentages. If you are rolling out v2 of a service, the Dirichlet distribution models the uncertainty in the traffic weights and how they affect error rates.</p>
-                <div class="scenario-ref">Reference: <a href="https://istio.io/latest/docs/tasks/traffic-management/traffic-shifting/" target="_blank">Istio Traffic Shifting</a></div>
+                <div class="scenario-title">Multi-Provider LLM Gateway Routing <span class="scenario-tag">AI Gateways</span></div>
+                <p>Enterprise AI routing proxies distribute inference requests across heterogeneous upstream model providers (e.g., Azure OpenAI, AWS Bedrock, local GPU clusters). Using robust reward models tracking latency, cost, rate limits, and token quality, the gateway dynamically steers workloads around upstream throttling.</p>
+                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Thompson_sampling" target="_blank" rel="noopener noreferrer">Thompson Sampling &amp; Conjugate Priors</a></div>
             </div>
 
             <!-- ========================================== -->
             <!-- 4. HYPERGEOMETRIC DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>4. The Hypergeometric Distribution (Sampling)</h2>
+            <h2>4. The Hypergeometric Distribution (Shuffle Sharding &amp; Fleet Auditing)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Pulling Servers from a Pool</div>
+                <div class="tldr-eyebrow">The Intuition: Sampling Without Replacement in a Finite Fleet</div>
                 <div class="tldr-content">
-                    <p>If you are running a canary deployment or an audit, you sample a subset of servers from a larger pool. The Hypergeometric distribution models the number of "successes" (e.g., compromised servers) in a sample, drawn from a finite population.</p>
-                    <p>Unlike the Binomial distribution, Hypergeometric assumes <strong>sampling without replacement</strong>. Every server you pull out changes the probability of the next one. This is the reality of auditing a fixed fleet of instances.</p>
+                    <p>The Binomial distribution models processes with replacement (or infinite populations), where success probability remains strictly constant across draws. Real infrastructure fleets are finite. When you draw nodes for an integrity audit, or allocate a subset of worker instances to a specific multi-tenant shard, you are <strong>sampling without replacement</strong>.</p>
+                    <p>Every node selected alters the failure probability of subsequent draws. This combinatorial mechanism provides the theoretical foundation for <strong>Shuffle Sharding</strong>—an architecture capable of containing blast radius in shared multi-tenant fleets.</p>
                 </div>
             </div>
 
             <h3>The Math</h3>
-            <p>The probability of finding exactly <var>k</var> defective items in a sample of size <var>n</var>, drawn from a population of size <var>N</var> containing <var>K</var> defects:</p>
+            <p>The probability of observing exactly <var>k</var> compromised instances when drawing a sample of size <var>n</var> without replacement from a finite fleet of <var>N</var> total instances containing <var>K</var> compromised instances:</p>
             <div class="math-block">
-                <var>P</var>(<var>X</var> = <var>k</var>) = [ (<var>K</var> choose <var>k</var>) &middot; (<var>N</var> - <var>K</var> choose <var>n</var> - <var>k</var>) ] / (<var>N</var> choose <var>n</var>)
+                <var>P</var>(<var>X</var> = <var>k</var>) = [ C(<var>K</var>, <var>k</var>) &middot; C(<var>N</var> &minus; <var>K</var>, <var>n</var> &minus; <var>k</var>) ] / C(<var>N</var>, <var>n</var>)
             </div>
             
             <div class="math-explanation">
                 <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>N</var>:</strong> Total population (e.g., 100 servers).</li>
-                    <li><strong><var>K</var>:</strong> Number of defective servers in the population (e.g., 8).</li>
-                    <li><strong><var>n</var>:</strong> Sample size (e.g., you audit 20 servers).</li>
-                    <li><strong><var>k</var>:</strong> Number of defects you find in your sample.</li>
+                    <li><strong><var>N</var>:</strong> Total finite fleet size (e.g., <code>100</code> worker nodes).</li>
+                    <li><strong><var>K</var>:</strong> Total compromised or defective nodes currently in the fleet (e.g., <code>8</code> poisoned instances).</li>
+                    <li><strong><var>n</var>:</strong> Sample size or virtual shard size assigned to a tenant (e.g., <code>20</code> audit nodes or <code>4</code> shard nodes).</li>
+                    <li><strong><var>k</var>:</strong> Number of bad nodes intersecting your sample or tenant allocation.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you have 100 servers, 8 of which are compromised, and you sample 20, what's the chance you find exactly 2 compromised ones? The Hypergeometric formula gives about a <strong>28%</strong> chance. This tells you whether a clean audit is actually meaningful, or just dumb luck.</p>
+                <p><strong>Worked Example (Fleet Audit False All-Clears):</strong> In a fleet of <var>N</var> = 100 servers where <var>K</var> = 8 contain a latent data corruption bug, you audit a random subset of <var>n</var> = 20 nodes.</p>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                    P(X = 0) = [ C(8,0) &middot; C(92,20) ] / C(100,20) &approx; 15.58%<br>
+                    P(X = 1) = [ C(8,1) &middot; C(92,19) ] / C(100,20) &approx; 34.14%<br>
+                    P(X = 2) = [ C(8,2) &middot; C(92,18) ] / C(100,20) &approx; 30.68%
+                </div>
+                <p>Despite 8% of the fleet harboring defects, an audit inspecting 20% of the fleet will encounter <strong>zero defects roughly 1 in 6 times (15.58%)</strong>. If an operations pipeline equates an empty sample with a pristine fleet, it suffers from a false all-clear.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The Principal Architect's Superpower: Combinatorial Shuffle Sharding</div>
                 <div class="tldr-content">
-                    <p>Hypergeometric assumes the population is finite and known. In a cloud environment, your pool of servers is constantly changing (autoscaling). If you audit 20 servers and find zero defects, it doesn't mean the fleet is clean. It just means the 20 servers you happened to audit were clean. You need statistically significant sample sizes.</p>
+                    <p>In standard shared multi-tenancy, one rogue tenant submitting a "poison-pill" query can exhaust workers and cascade failures across the entire fleet. In dedicated multi-tenancy, isolating 1,000 tenants requires paying for 1,000 separate clusters.</p>
+                    <p><strong>Shuffle sharding resolves this trade-off combinatorially.</strong> In a fleet of <var>N</var> = 100 nodes, assign each tenant a virtual shard of <var>n</var> = 4 nodes. There are <code>C(100, 4) = 3,921,225</code> unique shard assignments. If Tenant A overloads node 3, Tenant B is exposed to partial interference (not necessarily total outage). The probability that Tenant A and Tenant B are assigned identical four-node subsets is <code>1 / C(100, 4) &approx; 0.0000255%</code>. The exact probability of at least one overlapping node is:</p>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
+                        P(overlap &ge; 1) = 1 &minus; [ C(96, 4) / C(100, 4) ] &approx; 15.28%
+                    </div>
+                    <p>While ~15.28% of tenants share a single overlapping node, shuffle sharding limits blast radius and partial overlap can be handled gracefully via client retries, capacity headroom, and independent failure domains.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Hypergeometric Sampling Without Replacement</h3>
             <div class="stage" data-sim-type="hypergeom">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Population (N): <span id="v_N_hypergeom">100</span></div>
+                            <div>Fleet Size (N): <span id="v_N_hypergeom">100</span></div>
                             <input type="range" id="N_hypergeom" aria-label="Population size N" min="20" max="300" step="5" value="100">
                         </div>
                         <div class="param-group">
@@ -502,33 +598,99 @@
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Hypergeometric distribution"></canvas>
+                <canvas class="sim-canvas" role="img" aria-label="Histogram of detected defects in finite sample"></canvas>
                 <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
+                    <div>Audit Samples: <span class="stat-n">0</span></div>
+                    <div>Observed Defect Mean (k): <span class="stat-mean">–</span></div>
+                    <div>Theoretical Mean E[X]: <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
+            <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Audit Sampling" <span class="scenario-tag">SOC 2 Compliance</span></div>
-                <p>When an auditor samples 20 servers out of 500 to verify security patches, they are using the Hypergeometric distribution to calculate the confidence interval. If they find 0 missing patches in the sample, what is the probability that the whole fleet is clean?</p>
-                <div class="scenario-ref">Reference: <a href="https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2" target="_blank">AICPA SOC 2 Auditing Standards</a></div>
+                <div class="scenario-title">Combinatorial Isolation in Multi-Tenant Infrastructure <span class="scenario-tag">AWS Route 53 / Cloudflare</span></div>
+                <p>AWS Route 53 assigns each customer authoritative nameserver allocations across distinct shuffle shards drawn from an extensive fleet. Even during catastrophic volumetric DDoS attacks directed against specific hostnames, innocent customer delegations remain reachable on non-overlapping nameservers, bounding blast radius without requiring dedicated physical hardware per tenant.</p>
+                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/workload-isolation-using-shuffle-sharding/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Workload Isolation Using Shuffle Sharding</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Canary Analysis" <span class="scenario-tag">Kubernetes</span></div>
-                <p>When rolling out a canary to 5% of the fleet, you are sampling without replacement. If a bug affects 10% of your code paths, the Hypergeometric distribution tells you the probability of catching it in the canary.</p>
-                <div class="scenario-ref">Reference: <a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#canary-deployment" target="_blank">Kubernetes Canary Deployments</a></div>
+                <div class="scenario-title">Data Lakehouse Scrubbing &amp; Audit Sampling <span class="scenario-tag">Financial Reconciliation</span></div>
+                <p>Consider auditing 100,000,000 Parquet objects with a maximum acceptable defective rate of 0.1% ($p = 0.001$). Using the Rule of Three as a large-population approximation ($n \approx 3 / p$), inspecting $n \approx 3,000$ randomly selected objects with zero observed defects gives an approximate one-sided 95% upper bound of 0.1% on the defect rate. Note that this requires representative random sampling; if corrupt objects cluster in specific writer partitions, stratified sampling is required.</p>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Disk Failure" <span class="scenario-tag">Backblaze</span></div>
-                <p>If you pull a batch of 50 hard drives from a rack of 1,000 drives, and you know 20 drives are failing, the Hypergeometric distribution tells you the expected number of failed drives in your batch.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank">Backblaze Hard Drive Stats</a></div>
+                <div class="scenario-title">Correlated Storage Batch Failures <span class="scenario-tag">Storage &amp; Ceph Clusters</span></div>
+                <p>When provisioning placement groups across disk pools, Hypergeometric math models the risk of drawing multiple drives from the same hardware manufacturing batch. However, architects must note that Hypergeometric models assume independent draws: environmental variables like shared rack power, ambient heat, or drive firmware bugs introduce common-cause dependencies that require rack-level and batch-level stratification.</p>
             </div>
 
+            <!-- ========================================== -->
+            <!-- 5. CONCLUSION -->
+            <!-- ========================================== -->
+            <h2>The Architect's Final Reality Check: Probability Is Not a Safety Mechanism</h2>
+
+            <p>Across the seven parts of this series, we have explored the stochastic foundations of distributed engineering. We modeled failure intervals, queueing horizons, bursty arrivals, power-law tails, variance routing, and multi-tenant isolation. We have seen how reasonable statistical distributions produce volatile production dynamics.</p>
+
+            <p>Yet one final architectural principle supersedes the mathematics:</p>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The Core Principle</div>
+                <div class="tldr-content">
+                    <p style="font-size: 1.1rem; font-weight: 600; color: var(--text);">Probability predicts exposure. Architecture determines consequences.</p>
+                    <p>A probability distribution tells you where the operational boundary lies; your system architecture determines whether crossing that boundary causes a graceful fallback or an uncontained outage.</p>
+                </div>
+            </div>
+
+            <p>When engineering high-throughput, fault-tolerant infrastructure, apply this structured evaluation framework:</p>
+
+            <table class="reality-table" aria-label="Structured Architectural Evaluation Framework">
+                <thead>
+                    <tr>
+                        <th>Phase</th>
+                        <th>Architectural Question</th>
+                        <th>Engineering Deliverable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>1. Model</strong></td>
+                        <td>What is the probability and distribution of the incoming workload?</td>
+                        <td>Stochastic model (Poisson arrivals, Pareto tails, Multinomial routing)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>2. Boundary</strong></td>
+                        <td>What physical, network, or OS resource limits will this workload approach?</td>
+                        <td>Identified bottlenecks (connection pools, memory cgroups, NVMe IOPS)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>3. Consequence</strong></td>
+                        <td>What occurs when those hardware and software limits are saturated?</td>
+                        <td>Failure mode characterization (OOM drop, TCP reset, blocking latency)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>4. Control</strong></td>
+                        <td>How do we actively desynchronize, shape, or shed load before failure occurs?</td>
+                        <td>Controls (Uniform Jitter, P2C, Shuffle Sharding, Concurrency budgets)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>5. Verification</strong></td>
+                        <td>How do we formally prove and validate that containment functions under stress?</td>
+                        <td>Fault injection, TLA+ state-space validation, continuous chaos testing</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>Always hold your design against these five operational rules:</p>
+
+            <ol style="margin-bottom: 2rem; padding-left: 1.5rem;">
+                <li style="margin-bottom: 0.75rem;"><strong>Bound every queue:</strong> An unbounded theoretical queue (<var>M/M/1</var>) is merely deferred memory exhaustion. Model physical services as finite systems (<var>M/M/1/K</var>) and shed excess load intentionally.</li>
+                <li style="margin-bottom: 0.75rem;"><strong>Enforce retry budgets:</strong> Jitter spreads out retries, but backoff alone does not reduce total work. Without strict client retry budgets, recovering dependencies face secondary denial-of-service waves.</li>
+                <li style="margin-bottom: 0.75rem;"><strong>Balance resource cost, not just request count:</strong> Uniform request routing across servers does not guarantee balanced resource consumption when query costs follow heavy tails.</li>
+                <li style="margin-bottom: 0.75rem;"><strong>Isolate adaptive optimization from safety:</strong> Thompson Sampling and dynamic canary routing optimize traffic placement, but hard capacity ceilings and circuit breakers must remain authoritative to prevent feedback oscillations.</li>
+                <li style="margin-bottom: 0.75rem;"><strong>Design for shared dependencies:</strong> Statistical independence is an operational assumption that production infrastructure continually breaks. Shuffle sharding limits blast radius, but common downstream datastores remain vulnerable to common-cause failure.</li>
+            </ol>
+
+            <p>The ultimate objective of mathematical modeling in system architecture is not to predict every production failure with decimal precision. It is to guarantee that when extreme events inevitably strike, your infrastructure degrades in a predictable, contained, and survivable manner.</p>
+
             <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-6-state-empiricism-and-simulation.html">← Part 6: State, Empiricism, and the Simulation Fallacy</a>
+                <a href="part-6-chaos-jitter-whale-tenants.html">← Part 6: Chaos, Jitter, and Whale Tenants</a>
                 <a href="part-8-stochastic-shape-of-ai-systems.html">Part 8: The AI/LLM Frontier →</a>
             </nav>
         </main>
@@ -550,7 +712,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const canvasToSim = new Map();
 
-            // --- Theme Toggle Logic ---
+            // Theme Toggle Logic
             const themeBtn = document.querySelector('.theme-toggle');
             if (themeBtn) {
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -565,7 +727,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
+                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -583,6 +745,7 @@
                 return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
             }
 
+            // Normal distribution random variable via Box-Muller
             function randNormal() {
                 let u = 0, v = 0;
                 while (u === 0) u = Math.random();
@@ -590,15 +753,27 @@
                 return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
             }
 
+            // Gamma random variable via Marsaglia-Tsang
             function randGamma(s, c) {
-                if (s < 1) return randGamma(1 + s, c) * Math.pow(Math.random(), 1 / s);
-                let d = s - 1 / 3, e = 1 / Math.sqrt(9 * d);
+                if (s < 1) {
+                    return randGamma(1 + s, c) * Math.pow(Math.random(), 1 / s);
+                }
+                const d = s - 1 / 3;
+                const e = 1 / Math.sqrt(9 * d);
                 while (true) {
                     let x, v;
-                    do { x = randNormal(); v = 1 + e * x; } while (v <= 0);
+                    do {
+                        x = randNormal();
+                        v = 1 + e * x;
+                    } while (v <= 0);
                     v = v * v * v;
-                    let u = Math.random();
-                    if (u < 1 - 0.0331 * x * x * x * x || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * c;
+                    const u = Math.random();
+                    if (u < 1 - 0.0331 * (x * x) * (x * x)) {
+                        return d * v * c;
+                    }
+                    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) {
+                        return d * v * c;
+                    }
                 }
             }
 
@@ -626,8 +801,6 @@
                     this.btnReset.onclick = () => this.reset();
 
                     this.resize();
-                    
-                    // Use ResizeObserver for reliable chart resizing
                     this.resizeObserver = new ResizeObserver(() => this.resize());
                     this.resizeObserver.observe(this.canvas.parentElement);
 
@@ -645,15 +818,49 @@
                         this.params.a = parseFloat(inputA.value);
                         this.params.b = parseFloat(inputB.value);
 
-                        inputA.oninput = (e) => { this.params.a = parseFloat(e.target.value); labelA.textContent = this.params.a.toFixed(1); this.reset(); };
-                        inputB.oninput = (e) => { this.params.b = parseFloat(e.target.value); labelB.textContent = this.params.b.toFixed(1); this.reset(); };
+                        inputA.oninput = (e) => {
+                            let val = parseFloat(e.target.value);
+                            if (val >= this.params.b) {
+                                val = Math.max(0, this.params.b - 0.1);
+                                inputA.value = val;
+                            }
+                            this.params.a = val;
+                            labelA.textContent = this.params.a.toFixed(1);
+                            this.reset();
+                        };
+                        inputB.oninput = (e) => {
+                            let val = parseFloat(e.target.value);
+                            if (val <= this.params.a) {
+                                val = this.params.a + 0.1;
+                                inputB.value = val;
+                            }
+                            this.params.b = val;
+                            labelB.textContent = this.params.b.toFixed(1);
+                            this.reset();
+                        };
                     } else if (this.type === 'multinomial') {
-                        const input = stage.querySelector('#kk_multinomial');
-                        const label = stage.querySelector('#v_kk_multinomial');
-                        this.params.kk = parseInt(input.value);
-                        input.oninput = (e) => {
-                            this.params.kk = parseInt(e.target.value);
-                            label.textContent = this.params.kk;
+                        const inputK = stage.querySelector('#kk_multinomial');
+                        const labelK = stage.querySelector('#v_kk_multinomial');
+                        const inputN = stage.querySelector('#nn_multinomial');
+                        const labelN = stage.querySelector('#v_nn_multinomial');
+                        const selectPolicy = stage.querySelector('#policy_multinomial');
+
+                        this.params.kk = parseInt(inputK.value, 10);
+                        this.params.nn = parseInt(inputN.value, 10);
+                        this.params.policy = selectPolicy.value;
+
+                        inputK.oninput = (e) => {
+                            this.params.kk = parseInt(e.target.value, 10);
+                            labelK.textContent = this.params.kk;
+                            this.reset();
+                        };
+                        inputN.oninput = (e) => {
+                            this.params.nn = parseInt(e.target.value, 10);
+                            labelN.textContent = this.params.nn;
+                            this.reset();
+                        };
+                        selectPolicy.onchange = (e) => {
+                            this.params.policy = e.target.value;
                             this.reset();
                         };
                     } else if (this.type === 'dirichlet') {
@@ -679,24 +886,37 @@
                         const inputn = stage.querySelector('#n_hypergeom');
                         const labeln = stage.querySelector('#v_n_hypergeom');
 
-                        this.params.N = parseInt(inputN.value);
-                        this.params.K = parseInt(inputK.value);
-                        this.params.n = parseInt(inputn.value);
+                        this.params.N = parseInt(inputN.value, 10);
+                        this.params.K = parseInt(inputK.value, 10);
+                        this.params.n = parseInt(inputn.value, 10);
 
-                        inputN.oninput = (e) => { this.params.N = parseInt(e.target.value); labelN.textContent = this.params.N; this.reset(); };
-                        inputK.oninput = (e) => { this.params.K = parseInt(e.target.value); labelK.textContent = this.params.K; this.reset(); };
-                        inputn.oninput = (e) => { this.params.n = parseInt(e.target.value); labeln.textContent = this.params.n; this.reset(); };
+                        const syncBounds = () => {
+                            if (this.params.K > this.params.N) {
+                                this.params.K = this.params.N;
+                                inputK.value = this.params.K;
+                                labelK.textContent = this.params.K;
+                            }
+                            if (this.params.n > this.params.N) {
+                                this.params.n = this.params.N;
+                                inputn.value = this.params.n;
+                                labeln.textContent = this.params.n;
+                            }
+                        };
+
+                        inputN.oninput = (e) => { this.params.N = parseInt(e.target.value, 10); labelN.textContent = this.params.N; syncBounds(); this.reset(); };
+                        inputK.oninput = (e) => { this.params.K = parseInt(e.target.value, 10); labelK.textContent = this.params.K; syncBounds(); this.reset(); };
+                        inputn.oninput = (e) => { this.params.n = parseInt(e.target.value, 10); labeln.textContent = this.params.n; syncBounds(); this.reset(); };
                     }
                 }
 
                 resize() {
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = rect.width - 48;
+                    const logicalW = Math.max(260, rect.width - 48);
                     const logicalH = 220;
 
-                    this.canvas.width = logicalW * dpr;
-                    this.canvas.height = logicalH * dpr;
+                    this.canvas.width = Math.round(logicalW * dpr);
+                    this.canvas.height = Math.round(logicalH * dpr);
                     this.canvas.style.width = logicalW + 'px';
                     this.canvas.style.height = logicalH + 'px';
 
@@ -709,30 +929,61 @@
                 }
 
                 generateSample() {
-                    const u = Math.random();
                     if (this.type === 'uniform') {
-                        return this.params.a + u * (this.params.b - this.params.a);
+                        return this.params.a + Math.random() * (this.params.b - this.params.a);
                     } else if (this.type === 'multinomial') {
-                        return Math.floor(u * this.params.kk);
+                        const K = this.params.kk;
+                        const N = this.params.nn;
+                        const policy = this.params.policy;
+                        const serverLoads = new Array(K).fill(0);
+
+                        for (let r = 0; r < N; r++) {
+                            if (policy === 'random') {
+                                const pick = Math.floor(Math.random() * K);
+                                serverLoads[pick]++;
+                            } else if (policy === 'p2c') {
+                                const c1 = Math.floor(Math.random() * K);
+                                let c2 = Math.floor(Math.random() * K);
+                                if (K > 1) {
+                                    while (c2 === c1) c2 = Math.floor(Math.random() * K);
+                                }
+                                if (serverLoads[c1] <= serverLoads[c2]) {
+                                    serverLoads[c1]++;
+                                } else {
+                                    serverLoads[c2]++;
+                                }
+                            }
+                        }
+                        return Math.max(...serverLoads);
                     } else if (this.type === 'dirichlet') {
-                        let g1 = randGamma(this.params.a1, 1), g2 = randGamma(this.params.a2, 1), g3 = randGamma(this.params.a3, 1);
+                        const g1 = randGamma(this.params.a1, 1);
+                        const g2 = randGamma(this.params.a2, 1);
+                        const g3 = randGamma(this.params.a3, 1);
                         return g1 / (g1 + g2 + g3);
                     } else if (this.type === 'hypergeom') {
-                        let pop = [];
-                        for (let i = 0; i < this.params.N; i++) pop.push(i < this.params.K);
-                        let f = 0, idx = [...Array(this.params.N).keys()];
-                        for (let i = 0; i < Math.min(this.params.n, this.params.N); i++) {
-                            let j = Math.floor(u * idx.length);
-                            if (pop[idx[j]]) f++;
-                            idx.splice(j, 1);
+                        let remainingN = this.params.N;
+                        let remainingK = Math.min(this.params.K, remainingN);
+                        const draws = Math.min(this.params.n, remainingN);
+                        let hits = 0;
+
+                        for (let i = 0; i < draws; i++) {
+                            if (Math.random() < (remainingK / remainingN)) {
+                                hits++;
+                                remainingK--;
+                            }
+                            remainingN--;
                         }
-                        return f;
+                        return hits;
                     }
                 }
 
                 getRange() {
                     if (this.type === 'uniform') return [this.params.a, this.params.b];
-                    if (this.type === 'multinomial') return [0, this.params.kk - 1];
+                    if (this.type === 'multinomial') {
+                        const minBound = Math.max(0, Math.floor(this.params.nn / this.params.kk));
+                        const maxObserved = this.samples.length > 0 ? Math.max(...this.samples, Math.ceil((this.params.nn / this.params.kk) * 2.5)) : Math.ceil((this.params.nn / this.params.kk) * 2.5);
+                        return [minBound, maxObserved];
+                    }
                     if (this.type === 'dirichlet') return [0, 1];
                     if (this.type === 'hypergeom') return [0, Math.min(this.params.K, this.params.n)];
                 }
@@ -757,7 +1008,7 @@
                     if (this.type === 'dirichlet') barColor = getCssVar('--good');
                     if (this.type === 'hypergeom') barColor = getCssVar('--bad');
 
-                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    const pad = { l: 45, r: 20, t: 24, b: 30 };
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
@@ -769,44 +1020,49 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    // Calculate Theoretical Mean
-                    let theoreticalMean = null;
+                    let theoreticalRef = null;
                     if (this.type === 'uniform') {
-                        theoreticalMean = (this.params.a + this.params.b) / 2;
+                        theoreticalRef = (this.params.a + this.params.b) / 2;
                     } else if (this.type === 'multinomial') {
-                        theoreticalMean = (this.params.kk - 1) / 2;
+                        theoreticalRef = Math.ceil(this.params.nn / this.params.kk); // Ideal Minimum Floor N/K
                     } else if (this.type === 'dirichlet') {
-                        theoreticalMean = this.params.a1 / (this.params.a1 + this.params.a2 + this.params.a3);
+                        theoreticalRef = this.params.a1 / (this.params.a1 + this.params.a2 + this.params.a3);
                     } else if (this.type === 'hypergeom') {
-                        theoreticalMean = this.params.n * (this.params.K / this.params.N);
+                        const effK = Math.min(this.params.K, this.params.N);
+                        const effN = Math.min(this.params.n, this.params.N);
+                        theoreticalRef = effN * (effK / this.params.N);
                     }
 
-                    if (this.statTheory) {
-                        this.statTheory.textContent = theoreticalMean.toFixed(2);
+                    if (this.statTheory && theoreticalRef !== null) {
+                        this.statTheory.textContent = theoreticalRef.toFixed(2);
                     }
 
                     if (this.samples.length === 0) {
                         ctx.fillStyle = labelColor;
                         ctx.font = '12px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        ctx.fillText('Click "Run" or "Step 50" to generate simulation data', W / 2, H / 2);
                         this.statN.textContent = '0';
                         this.statMean.textContent = '–';
                         return;
                     }
 
                     const [rmin, rmax] = this.getRange();
-                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
-                    const binWidth = (rmax - rmin) / bins;
+                    const discrete = this.isDiscrete();
+                    const bins = discrete ? Math.max(1, (rmax - rmin + 1)) : 50;
+                    const domainSpan = discrete ? bins : Math.max(1e-6, rmax - rmin);
                     const counts = new Array(bins).fill(0);
                     let sum = 0;
 
                     this.samples.forEach(v => {
                         sum += v;
-                        if (v >= rmin && v <= rmax) {
-                            let idx = Math.floor((v - rmin) / binWidth);
+                        if (discrete) {
+                            const idx = Math.round(v - rmin);
+                            if (idx >= 0 && idx < bins) counts[idx]++;
+                        } else if (v >= rmin && v <= rmax) {
+                            let idx = Math.floor(((v - rmin) / domainSpan) * bins);
                             if (idx >= bins) idx = bins - 1;
-                            counts[idx]++;
+                            if (idx >= 0) counts[idx]++;
                         }
                     });
 
@@ -816,14 +1072,21 @@
 
                     ctx.fillStyle = barColor;
                     counts.forEach((c, i) => {
-                        const h = (c / maxCount) * plotH * 0.9;
+                        const h = (c / maxCount) * plotH * 0.88;
                         const x = pad.l + (i * bw);
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
-                    // Draw Observed Mean Line
+                    const valToX = (val) => {
+                        if (discrete) {
+                            return pad.l + ((val - rmin + 0.5) / bins) * plotW;
+                        }
+                        return pad.l + ((val - rmin) / domainSpan) * plotW;
+                    };
+
+                    // Draw Observed Mean
                     if (mean >= rmin && mean <= rmax) {
-                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
+                        const meanX = valToX(mean);
                         ctx.beginPath();
                         ctx.strokeStyle = getCssVar('--bad');
                         ctx.lineWidth = 2;
@@ -834,27 +1097,25 @@
                         ctx.fillStyle = getCssVar('--bad');
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
+                        ctx.fillText('OBSERVED', meanX, pad.t - 6);
                     }
 
-                    // Draw Expected Mean Line
-                    if (theoreticalMean !== null && isFinite(theoreticalMean)) {
-                        const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
-                        if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
-                            ctx.beginPath();
-                            ctx.strokeStyle = getCssVar('--amber');
-                            ctx.lineWidth = 1.5;
-                            ctx.setLineDash([4, 4]);
-                            ctx.moveTo(expX, pad.t);
-                            ctx.lineTo(expX, H - pad.b);
-                            ctx.stroke();
-                            ctx.setLineDash([]);
+                    // Draw Reference Mean
+                    if (theoreticalRef !== null && isFinite(theoreticalRef) && theoreticalRef >= rmin && theoreticalRef <= rmax) {
+                        const expX = valToX(theoreticalRef);
+                        ctx.beginPath();
+                        ctx.strokeStyle = getCssVar('--amber');
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.moveTo(expX, pad.t);
+                        ctx.lineTo(expX, H - pad.b);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
 
-                            ctx.fillStyle = getCssVar('--amber');
-                            ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-                            ctx.textAlign = 'center';
-                            ctx.fillText('EXPECTED', expX, pad.t - 5);
-                        }
+                        ctx.fillStyle = getCssVar('--amber');
+                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(this.type === 'multinomial' ? 'MIN FLOOR' : 'EXPECTED', expX, H - pad.b + 16);
                     }
 
                     this.statN.textContent = this.samples.length;
@@ -879,7 +1140,6 @@
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    // Keep the latest observations so continuous runs stay responsive.
                     const maxSamples = 5000;
                     if (this.samples.length > maxSamples) {
                         this.samples.splice(0, this.samples.length - maxSamples);

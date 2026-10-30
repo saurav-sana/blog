@@ -16,10 +16,10 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 4: Aggregation and the Extreme Tail | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 4: Aggregation and the Extreme Tail | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="The Flaw of Averages, Compounding Latency, and Extreme Value Theory. Why your p99 latency is guaranteed to ruin your user's day.">
+    <meta name="description" content="A practical guide to fan-out latency, Normal and Log-Normal models, sampling uncertainty, dependence, and Extreme Value Theory for distributed systems.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-4-aggregation-and-the-extreme-tail.html">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-4-aggregation-and-the-extreme-tail.html">
 
     <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
     <script>
@@ -40,10 +40,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 
     <style>
         /* =======================================================================
-           SERIES-ALIGNED STYLES & LAYOUT
+            SERIES-ALIGNED STYLES & LAYOUT
            ======================================================================= */
 
         /* --- Page Adjustments --- */
@@ -82,8 +83,8 @@
         .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
         .tldr-content li { margin-bottom: 0.4rem; }
 
-        /* --- Math Block --- */
-        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
+        /* --- Math Block (Transparent background styling) --- */
+        .math-block { background: transparent; border: none; padding: 0.75rem 0; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.2rem; color: var(--text); margin: 1.2rem 0; overflow-x: auto; }
         .math-block var { font-style: italic; color: var(--amber); }
         
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
@@ -140,12 +141,42 @@
         html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
 
+        /* --- Revised article additions --- */
+        main a { color: var(--teal); }
+        main ul, main ol { padding-left: 1.5rem; }
+        main li { margin-bottom: 0.45rem; }
+        .param-group label { color: var(--muted); line-height: 1.5; }
+        .param-group label span { color: var(--text); font-weight: 600; }
+        .math-block { line-height: 1.7; }
+        .math-explanation ul { margin-top: 0.5rem; }
+        .scenario-card a, main > ul a { overflow-wrap: anywhere; }
+        .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25rem 0; }
+        @media (max-width: 650px) {
+            .series-heading-row h1 { font-size: 1.65rem; }
+            .math-block { text-align: left; font-size: 1rem; padding: 1rem; }
+            .readout { font-size: 0.72rem; }
+        }
+
         @media (max-width: 650px) {
             .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
         }
+    
+        .workbench-card { margin: 1.5rem 0; }
+        .wb-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem 1.25rem; margin:1rem 0; }
+        .wb-grid .param-group { min-width:0; }
+        .wb-grid label { display:block; margin-bottom:.35rem; }
+        .wb-grid input[type="range"] { width:100%; }
+        .workbench-canvas { display:block; width:100%; height:260px; margin:1rem 0; }
+        .wb-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.7rem; margin:1rem 0; }
+        .wb-stat { border:1px solid var(--border, #777); border-radius:8px; padding:.75rem; min-width:0; overflow-wrap:anywhere; }
+        .wb-stat small { display:block; opacity:.8; margin-bottom:.3rem; }
+        .wb-stat strong { font-family:'IBM Plex Mono',monospace; font-size:1rem; }
+        .wb-warning { border-left:4px solid var(--bad, #d55); padding:.7rem .9rem; margin:.7rem 0; }
+        .wb-ok { border-left:4px solid var(--good, #39865d); padding:.7rem .9rem; margin:.7rem 0; }
+        @media (max-width:640px) { .wb-grid { grid-template-columns:1fr; } .workbench-canvas { height:230px; } }
     </style>
 </head>
 <body>
@@ -189,241 +220,425 @@
             <div class="series-heading-row">
                 <h1>Aggregation and the Extreme Tail</h1>
             </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">October 31, 2026 · Part 4 of 8</div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">October 29, 2026 · Part 4 of 8</div>
 
             <blockquote class="snarky-quote">
-                <p class="snarky-quote-text">“When a single page load requires 50 microservices, your p99 is now your p50.”</p>
-                <p class="snarky-quote-author">— <strong><em>Jeff Dean & Luiz André Barroso</em></strong>, "The Tail at Scale"</p>
+                <p class="snarky-quote-text">“At scale, the slowest component can become the component that defines the whole experience.”</p>
+                <p class="snarky-quote-author">— A practical lesson from <strong><em>The Tail at Scale</em></strong></p>
             </blockquote>
 
-            <p>Synchronous microservice fan-out is a fun game where your API has to wait for 150 independent microservices, and if even one of them decides to take a coffee break, your user stares at a blank screen.</p>
+            <p>Your homepage asks 100 services for help. Ninety-nine reply quickly. One takes a scenic route through a queue, a cold cache, and possibly a small existential crisis. If the page must wait for all 100, that one request can decide how fast the whole page feels.</p>
 
-            <p>The <strong>Normal (Gaussian)</strong> curve is what you learned in high school stats. <strong>Log-Normal</strong> is what your latency actually looks like (heavily right-skewed). And <strong>Order Statistics</strong> dictates the terrifying math of the "Fan-Out Tax."</p>
+<p>This is the aggregation problem: <strong>a system can look healthy one component at a time and still feel slow end to end.</strong> The math is not a prophecy. It depends on the request deadline, the shape of each latency distribution, the relationship between dependencies, and whether the caller can tolerate partial results.</p>
+
+<h2>Prologue: The Architecture Review Where Averages Lied</h2>
+
+<p>Every distributed-systems post-mortem eventually arrives at the same awkward slide: the dashboard where every microservice shows a green 99% SLA, next to the incident timeline where the checkout API breached its deadline for forty minutes straight.</p>
+
+<p>When you move from a monolith to a distributed architecture, you stop reasoning about one random variable and start reasoning about aggregation. You sum latencies across sequential proxy hops, take the maximum latency across parallel fan-out calls, and mix fast cache hits with slow database fallbacks.</p>
+
+<p>Most teams reason about these systems using intuition trained on symmetric bell curves and sample averages. That intuition breaks at scale—not because standard statistics are wrong, but because engineers often apply the wrong statistical operator to the physical mechanism happening on the wire.</p>
+
+<div class="tldr-box tldr-box--math">
+    <div class="tldr-eyebrow">The central thread</div>
+    <div class="tldr-content">
+        <p><strong>What physical mechanism creates the observed data, what mathematical model captures it, how uncertain is that model, and what production control follows from the result?</strong></p>
+    </div>
+</div>
+
+<h2>Production workflow: from probability to protection</h2>
+
+<p>Probability models are useful only when they lead to defensible engineering controls. Throughout this guide, use the following six-step workflow:</p>
+
+<ol>
+    <li><strong>Observe:</strong> collect representative distributed traces, unaggregated histograms, error counts, and saturation metrics.</li>
+    <li><strong>Explain the mechanism:</strong> identify sequential accumulation, parallel fan-out, cache/fallback mixtures, resource contention, or shared bottlenecks.</li>
+    <li><strong>Choose a candidate model:</strong> select Order Statistics, Normal, Student's <em>t</em>-inference, Log-Normal, Mixture, or Extreme Value Theory based on the mechanism.</li>
+    <li><strong>Fit and validate:</strong> compare fitted quantiles with empirical quantiles, inspect residuals, and quantify parameter uncertainty.</li>
+    <li><strong>Make an engineering decision:</strong> translate the validated model into deadlines, duplicate-work budgets, canary gates, or queue bounds.</li>
+    <li><strong>Verify in production:</strong> compare predictions against live telemetry, chaos experiments, and workload shifts.</li>
+</ol>
+
+<div class="tldr-box">
+    <div class="tldr-eyebrow">The short version</div>
+    <div class="tldr-content">
+        <ul>
+            <li><strong>Order statistics</strong> explain why waiting for many services magnifies tail latency.</li>
+            <li><strong>Normal, Student's t, and Log-Normal</strong> answer different questions. None is a universal latency distribution.</li>
+            <li><strong>Mixtures and dependence</strong> matter: slow paths and shared dependencies can hide behind a friendly average.</li>
+            <li><strong>Extreme Value Theory</strong> can estimate rare-tail behavior, but far-tail extrapolation remains uncertain.</li>
+            <li><strong>Models inform controls; they do not replace them.</strong> Deadlines, bounded queues, isolation, admission control, and careful hedging still do the heavy lifting.</li>
+        </ul>
+    </div>
+</div>
+
+<h2>1. Order Statistics and the Fan-Out Tax</h2>
+
+<h3>The physical mechanism: waiting for the slowest sibling</h3>
+
+<p>When an API gateway or aggregator fans out a request to <var>n</var> downstream services in parallel and waits for all of them before rendering a response, end-to-end latency is not the average of the downstream services. It is the maximum:</p>
+
+<div class="math-block">\(T_{\text{total}} = \max(T_1, T_2, \dots, T_n)\)</div>
+
+<p>In probability theory, the distribution of the maximum is governed by <strong>order statistics</strong>. Even if every individual service is well behaved, taking the maximum across dozens of concurrent calls systematically pushes the aggregate system into the extreme tail of the individual components.</p>
+
+<h3>Worked walkthrough: the 100-service product dashboard</h3>
+
+<p><strong>Evidence label:</strong> Illustrative engineering model plus documented research from Dean and Barroso, <em>The Tail at Scale</em>.</p>
+
+<p>Suppose an e-commerce product aggregator calls \(n = 100\) independent microservices in parallel. Each service has a 99% probability of responding within 200 ms:</p>
+
+<div class="math-block">\(F(200\text{ ms}) = 0.99\)</div>
+
+<p>Therefore, each service has a 1% probability of exceeding 200 ms.</p>
+
+<h3>Step 1: probability of exceeding the 200 ms mark</h3>
+
+<p>Assuming downstream calls are statistically independent, the probability that all 100 services finish within 200 ms is:</p>
+
+<div class="math-block">\(P(\max(T_1, \dots, T_{100}) \le 200\text{ ms}) = F(200\text{ ms})^{100} = 0.99^{100} \approx 0.3660\)</div>
+
+<p>The complement is the probability that at least one service is slower:</p>
+
+<div class="math-block">\(P(\text{at least one slow}) = 1 - (1 - 0.01)^{100} = 1 - 0.99^{100} \approx 0.6340\)</div>
+
+<div class="tldr-box tldr-box--warning">
+    <div class="tldr-eyebrow">Crucial engineering distinction</div>
+    <div class="tldr-content">
+        <p>A 63.4% probability of exceeding 200 ms does <strong>not</strong> automatically mean a 63.4% request failure rate. The user-visible result depends on the end-to-end deadline, how far beyond 200 ms the dependency runs, and whether the product supports graceful degradation.</p>
+    </div>
+</div>
+
+<h3>Step 2: what individual percentile drives the aggregate p99?</h3>
+
+<p>If the aggregate dashboard p99 must stay below 200 ms, set the CDF of the maximum to 0.99:</p>
+
+<div class="math-block">\(F_{\max}(t) = F(t)^n = 0.99\)</div>
+
+<p>For \(n = 100\):</p>
+
+<div class="math-block">\(F(t) = 0.99^{1/100} \approx 0.9998995\)</div>
+
+<p>That is approximately the individual service <strong>p99.99</strong>. When a request waits for 100 independent dependencies, the aggregate p99 is governed by a much more extreme part of each individual distribution.</p>
+
+<h3>Step 3: the independence caveat</h3>
+
+<p>The equation \(F_{\max}(t) = F(t)^n\) assumes strict independence. Production services often share RDS clusters, Redis shards, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
+
+<p>Consequently, \(F(t)^n\) is an optimistic baseline for isolated jitter—not a worst-case bound during shared saturation.</p>
+
+<div class="scenario-card">
+    <div class="scenario-title">Documented case study: hedged requests <span class="scenario-tag">The Tail at Scale</span></div>
+    <p>Dean and Barroso describe a Bigtable experiment retrieving 1,000 keys across 100 servers. Hedging reduced reported p99.9 latency from 1,800 ms to 74 ms with approximately 2% additional requests.</p>
+    <p>This is a reported experiment, not a universal promise. Hedging can improve tail latency while worsening overload if duplicate work is uncontrolled.</p>
+</div>
+
+<h3>Production controls</h3>
+
+<table>
+    <caption>Fan-out controls and guardrails</caption>
+    <thead>
+        <tr>
+            <th scope="col">Control</th>
+            <th scope="col">Implementation mechanics and guardrails</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <th scope="row">Critical-path pruning</th>
+            <td>Remove non-essential synchronous calls from the blocking fan-out. Degrade optional recommendations or badges asynchronously.</td>
+        </tr>
+        <tr>
+            <th scope="row">Deadline propagation</th>
+            <td>Pass remaining time budgets downstream through gRPC or HTTP metadata so stragglers stop work after the caller deadline.</td>
+        </tr>
+        <tr>
+            <th scope="row">Bounded hedging</th>
+            <td>Use hedges only for idempotent reads, trigger after a measured percentile such as p95, cap duplicate traffic with a token bucket, cancel the losing leg, and disable hedging when downstream saturation rises.</td>
+        </tr>
+    </tbody>
+</table>
 
             <div class="tldr-box tldr-box--warning">
-                <div class="tldr-eyebrow">The Fan-Out Tax (Order Statistics)</div>
+                <div class="tldr-eyebrow">The Fan-Out Tax</div>
                 <div class="tldr-content">
-                    <p>If a single microservice has a p99 latency of 200ms, that means 1% of requests take longer than 200ms. But if your homepage calls <strong>100 microservices in parallel</strong>, the probability that <em>at least one</em> of them hits that 1% tail is:</p>
-                    <p style="text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; margin: 1rem 0; color: var(--amber);">
-                        P(at least one slow) = 1 - (0.99)^100 &asymp; 63.4%
-                    </p>
-                    <p>This means <strong>63% of your users will experience tail latency</strong> on every single page load, even though every individual service is "healthy." Synchronous fan-out mathematically guarantees failure.</p>
-                    <p style="margin-top: 0.75rem; font-size: 0.85rem; opacity: 0.8;"><em>(Note: This calculation assumes the 100 service calls are statistically independent. If they share a downstream dependency, the failure rate is even worse.)</em></p>
+                    <p>Assuming independent calls, the probability that all 100 respond within 200 ms is \(0.99^{100}\). So the probability that at least one is slower is:</p>
+                    <p style="text-align:center;font-family:'IBM Plex Mono',monospace;font-size:1.1rem;margin:1rem 0;color:var(--amber);">P(at least one slow) = 1 − (0.99)<sup>100</sup> ≈ 63.4%</p>
+                    <p>That is a <strong>63.4% chance of at least one dependency exceeding 200 ms</strong>—not automatically a 63.4% chance that the page fails. The page's actual outcome depends on its deadline, how slow the dependency becomes, and whether a partial result is acceptable.</p>
+                    <p style="font-size:.88rem;opacity:.9"><em>Assumption check:</em> the calculation assumes independence and identical 99% probabilities. Shared databases, DNS, identity services, networks, or overloaded hosts can make slowdowns correlated.</p>
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- 1. NORMAL DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>1. The Normal Distribution (The Lie)</h2>
+            <h3>Try the fan-out calculator</h3>
+            <p>Change the number of parallel dependencies and the probability that any one dependency is slow. This calculator estimates the chance of at least one slow dependency under the independence assumption.</p>
+            <div class="stage" id="fanout-calculator">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <label for="fanout_n">Parallel dependencies: <span id="fanout_n_value">100</span></label>
+                            <input type="range" id="fanout_n" min="1" max="200" step="1" value="100">
+                        </div>
+                        <div class="param-group">
+                            <label for="fanout_p">Slow probability per call: <span id="fanout_p_value">1.0%</span></label>
+                            <input type="range" id="fanout_p" min="0.1" max="10" step="0.1" value="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="readout" aria-live="polite">
+                    <div>At least one slow: <span id="fanout_result">63.4%</span></div>
+                    <div>All calls on time: <span id="fanout_all">36.6%</span></div>
+                </div>
+                <p class="math-explanation">This is a probability of crossing an individual-call threshold somewhere in the fan-out. It is not the end-to-end timeout probability unless the chosen threshold and request deadline make those equivalent.</p>
+            </div>
 
+            <h3>The aggregate percentile is more surprising</h3>
+            <p>If \(F(t)\) is the latency CDF for one dependency and the calls are independent, then the maximum latency across \(n\) dependencies has CDF:</p>
+            <div class="math-block">\(P(\max(T_1, \dots, T_n) \le t) = F(t)^n\)</div>
+            <p>For the aggregate p99 with 100 identical independent dependencies, solve \(F(t)^{100}=0.99\):</p>
+            <div class="math-block">\(F(t) = 0.99^{1/100} \approx 0.9998995\)</div>
+            <p>So the individual dependency percentile to investigate is approximately <strong>p99.99</strong>. This does not mean every real architecture needs every dependency to meet a universal p99.99 target. It means that when a request waits for all 100 calls, the tail of the maximum is governed by a much more extreme part of each dependency's distribution.</p>
+
+            <div class="scenario-card">
+                <div class="scenario-title">Case study: the product dashboard <span class="scenario-tag">Illustrative model</span></div>
+                <p><strong>Setup:</strong> a dashboard fetches inventory, pricing, recommendations, permissions, and many other pieces of data in parallel. Some data are essential; other widgets are optional.</p>
+                <p><strong>Model:</strong> 100 independent calls each have a 1% chance of exceeding 200 ms. The chance of at least one crossing that threshold is 63.4%.</p>
+                <p><strong>Architecture response:</strong> remove nonessential calls from the critical path; set an end-to-end deadline and propagate remaining time; bound concurrency and queue length; return partial results where semantics permit; and trace dependency latency alongside the user-visible request.</p>
+                <div class="scenario-ref">Further reading: <a href="https://research.google/pubs/the-tail-at-scale/" target="_blank" rel="noopener noreferrer">Dean &amp; Barroso, “The Tail at Scale”</a></div>
+            </div>
+
+           <h2>2. The Normal Distribution: A Useful Baseline, Not a Villain</h2>
+
+<h3>The physical mechanism: additive noise versus asymmetric reality</h3>
+
+<p>It is fashionable to call the Normal distribution \(\mathcal{N}(\mu,\sigma^2)\) a lie. That is too categorical. The Normal model is appropriate when variation is driven by many small, independent, roughly symmetric perturbations—for example, clock drift, thermal sensor noise, or steady-state instruction jitter on an isolated core.</p>
+
+<p>It is usually a poor model for raw end-to-end latency when queueing delays create strong right skew, execution paths are mixed, or rare stalls dominate the SLO.</p>
+
+<div class="tldr-box tldr-box--math">
+    <div class="tldr-eyebrow">Why negative latency is a weak objection</div>
+    <div class="tldr-content">
+        <p>For \(\mu = 100\text{ ms}\) and \(\sigma = 15\text{ ms}\), zero milliseconds is 6.67 standard deviations below the mean:</p>
+        <div class="math-block">\(P(T < 0) \approx 1.3 \times 10^{-11}\)</div>
+        <p>The more important failure is usually the right tail. A Normal tail decays like \(\exp(-x^2/2)\), so it can badly understate queueing stalls and modal execution paths even when its impossible negative mass is negligible.</p>
+    </div>
+</div>
+
+<h3>Worked walkthrough: detecting a post-deployment tail regression</h3>
+
+<p><strong>Evidence label:</strong> Illustrative engineering model based on post-deployment telemetry analysis.</p>
+
+<p>Suppose a checkout validation service historically has:</p>
+
+<div class="math-block">\(T \sim \mathcal{N}(100,15^2)\text{ ms}\)</div>
+
+<table>
+    <caption>Normal baseline versus post-deployment observations</caption>
+    <thead>
+        <tr>
+            <th scope="col">Percentile</th>
+            <th scope="col">z-score</th>
+            <th scope="col">Normal prediction</th>
+            <th scope="col">Observed</th>
+            <th scope="col">Residual</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><th scope="row">p50</th><td>0.000</td><td>100.0 ms</td><td>100.5 ms</td><td>+0.5 ms</td></tr>
+        <tr><th scope="row">p95</th><td>1.645</td><td>124.7 ms</td><td>126.0 ms</td><td>+1.3 ms</td></tr>
+        <tr><th scope="row">p99</th><td>2.326</td><td>134.9 ms</td><td>142.0 ms</td><td>+7.1 ms</td></tr>
+        <tr><th scope="row">p99.9</th><td>3.090</td><td>146.4 ms</td><td>800.0 ms</td><td>+653.6 ms</td></tr>
+    </tbody>
+</table>
+
+<p>An overall mean of 103.5 ms can look healthy while p99.9 rises to 800 ms. The large residual is evidence that the system is no longer a single unimodal process with symmetric jitter. In this example, 0.5% of requests from enterprise tenants with legacy tokens enter an unindexed synchronous permission fallback path.</p>
+
+<h3>Production controls</h3>
+
+<ul>
+    <li><strong>Store mergeable histograms:</strong> use DDSketch, HDRHistogram, or Prometheus native histograms instead of aggregating latency into averages.</li>
+    <li><strong>Segment execution paths:</strong> break down telemetry by cache hit, tenant tier, region, deployment, and fallback branch.</li>
+    <li><strong>Investigate p99+ residuals:</strong> a large p99.9 residual often indicates an unsegmented mixture rather than an incorrect Normal calculation.</li>
+</ul>
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Bell Curve Comfort Blanket</div>
+                <div class="tldr-eyebrow">The intuition: the bell curve</div>
                 <div class="tldr-content">
-                    <p>We love the Normal distribution because it's symmetric. It has a nice bell shape where the mean, median, and mode are all the same. It feels safe. If your latency follows a Normal curve, then 99.7% of requests fall within 3 standard deviations of the mean.</p>
-                    <p>But latency is <strong>not</strong> normal. A Normal distribution has a left tail that goes into negative numbers (you cannot have -5ms latency). More importantly, a Normal distribution is additive. In the real world, latency is multiplicative—a slow database makes the cache miss slower, which makes the retry slower.</p>
+                    <p>The Normal distribution is symmetric. Its mean, median, and mode coincide, and about 99.7% of its probability lies within three standard deviations of the mean.</p>
+                    <p>It can be useful for measurement noise and some aggregate effects. It is often a poor model for raw request latency when the data are strongly skewed, contain multiple execution paths, or have rare stalls. Negative latency is a reason to check the model's suitability—not, by itself, proof that the model is useless.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for a Normal distribution, defined by mean <var>&mu;</var> and standard deviation <var>&sigma;</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = (1 / (<var>&sigma;</var> &middot; &radic;(2&pi;))) &middot; <var>e</var><sup>-(<var>x</var> - <var>&mu;</var>)<sup>2</sup> / (2<var>&sigma;</var><sup>2</sup>)</sup>
-            </div>
-            
+            <h3>The math</h3>
+            <p>A Normal distribution is described by its mean \(\mu\) and standard deviation \(\sigma\):</p>
+            <div class="math-block">\(f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{(x-\mu)^2}{2\sigma^2}}\)</div>
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
+                <strong>In plain English:</strong>
                 <ul>
-                    <li><strong><var>&mu;</var> (Mu):</strong> The mean (average) latency.</li>
-                    <li><strong><var>&sigma;</var> (Sigma):</strong> The standard deviation. How spread out the data is.</li>
-                    <li><strong><var>x</var>:</strong> A specific latency value you are measuring.</li>
+                    <li><strong>\(\mu\) (mu):</strong> the population mean.</li>
+                    <li><strong>\(\sigma\) (sigma):</strong> the population standard deviation.</li>
+                    <li><strong>\(x\):</strong> a value on the modeled scale.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your mean latency is 100ms (<var>&mu;</var>=100) and standard deviation is 15ms (<var>&sigma;</var>=15), then 68% of requests will fall between 85ms and 115ms. 95% will fall between 70ms and 130ms. It looks perfectly clean—until you realize it doesn't model reality.</p>
+                <p><strong>Worked example:</strong> suppose latency is modeled as \(\mathcal{N}(100, 15^2)\) ms. The approximate p95 is 124.7 ms, p99 is 134.9 ms, and p99.9 is 146.4 ms. These are model predictions, not facts about production. If real p99.9 is 800 ms, the fit misses an important part of the system.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The SRE trap</div>
                 <div class="tldr-content">
-                    <p>If you use the Normal distribution to model latency, you will drastically underestimate the p99 and completely ignore the p99.9. The Normal curve shrinks rapidly at the edges. Real-world latency is "fat-tailed"—it refuses to go to zero as fast as the Normal curve predicts.</p>
+                    <p>Do not reject a Normal model just because latency cannot be negative; check how much probability it assigns to impossible values and, more importantly, whether its predictions match the observed distribution where your SLO lives. Compare empirical quantiles with model quantiles, especially p95, p99, and p99.9.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive simulation</h3>
+            <p>Generate samples and compare the observed mean with the model's expected mean. This histogram is a teaching aid; it is not a goodness-of-fit test and does not show tail quantiles.</p>
             <div class="stage" data-sim-type="normal">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Mean (μ): <span id="v_mu_normal">0.0</span></div>
+                            <label for="mu_normal">Mean (\(\mu\)): <span id="v_mu_normal">0.0</span></label>
                             <input type="range" id="mu_normal" aria-label="Normal distribution mean mu" min="-5" max="5" step="0.1" value="0">
                         </div>
                         <div class="param-group">
-                            <div>Std Dev (σ): <span id="v_sig_normal">1.0</span></div>
+                            <label for="sig_normal">Std Dev (\(\sigma\)): <span id="v_sig_normal">1.0</span></label>
                             <input type="range" id="sig_normal" aria-label="Normal distribution standard deviation sigma" min="0.2" max="4.0" step="0.1" value="1.0">
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button class="sim-btn btn-run" type="button">▶ Run</button>
+                        <button class="sim-btn secondary btn-step" type="button">Step 50</button>
+                        <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated normal distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean (μ): <span class="stat-theory">–</span></div>
+                    <div>Expected Mean (\(\mu\)): <span class="stat-theory">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Average Dashboard" <span class="scenario-tag">Grafana Lie</span></div>
-                <p>Your dashboard shows an average latency of 45ms. Management is thrilled. But the average masks the 1% of users hitting a 10-second timeout. You cannot fix what you are averaging away.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.youtube.com/watch?v=lJ8ydIuPFeU" target="_blank">Gil Tene, "How NOT to Measure Latency"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Central Limit Theorem" Fallacy <span class="scenario-tag">Aggregation Error</span></div>
-                <p>We are taught that if you sum enough independent variables, they become Normal. But latency is often a product (multiplicative), not a sum. When you multiply independent variables, you get a Log-Normal distribution, not a Gaussian.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Log-normal_distribution" target="_blank">Limitations of the Central Limit Theorem</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Gaussian Copula" <span class="scenario-tag">2008 Financial Crisis</span></div>
-                <p>Wall Street used the Normal distribution (Gaussian Copula) to model the risk of mortgage-backed securities. They assumed the tails were thin. They were wrong. The "impossible" 10-sigma event happened, and the market collapsed. The same happens to your database.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.fooledbyrandomness.com/" target="_blank">Nassim Nicholas Taleb, "The Black Swan"</a></div>
+                <div class="scenario-title">Case study: the average dashboard <span class="scenario-tag">Telemetry</span></div>
+                <p>A dashboard reports 45 ms average latency. That number can coexist with a small group of requests timing out. A mean is not a percentile, and neither alone tells you which execution path is slow.</p>
+                <p><strong>Controls:</strong> publish latency histograms and percentiles; break down by endpoint, tenant, cache outcome, deployment, and retry path; and alert on SLO burn and deadline misses rather than averages alone.</p>
+                <div class="scenario-ref">Further reading: <a href="https://www.youtube.com/watch?v=lJ8ydIuPFeU" target="_blank" rel="noopener noreferrer">Gil Tene, “How NOT to Measure Latency”</a></div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- 2. STUDENT'S T DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>2. Student's t-Distribution (Small Samples)</h2>
+            <h2>3. Student's t: uncertainty about the mean</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The "My Load Test Said It Was Fine"</div>
+                <div class="tldr-eyebrow">The intuition: “my load test said it was fine”</div>
                 <div class="tldr-content">
-                    <p>You run a 5-minute load test with 100 requests. You get a mean latency of 50ms. You confidently claim your system is fast. Then you go to production and the p99 is 900ms.</p>
-                    <p>The Student's t-distribution is what you use when you have a <strong>small sample size</strong>. It looks like a Normal curve, but it has "fatter tails." It mathematically punishes you for not having enough data by widening the confidence interval. The fewer data points you have, the fatter the tails become.</p>
+                    <p>You run a short benchmark and measure a mean of 50 ms. How certain are you that the underlying mean is near 50 ms? With a small sample, the answer may be “not very.” Student's t helps quantify uncertainty in a sample mean under suitable assumptions.</p>
+                    <p><strong>Important distinction:</strong> the t-distribution is not automatically a model for individual request latency, and a confidence interval for a mean is not a p99 estimate.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for Student's t-distribution, dependent on the degrees of freedom <var>&nu;</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>t</var>) = (&Gamma;((<var>&nu;</var>+1)/2) / (&radic;(<var>&nu;&pi;</var>) &middot; &Gamma;(<var>&nu;</var>/2))) &middot; (1 + <var>t</var><sup>2</sup>/<var>&nu;</var>)<sup>-(<var>&nu;</var>+1)/2</sup>
-            </div>
-            
+            <h3>The math</h3>
+            <p>For independent observations from a Normal population with unknown variance, a confidence interval for the population mean is:</p>
+            <div class="math-block">\(\bar{x} \pm t_{1-\alpha/2, n-1} \cdot \frac{s}{\sqrt{n}}\)</div>
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>&nu;</var> (Nu):</strong> The degrees of freedom. Typically <var>n</var> - 1, where <var>n</var> is your sample size. The larger <var>&nu;</var> is, the more it looks like a Normal distribution.</li>
-                    <li><strong>&Gamma; (Gamma):</strong> The Gamma function, which is the continuous extension of the factorial function.</li>
-                    <li><strong><var>t</var>:</strong> The t-score, which is (sample mean - true mean) / (sample std dev / &radic;<var>n</var>).</li>
+                    <li><strong>\(\bar{x}\):</strong> observed sample mean.</li>
+                    <li><strong>\(s\):</strong> sample standard deviation.</li>
+                    <li><strong>\(n\):</strong> sample size.</li>
+                    <li><strong>\(t\):</strong> the critical value determined by the confidence level and degrees of freedom.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If you measure 10 requests (<var>&nu;</var> = 9), the t-distribution has much fatter tails than the Normal. The 95th percentile is roughly 2.26 standard deviations away from the mean, whereas the Normal distribution's 95th percentile is only 1.96 standard deviations away.</p>
+                <p><strong>Worked example:</strong> 10 independent benchmark observations have a mean of 50 ms and sample standard deviation of 20 ms. With 9 degrees of freedom, the 95% critical value is about 2.262:</p>
+                <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx [35.7, 64.3]\) ms</p>
+                <p>This interval describes uncertainty about the population mean under the assumptions. It does <strong>not</strong> mean 95% of requests fall between 35.7 and 64.3 ms.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The SRE trap</div>
                 <div class="tldr-content">
-                    <p>Load tests are almost always underpowered. A 5-minute test with 1,000 requests tells you almost nothing about the p99.9 latency of a 24-hour production workload. Student's t reminds you that your sample mean is just a guess, and the tail is much wider than you think.</p>
+                    <p>A thousand requests may be plenty for one question and inadequate for another. Estimating the mean is different from estimating p99.9. If requests are autocorrelated or share the same load-test conditions, treating every request as an independent observation can make uncertainty look smaller than it really is.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive simulation</h3>
+            <p>This simulator draws from a Student's t distribution. Its purpose is to show how the distribution's shape changes with degrees of freedom—not to simulate a production latency distribution or calculate a confidence interval.</p>
             <div class="stage" data-sim-type="studentt">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Degrees of Freedom: <span id="v_df_studentt">4</span></div>
-                            <input type="range" id="df_studentt" aria-label="Student t degrees of freedom" min="1" max="60" step="1" value="4">
+                            <label for="df_studentt">Degrees of freedom: <span id="v_df_studentt">4</span></label>
+                            <input type="range" id="df_studentt" aria-label="Student t degrees of freedom" min="2" max="60" step="1" value="4">
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button class="sim-btn btn-run" type="button">▶ Run</button>
+                        <button class="sim-btn secondary btn-step" type="button">Step 50</button>
+                        <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated student t distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Student t distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean (0): <span class="stat-theory">0.00</span></div>
+                    <div>Expected Mean: <span class="stat-theory">0.00</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "A/B Test Illusion" <span class="scenario-tag">Optimizely / Growth</span></div>
-                <p>Your A/B test shows a 2% conversion uplift after 3 days. You ship it. Two weeks later, the lift disappears. You didn't have enough data; you were fooled by the wide tails of the t-distribution.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.evanmiller.org/how-not-to-run-an-ab-test.html" target="_blank">Evan Miller, "How Not to Run an A/B Test"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Canary Release" <span class="scenario-tag">Kubernetes / Spinnaker</span></div>
-                <p>You roll out a canary to 1% of traffic. After 100 requests, you check the error rate and see zero errors. You roll out to 100%. Immediately, the error rate spikes to 5%. 100 requests was too small a sample to capture the rare failure modes.</p>
-                <div class="scenario-ref">Reference: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank">Netflix, "Automated Canary Analysis"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Small Cohort" <span class="scenario-tag">SaaS Metrics</span></div>
-                <p>You launch a new feature to 50 enterprise customers. The average satisfaction is great. But the variance is huge. The t-distribution explicitly models that uncertainty, preventing you from over-generalizing.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Student%27s_t-distribution" target="_blank">Student's t-distribution (Gosset's Guinness work)</a></div>
+                <div class="scenario-title">Case study: a canary with zero observed errors <span class="scenario-tag">Small sample</span></div>
+                <p>A canary receives 100 independent requests and records zero errors. The “rule of three” gives an approximate 95% upper bound of 3% on the true error probability. Zero observed errors is not proof of zero risk.</p>
+                <p>If the true error rate is 1%, the chance of seeing zero errors in 100 requests is \(0.99^{100} \approx 36.6\%\). So this tiny canary has a substantial chance of missing a 1% regression.</p>
+                <p><strong>Controls:</strong> choose sample sizes around the smallest harmful regression; exercise representative request paths and tenants; compare latency and error metrics; and use rollout gates that account for repeated looks at the data.</p>
+                <div class="scenario-ref">Further reading: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank" rel="noopener noreferrer">Netflix, “Automated Canary Analysis”</a></div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- 3. LOG-NORMAL DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>3. The Log-Normal Distribution (The Reality)</h2>
+            <h2>4. Log-Normal: a candidate model for positive, skewed data</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Multiplicative Tax</div>
+                <div class="tldr-eyebrow">The intuition: a long right tail</div>
                 <div class="tldr-content">
-                    <p>Latency isn't a sum of delays; it's a product of them. A database query takes 2x longer because of a missing index. The network retry adds 1.5x. The CPU context switch adds 1.2x. When you <strong>multiply</strong> random variables, you get a Log-Normal distribution.</p>
-                    <p>This is why latency charts always have a long "tail" stretching off to the right. You cannot have negative latency (so the curve starts at zero), but it can spike to infinity. This is the true shape of your p99, and it is a nightmare.</p>
+                    <p>Many latency measurements are positive and right-skewed: most requests are quick, while a smaller group takes much longer. A Log-Normal distribution is one possible model when the logarithm of the measured variable is approximately Normal.</p>
+                    <p>Be precise about the mechanism. <strong>Sequential stage times add.</strong> Multiplicative factors may affect a stage's duration, and products of suitable positive random factors can motivate a Log-Normal model. That does not mean end-to-end elapsed time is generally the product of its stages.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for a Log-Normal distribution, where the natural logarithm of the variable is normally distributed with parameters <var>&mu;</var> and <var>&sigma;</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = (1 / (<var>x</var><var>&sigma;</var>&radic;(2&pi;))) &middot; <var>e</var><sup>-(ln(<var>x</var>) - <var>&mu;</var>)<sup>2</sup> / (2<var>&sigma;</var><sup>2</sup>)</sup>
-            </div>
-            
+            <h3>The math</h3>
+            <p>If \(\ln X \sim \mathcal{N}(\mu,\sigma^2)\), then \(X\) is Log-Normal and has density:</p>
+            <div class="math-block">\(f(x) = \frac{1}{x\sigma\sqrt{2\pi}} e^{-\frac{(\ln x - \mu)^2}{2\sigma^2}}, \quad x > 0\)</div>
             <div class="math-explanation">
-                <strong>Let's decode this:</strong>
                 <ul>
-                    <li><strong><var>&mu;</var>:</strong> The mean of the <em>logarithm</em> of latency (not the mean latency itself!).</li>
-                    <li><strong><var>&sigma;</var>:</strong> The standard deviation of the <em>logarithm</em> of latency.</li>
-                    <li><strong><var>x</var>:</strong> The actual latency value (always > 0).</li>
+                    <li><strong>\(\mu\):</strong> mean of the natural logarithm of the variable—not the arithmetic mean latency.</li>
+                    <li><strong>\(\sigma\):</strong> standard deviation of that logarithm.</li>
+                    <li><strong>Median:</strong> \(e^\mu\).</li>
+                    <li><strong>Mean:</strong> \(e^{\mu+\sigma^2/2}\).</li>
+                    <li><strong>Percentile:</strong> \(Q_p = e^{\mu+z_p\sigma}\), where \(z_p\) is the Normal quantile.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your log-mean is 0.3 and log-std dev is 0.6 (like the default in the simulator), the actual median latency is <code>e^0.3 ≈ 1.35</code>. But the mean latency is <code>e^(0.3 + 0.6^2/2) ≈ 1.62</code>. Notice how the mean is pulled to the right by the tail? This is why averages are useless for latency.</p>
+                <p><strong>Worked example:</strong> for \(\mu=0.3\) and \(\sigma=0.6\), the median is \(e^{0.3} \approx 1.35\), the mean is \(e^{0.3+0.6^2/2} \approx 1.62\), p99 is approximately 5.43, and p99.9 is approximately 8.55 in the variable's units.</p>
+                <p>Here p99.9 is about 6.34 times the median. A ratio of 10× or 100× is possible for other parameters, but it is not a universal property of Log-Normal data.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The SRE trap</div>
                 <div class="tldr-content">
-                    <p>If you measure p50 and p99 and assume they form a nice Normal curve, you will severely underestimate the p99.9. Log-Normal tails are fat. A p99.9 might be 10x or 100x the p50. You have to capacity plan for that tail, not the average.</p>
+                    <p>Do not pick a Log-Normal curve because it looks familiar. Fit it, compare predicted and empirical quantiles, and inspect the execution paths. A mixture of cache hits and misses, for example, may be better understood as two different populations than as one smooth curve.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive simulation</h3>
+            <p>Move the log-mean and log-standard deviation. Notice how the arithmetic mean moves away from the median as skew increases.</p>
             <div class="stage" data-sim-type="lognormal">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Log-Mean (μ): <span id="v_mu_lognormal">0.3</span></div>
+                            <label for="mu_lognormal">Log-mean (\(\mu\)): <span id="v_mu_lognormal">0.3</span></label>
                             <input type="range" id="mu_lognormal" aria-label="Log-normal distribution log mean mu" min="-1.0" max="2.0" step="0.1" value="0.3">
                         </div>
                         <div class="param-group">
-                            <div>Log-Std Dev (σ): <span id="v_sig_lognormal">0.6</span></div>
+                            <label for="sig_lognormal">Log-std dev (\(\sigma\)): <span id="v_sig_lognormal">0.60</span></label>
                             <input type="range" id="sig_lognormal" aria-label="Log-normal distribution log standard deviation sigma" min="0.1" max="1.5" step="0.05" value="0.6">
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button class="sim-btn btn-run" type="button">▶ Run</button>
+                        <button class="sim-btn secondary btn-step" type="button">Step 50</button>
+                        <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated log-normal distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Log-Normal distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
@@ -431,23 +646,133 @@
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Tail at Scale" <span class="scenario-tag">Jeff Dean / Google</span></div>
-                <p>Google's seminal paper explains that as the number of servers involved in a single request increases, the probability of hitting a slow server approaches 100%. They had to build Hedged Requests (sending a duplicate request if the first is too slow) to fight the Log-Normal tail.</p>
-                <div class="scenario-ref">Reference: <a href="https://research.google/pubs/pub40801/" target="_blank">Dean & Barroso, "The Tail at Scale"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "GC Pause" <span class="scenario-tag">JVM Stop-the-World</span></div>
-                <p>A bimodal mixture. 99% of requests run smoothly in 10ms. 1% get caught in a "Stop-The-World" JVM pause, lagging for 200ms+. Fitting a single Gaussian average curve over this data completely obscures the physical reality of the runtime.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.oreilly.com/library/view/java-performance-the/9781449363512/" target="_blank">Scott Oaks, "Java Performance"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Multiplicative Cascade" <span class="scenario-tag">Envoy / Istio</span></div>
-                <p>Every proxy hop adds a small multiplicative delay. By the time a request traverses 5 sidecars, the variance has compounded exponentially. This is why mesh architectures often suffer from terrible p99s despite low p50s.</p>
-                <div class="scenario-ref">Reference: <a href="https://blog.envoyproxy.io/service-mesh-data-plane-vs-control-plane-2774e720f7fc" target="_blank">Envoy Proxy Architecture</a></div>
+            <h2>5. Mixtures: when one curve hides two systems</h2>
+
+            <p>Sometimes the tail is not just “the same thing, but slower.” It is a different execution path: a cache miss, a retry, a cold start, a runtime pause, a lock convoy, or a request routed to a saturated shard. A single average—or a single fitted distribution—can blur the clue.</p>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">A two-path model</div>
+                <div class="tldr-content">
+                    <p>Suppose 99% of requests take 10 ms and 1% take 250 ms:</p>
+                    <p style="text-align:center;font-family:'IBM Plex Mono',monospace">\(\mathbb{E}[T] = 0.99 \times 10 + 0.01 \times 250 = 12.4\) ms</p>
+                    <p>The mean looks healthy, while the rare path is 25 times slower. In this simplified two-point distribution, p99 is 10 ms under the usual lower-quantile definition and p99.9 is 250 ms. The exact percentile boundary depends on the mixture weight and quantile convention.</p>
+                </div>
             </div>
 
+            <h2>6. Hedged requests: speed has a bill</h2>
+
+            <p>Hedging sends a second request when the first has taken longer than a chosen delay. If either result can satisfy the caller, the system may finish sooner. It can be powerful—but duplicate work is not free, and hedging a saturated dependency can make the incident worse.</p>
+
+            <div class="scenario-card">
+                <div class="scenario-title">Documented research: Bigtable tail latency <span class="scenario-tag">The Tail at Scale</span></div>
+                <p>Dean and Barroso describe a Bigtable experiment retrieving 1,000 keys across 100 servers. In that reported experiment, hedging reduced p99.9 latency from 1,800 ms to 74 ms with about 2% additional requests.</p>
+                <p><strong>Calculation:</strong> \((1800-74)/1800 \approx 95.9\%\) reduction in the reported p99.9, or about a 24.3× improvement.</p>
+            </div>
+
+            <h2>7. Dependence and common-cause failures</h2>
+
+            <p>Independence is convenient. Production architecture is often not. Two regions may share an identity provider. Many services may share a database, DNS resolver, network path, control plane, deployment, or resource pool. A shared failure can take several “independent” components down together.</p>
+
+            <h2>8. Extreme Value Theory: looking beyond the data you have</h2>
+
+            <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers tools for studying extremes. One approach, the peaks-over-threshold method, models the amount by which observations exceed a chosen threshold using a Generalized Pareto Distribution (GPD).</p>
+
+            <div class="math-block">\(P(Y > y \mid T > u) = \left(1 + \frac{\xi y}{\beta}\right)^{-1/\xi}, \quad \xi \neq 0\)</div>
+
+            <h2>Interactive workbench: turn the model into a decision</h2>
+            <p>These tools are deliberately split by question. The mixture explorer studies observed latency shape; the canary lab separates uncertainty about a mean from the chance of missing a defect; and the EVT calculator shows how assumptions affect an extreme-tail estimate.</p>
+
+            <div class="scenario-card workbench-card" id="mixture-workbench">
+                <div class="scenario-title">1. Normal vs. slow-path mixture <span class="scenario-tag">Latency diagnostics</span></div>
+                <p>Generate a reproducible synthetic sample containing a fast path and a slower path. The plotted curves compare the empirical CDF with a single Normal model fitted to the sample.</p>
+                <div class="wb-grid">
+                    <div class="param-group"><label for="mix-fast-mean">Fast-path mean (ms): <strong id="mix-fast-mean-v">10</strong></label><input id="mix-fast-mean" type="range" min="5" max="50" step="1" value="10"></div>
+                    <div class="param-group"><label for="mix-fast-sd">Fast-path SD (ms): <strong id="mix-fast-sd-v">2</strong></label><input id="mix-fast-sd" type="range" min="0.5" max="15" step="0.5" value="2"></div>
+                    <div class="param-group"><label for="mix-weight">Slow-path share: <strong id="mix-weight-v">1%</strong></label><input id="mix-weight" type="range" min="0" max="5" step="0.25" value="1"></div>
+                    <div class="param-group"><label for="mix-slow-mean">Slow-path mean (ms): <strong id="mix-slow-mean-v">250</strong></label><input id="mix-slow-mean" type="range" min="50" max="1000" step="10" value="250"></div>
+                    <div class="param-group"><label for="mix-sample-n">Sample size: <strong id="mix-sample-n-v">10,000</strong></label><input id="mix-sample-n" type="range" min="1000" max="20000" step="1000" value="10000"></div>
+                </div>
+                <div class="controls"><button type="button" class="sim-btn btn-run" id="mix-regenerate">↻ Regenerate sample</button></div>
+                <canvas id="mix-cdf" class="sim-canvas workbench-canvas" width="800" height="260" role="img" aria-label="Empirical cumulative distribution compared with a fitted Normal CDF"></canvas>
+                <div class="wb-stats" id="mix-stats" aria-live="polite"></div>
+            </div>
+
+            <div class="scenario-card workbench-card" id="canary-workbench">
+                <div class="scenario-title">2. Benchmark uncertainty and canary gate <span class="scenario-tag">Inference</span></div>
+                <p>Use this lab for two different questions: how uncertain is a benchmark mean, and how likely is an error-free canary to miss a real defect?</p>
+                <div class="wb-grid">
+                    <div class="param-group"><label for="canary-n">Independent canary requests: <strong id="canary-n-v">100</strong></label><input id="canary-n" type="range" min="10" max="10000" step="10" value="100"></div>
+                    <div class="param-group"><label for="canary-p">True error rate: <strong id="canary-p-v">1%</strong></label><input id="canary-p" type="range" min="0.1" max="10" step="0.1" value="1"></div>
+                    <div class="param-group"><label for="bench-n">Benchmark trials: <strong id="bench-n-v">10</strong></label><input id="bench-n" type="range" min="5" max="100" step="1" value="10"></div>
+                    <div class="param-group"><label for="bench-mean">Observed mean (ms): <strong id="bench-mean-v">50</strong></label><input id="bench-mean" type="range" min="10" max="200" step="1" value="50"></div>
+                    <div class="param-group"><label for="bench-sd">Sample SD (ms): <strong id="bench-sd-v">20</strong></label><input id="bench-sd" type="range" min="1" max="60" step="1" value="20"></div>
+                </div>
+                <div class="wb-stats" id="canary-stats" aria-live="polite"></div>
+            </div>
+
+            <div class="scenario-card workbench-card" id="evt-workbench">
+                <div class="scenario-title">3. EVT / GPD tail explorer <span class="scenario-tag">Extrapolation warning</span></div>
+                <p>Estimate a target quantile from a threshold-exceedance model. Change the threshold, observed exceedance rate, scale, and shape.</p>
+                <div class="wb-grid">
+                    <div class="param-group"><label for="evt-u">Threshold u (ms): <strong id="evt-u-v">500</strong></label><input id="evt-u" type="range" min="100" max="2000" step="50" value="500"></div>
+                    <div class="param-group"><label for="evt-rate">Exceedance rate: <strong id="evt-rate-v">0.1%</strong></label><input id="evt-rate" type="range" min="0.01" max="5" step="0.01" value="0.1"></div>
+                    <div class="param-group"><label for="evt-beta">Scale β (ms): <strong id="evt-beta-v">120</strong></label><input id="evt-beta" type="range" min="10" max="500" step="10" value="120"></div>
+                    <div class="param-group"><label for="evt-xi">Shape ξ: <strong id="evt-xi-v">0.25</strong></label><input id="evt-xi" type="range" min="-0.5" max="0.5" step="0.05" value="0.25"></div>
+                    <div class="param-group"><label for="evt-target">Target percentile: <strong id="evt-target-v">p99.99</strong></label><input id="evt-target" type="range" min="99.9" max="99.999" step="0.001" value="99.99"></div>
+                    <div class="param-group"><label for="evt-N">Total observed requests N: <strong id="evt-N-v">10,000,000</strong></label><input id="evt-N" type="range" min="100000" max="50000000" step="100000" value="10000000"></div>
+                </div>
+                <div class="wb-stats" id="evt-stats" aria-live="polite"></div>
+            </div>
+
+            <h2>9. From a distribution to an engineering decision</h2>
+            <p>Here is the workflow I use to keep the math connected to the system. The goal is not to find a distribution that looks clever in a chart. The goal is to make a decision that remains defensible when the workload changes.</p>
+             <h2>Principal Engineer’s Production Modeling Checklist</h2>
+
+<table>
+    <caption>Verification matrix for architecture reviews and SLO decisions</caption>
+    <thead>
+        <tr>
+            <th scope="col">Phase</th>
+            <th scope="col">Verification question</th>
+            <th scope="col">Action if the check fails</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <th scope="row">Mechanism and topology</th>
+            <td>Did we separate sequential sums, parallel maxima, and execution mixtures?</td>
+            <td>Decompose traces into critical-path spans and segment histograms by cache and fallback branch.</td>
+        </tr>
+        <tr>
+            <th scope="row">Independence audit</th>
+            <td>Does the model assume \(P(A \cap B)=P(A)P(B)\) across services or regions?</td>
+            <td>Map shared IdP, DNS, database, network, and control-plane dependencies. Add a common-cause term.</td>
+        </tr>
+        <tr>
+            <th scope="row">Uncertainty and sample size</th>
+            <td>Are we declaring a benchmark win on too few runs or promoting an error-free canary too early?</td>
+            <td>Use t-intervals for means, block bootstrap for percentiles, and \(n \ge 3/p_{\text{tolerable}}\) for zero-error gates.</td>
+        </tr>
+        <tr>
+            <th scope="row">Tail validation</th>
+            <td>Do model p99 and p99.9 predictions match empirical quantiles?</td>
+            <td>Reject a single unimodal fit when residuals diverge. Segment the mixture or fit a GPD above a validated threshold.</td>
+        </tr>
+        <tr>
+            <th scope="row">Operational controls</th>
+            <td>Does every statistical conclusion map to a runtime protection?</td>
+            <td>Pair fan-out with deadlines and bounded hedging; pair heavy tails with queue bounds, admission control, and load shedding.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="tldr-box tldr-box--warning">
+    <div class="tldr-eyebrow">Final engineering rule</div>
+    <div class="tldr-content">
+        <p>A fitted distribution is not a production control. The useful result is the control that follows from the validated model: a deadline, a queue limit, an isolation boundary, a canary sample size, a bounded duplicate-work budget, or a deliberate graceful-degradation policy.</p>
+    </div>
+</div>
+           
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-3-physics-of-time-traffic-and-queues.html">← Part 3: The Physics of Time, Traffic, and Queues</a>
                 <a href="part-5-routing-sharding-and-data-skew.html">Part 5: Routing, Sharding, and Data Skew →</a>
@@ -466,10 +791,45 @@
 
     </div>
 
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderArticleMath()"></script>
+    <script>
+        function renderArticleMath() {
+            if (typeof renderMathInElement !== "function") return;
+            renderMathInElement(document.querySelector("main"), {
+                delimiters: [
+                    {left: "\\[", right: "\\]", display: true},
+                    {left: "\\(", right: "\\)", display: false}
+                ],
+                throwOnError: false
+            });
+        }
+    </script>
+
     <!-- Simulator & Theme Engine -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const canvasToSim = new Map();
+
+            // --- Fan-out calculator ---
+            const fanoutN = document.getElementById('fanout_n');
+            const fanoutP = document.getElementById('fanout_p');
+            function updateFanout() {
+                if (!fanoutN || !fanoutP) return;
+                const n = Number(fanoutN.value);
+                const p = Number(fanoutP.value) / 100;
+                const allOnTime = Math.pow(1 - p, n);
+                const anySlow = 1 - allOnTime;
+                document.getElementById('fanout_n_value').textContent = n;
+                document.getElementById('fanout_p_value').textContent = (p * 100).toFixed(1) + '%';
+                document.getElementById('fanout_result').textContent = (anySlow * 100).toFixed(2) + '%';
+                document.getElementById('fanout_all').textContent = (allOnTime * 100).toFixed(2) + '%';
+            }
+            if (fanoutN && fanoutP) {
+                fanoutN.addEventListener('input', updateFanout);
+                fanoutP.addEventListener('input', updateFanout);
+                updateFanout();
+            }
 
             // --- Theme Toggle Logic ---
             const themeBtn = document.querySelector('.theme-toggle');
@@ -486,7 +846,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
+                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -530,13 +890,12 @@
 
                     this.bindInputs(stageElement);
 
-                    this.btnRun.onclick = () => this.toggleRun();
-                    this.btnStep.onclick = () => this.step(50);
-                    this.btnReset.onclick = () => this.reset();
+                    if (this.btnRun) this.btnRun.onclick = () => this.toggleRun();
+                    if (this.btnStep) this.btnStep.onclick = () => this.step(50);
+                    if (this.btnReset) this.btnReset.onclick = () => this.reset();
 
                     this.resize();
                     
-                    // Use ResizeObserver for reliable chart resizing
                     this.resizeObserver = new ResizeObserver(() => this.resize());
                     this.resizeObserver.observe(this.canvas.parentElement);
 
@@ -551,38 +910,47 @@
                         const inputSig = stage.querySelector('#sig_normal');
                         const labelSig = stage.querySelector('#v_sig_normal');
 
-                        this.params.mu = parseFloat(inputMu.value);
-                        this.params.sig = parseFloat(inputSig.value);
-
-                        inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
-                        inputSig.oninput = (e) => { this.params.sig = parseFloat(e.target.value); labelSig.textContent = this.params.sig.toFixed(1); this.reset(); };
+                        if (inputMu) {
+                            this.params.mu = parseFloat(inputMu.value);
+                            inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); if(labelMu) labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
+                        }
+                        if (inputSig) {
+                            this.params.sig = parseFloat(inputSig.value);
+                            inputSig.oninput = (e) => { this.params.sig = parseFloat(e.target.value); if(labelSig) labelSig.textContent = this.params.sig.toFixed(1); this.reset(); };
+                        }
                     } else if (this.type === 'studentt') {
                         const input = stage.querySelector('#df_studentt');
                         const label = stage.querySelector('#v_df_studentt');
-                        this.params.df = parseInt(input.value);
-                        input.oninput = (e) => {
-                            this.params.df = parseInt(e.target.value);
-                            label.textContent = this.params.df;
-                            this.reset();
-                        };
+                        if (input) {
+                            this.params.df = parseInt(input.value);
+                            input.oninput = (e) => {
+                                this.params.df = parseInt(e.target.value);
+                                if (label) label.textContent = this.params.df;
+                                this.reset();
+                            };
+                        }
                     } else if (this.type === 'lognormal') {
                         const inputMu = stage.querySelector('#mu_lognormal');
                         const labelMu = stage.querySelector('#v_mu_lognormal');
                         const inputSig = stage.querySelector('#sig_lognormal');
                         const labelSig = stage.querySelector('#v_sig_lognormal');
 
-                        this.params.mu = parseFloat(inputMu.value);
-                        this.params.sig = parseFloat(inputSig.value);
-
-                        inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
-                        inputSig.oninput = (e) => { this.params.sig = parseFloat(e.target.value); labelSig.textContent = this.params.sig.toFixed(2); this.reset(); };
+                        if (inputMu) {
+                            this.params.mu = parseFloat(inputMu.value);
+                            inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); if(labelMu) labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
+                        }
+                        if (inputSig) {
+                            this.params.sig = parseFloat(inputSig.value);
+                            inputSig.oninput = (e) => { this.params.sig = parseFloat(e.target.value); if(labelSig) labelSig.textContent = this.params.sig.toFixed(2); this.reset(); };
+                        }
                     }
                 }
 
                 resize() {
+                    if (!this.canvas || !this.canvas.parentElement) return;
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = rect.width - 48;
+                    const logicalW = Math.max(280, rect.width - 48);
                     const logicalH = 220;
 
                     this.canvas.width = logicalW * dpr;
@@ -600,29 +968,25 @@
 
                 generateSample() {
                     if (this.type === 'normal') {
-                        return this.params.mu + this.params.sig * randNormal();
+                        return (this.params.mu || 0) + (this.params.sig || 1) * randNormal();
                     } else if (this.type === 'studentt') {
                         let z = randNormal();
                         let s = 0;
-                        for (let i = 0; i < this.params.df; i++) {
+                        const df = this.params.df || 4;
+                        for (let i = 0; i < df; i++) {
                             let w = randNormal();
                             s += w * w;
                         }
-                        return z / Math.sqrt(s / this.params.df);
+                        return z / Math.sqrt(s / df);
                     } else if (this.type === 'lognormal') {
-                        return Math.exp(this.params.mu + this.params.sig * randNormal());
+                        return Math.exp((this.params.mu || 0.3) + (this.params.sig || 0.6) * randNormal());
                     }
                 }
 
                 getRange() {
-                    if (this.type === 'normal') return [this.params.mu - 4 * this.params.sig, this.params.mu + 4 * this.params.sig];
+                    if (this.type === 'normal') return [(this.params.mu || 0) - 4 * (this.params.sig || 1), (this.params.mu || 0) + 4 * (this.params.sig || 1)];
                     if (this.type === 'studentt') return [-6, 6];
-                    // For lognormal, set a fixed reasonable upper bound to prevent constant axis jumping
-                    if (this.type === 'lognormal') return [0, Math.exp(this.params.mu + 3.5 * this.params.sig)];
-                }
-
-                isDiscrete() {
-                    return false;
+                    if (this.type === 'lognormal') return [0, Math.exp((this.params.mu || 0.3) + 3.5 * (this.params.sig || 0.6))];
                 }
 
                 draw() {
@@ -652,11 +1016,10 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    // Calculate Theoretical Mean
                     let theoreticalMean = 0;
-                    if (this.type === 'normal') theoreticalMean = this.params.mu;
+                    if (this.type === 'normal') theoreticalMean = this.params.mu || 0;
                     if (this.type === 'studentt') theoreticalMean = 0;
-                    if (this.type === 'lognormal') theoreticalMean = Math.exp(this.params.mu + (this.params.sig * this.params.sig) / 2);
+                    if (this.type === 'lognormal') theoreticalMean = Math.exp((this.params.mu || 0.3) + Math.pow(this.params.sig || 0.6, 2) / 2);
                     
                     if (this.statTheory) {
                         this.statTheory.textContent = theoreticalMean.toFixed(2);
@@ -667,8 +1030,8 @@
                         ctx.font = '12px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
                         ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
-                        this.statN.textContent = '0';
-                        this.statMean.textContent = '–';
+                        if (this.statN) this.statN.textContent = '0';
+                        if (this.statMean) this.statMean.textContent = '–';
                         return;
                     }
 
@@ -698,7 +1061,6 @@
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
-                    // Draw Observed Mean Line
                     if (mean >= rmin && mean <= rmax) {
                         const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
                         ctx.beginPath();
@@ -714,7 +1076,6 @@
                         ctx.fillText('OBSERVED', meanX, pad.t - 5);
                     }
 
-                    // Draw Expected Mean Line
                     const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
                     if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
                         ctx.beginPath();
@@ -732,19 +1093,19 @@
                         ctx.fillText('EXPECTED', expX, pad.t - 5);
                     }
 
-                    this.statN.textContent = this.samples.length;
-                    this.statMean.textContent = mean.toFixed(2);
+                    if (this.statN) this.statN.textContent = this.samples.length;
+                    if (this.statMean) this.statMean.textContent = mean.toFixed(2);
                 }
 
                 toggleRun() {
                     if (this.running) {
                         this.running = false;
-                        this.btnRun.textContent = '▶ Run';
+                        if (this.btnRun) this.btnRun.textContent = '▶ Run';
                         clearInterval(this.timer);
                         return;
                     }
                     this.running = true;
-                    this.btnRun.textContent = '⏸ Pause';
+                    if (this.btnRun) this.btnRun.textContent = '⏸ Pause';
                     this.timer = setInterval(() => {
                         this.step(15);
                     }, 50);
@@ -754,7 +1115,6 @@
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    // Keep the latest observations so continuous runs stay responsive.
                     const maxSamples = 5000;
                     if (this.samples.length > maxSamples) {
                         this.samples.splice(0, this.samples.length - maxSamples);
@@ -766,7 +1126,7 @@
                     this.samples = [];
                     if (this.running) {
                         this.running = false;
-                        this.btnRun.textContent = '▶ Run';
+                        if (this.btnRun) this.btnRun.textContent = '▶ Run';
                         clearInterval(this.timer);
                     }
                     this.draw();
@@ -777,6 +1137,137 @@
                 new Simulator(stage);
             });
         });
+    </script>
+
+    <!-- Workbench Interactive Simulators Script -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const $ = id => document.getElementById(id);
+      const fmt = (n, d=2) => Number.isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}) : '—';
+      const pct = (n,d=3) => (100*n).toLocaleString(undefined,{maximumFractionDigits:d}) + '%';
+      
+      function quantile(a,p) { return a[Math.max(0,Math.min(a.length-1,Math.ceil(p*a.length)-1))]; }
+      function updateLabels(pairs) { 
+          pairs.forEach(([id, out, fn]) => { if($(id)&&$(out)) $(out).textContent=fn(Number($(id).value)); }); 
+      }
+
+      function drawCdf(canvas, sample, mean, sd) {
+        if(!canvas) return;
+        const ctx=canvas.getContext('2d'), rect=canvas.getBoundingClientRect();
+        const W=Math.max(320,Math.floor(rect.width||800)), H=260, dpr=window.devicePixelRatio||1;
+        canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);
+        const pad={l:48,r:18,t:18,b:36}, pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+        ctx.clearRect(0,0,W,H);
+        
+        const sorted=sample.slice().sort((a,b)=>a-b);
+        const max=Math.max(30,quantile(sorted,.999)*1.08), min=0;
+        ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--border').trim()||'#888';
+        ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#333';
+        ctx.font='11px sans-serif'; ctx.lineWidth=1;
+        
+        [0,.25,.5,.75,1].forEach(v=>{const y=pad.t+(1-v)*ph;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText(Math.round(v*100)+'%',5,y+4);});
+        [0,.25,.5,.75,1].forEach(v=>{const x=pad.l+v*pw;ctx.fillText(Math.round(max*v),x-8,H-12);});
+        
+        // Empirical CDF
+        ctx.beginPath(); ctx.strokeStyle='#2d9cdb'; ctx.lineWidth=2;
+        sorted.forEach((v,i)=>{const x=pad.l+(Math.min(max,v)/max)*pw,y=pad.t+(1-(i+1)/sorted.length)*ph;if(i===0)ctx.moveTo(pad.l,y);ctx.lineTo(x,y);});
+        ctx.stroke();
+        
+        ctx.fillStyle='#2d9cdb';ctx.fillRect(pad.l,H-26,12,3);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#333';ctx.fillText('Empirical CDF',pad.l+17,H-21);
+      }
+
+      function updateMixture() {
+        if(!$('mix-fast-mean')) return;
+        const fast=+$('mix-fast-mean').value, sd=+$('mix-fast-sd').value, w=+$('mix-weight').value/100, slow=+$('mix-slow-mean').value, n=+$('mix-sample-n').value;
+        updateLabels([['mix-fast-mean','mix-fast-mean-v',v=>v+' ms'],['mix-fast-sd','mix-fast-sd-v',v=>v+' ms'],['mix-weight','mix-weight-v',v=>v+'%'],['mix-slow-mean','mix-slow-mean-v',v=>v+' ms'],['mix-sample-n','mix-sample-n-v',v=>v.toLocaleString()]]);
+        
+        let seed=20261029; const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
+        const gauss=()=>{let u=Math.max(rnd(),1e-12),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+        const sample=[];let sum=0,sum2=0,slowCount=0;
+        
+        for(let i=0;i<n;i++){
+            const isSlow=rnd()<w;
+            if(isSlow) slowCount++;
+            const val=Math.max(0,isSlow?slow+Math.max(1,slow*.1)*gauss():fast+sd*gauss());
+            sample.push(val);
+            sum+=val;
+            sum2+=val*val;
+        }
+        const mean=sum/n, sdev=Math.sqrt(Math.max(0,(sum2-n*mean*mean)/(n-1)));
+        const p50=quantile(sample,.5),p95=quantile(sample,.95),p99=quantile(sample,.99),p999=quantile(sample,.999);
+        const normalQ=p=>mean+(p===.5?0:p===.95?1.644854:p===.99?2.326348:3.090232)*sdev;
+        
+        drawCdf($('mix-cdf'),sample,mean,sdev);
+        $('mix-stats').innerHTML=[
+          ['Sample mean',fmt(mean)+' ms'],['Sample SD',fmt(sdev)+' ms'],['Empirical p50 / p95',fmt(p50)+' / '+fmt(p95)+' ms'],
+          ['Empirical p99 / p99.9',fmt(p99)+' / '+fmt(p999)+' ms'],
+          ['p99.9 residual vs Normal',fmt(p999-normalQ(.999))+' ms'],
+          ['Slow-path observations',slowCount.toLocaleString()+' observed ('+pct(slowCount/n,2)+')']
+        ].map(([a,b])=>'<div class="wb-stat"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
+      }
+
+      const tCritical95 = n => {
+        const table=[[4,2.776],[5,2.571],[6,2.447],[7,2.365],[8,2.306],[9,2.262],[10,2.228],[11,2.201],[14,2.145],[19,2.093],[24,2.064],[29,2.045],[39,2.023],[59,2.001],[99,1.984]];
+        const df=n-1; if(df<=table[0][0])return table[0][1]; if(df>=100)return 1.984;
+        for(let i=1;i<table.length;i++){if(df<=table[i][0]){const [x1,y1]=table[i-1],[x2,y2]=table[i];return y1+(y2-y1)*(df-x1)/(x2-x1);}}
+        return 1.984;
+      };
+
+      function updateCanary() {
+        if(!$('canary-n')) return;
+        updateLabels([['canary-n','canary-n-v',v=>Math.round(v).toLocaleString()],['canary-p','canary-p-v',v=>v+'%'],['bench-n','bench-n-v',v=>v],['bench-mean','bench-mean-v',v=>v+' ms'],['bench-sd','bench-sd-v',v=>v+' ms']]);
+        const n=+$('canary-n').value,p=+$('canary-p').value/100;
+        const exact=1-Math.pow(.05,1/n), rule=3/n, miss=Math.pow(1-p,n);
+        const bn=+$('bench-n').value,bm=+$('bench-mean').value,bs=+$('bench-sd').value,half=tCritical95(bn)*bs/Math.sqrt(bn);
+        
+        $('canary-stats').innerHTML=[
+          ['Chance of zero errors if true rate is '+pct(p,1),pct(miss,4)],
+          ['Exact one-sided 95% upper error bound (0 observed)',pct(exact,4)],
+          ['Rule-of-three approximation',pct(rule,4)],
+          ['Requests needed for ≤0.1% upper bound',Math.ceil(Math.log(.05)/Math.log(1-.001)).toLocaleString()],
+          ['Benchmark mean 95% t interval', '['+fmt(bm-half)+', '+fmt(bm+half)+'] ms'],
+          ['CI half-width', '±'+fmt(half)+' ms']
+        ].map(([a,b])=>'<div class="wb-stat"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
+      }
+
+      function updateEvt() {
+        if(!$('evt-u')) return;
+        updateLabels([['evt-u','evt-u-v',v=>v+' ms'],['evt-rate','evt-rate-v',v=>v+'%'],['evt-beta','evt-beta-v',v=>v+' ms'],['evt-xi','evt-xi-v',v=>v.toFixed(2)],['evt-target','evt-target-v',v=>'p'+v],['evt-N','evt-N-v',v=>Math.round(v).toLocaleString()]]);
+        const u=+$('evt-u').value,q=+$('evt-rate').value/100,beta=+$('evt-beta').value,xi=+$('evt-xi').value,p=+$('evt-target').value/100,N=+$('evt-N').value;
+        let result=NaN, note='',valid=true;
+        
+        if(!(q>0&&q>1-p)){valid=false;note='Target percentile must lie above the threshold percentile (p > 1 − qᵤ).';}
+        else {
+          const ratio=q/(1-p);
+          if(Math.abs(xi)<1e-8) result=u+beta*Math.log(ratio);
+          else {const base=Math.pow(ratio,xi); result=u+(beta/xi)*(base-1);}
+          if(xi<0 && result>=u-beta/xi+1e-7){valid=false;note='Target lies beyond the finite upper endpoint implied by ξ < 0.';}
+          if(valid && result<u){valid=false;note='Invalid quantile: check threshold, exceedance rate, and parameters.';}
+        }
+        
+        const expected=N*q, targetExpected=N*(1-p), extrapRatio=expected>0?expected/Math.max(targetExpected,1e-30):Infinity;
+        const warn=valid && extrapRatio>10;
+        
+        const cards=[
+          ['Estimated target quantile',valid?fmt(result)+' ms':'Not estimable'],
+          ['Expected threshold exceedances',Math.round(expected).toLocaleString()],
+          ['Expected observations beyond target',fmt(targetExpected,1)],
+          ['Tail extrapolation ratio',fmt(extrapRatio,1)+'×']
+        ].map(([a,b])=>'<div class="wb-stat"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
+        
+        $('evt-stats').innerHTML=cards+(valid?(warn?'<div class="wb-warning"><strong>Red flag: extreme extrapolation.</strong> The target is more than 10× rarer than the expected observed tail support. Report parameter uncertainty and threshold sensitivity; do not treat this estimate as an SLA guarantee.</div>':'<div class="wb-ok">The target is within the workbench’s simple support heuristic. This does not prove the model is well fitted.</div>'):'<div class="wb-warning">'+note+'</div>');
+      }
+
+      const mixIds=['mix-fast-mean','mix-fast-sd','mix-weight','mix-slow-mean','mix-sample-n'];
+      mixIds.forEach(id=>{ if($(id)) $(id).addEventListener('input',updateMixture); });
+      if($('mix-regenerate')) $('mix-regenerate').addEventListener('click',updateMixture);
+      
+      ['canary-n','canary-p','bench-n','bench-mean','bench-sd'].forEach(id=>{ if($(id)) $(id).addEventListener('input',updateCanary); });
+      ['evt-u','evt-rate','evt-beta','evt-xi','evt-target','evt-N'].forEach(id=>{ if($(id)) $(id).addEventListener('input',updateEvt); });
+      
+      window.addEventListener('resize',()=>{if($('mix-cdf'))updateMixture();});
+      updateMixture(); updateCanary(); updateEvt();
+    });
     </script>
 </body>
 </html>
