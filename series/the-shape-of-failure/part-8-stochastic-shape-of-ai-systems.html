@@ -3,899 +3,377 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag() { window.dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-MM2SH8Z0L6');
+        function gtag(){window.dataLayer.push(arguments);}
+        gtag('js', new Date()); gtag('config', 'G-MM2SH8Z0L6');
     </script>
-
-    <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 8: The Stochastic Shape of AI Systems | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Token Sampling, Inference Queues, and the Compounding Failure of Agents. How to apply queueing theory and probability to LLM serving and autonomous pipelines.">
+    <meta name="description" content="Token sampling, inference queues, structured outputs, and compounding agent failures. A practical guide to probability and reliability in LLM systems.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-8-stochastic-shape-of-ai-systems.html">
-
-    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-8-stochastic-shape-of-ai-systems.html">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="The Stochastic Shape of AI Systems">
+    <meta property="og:description" content="Token sampling, inference queues, structured outputs, and compounding agent failures.">
+    <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-8-stochastic-shape-of-ai-systems.html">
+    <meta name="twitter:card" content="summary">
     <script>
         (function () {
             try {
-                var root = document.documentElement;
-                var saved = localStorage.getItem('theme');
-                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
-                root.setAttribute('data-theme', initialTheme);
-                root.classList.add(initialTheme, 'theme-' + initialTheme);
-            } catch (e) {}
+                var root=document.documentElement, saved=localStorage.getItem('theme');
+                var light=window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var theme=saved || (light?'light':'dark');
+                root.setAttribute('data-theme',theme); root.classList.add(theme,'theme-'+theme);
+            } catch(e) {}
         })();
     </script>
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
-
     <style>
-        /* =======================================================================
-           SERIES-ALIGNED STYLES & LAYOUT
-           ======================================================================= */
-
-        /* --- Page Adjustments --- */
-        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
-        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
-
-        /* --- Typography & Elements --- */
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
-        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
-        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
-        p { margin-bottom: 1.35rem; }
-        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
-
-        /* --- Quote Styling --- */
-        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
-        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
-        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
-        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
-
-        /* --- Series Heading Row --- */
-        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
-
-        /* --- TL;DR / Callout Boxes --- */
-        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
-        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
-        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
-        
-        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
-        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
-        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
-        
-        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
-        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
-        .tldr-content p:last-child { margin-bottom: 0; }
-        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
-        .tldr-content li { margin-bottom: 0.4rem; }
-
-        /* --- Math Block --- */
-        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
-        .math-block var { font-style: italic; color: var(--amber); }
-        
-        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
-        .math-explanation strong { color: var(--text); }
-
-        /* --- Simulation Stage (Tight Toolbar) --- */
-        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
-        
-        .sim-toolbar { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-end; 
-            gap: 1rem; 
-            margin-bottom: 1rem; 
-            flex-wrap: nowrap; 
-            overflow-x: auto; 
-            padding-bottom: 0.5rem;
-        }
-        
-        .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
-        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
-        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
-        .param-group span { font-weight: 600; color: var(--text); float: right; }
-        
-        .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
-        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
-        [data-theme="light"] button.sim-btn { color: #ffffff; }
-        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
-        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-        
-        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
-        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
-        .readout span { color: var(--amber); font-weight: 600; }
-
-        /* --- Scenario Cards --- */
-        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
-        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
-        .scenario-card p strong { color: var(--text); }
-        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
-        .scenario-ref a { color: var(--teal); text-decoration: none; }
-        .scenario-ref a:hover { text-decoration: underline; }
-
-        /* --- Post Pager --- */
-        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
-        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
-
-        /* --- Theme Toggle Icon Visibility --- */
-        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
-        .theme-toggle:hover { color: var(--teal); }
-        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
-        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
-        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
-
-        @media (max-width: 650px) {
-            .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
-            .sim-params { flex-direction: column; width: 100%; }
-            .param-group { width: 100%; }
-            .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
-        }
+        .site-header{margin-bottom:0!important;padding-bottom:1rem!important;border-bottom:1px solid var(--line-soft)}
+        main{margin-top:1.5rem!important;padding-top:0!important;max-width:800px;margin-left:auto;margin-right:auto}
+        h2{font-family:'Libre Franklin',sans-serif;font-size:1.6rem;margin-top:3.5rem;margin-bottom:1.25rem;padding-bottom:.3rem;border-bottom:1px solid var(--line-soft);color:var(--text)}
+        h3{font-family:'Libre Franklin',sans-serif;font-size:1.2rem;color:var(--teal);margin-top:2rem;margin-bottom:.85rem}
+        p,li{font-family:'IBM Plex Sans',sans-serif;font-size:1.05rem;line-height:1.7;color:var(--text)}
+        p{margin-bottom:1.35rem}
+        code{background:var(--panel-2);padding:.15rem .4rem;border-radius:4px;font-family:'IBM Plex Mono',Consolas,monospace;font-size:.85em;color:var(--teal);border:1px solid var(--line)}
+        .snarky-quote{border-left:3px solid var(--amber,#D4A72C);padding:.1rem 0 .1rem 1.25rem;margin:2.5rem 0 3.5rem}
+        .snarky-quote-text{font-family:'IBM Plex Serif',Georgia,serif;font-size:1.15rem;font-style:italic;color:var(--muted);line-height:1.6;margin:0 0 .6rem}
+        .snarky-quote-author{font-family:'IBM Plex Serif',Georgia,serif;font-size:1.05rem;color:var(--muted);margin:0}
+        .snarky-quote-author strong{font-weight:700;font-style:italic;color:var(--text)}
+        .series-heading-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:.75rem 1.25rem;margin-bottom:.25rem}
+        .series-heading-row h1{margin:0;font-size:2rem;font-family:'Libre Franklin',sans-serif}
+        .tldr-box{background:var(--panel-2);border-left:3px solid var(--teal,#4fb8a6);padding:1.75rem 1.5rem;margin:1.5rem 0 2.5rem;border-radius:0 8px 8px 0}
+        .tldr-box--warning{background:rgba(217,119,87,.08);border-left-color:var(--bad,#d97757)}
+        .tldr-box--math{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber)}
+        .tldr-eyebrow{font-family:'IBM Plex Mono',Consolas,monospace;color:var(--teal);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1.25rem;font-weight:600}
+        .tldr-box--warning .tldr-eyebrow{color:var(--bad)} .tldr-box--math .tldr-eyebrow{color:var(--amber)}
+        .tldr-content{font-family:'IBM Plex Sans',Arial,sans-serif;color:var(--muted);font-size:.95rem;line-height:1.6}
+        .tldr-content p{margin:0 0 1rem;color:var(--text);font-size:.95rem}
+        .tldr-content p:last-child{margin-bottom:0}
+        .tldr-content ul{margin:.5rem 0 1rem;padding-left:1.25rem}
+        .tldr-content li{margin-bottom:.4rem;font-size:.95rem}
+        .math-block{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1.5rem;text-align:center;font-family:'IBM Plex Serif',Georgia,serif;font-size:1.2rem;color:var(--text);margin:1.5rem 0;overflow-x:auto}
+        .math-block var,.math-explanation var,p var{font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;color:var(--amber)}
+        .math-explanation{font-size:.95rem;color:var(--muted);margin:1rem 0;padding-left:1rem;border-left:2px solid var(--line)}
+        .math-explanation strong{color:var(--text)}
+        .stage{background:var(--panel);border:1px solid var(--line);padding:1.35rem 1.5rem;margin:2rem 0;border-radius:8px}
+        .sim-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;margin-bottom:1rem;flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}
+        .sim-params{display:flex;gap:1.5rem;flex-wrap:nowrap;background:var(--panel-2);padding:.75rem 1rem;border-radius:6px;border:1px solid var(--line-soft)}
+        .param-group{display:flex;flex-direction:column;font-family:'IBM Plex Mono',monospace;font-size:.75rem;color:var(--muted);width:155px}
+        .param-group input[type=range]{margin-top:.4rem;accent-color:var(--teal);cursor:pointer}
+        .param-group span{font-weight:600;color:var(--text);float:right}
+        .controls{display:flex;gap:.5rem;align-items:center;flex-wrap:nowrap;flex-shrink:0}
+        button.sim-btn{background:var(--teal);color:#0d1117;border:1px solid transparent;padding:.42rem .9rem;font-weight:600;cursor:pointer;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:.78rem;white-space:nowrap}
+        [data-theme="light"] button.sim-btn{color:#fff}
+        button.sim-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+        button.sim-btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line)}
+        canvas{width:100%;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:6px;display:block}
+        .readout{display:flex;justify-content:space-between;gap:1rem;margin-top:1rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:.8rem;background:var(--panel-2);padding:.75rem 1.15rem;border-radius:6px;border:1px solid var(--line);flex-wrap:wrap}
+        .readout span{color:var(--amber);font-weight:600}
+        .scenario-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1.25rem;margin-bottom:1rem}
+        .scenario-title{font-family:'Libre Franklin',sans-serif;font-weight:600;font-size:1.05rem;color:var(--text);margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .scenario-tag{font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--teal);border:1px solid var(--teal);padding:.1rem .3rem;border-radius:3px;text-transform:uppercase;letter-spacing:.05em}
+        .scenario-card p{font-size:.9rem;color:var(--muted);margin:0 0 .5rem;line-height:1.55}
+        .scenario-card p strong{color:var(--text)}
+        .scenario-ref{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--muted-2);border-top:1px dashed var(--line-soft);padding-top:.5rem}
+        .scenario-ref a{color:var(--teal);text-decoration:none}.scenario-ref a:hover{text-decoration:underline}
+        .post-pager{margin-top:4rem;padding-top:2rem;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+        .post-pager a{font-family:'IBM Plex Mono',monospace;font-size:.92rem;font-weight:600;color:var(--teal);text-decoration:none}
+        .post-pager a:hover{opacity:.8;text-decoration:underline}
+        .theme-toggle{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:.4rem;display:flex;align-items:center}
+        .theme-toggle:hover{color:var(--teal)}
+        .theme-toggle .icon-moon,.theme-toggle .icon-bulb{display:none!important}
+        html[data-theme="light"] .theme-toggle .icon-moon,.light .theme-toggle .icon-moon{display:block!important}
+        html[data-theme="dark"] .theme-toggle .icon-bulb,.dark .theme-toggle .icon-bulb{display:block!important}
+        @media(max-width:650px){.sim-toolbar{flex-direction:column;align-items:stretch;overflow-x:visible}.sim-params{flex-direction:column;width:100%}.param-group{width:100%}.controls{justify-content:flex-start;margin-top:.5rem;flex-wrap:wrap}.series-heading-row h1{font-size:1.65rem}}
     </style>
 </head>
 <body>
-    <div class="container">
-
-        <header class="site-header">
-            <a href="../../index.html" class="site-title">
-                <span class="site-title__badge">SS</span>
-                <span>Saurav Sana | Field Notes</span>
-            </a>
-
-            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
-                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
-                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
-                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
-                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
-                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                    </svg>
-                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="5"/>
-                        <line x1="12" y1="1" x2="12" y2="3"/>
-                        <line x1="12" y1="21" x2="12" y2="23"/>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                        <line x1="1" y1="12" x2="3" y2="12"/>
-                        <line x1="21" y1="12" x2="23" y2="12"/>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                    </svg>
-                </button>
-            </nav>
-        </header>
-
-        <main>
-            <div class="post-meta" style="margin-bottom: 0.5rem;">
-                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
-            </div>
-
-            <div class="series-heading-row">
-                <h1>The Stochastic Shape of AI Systems</h1>
-            </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">November 28, 2026 · Part 8 of 8 · AI/LLM Frontier</div>
-
-            <blockquote class="snarky-quote">
-                <p class="snarky-quote-text">“The fundamental problem of communication is that of reproducing at one point either exactly or approximately a message selected at another point.”</p>
-                <p class="snarky-quote-author">— <strong><em>Claude Shannon</em></strong>, "A Mathematical Theory of Communication"</p>
-            </blockquote>
-
-            <p>Welcome to the frontier. If you thought distributed databases were chaotic, you haven't tried running an autonomous LLM agent in production. The entire stack is built on a foundation of literal random number generators and probabilistic matrix multiplications.</p>
-
-            <p>We are currently in the "PoC Euphoria" phase of AI, where companies are stringing together multi-step agents and crossing their fingers. But the mathematics of AI systems are the exact same mathematics we've explored in this series. The underlying physics haven't changed; the failure surfaces have just moved.</p>
-
-            <!-- ========================================== -->
-            <!-- 1. CATEGORICAL DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>1. The Categorical Distribution (Token Sampling)</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Weighted Dice Roll</div>
-                <div class="tldr-content">
-                    <p>An LLM doesn't "think" of the next word. It outputs a probability distribution over its entire vocabulary (e.g., 50,000 possible tokens) and rolls a weighted die. The Categorical distribution models a single draw from a set of possibilities that each have a distinct probability.</p>
-                    <p>The <code>temperature</code> parameter is your dial for flattening or sharpening those probabilities. Temperature = 0 makes it deterministic (always pick the highest probability token). Temperature = 1.0 lets the model roll the dice based on its raw probabilities. Temperature > 1.0 flattens the distribution, making the model hallucinate wildly.</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability of sampling token <var>i</var>, where <var>p<sub>i</sub></var> is the raw probability assigned by the model's Softmax layer:</p>
-            <div class="math-block">
-                <var>P</var>(<var>X</var> = <var>i</var>) = <var>p<sub>i</sub></var>  (where &Sigma; <var>p<sub>i</sub></var> = 1)
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>X</var>:</strong> The discrete category (the token chosen).</li>
-                    <li><strong><var>p<sub>i</sub></var>:</strong> The probability weight of that specific token.</li>
-                    <li><strong>Temperature (<var>T</var>):</strong> Applied before the Softmax. The formula is \(e^{z_i / T} / \sum e^{z_j / T}\).</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If the model assigns a 40% chance to the word "Data", 30% to "Model", 20% to "Magic", and 10% to "Garbage". If you set <var>T</var> = 1.0, "Data" is chosen 40% of the time. If you set <var>T</var> = 2.0, the probabilities are flattened, and "Garbage" might suddenly be chosen 20% of the time.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>If you leave the temperature > 0, your application is <strong>non-deterministic</strong>. Your unit tests will pass locally and fail in production because the model rolled a different token. For high-reliability structured data extraction, you must force temperature to 0 (greedy decoding).</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="categorical">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Temperature (T): <span id="v_temp_categorical">1.0</span></div>
-                            <input type="range" id="temp_categorical" aria-label="Categorical temperature T" min="0.1" max="3.0" step="0.1" value="1.0">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated categorical token sampling"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Most Frequent Token: <span class="stat-mean">–</span></div>
-                    <div>Expected Index Mean: <span class="stat-theory">–</span></div>
-                </div>
-            </div>
-
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Non-Deterministic Test" <span class="scenario-tag">CI/CD Pipelines</span></div>
-                <p>Your tests check for a specific string output. But the model has a temperature of 0.7. On the 15th run, it generates a semantically identical but syntactically different string, and your CI pipeline goes red. You cannot unit test a stochastic system without setting T=0.</p>
-                <div class="scenario-ref">Reference: <a href="https://platform.openai.com/docs/api-reference/completions/create#completions-create-temperature" target="_blank">OpenAI: Temperature and Determinism</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Hallucination Spiral" <span class="scenario-tag">High Temperature Agents</span></div>
-                <p>An agent is set to a high temperature to "encourage creativity." It encounters an ambiguous input, samples an unlikely token, and then compounds the hallucination in subsequent steps, confidently outputting a completely fabricated answer.</p>
-                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2309.11495" target="_blank">Yao et al., "Tree of Thoughts" (Exploration vs. Exploitation)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Top-P Mask" <span class="scenario-tag">Nucleus Sampling</span></div>
-                <p>Top-P truncates the distribution to only include the top tokens that sum to probability <var>P</var> (e.g., 0.9). This removes the long tail of absolute nonsense, but restricts the model's ability to recover from a bad path.</p>
-                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1904.09751" target="_blank">Holtzman et al., "The Curious Case of Neural Text Degeneration"</a></div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 2. EXPONENTIAL DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>2. The Exponential Distribution (TTFT & Inference)</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Waiting Room for the First Token</div>
-                <div class="tldr-content">
-                    <p>When you send a prompt to an LLM, you are waiting for the Time to First Token (TTFT). This is a queueing problem. The GPU has a fixed number of KV-cache blocks. If they are full, your request goes into a waiting room. The time you spend waiting is modeled by the Exponential distribution.</p>
-                    <p>Just like the bus stop in Part 3, it is "memoryless." The probability of your request starting in the next 10 milliseconds is exactly the same, regardless of how long you've already been waiting in the queue. This is why TTFT spikes are so frustrating for users.</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability density function for the time until the first token is generated, given a service rate <var>&lambda;</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = <var>&lambda;</var> &middot; <var>e</var><sup>-<var>&lambda;</var><var>x</var></sup>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>&lambda;</var>:</strong> The rate at which the GPU can ingest prompts (e.g., 50 requests per second).</li>
-                    <li><strong><var>x</var>:</strong> The TTFT in seconds.</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If your GPU can process 100 prompts per second (<var>&lambda;</var>=100), the probability that a request takes more than 50ms (<var>x</var>=0.05s) to generate its first token is <code>e^(-100 * 0.05) = e^-5 ≈ 0.67%</code>. This seems tiny, but at 1 million requests, that's 6,700 users experiencing a massive lag spike.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Context windows matter. A prompt with 100,000 tokens requires vastly more KV-cache memory and compute than a prompt with 100 tokens. The <var>&lambda;</var> is not static; it collapses as the context window fills up. You must monitor TTFT by context length, not just globally.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="exponential">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Inference Rate (λ): <span id="v_lam_exponential">2.0</span></div>
-                            <input type="range" id="lam_exponential" aria-label="Exponential inference rate lambda" min="0.2" max="10.0" step="0.1" value="2.0">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated exponential TTFT"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean TTFT: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean (1/λ): <span class="stat-theory">–</span></div>
-                </div>
-            </div>
-
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "KV-Cache Exhaustion" <span class="scenario-tag">vLLM / TGI</span></div>
-                <p>During a traffic spike, the KV-cache fills up. vLLM implements "continuous batching" to handle this, but when the cache is full, TTFT skyrockets as new requests are paused until existing sequences finish and free up blocks.</p>
-                <div class="scenario-ref">Reference: <a href="https://blog.vllm.ai/2023/06/20/vllm.html" target="_blank">vLLM: Easy, Fast, and Cheap LLM Serving</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Cold Start" <span class="scenario-tag">Serverless Inference</span></div>
-                <p>A serverless GPU takes 30 seconds to load a 70B parameter model into VRAM. The first request after a cold start experiences a TTFT of 30+ seconds. This breaks the Exponential assumption because the hazard rate is effectively 0 for the first 30 seconds.</p>
-                <div class="scenario-ref">Reference: <a href="https://developer.nvidia.com/blog/scaling-llm-inference-with-nvidia-triton-model-analyzer/" target="_blank">NVIDIA Triton Inference Server</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Chunked Prefill" <span class="scenario-tag">Continuous Batching</span></div>
-                <p>To prevent long prompts from blocking short ones, modern serving engines break prompts into chunks. This smooths out the TTFT distribution, making it less Exponential and more deterministic, but increases the Inter-Token Latency (ITL).</p>
-                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2402.01622" target="_blank">Agrawal et al., "Taming Throughput-Latency Tradeoff in LLM Inference"</a></div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 3. GEOMETRIC DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>3. The Geometric Distribution (Structured Outputs)</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: "JSON is Hard, Let's Retry"</div>
-                <div class="tldr-content">
-                    <p>You prompt an LLM: "Return a JSON object with keys 'name' and 'age'." The LLM responds: "Sure! Here is the JSON: \`\`\`json { "name": "Alice" } \`\`\`". Your parser fails. You retry.</p>
-                    <p>The Geometric distribution models the number of retries required to get a valid, parseable output. Every request is a Bernoulli trial (Valid JSON vs. Invalid JSON). If the model has a 90% success rate at generating JSON, the Geometric distribution tells you how many loops you'll run before it finally works.</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability of needing exactly <var>k</var> attempts to get the first valid JSON, where <var>p</var> is the probability of success:</p>
-            <div class="math-block">
-                <var>P</var>(<var>X</var> = <var>k</var>) = (1 - <var>p</var>)<sup><var>k</var>-1</sup> &middot; <var>p</var>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>k</var>:</strong> The total number of attempts.</li>
-                    <li><strong><var>p</var>:</strong> The probability the model outputs valid JSON on any single attempt.</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If the model succeeds 80% of the time (<var>p</var>=0.8), the chance it takes exactly 3 attempts is <code>0.2^2 * 0.8 = 0.032</code> (3.2%). But if you have 10,000 API calls per day, that means 320 requests require 3 attempts, burning 3x the tokens and inflating your latency and cost.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Retrying with the exact same prompt and temperature > 0 is a recipe for an infinite loop. If the model fails once, it might fail the same way again. You must change the prompt (e.g., "Fix the JSON errors in your previous response") or lower the temperature on the retry.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="geometric">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>JSON Success Prob (p): <span id="v_p_geometric">0.70</span></div>
-                            <input type="range" id="p_geometric" aria-label="Geometric JSON success probability p" min="0.05" max="0.99" step="0.01" value="0.70">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated geometric retries"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean Attempts: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean (1/p): <span class="stat-theory">–</span></div>
-                </div>
-            </div>
-
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Token Tax" <span class="scenario-tag">Cost Management</span></div>
-                <p>If your validation fails 20% of the time, your effective token usage is 1.25x higher than expected. At scale, this geometric compounding destroys your FinOps budget. You must use constrained decoding (like OpenAI's JSON mode) to force <var>p</var> to 1.0.</p>
-                <div class="scenario-ref">Reference: <a href="https://platform.openai.com/docs/guides/json-mode" target="_blank">OpenAI JSON Mode</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Parser Exception" <span class="scenario-tag">LangChain</span></div>
-                <p>LangChain's OutputParsers throw an exception if the LLM adds conversational filler ("Here is your JSON!"). This forces the framework to retry, which loops back to the model and creates a geometric latency spiral.</p>
-                <div class="scenario-ref">Reference: <a href="https://python.langchain.com/docs/modules/model_io/output_parsers/" target="_blank">LangChain Output Parsers</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Infinite Loop" <span class="scenario-tag">Agent Tool Calling</span></div>
-                <p>An agent tries to call an API with the wrong arguments. The API returns a 400 error. The agent retries with the exact same arguments. Without a circuit breaker, this loop runs until the maximum token limit is reached.</p>
-                <div class="scenario-ref">Reference: <a href="https://python.langchain.com/docs/modules/agents/how_to/max_iterations/" target="_blank">LangChain Max Iterations</a></div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 4. BINOMIAL DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>4. The Binomial Distribution (Agent Compounding)</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The 10-Step Agent</div>
-                <div class="tldr-content">
-                    <p>You build an autonomous agent. It has to do 10 sequential steps: search the web, parse the HTML, extract the data, write to a database, etc. You benchmark the model on a single step and see a fantastic 95% success rate.</p>
-                    <p>The Binomial distribution dictates that if each step is an independent Bernoulli trial, the probability of the <em>entire</em> workflow succeeding is \(0.95^{10} \approx 59\%\). You just built an agent that fails 41% of the time, despite having a "world-class" model.</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability of <var>k</var> successes out of <var>n</var> independent steps, where each step has a probability <var>p</var> of success:</p>
-            <div class="math-block">
-                <var>P</var>(<var>X</var> = <var>k</var>) = (<var>n</var> choose <var>k</var>) &middot; <var>p</var><sup><var>k</var></sup> &middot; (1 - <var>p</var>)<sup><var>n</var> - <var>k</var></sup>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>n</var>:</strong> The number of sequential steps in your agent workflow.</li>
-                    <li><strong><var>k</var>:</strong> The number of successful steps.</li>
-                    <li><strong><var>p</var>:</strong> The probability of success on a single step.</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If you have a 20-step agent with a 95% per-step success rate, the probability of 20 out of 20 successes is <code>0.95^20 = 35.8%</code>. This means a third of your user sessions will encounter a failed state. You cannot fix this by fine-tuning the model; you must reduce the number of steps (n) or add deterministic guardrails (raise p).</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Agent steps are <strong>not independent</strong>. If step 2 hallucinates a wrong URL, step 3 (parsing the HTML) will fail, step 4 (extracting the data) will fail, and the whole pipeline collapses. The Binomial math is actually overly optimistic because it doesn't account for error cascades.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="binomial">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Agent Steps (n): <span id="v_n_binomial">10</span></div>
-                            <input type="range" id="n_binomial" aria-label="Binomial number of agent steps n" min="2" max="30" step="1" value="10">
-                        </div>
-                        <div class="param-group">
-                            <div>Step Success Prob (p): <span id="v_p_binomial">0.95</span></div>
-                            <input type="range" id="p_binomial" aria-label="Binomial step success probability p" min="0.50" max="0.99" step="0.01" value="0.95">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated binomial agent steps"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean Steps: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean (n*p): <span class="stat-theory">–</span></div>
-                </div>
-            </div>
-
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Compounding Hallucination" <span class="scenario-tag">AutoGPT</span></div>
-                <p>Early autonomous agents like AutoGPT were notorious for getting stuck in loops. A single wrong assumption in step 1 led to compounding errors in steps 2 through 50. The agent would eventually run out of context window or start hallucinating tools that didn't exist.</p>
-                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2308.11432" target="_blank">Wang et al., "A Survey on Large Language Model based Autonomous Agents"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Cascading Failures" <span class="scenario-tag">Multi-Agent Systems</span></div>
-                <p>When you have multiple agents talking to each other (e.g., a "Coder" agent and a "Reviewer" agent), the failure rate compounds exponentially. The Reviewer misses a bug, the Coder introduces 3 more bugs while trying to fix it, and the whole system collapses.</p>
-                <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2305.14325" target="_blank">Qian et al., "Communicative Agents for Software Development"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Deterministic Guardrail" <span class="scenario-tag">NeMo Guardrails</span></div>
-                <p>The only way to make agents reliable is to wrap the non-deterministic steps in deterministic guardrails. If an agent tries to call a tool with invalid arguments, the guardrail catches it before the API is hit. This artificially raises <var>p</var> for the workflow.</p>
-                <div class="scenario-ref">Reference: <a href="https://github.com/NVIDIA/NeMo-Guardrails" target="_blank">NVIDIA NeMo Guardrails</a></div>
-            </div>
-
-            <div class="tldr-box tldr-box--warning" style="margin-top: 3rem;">
-                <div class="tldr-eyebrow">The Final Reality: Human-in-the-Loop</div>
-                <div class="tldr-content">
-                    <p>AI systems don't fail because the math is different. They fail because the math is the same. A 20-step agent is just a distributed system with a 40% failure rate.</p>
-                    <p style="margin-top: 0.5rem;"><strong>The Lesson:</strong> You cannot prompt-engineer your way out of the Binomial distribution. You must build deterministic architectures that constrain the AI's stochastic nature. For any high-stakes workflow, you need a human-in-the-loop. The AI proposes; the deterministic system disposes.</p>
-                </div>
-            </div>
-
-            <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-7-architects-reality-check.html">← Part 7: The Architect's Reality Check</a>
-                <a href="appendix-ai-systems.html">Back to Series Overview →</a>
-            </nav>
-        </main>
-
-        <footer class="site-footer">
-            <div>© 2026 Saurav Sana</div>
-            <div class="footer-links">
-                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
-                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
-                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a href="../../contact.html">Email</a>
-            </div>
-        </footer>
-
-    </div>
-
-    <!-- Simulator & Theme Engine -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const canvasToSim = new Map();
-
-            // --- Theme Toggle Logic ---
-            const themeBtn = document.querySelector('.theme-toggle');
-            if (themeBtn) {
-                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
-
-                themeBtn.addEventListener('click', () => {
-                    const root = document.documentElement;
-                    const current = root.getAttribute('data-theme') || 'dark';
-                    const newTheme = current === 'light' ? 'dark' : 'light';
-                    
-                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
-                    root.setAttribute('data-theme', newTheme);
-                    root.classList.add(newTheme, 'theme-' + newTheme);
-                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
-
-                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
-                        const sim = canvasToSim.get(canvas);
-                        if (sim) sim.draw();
-                    });
-                });
-            }
-
-            function isLightMode() {
-                const root = document.documentElement;
-                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
-            }
-
-            function getCssVar(name) {
-                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-            }
-
-            class Simulator {
-                constructor(stageElement) {
-                    this.type = stageElement.dataset.simType;
-                    this.canvas = stageElement.querySelector('.sim-canvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.samples = [];
-                    this.running = false;
-                    this.timer = null;
-                    this.params = {};
-
-                    this.statN = stageElement.querySelector('.stat-n');
-                    this.statMean = stageElement.querySelector('.stat-mean');
-                    this.statTheory = stageElement.querySelector('.stat-theory');
-                    this.btnRun = stageElement.querySelector('.btn-run');
-                    this.btnStep = stageElement.querySelector('.btn-step');
-                    this.btnReset = stageElement.querySelector('.btn-reset');
-
-                    this.bindInputs(stageElement);
-
-                    this.btnRun.onclick = () => this.toggleRun();
-                    this.btnStep.onclick = () => this.step(50);
-                    this.btnReset.onclick = () => this.reset();
-
-                    this.resize();
-                    
-                    // Use ResizeObserver for reliable chart resizing
-                    this.resizeObserver = new ResizeObserver(() => this.resize());
-                    this.resizeObserver.observe(this.canvas.parentElement);
-
-                    canvasToSim.set(this.canvas, this);
-                    this.draw();
-                }
-
-                bindInputs(stage) {
-                    if (this.type === 'categorical') {
-                        const input = stage.querySelector('#temp_categorical');
-                        const label = stage.querySelector('#v_temp_categorical');
-                        this.params.temp = parseFloat(input.value);
-                        input.oninput = (e) => {
-                            this.params.temp = parseFloat(e.target.value);
-                            label.textContent = this.params.temp.toFixed(1);
-                            this.reset();
-                        };
-                    } else if (this.type === 'exponential') {
-                        const input = stage.querySelector('#lam_exponential');
-                        const label = stage.querySelector('#v_lam_exponential');
-                        this.params.lam = parseFloat(input.value);
-                        input.oninput = (e) => {
-                            this.params.lam = parseFloat(e.target.value);
-                            label.textContent = this.params.lam.toFixed(1);
-                            this.reset();
-                        };
-                    } else if (this.type === 'geometric') {
-                        const input = stage.querySelector('#p_geometric');
-                        const label = stage.querySelector('#v_p_geometric');
-                        this.params.p = parseFloat(input.value);
-                        input.oninput = (e) => {
-                            this.params.p = parseFloat(e.target.value);
-                            label.textContent = this.params.p.toFixed(2);
-                            this.reset();
-                        };
-                    } else if (this.type === 'binomial') {
-                        const inputN = stage.querySelector('#n_binomial');
-                        const labelN = stage.querySelector('#v_n_binomial');
-                        const inputP = stage.querySelector('#p_binomial');
-                        const labelP = stage.querySelector('#v_p_binomial');
-
-                        this.params.n = parseInt(inputN.value);
-                        this.params.p = parseFloat(inputP.value);
-
-                        inputN.oninput = (e) => { this.params.n = parseInt(e.target.value); labelN.textContent = this.params.n; this.reset(); };
-                        inputP.oninput = (e) => { this.params.p = parseFloat(e.target.value); labelP.textContent = this.params.p.toFixed(2); this.reset(); };
-                    }
-                }
-
-                resize() {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = rect.width - 48;
-                    const logicalH = 220;
-
-                    this.canvas.width = logicalW * dpr;
-                    this.canvas.height = logicalH * dpr;
-                    this.canvas.style.width = logicalW + 'px';
-                    this.canvas.style.height = logicalH + 'px';
-
-                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    this.ctx.scale(dpr, dpr);
-
-                    this.logicalW = logicalW;
-                    this.logicalH = logicalH;
-                    this.draw();
-                }
-
-                generateSample() {
-                    const u = Math.random();
-                    if (this.type === 'categorical') {
-                        // Simulate 4 tokens: "Data", "Model", "Magic", "Garbage"
-                        // Base logits (simplified): 2, 1.5, 1, 0
-                        let logits = [2, 1.5, 1, 0];
-                        let T = this.params.temp;
-                        if (T <= 0.05) T = 0.05; // Prevent division by zero
-                        
-                        // Apply temperature
-                        let exps = logits.map(l => Math.exp(l / T));
-                        let sumExps = exps.reduce((a, b) => a + b, 0);
-                        let probs = exps.map(e => e / sumExps);
-
-                        // Sample
-                        let r = u;
-                        let acc = 0;
-                        for (let i = 0; i < probs.length; i++) {
-                            acc += probs[i];
-                            if (r <= acc) return i;
-                        }
-                        return probs.length - 1;
-                    } else if (this.type === 'exponential') {
-                        return -Math.log(1 - u) / this.params.lam;
-                    } else if (this.type === 'geometric') {
-                        let k = 1;
-                        while (u >= this.params.p) k++;
-                        return k;
-                    } else if (this.type === 'binomial') {
-                        let s = 0;
-                        for (let i = 0; i < this.params.n; i++) {
-                            if (u < this.params.p) s++;
-                        }
-                        return s;
-                    }
-                }
-
-                getRange() {
-                    if (this.type === 'categorical') return [0, 3];
-                    if (this.type === 'exponential') return [0, Math.max(5 / this.params.lam, 1)];
-                    if (this.type === 'geometric') return [1, Math.ceil(5 / this.params.p)];
-                    if (this.type === 'binomial') return [0, this.params.n];
-                }
-
-                isDiscrete() {
-                    return this.type === 'categorical' || this.type === 'geometric' || this.type === 'binomial';
-                }
-
-                getLabels() {
-                    if (this.type === 'categorical') return ['Data', 'Model', 'Magic', 'Garbage'];
-                    return null;
-                }
-
-                draw() {
-                    if (!this.ctx) return;
-                    const ctx = this.ctx;
-                    const W = this.logicalW;
-                    const H = this.logicalH;
-                    ctx.clearRect(0, 0, W, H);
-
-                    const light = isLightMode();
-                    const gridColor = light ? '#cbd5e1' : '#2a323e';
-                    const labelColor = light ? '#475569' : '#8b93a3';
-
-                    let barColor = getCssVar('--teal');
-                    if (this.type === 'exponential') barColor = getCssVar('--amber');
-                    if (this.type === 'geometric') barColor = getCssVar('--bad');
-                    if (this.type === 'binomial') barColor = getCssVar('--good');
-
-                    const pad = { l: 40, r: 20, t: 20, b: 30 };
-                    const plotW = W - pad.l - pad.r;
-                    const plotH = H - pad.t - pad.b;
-
-                    ctx.strokeStyle = gridColor;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(pad.l, pad.t);
-                    ctx.lineTo(pad.l, H - pad.b);
-                    ctx.lineTo(W - pad.r, H - pad.b);
-                    ctx.stroke();
-
-                    // Calculate Theoretical Mean
-                    let theoreticalMean = null;
-                    if (this.type === 'categorical') {
-                        let logits = [2, 1.5, 1, 0];
-                        let T = this.params.temp;
-                        if (T <= 0.05) T = 0.05;
-                        let exps = logits.map(l => Math.exp(l / T));
-                        let sumExps = exps.reduce((a, b) => a + b, 0);
-                        let probs = exps.map(e => e / sumExps);
-                        theoreticalMean = 0*probs[0] + 1*probs[1] + 2*probs[2] + 3*probs[3];
-                    } else if (this.type === 'exponential') {
-                        theoreticalMean = 1 / this.params.lam;
-                    } else if (this.type === 'geometric') {
-                        theoreticalMean = 1 / this.params.p;
-                    } else if (this.type === 'binomial') {
-                        theoreticalMean = this.params.n * this.params.p;
-                    }
-
-                    if (this.statTheory) {
-                        this.statTheory.textContent = theoreticalMean.toFixed(2);
-                    }
-
-                    if (this.samples.length === 0) {
-                        ctx.fillStyle = labelColor;
-                        ctx.font = '12px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
-                        this.statN.textContent = '0';
-                        this.statMean.textContent = '–';
-                        return;
-                    }
-
-                    const [rmin, rmax] = this.getRange();
-                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
-                    const binWidth = (rmax - rmin) / bins;
-                    const counts = new Array(bins).fill(0);
-                    let sum = 0;
-
-                    this.samples.forEach(v => {
-                        sum += v;
-                        if (v >= rmin && v <= rmax) {
-                            let idx = Math.floor((v - rmin) / binWidth);
-                            if (idx >= bins) idx = bins - 1;
-                            counts[idx]++;
-                        }
-                    });
-
-                    const mean = sum / this.samples.length;
-                    const maxCount = Math.max(1, ...counts);
-                    const bw = plotW / bins;
-                    const labels = this.getLabels();
-
-                    ctx.fillStyle = barColor;
-                    counts.forEach((c, i) => {
-                        const h = (c / maxCount) * plotH * 0.9;
-                        const x = pad.l + (i * bw);
-                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
-
-                        if (labels && labels[i]) {
-                            ctx.fillStyle = labelColor;
-                            ctx.font = '10px "IBM Plex Mono", monospace';
-                            ctx.textAlign = 'center';
-                            ctx.fillText(labels[i], x + bw/2, H - pad.b + 15);
-                            ctx.fillStyle = barColor;
-                        }
-                    });
-
-                    // Draw Observed Mean Line
-                    if (this.type === 'categorical') {
-                        let maxIdx = counts.indexOf(maxCount);
-                        this.statMean.textContent = labels[maxIdx];
-                    } else if (mean >= rmin && mean <= rmax) {
-                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
-                        ctx.beginPath();
-                        ctx.strokeStyle = getCssVar('--bad');
-                        ctx.lineWidth = 2;
-                        ctx.moveTo(meanX, pad.t);
-                        ctx.lineTo(meanX, H - pad.b);
-                        ctx.stroke();
-
-                        ctx.fillStyle = getCssVar('--bad');
-                        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
-                        this.statMean.textContent = mean.toFixed(2);
-                    }
-
-                    // Draw Expected Mean Line
-                    if (theoreticalMean !== null && isFinite(theoreticalMean)) {
-                        const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
-                        if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
-                            ctx.beginPath();
-                            ctx.strokeStyle = getCssVar('--amber');
-                            ctx.lineWidth = 1.5;
-                            ctx.setLineDash([4, 4]);
-                            ctx.moveTo(expX, pad.t);
-                            ctx.lineTo(expX, H - pad.b);
-                            ctx.stroke();
-                            ctx.setLineDash([]);
-
-                            ctx.fillStyle = getCssVar('--amber');
-                            ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-                            ctx.textAlign = 'center';
-                            ctx.fillText('EXPECTED', expX, pad.t - 5);
-                        }
-                    }
-
-                    this.statN.textContent = this.samples.length;
-                }
-
-                toggleRun() {
-                    if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
-                        return;
-                    }
-                    this.running = true;
-                    this.btnRun.textContent = '⏸ Pause';
-                    this.timer = setInterval(() => {
-                        this.step(15);
-                    }, 50);
-                }
-
-                step(n) {
-                    for (let i = 0; i < n; i++) {
-                        this.samples.push(this.generateSample());
-                    }
-                    // Keep the latest observations so continuous runs stay responsive.
-                    const maxSamples = 5000;
-                    if (this.samples.length > maxSamples) {
-                        this.samples.splice(0, this.samples.length - maxSamples);
-                    }
-                    this.draw();
-                }
-
-                reset() {
-                    this.samples = [];
-                    if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
-                    }
-                    this.draw();
-                }
-            }
-
-            document.querySelectorAll('.stage').forEach(stage => {
-                new Simulator(stage);
-            });
-        });
-    </script>
+<div class="container">
+<header class="site-header">
+    <a href="../../index.html" class="site-title"><span class="site-title__badge">SS</span><span>Saurav Sana | Field Notes</span></a>
+    <nav class="site-nav" aria-label="Primary navigation" style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.5rem">
+        <a href="../../index.html" style="color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:.875rem;text-decoration:none">Home</a>
+        <a href="../../index.html#blog" style="color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:.875rem;text-decoration:none">Blog</a>
+        <a href="../../index.html#tags" style="color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:.875rem;text-decoration:none">Tags</a>
+        <a href="../../contact.html" style="color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:.875rem;text-decoration:none">Contact</a>
+        <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme">
+            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+            <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+    </nav>
+</header>
+<main>
+<div class="post-meta" style="margin-bottom:.5rem"><a href="index.html" style="color:inherit;text-decoration:none">← The Shape of Failure Series</a></div>
+<div class="series-heading-row"><h1>The Stochastic Shape of AI Systems</h1></div>
+<div class="post-meta" style="margin-bottom:1.25rem">November 28, 2026 · Part 8 of 8 · AI/LLM Frontier</div>
+<blockquote class="snarky-quote">
+    <p class="snarky-quote-text">“The fundamental problem of communication is that of reproducing at one point either exactly or approximately a message selected at another point.”</p>
+    <p class="snarky-quote-author">— <strong><em>Claude Shannon</em></strong>, "A Mathematical Theory of Communication"</p>
+</blockquote>
+
+<p>Welcome to the frontier. If you thought distributed databases were chaotic, try running an autonomous LLM agent in production. The stack is not one giant probability machine: it combines numerical computation, stochastic decoding, queueing, memory management, and orchestration.</p>
+<p>The underlying mathematics will feel familiar. What changes is where uncertainty enters—and how quickly a small modelling mistake can become a production incident. The useful architectural question is not “How do we make the model deterministic?” It is “Where is randomness acceptable, where must behaviour be constrained, and how do we detect failures at the boundary?”</p>
+
+<h2>1. The Categorical Distribution (Token Sampling)</h2>
+<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: The Weighted Dice Roll</div><div class="tldr-content">
+<p>At each autoregressive step, an LLM produces logits for its vocabulary. A decoder transforms those scores into a probability distribution and selects the next token. The categorical distribution models that single discrete draw.</p>
+<p>Temperature controls how sharply the logits are distributed. Lower values concentrate probability on high-logit tokens; higher values flatten the distribution. That changes diversity—not the probability that a response is factually correct.</p>
+</div></div>
+<h3>The Math</h3>
+<p>The probability of sampling token <var>i</var> from a vocabulary of size <var>K</var>, given logit <var>z<sub>i</sub></var> and temperature <var>T</var>, before any additional decoding filters:</p>
+<div class="math-block"><var>P</var>(<var>X</var>=<var>i</var>) = <var>p<sub>i</sub></var> = exp(<var>z<sub>i</sub></var>/<var>T</var>) / &Sigma;<sub><var>j</var>=1</sub><sup><var>K</var></sup> exp(<var>z<sub>j</sub></var>/<var>T</var>)</div>
+<div class="math-explanation">
+<strong>Let's decode this:</strong>
+<ul>
+<li><strong><var>X</var>:</strong> The token selected at the current generation step.</li>
+<li><strong><var>z<sub>i</sub></var>:</strong> The unnormalized score (logit) for token <var>i</var>.</li>
+<li><strong><var>T</var>:</strong> The temperature applied before Softmax. As <var>T</var> grows without bound, the distribution approaches uniformity, assuming finite logits.</li>
+</ul>
+<p><strong>Worked example:</strong> Suppose the distribution at <var>T</var>=1 is [40%, 30%, 20%, 10%] for the illustrative tokens Data, Model, Magic, and Garbage. At <var>T</var>=2, the probabilities are proportional to the square roots of the original probabilities: approximately [32.55%, 28.19%, 23.01%, 16.27%]. The illustrative “Garbage” category rises from 10% to 16.27%—about a 63% relative increase. This is a toy token distribution, not a measurement of hallucination probability.</p>
+</div>
+<div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap</div><div class="tldr-content">
+<p>Temperature greater than zero makes sampling stochastic by design, but exact-string tests are brittle even when the underlying answer is acceptable. Temperature zero usually selects the highest-scoring token (greedy decoding), but it is not a universal reproducibility guarantee. Backend/model revisions, numerical kernels, request parameters, and tool behaviour can still matter. For regression tests, pin the model snapshot where possible, prompt, decoding parameters, tool versions, and structured contract; assert semantic invariants rather than one exact prose string.</p>
+<p>Random seeds, where supported, are generally best-effort reproducibility aids—not promises of identical output across backend changes. Check the specific provider and API version before relying on seed semantics.</p>
+</div></div>
+<h3>Interactive Simulation</h3>
+<div class="stage" data-sim-type="categorical">
+<div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Temperature (T): <span id="v_temp_categorical">1.0</span></div><input type="range" id="temp_categorical" aria-label="Categorical temperature T" min="0.1" max="3" step="0.1" value="1"></div></div>
+<div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
+<canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated categorical token sampling"></canvas>
+<div class="readout" aria-live="polite"><div>Samples: <span class="stat-n">0</span></div><div>Mode Token: <span class="stat-mean">–</span></div><div>Theoretical Garbage Rate: <span class="stat-theory">–</span></div><div>Observed Garbage Rate: <span class="stat-observed">–</span></div></div>
+</div>
+<h3>Operational Scenarios</h3>
+<div class="scenario-card"><div class="scenario-title">The Non-Deterministic Test <span class="scenario-tag">CI/CD Pipelines</span></div>
+<p>A test expects one exact sentence, but a model returns a valid answer with different wording. The test fails even though the product behaviour is acceptable. Separate deterministic contract tests (schema, required fields, allowed tool calls, safety invariants) from probabilistic quality evaluations (groundedness, relevance, task success). Use temperature zero when appropriate, but do not treat it as a substitute for robust assertions.</p>
+<div class="scenario-ref">Reference: <a href="https://platform.openai.com/docs/guides/advanced-usage" target="_blank" rel="noopener noreferrer">OpenAI API: Advanced usage and reproducibility considerations</a></div></div>
+<div class="scenario-card"><div class="scenario-title">Autoregressive Error Propagation <span class="scenario-tag">Generation Dynamics</span></div>
+<p>Each sampled token becomes part of the context for later tokens. A mistaken entity, number, or premise can therefore influence what follows. This is a plausible error-propagation mechanism, not a rule that every low-probability token causes a confident hallucination. Grounding, retrieval, verification, and constrained task boundaries are more direct controls than temperature alone.</p>
+<div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al., “The Curious Case of Neural Text Degeneration”</a></div></div>
+<div class="scenario-card"><div class="scenario-title">The Top-P Cutoff <span class="scenario-tag">Nucleus Sampling</span></div>
+<p>Top-p sorts tokens by descending probability, retains the smallest prefix whose cumulative probability reaches or exceeds the configured threshold, then renormalizes the retained probabilities. It trims the low-probability tail; it does not know which tokens are “nonsensical,” and it cannot guarantee factuality.</p>
+<div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al., “The Curious Case of Neural Text Degeneration”</a></div></div>
+
+<h2>2. The Exponential Distribution (A Queueing Baseline for Inference)</h2>
+<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: The Waiting Room for the First Token</div><div class="tldr-content">
+<p>Time to First Token (TTFT) is an end-to-end metric. It includes request admission, queueing, prefill computation, scheduling, and transport. It is not automatically exponentially distributed. An M/M/1 queue gives us a useful baseline for understanding how waiting time behaves under a deliberately simplified set of assumptions.</p>
+<p>Real LLM serving is more complicated: requests have different prompt lengths, generation lengths, batch membership, KV-cache footprints, and preemption histories. Treat the exponential curve as a candidate model to test against traces—not as a law of GPU inference.</p>
+</div></div>
+<h3>The Math</h3>
+<p>For a stationary M/M/1 queue with Poisson arrival rate <var>&lambda;<sub>a</sub></var>, exponential service rate <var>&mu;</var>, one FCFS server, and <var>&lambda;<sub>a</sub>&lt;&mu;</var>, the total time in the system (waiting plus service) has an exponential distribution with rate <var>&theta;=&mu;-&lambda;<sub>a</sub></var>:</p>
+<div class="math-block"><var>f<sub>W</sub></var>(<var>t</var>) = <var>&theta;</var>e<sup>-<var>&theta;t</var></sup>, &nbsp; <var>P</var>(<var>W</var>&gt;<var>t</var>) = e<sup>-<var>&theta;t</var></sup></div>
+<div class="math-explanation">
+<strong>Let's decode this:</strong>
+<ul><li><strong><var>&lambda;<sub>a</sub></var>:</strong> Mean arrival rate (requests/second).</li><li><strong><var>&mu;</var>:</strong> Mean service rate (requests/second).</li><li><strong><var>&theta;=&mu;-&lambda;<sub>a</sub></var>:</strong> Net rate parameter of the M/M/1 sojourn-time distribution—not a generic GPU “drain rate.”</li><li><strong><var>W</var>:</strong> Total time in the queueing system under the stated assumptions.</li></ul>
+<p><strong>Worked example:</strong> Let <var>&lambda;<sub>a</sub></var>=8 requests/s and <var>&mu;</var>=10 requests/s. Then <var>&theta;</var>=2/s, the mean sojourn time is 1/<var>&theta;</var>=0.5s, and the model's p99 is <var>ln(100)/&theta;</var>=2.30s. Thus p99 is 4.605 times the mean—but only under this M/M/1 model. The tail probability beyond 2s is <code>e^(-2×2) ≈ 1.83%</code>.</p>
+</div>
+<div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap</div><div class="tldr-content">
+<p>Do not label a fitted exponential curve “the TTFT distribution” without checking it. Stratify measurements by prompt-token bucket, output-token bucket, model, hardware, batch size, queue depth, cache state, and preemption. Compare empirical quantiles and tail probabilities with the candidate model; use a richer queueing or trace-driven model when the fit fails.</p>
+<p>Dense full self-attention still has <strong>O(n²) arithmetic</strong> in sequence length. FlashAttention reduces high-bandwidth-memory traffic through IO-aware tiling and avoids materializing the full attention matrix; it does not make dense attention asymptotically linear. KV-cache memory generally grows linearly with cached token count, with the constant determined by layers, KV heads, head dimension, dtype, and architecture. A long prompt can consume disproportionate prefill compute and KV capacity, delaying shorter requests.</p>
+</div></div>
+<h3>Interactive Simulation</h3>
+<div class="stage" data-sim-type="exponential">
+<div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Net Rate (&theta;): <span id="v_lam_exponential">2.0</span></div><input type="range" id="lam_exponential" aria-label="Exponential rate theta" min=".2" max="10" step=".1" value="2"></div></div>
+<div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
+<canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated exponential queueing sojourn times"></canvas>
+<div class="readout" aria-live="polite"><div>Samples: <span class="stat-n">0</span></div><div>Observed Mean: <span class="stat-mean">–</span></div><div>Expected Mean (1/&theta;): <span class="stat-theory">–</span></div></div>
+</div>
+<h3>Operational Scenarios</h3>
+<div class="scenario-card"><div class="scenario-title">KV-Cache Pressure <span class="scenario-tag">vLLM / PagedAttention</span></div>
+<p>When available KV-cache blocks are insufficient, serving engines may preempt sequences and later recompute their state; exact behaviour depends on engine version and configuration. Preemption and recomputation can increase end-to-end latency and disturb tail behaviour. Monitor cache utilization, preemption counts, queue delay, TTFT, and inter-token latency together.</p>
+<div class="scenario-ref">Reference: <a href="https://docs.vllm.ai/en/latest/performance/optimization.html" target="_blank" rel="noopener noreferrer">vLLM documentation: performance and preemption</a></div></div>
+<div class="scenario-card"><div class="scenario-title">Cold-Start Cliff <span class="scenario-tag">Serverless GPU Scaling</span></div>
+<p>A 70-billion-parameter model stored in FP16 has approximately 140 GB of raw parameter weights (70 billion × 2 bytes), before runtime overhead, metadata, and other allocations. Loading time is not a universal 20–45 seconds: it depends on storage throughput, network path, parallelism, quantization, host memory, GPU topology, and whether weights are already cached. Measure cold-start latency on the actual deployment path and model its separate cold and warm populations.</p>
+<div class="scenario-ref">Engineering note: publish a measured benchmark with model format, hardware, storage path, and timing boundaries before attaching a fixed load-time claim.</div></div>
+<div class="scenario-card"><div class="scenario-title">Chunked Prefill <span class="scenario-tag">Sarathi-Serve</span></div>
+<p>Chunked prefill divides long prompt processing into smaller chunks so that prefill work can be scheduled alongside ongoing decode work. This can reduce decode stalls and improve the throughput/latency trade-off, but it does not eliminate contention: chunk size and scheduler policy still matter. Track TTFT and inter-token latency (ITL/TBT) separately because an optimization can improve one while affecting the other.</p>
+<div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2403.02310" target="_blank" rel="noopener noreferrer">Agrawal et al., “Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve”</a></div></div>
+
+<h2>3. The Geometric Distribution (Structured Outputs and Retries)</h2>
+<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: “JSON Is Hard, Let's Retry”</div><div class="tldr-content">
+<p>A model returns malformed JSON, omits a required field, or violates a type constraint. A validator catches the defect and the caller retries. If each attempt had the same independent probability of success, the number of attempts would follow a geometric distribution.</p>
+<p>That assumption is a starting point, not a perfect description of repair loops. A retry that includes the validation error changes the prompt; later attempts therefore have conditional success probabilities and may have different token costs.</p>
+</div></div>
+<h3>The Math</h3>
+<p>For independent attempts with constant success probability <var>p</var>, the probability that the first valid response arrives on attempt <var>k</var> is:</p>
+<div class="math-block"><var>P</var>(<var>K</var>=<var>k</var>)=(1-<var>p</var>)<sup><var>k</var>-1</sup><var>p</var>, &nbsp; <var>E</var>[<var>K</var>]=1/<var>p</var></div>
+<div class="math-explanation">
+<strong>Let's decode this:</strong>
+<ul><li><strong><var>K</var>:</strong> Number of invocations up to and including the first success.</li><li><strong><var>p</var>:</strong> Per-attempt probability of passing the defined validation contract.</li></ul>
+<p><strong>Worked example:</strong> If <var>p</var>=0.80, the unbounded geometric model gives 1.25 expected attempts per request. The probability of needing at least three attempts is <code>(1-.8)² = 4%</code>. At 100,000 requests/day, that is an expected 4,000 requests reaching attempt three or later, and 25,000 expected additional invocations across all requests.</p>
+<p>A bounded retry policy is easier to operate. With at most <var>m</var>=3 attempts, the probability all attempts fail is <code>(1-p)^m = 0.8%</code>. Expected invocations are <code>[1-(1-p)^m]/p = 1.24</code> per request. This calculation still assumes equal, independent attempts; measure actual conditional success and token use in production.</p>
+</div>
+<div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap</div><div class="tldr-content">
+<p>Retrying an unchanged request does not systematically repair a deterministic schema mismatch. Conversely, setting temperature to zero does not prove every failure will repeat identically across all providers and serving configurations. Make retries bounded, classify errors, and change the recovery strategy when appropriate.</p>
+<p>Use provider-native JSON Schema / structured-output modes where supported, or grammar-constrained decoding tools such as Outlines. These can constrain the generated structure, but they do not guarantee semantic correctness, business-rule validity, completeness, absence of truncation, or successful transport. Validate those properties in application code.</p>
+</div></div>
+<h3>Interactive Simulation</h3>
+<div class="stage" data-sim-type="geometric">
+<div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Single-Attempt Success (p): <span id="v_p_geometric">0.70</span></div><input type="range" id="p_geometric" aria-label="Geometric success probability p" min=".1" max=".99" step=".01" value=".7"></div></div>
+<div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
+<canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated geometric retry attempts"></canvas>
+<div class="readout" aria-live="polite"><div>Samples: <span class="stat-n">0</span></div><div>Observed Mean Attempts: <span class="stat-mean">–</span></div><div>Expected Attempts (1/p): <span class="stat-theory">–</span></div></div>
+</div>
+<h3>Operational Scenarios</h3>
+<div class="scenario-card"><div class="scenario-title">The Token Tax <span class="scenario-tag">FinOps &amp; Constrained Decoding</span></div>
+<p>At a 70% first-attempt pass rate, the unbounded geometric baseline is 1/0.70 = 1.43 calls per successful request. Real token cost can be higher or lower than this simple call multiplier because failed outputs and validation feedback may be added to later prompts, while prompt and completion lengths differ. Track input tokens, output tokens, retries, and final success separately.</p>
+<div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/2307.09702" target="_blank" rel="noopener noreferrer">Willard &amp; Louf, “Efficient Guided Generation for Large Language Models” (Outlines)</a></div></div>
+<div class="scenario-card"><div class="scenario-title">Self-Correction Bloat <span class="scenario-tag">Retry Prompting</span></div>
+<p>Feeding a validation error back into the next prompt may improve the next attempt's conditional success probability, but it also increases prompt length and may carry previous malformed output into the context. Model the retry chain with measured <var>p<sub>1</sub>, p<sub>2</sub>, …</var> and per-attempt token costs rather than assuming every attempt is an identical geometric trial.</p>
+<div class="scenario-ref">Reference: <a href="https://python.useinstructor.com/" target="_blank" rel="noopener noreferrer">Instructor: structured extraction and validation retries</a></div></div>
+<div class="scenario-card"><div class="scenario-title">The Unbounded Tool Loop <span class="scenario-tag">Agent Tool Calling</span></div>
+<p>An agent repeatedly calls an API with an invalid date format. A bounded iteration budget, typed tool contract, actionable error response, and explicit terminal failure state prevent the workflow from spending indefinitely on the same defect. Make side-effecting tools idempotent or protect them with idempotency keys.</p>
+<div class="scenario-ref">Engineering control: enforce maximum attempts, wall-clock deadline, token budget, and per-tool rate limits in the orchestrator.</div></div>
+
+<h2>4. The Binomial Distribution (Agent Compounding)</h2>
+<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: The 10-Step Agent Fallacy</div><div class="tldr-content">
+<p>Imagine a workflow with ten required stages: classify intent, formulate SQL, validate schema, execute, inspect results, and so on. If every stage independently succeeds with probability 0.95, the probability that all ten succeed is <var>0.95<sup>10</sup> ≈ 59.9%</var>.</p>
+<p>That is a useful warning about composition, not a universal prediction for agents. Real workflows have dependencies, retries, branches, validation, and recovery paths. The independence assumption must be stated and tested.</p>
+</div></div>
+<h3>The Math</h3>
+<p>For <var>n</var> independent Bernoulli stages with common success probability <var>p</var>, the number of successful stages <var>X</var> is binomial:</p>
+<div class="math-block"><var>P</var>(<var>X</var>=<var>k</var>) = C(<var>n</var>,<var>k</var>)<var>p</var><sup><var>k</var></sup>(1-<var>p</var>)<sup><var>n</var>-<var>k</var></sup>; &nbsp; <var>P</var>(X=n)=<var>p</var><sup><var>n</var></sup></div>
+<div class="math-explanation">
+<strong>Let's decode this:</strong>
+<ul><li><strong><var>n</var>:</strong> Number of required stages.</li><li><strong><var>k</var>:</strong> Number of successful stages, regardless of order.</li><li><strong><var>p</var>:</strong> Common per-stage success probability under the model.</li><li><strong><var>p<sup>n</sup></var>:</strong> Probability all stages succeed, only when the stages are independent and share the same <var>p</var>.</li></ul>
+<p><strong>Worked example:</strong> For 20 independent required stages, each with <var>p</var>=0.95, the expected number of successful stages is <var>np</var>=19. But the probability all 20 succeed is <code>0.95^20 ≈ 35.85%</code>. This is the probability of a flawless run under the assumptions—not a measured failure rate for a real agent.</p>
+</div>
+<div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap: Correlation Changes the Model</div><div class="tldr-content">
+<p>Agent stages are often dependent. A wrong table name can cause SQL execution, result interpretation, and summarization to fail in sequence. But positive correlation does <strong>not</strong> automatically make <var>p<sup>n</sup></var> an upper bound or a lower bound on end-to-end reliability. The direction depends on the joint distribution and the conditioning.</p>
+<p>For an ordered workflow, use the chain rule:</p>
+<p><code>P(S1,…,Sn) = P(S1) × P(S2|S1) × … × P(Sn|S1,…,S(n−1))</code>.</p>
+<p>Estimate those conditional probabilities from traces, or model the workflow as a state machine / reliability graph. If stages have different independent success rates, all-stage reliability is <code>Π pᵢ</code>; the count of successful stages follows a Poisson-binomial distribution, not a common-<var>p</var> binomial.</p>
+</div></div>
+<h3>Interactive Simulation</h3>
+<div class="stage" data-sim-type="binomial">
+<div class="sim-toolbar"><div class="sim-params">
+<div class="param-group"><div>Agent Stages (n): <span id="v_n_binomial">10</span></div><input type="range" id="n_binomial" aria-label="Number of agent stages n" min="2" max="30" step="1" value="10"></div>
+<div class="param-group"><div>Stage Success (p): <span id="v_p_binomial">0.95</span></div><input type="range" id="p_binomial" aria-label="Stage success probability p" min=".5" max=".99" step=".01" value=".95"></div>
+</div><div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
+<canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated binomial stage successes"></canvas>
+<div class="readout" aria-live="polite"><div>Samples: <span class="stat-n">0</span></div><div>Observed Mean Successes: <span class="stat-mean">–</span></div><div>All-Stage Success (pⁿ): <span class="stat-theory">–</span></div></div>
+</div>
+<h3>Operational Scenarios</h3>
+<div class="scenario-card"><div class="scenario-title">Compounding Work in an Autonomous Loop <span class="scenario-tag">Bounded Execution</span></div>
+<p>For illustration, a 30-stage workflow with independent 98% stage reliability has an all-stage success probability of <code>0.98^30 ≈ 54.5%</code>. This is not evidence that a particular agent framework failed at that rate. It shows why an architect should bound iterations, define stop conditions, validate intermediate artifacts, and measure end-to-end task completion—not just isolated model accuracy.</p>
+<div class="scenario-ref">Background: <a href="https://arxiv.org/abs/2308.11432" target="_blank" rel="noopener noreferrer">Wang et al., “A Survey on Large Language Model based Autonomous Agents”</a></div></div>
+<div class="scenario-card"><div class="scenario-title">The Multi-Agent Echo Chamber <span class="scenario-tag">Multi-Agent Topologies</span></div>
+<p>Multiple agents can share the same mistaken premise, training biases, retrieved evidence, or tool output. Debate may improve some tasks, but agreement is not independent verification. Require evidence provenance and an external check—such as a compiler, database constraint, deterministic calculation, or independently sourced fact—before treating consensus as correctness.</p>
+<div class="scenario-ref">Background: <a href="https://arxiv.org/abs/2305.14325" target="_blank" rel="noopener noreferrer">Du et al., “Improving Factuality and Reasoning in Language Models through Multiagent Debate”</a></div></div>
+<div class="scenario-card"><div class="scenario-title">The Deterministic Control Plane <span class="scenario-tag">Workflow Architecture</span></div>
+<p>Reduce unnecessary model calls by replacing predictable reasoning with ordinary code. Put each remaining model call behind typed input/output contracts, validators, bounded retries, deadlines, token budgets, and explicit state transitions. Use idempotency keys for side effects, audit the evidence used, and provide compensation or rollback paths where possible. Deterministic orchestration makes execution governable; it does not make model-generated content inherently correct.</p>
+<div class="scenario-ref">Reference: <a href="https://github.com/NVIDIA/NeMo-Guardrails" target="_blank" rel="noopener noreferrer">NVIDIA NeMo Guardrails</a></div></div>
+
+<div class="tldr-box tldr-box--warning" style="margin-top:3rem"><div class="tldr-eyebrow">The Final Reality: Constrain the Stochastic Core</div><div class="tldr-content">
+<p>A multi-step AI workflow is a reliability problem with probabilistic components. The exact end-to-end failure probability depends on stage dependencies, retries, branches, validation, and recovery—not merely the number of prompts.</p>
+<p><strong>The Architect's Rule:</strong> Use models for the semantic work that genuinely needs them. Use deterministic code for routing, arithmetic, authorization, schema checks, state transitions, and side effects. Measure the real end-to-end outcome, not just token-level or isolated-step accuracy. The AI proposes; the control plane validates and authorizes.</p>
+</div></div>
+<nav class="post-pager" aria-label="Series pagination"><a href="part-7-architects-reality-check.html">← Part 7: The Architect's Reality Check</a><a href="index.html">Back to Series Overview →</a></nav>
+</main>
+<footer class="site-footer"><div>© 2026 Saurav Sana</div><div class="footer-links"><a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a><a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a><a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a><a href="../../contact.html">Email</a></div></footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const canvasToSim=new Map();
+ const logits=[Math.log(.4),Math.log(.3),Math.log(.2),Math.log(.1)];
+ const themeBtn=document.querySelector('.theme-toggle');
+ if(themeBtn){
+   const current=document.documentElement.getAttribute('data-theme')||'dark';
+   themeBtn.setAttribute('aria-pressed',String(current==='dark'));
+   themeBtn.addEventListener('click',()=>{
+     const root=document.documentElement, next=(root.getAttribute('data-theme')||'dark')==='light'?'dark':'light';
+     root.classList.remove('light','theme-light','dark','theme-dark');root.setAttribute('data-theme',next);root.classList.add(next,'theme-'+next);
+     themeBtn.setAttribute('aria-pressed',String(next==='dark'));
+     try{localStorage.setItem('theme',next)}catch(e){}
+     document.querySelectorAll('.sim-canvas').forEach(c=>{const s=canvasToSim.get(c);if(s)s.draw()});
+   });
+ }
+ const lightMode=()=>document.documentElement.getAttribute('data-theme')==='light'||document.documentElement.classList.contains('light');
+ const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+ class Simulator{
+  constructor(stage){
+   this.type=stage.dataset.simType;this.stage=stage;this.canvas=stage.querySelector('canvas');this.ctx=this.canvas.getContext('2d');
+   this.samples=[];this.running=false;this.timer=null;this.params={};
+   this.statN=stage.querySelector('.stat-n');this.statMean=stage.querySelector('.stat-mean');this.statTheory=stage.querySelector('.stat-theory');this.statObserved=stage.querySelector('.stat-observed');
+   this.btnRun=stage.querySelector('.btn-run');this.btnStep=stage.querySelector('.btn-step');this.btnReset=stage.querySelector('.btn-reset');
+   this.bindInputs();this.btnRun.onclick=()=>this.toggleRun();this.btnStep.onclick=()=>this.step(50);this.btnReset.onclick=()=>this.reset();
+   this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(this.canvas.parentElement);
+   canvasToSim.set(this.canvas,this);this.resize();
+  }
+  bindInputs(){
+   const bind=(id,label,key,parse,fmt)=>{const input=this.stage.querySelector('#'+id),out=this.stage.querySelector('#'+label);this.params[key]=parse(input.value);input.oninput=e=>{this.params[key]=parse(e.target.value);out.textContent=fmt(this.params[key]);this.reset()}};
+   if(this.type==='categorical')bind('temp_categorical','v_temp_categorical','temp',parseFloat,v=>v.toFixed(1));
+   if(this.type==='exponential')bind('lam_exponential','v_lam_exponential','lam',parseFloat,v=>v.toFixed(1));
+   if(this.type==='geometric')bind('p_geometric','v_p_geometric','p',parseFloat,v=>v.toFixed(2));
+   if(this.type==='binomial'){bind('n_binomial','v_n_binomial','n',v=>parseInt(v,10),v=>String(v));bind('p_binomial','v_p_binomial','p',parseFloat,v=>v.toFixed(2))}
+  }
+  resize(){
+   const dpr=window.devicePixelRatio||1,rect=this.canvas.parentElement.getBoundingClientRect();
+   const cs=getComputedStyle(this.canvas.parentElement);
+   const inner=rect.width-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)-2;
+   this.W=Math.max(260,inner);this.H=220;this.canvas.width=Math.round(this.W*dpr);this.canvas.height=Math.round(this.H*dpr);
+   this.canvas.style.width='100%';this.canvas.style.height=this.H+'px';this.ctx.setTransform(dpr,0,0,dpr,0,0);this.draw();
+  }
+  probs(){const t=Math.max(.05,this.params.temp),a=logits.map(x=>Math.exp(x/t)),s=a.reduce((x,y)=>x+y,0);return a.map(x=>x/s)}
+  sample(){
+   if(this.type==='categorical'){const p=this.probs(),r=Math.random();let c=0;for(let i=0;i<p.length;i++){c+=p[i];if(r<c)return i}return p.length-1}
+   if(this.type==='exponential')return -Math.log(1-Math.random())/this.params.lam;
+   if(this.type==='geometric'){let k=1;while(Math.random()>=this.params.p)k++;return k}
+   let s=0;for(let i=0;i<this.params.n;i++)if(Math.random()<this.params.p)s++;return s;
+  }
+  range(){if(this.type==='categorical')return[0,3];if(this.type==='exponential')return[0,Math.max(5/this.params.lam,1)];if(this.type==='geometric')return[1,Math.max(6,Math.ceil(5/this.params.p))];return[0,this.params.n]}
+  draw(){
+   const c=this.ctx,W=this.W,H=this.H;if(!c||!W)return;c.clearRect(0,0,W,H);
+   const light=lightMode(),grid=light?'#cbd5e1':'#2a323e',label=light?'#475569':'#8b93a3';
+   let color=css('--teal');if(this.type==='exponential')color=css('--amber');if(this.type==='geometric')color=css('--bad');if(this.type==='binomial')color=css('--good');
+   const pad={l:42,r:18,t:24,b:38},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+   c.strokeStyle=grid;c.lineWidth=1;c.beginPath();c.moveTo(pad.l,pad.t);c.lineTo(pad.l,H-pad.b);c.lineTo(W-pad.r,H-pad.b);c.stroke();
+   let theory=null,probs=null;
+   if(this.type==='categorical'){probs=this.probs();theory=probs[3];this.statTheory.textContent=(theory*100).toFixed(1)+'%'}
+   if(this.type==='exponential'){theory=1/this.params.lam;this.statTheory.textContent=theory.toFixed(2)+'s'}
+   if(this.type==='geometric'){theory=1/this.params.p;this.statTheory.textContent=theory.toFixed(2)+' attempts'}
+   if(this.type==='binomial'){theory=this.params.n*this.params.p;this.statTheory.textContent=(Math.pow(this.params.p,this.params.n)*100).toFixed(1)+'%'}
+   if(!this.samples.length){c.fillStyle=label;c.font='12px "IBM Plex Mono",monospace';c.textAlign='center';c.fillText('Click "Run" or "Step 50" to generate data',W/2,H/2);this.statN.textContent='0';this.statMean.textContent='–';if(this.statObserved)this.statObserved.textContent='–';return}
+   const [min,max]=this.range(),discrete=this.type!=='exponential';
+   const overflow=(this.type==='exponential'||this.type==='geometric');
+   const baseBins=discrete?max-min+1:50,bins=baseBins+(overflow?1:0),bw=pw/bins,counts=new Array(bins).fill(0);
+   let sum=0,garbage=0;
+   for(const v of this.samples){sum+=v;if(this.type==='categorical'&&v===3)garbage++;
+    if(this.type==='exponential'){if(v>max)counts[bins-1]++;else counts[Math.min(49,Math.floor((v-min)/(max-min)*50))]++}
+    else if(this.type==='geometric'){if(v>max)counts[bins-1]++;else counts[Math.round(v-min)]++}
+    else counts[Math.max(0,Math.min(baseBins-1,Math.round(v-min)))]++;
+   }
+   const peak=Math.max(1,...counts);c.fillStyle=color;
+   counts.forEach((n,i)=>{const h=n/peak*ph*.88,x=pad.l+i*bw;c.fillRect(x+1,H-pad.b-h,Math.max(1,bw-2),h)});
+   c.fillStyle=label;c.font='9px "IBM Plex Mono",monospace';c.textAlign='center';
+   if(this.type==='categorical'){
+    const names=['Data','Model','Magic','Garbage'];names.forEach((v,i)=>c.fillText(v,pad.l+(i+.5)*bw,H-pad.b+15));
+    this.statMean.textContent=names[counts.indexOf(Math.max(...counts))];
+    this.statObserved.textContent=(garbage/this.samples.length*100).toFixed(1)+'%';
+   }else{
+    const ticks=this.type==='exponential'?[0,.25,.5,.75,1]:[0,.25,.5,.75,1];
+    ticks.forEach(f=>{const x=pad.l+f*pw;c.fillText(this.type==='exponential'?(min+f*(max-min)).toFixed(1)+'s':String(Math.round(min+f*(max-min))),x,H-pad.b+15)});
+    if(overflow)c.fillText('≥'+(this.type==='exponential'?max.toFixed(1)+'s':max+1),pad.l+(bins-.5)*bw,H-pad.b+28);
+    const mean=sum/this.samples.length;this.statMean.textContent=mean.toFixed(2)+(this.type==='exponential'?'s':' attempts');
+    const xFor=v=>this.type==='exponential'?pad.l+(v-min)/(max-min)*pw:pad.l+(v-min+.5)*bw;
+    if(mean>=min&&mean<=max){const x=xFor(mean);c.strokeStyle=css('--bad');c.lineWidth=2;c.beginPath();c.moveTo(x,pad.t);c.lineTo(x,H-pad.b);c.stroke()}
+    if(theory>=min&&theory<=max){const x=xFor(theory);c.strokeStyle=css('--amber');c.setLineDash([4,4]);c.beginPath();c.moveTo(x,pad.t);c.lineTo(x,H-pad.b);c.stroke();c.setLineDash([])}
+   }
+   this.statN.textContent=this.samples.length;
+  }
+  step(n){for(let i=0;i<n;i++)this.samples.push(this.sample());if(this.samples.length>5000)this.samples.splice(0,this.samples.length-5000);this.draw()}
+  toggleRun(){if(this.running){this.running=false;clearInterval(this.timer);this.btnRun.textContent='▶ Run';return}this.running=true;this.btnRun.textContent='⏸ Pause';this.timer=setInterval(()=>this.step(15),50)}
+  reset(){this.samples=[];if(this.running){this.running=false;clearInterval(this.timer);this.btnRun.textContent='▶ Run'}this.draw()}
+ }
+ document.querySelectorAll('.stage').forEach(s=>new Simulator(s));
+});
+</script>
 </body>
 </html>

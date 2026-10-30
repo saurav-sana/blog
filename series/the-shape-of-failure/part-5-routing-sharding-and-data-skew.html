@@ -14,9 +14,9 @@
     </script>
 
     <!-- Primary SEO & AIO Meta Tags -->
-    <title>Part 5: Heavy Tails and Extreme Events | The Shape of Failure | Saurav Sana</title>
-    <meta name="title" content="Part 5: Heavy Tails and Extreme Events | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Zipf, Pareto, and the math of the 99/1 rule. Why your average tenant metrics are lying to you and how extreme values break standard monitoring.">
+    <title>Part 5: Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Part 5: Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="Zipf, Pareto, Cauchy, Lévy, and Gumbel in distributed systems. Why aggregate cluster capacity is a vanity metric when heavy-tailed workloads hit rigid shard boundaries.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-5-heavy-tails-and-extremes.html">
@@ -65,12 +65,12 @@
 
         /* --- Series Heading Row --- */
         .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; line-height: 1.25; }
 
         /* --- TL;DR / Callout Boxes --- */
         .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
         .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
-        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        .tldr-box--math { background: transparent; border-left: 3px solid var(--amber); }
         
         .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
         .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
@@ -82,11 +82,25 @@
         .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
         .tldr-content li { margin-bottom: 0.4rem; }
 
-        /* --- Math Block --- */
-        .math-block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; color: var(--text); margin: 1.5rem 0; overflow-x: auto; }
-        .math-block var { font-style: italic; color: var(--amber); }
+        /* --- Plain Math Block & Inline Math --- */
+        .math-block { 
+            background: transparent; 
+            border: none; 
+            padding: 1.25rem 0; 
+            text-align: center; 
+            font-family: 'IBM Plex Serif', Georgia, serif; 
+            font-size: 1.25rem; 
+            color: var(--text); 
+            margin: 1.0rem 0; 
+            overflow-x: auto; 
+            line-height: 1.6; 
+        }
+        .math-block var, p var, li var, td var { font-family: 'IBM Plex Serif', Georgia, serif; font-style: italic; color: var(--amber); }
+        .frac { display: inline-block; vertical-align: middle; text-align: center; font-size: 0.92em; margin: 0 0.15rem; }
+        .frac > span { display: block; padding: 0.05rem 0.25rem; }
+        .frac > span.num { border-bottom: 1px solid var(--text); }
         
-        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0 1.5rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
         /* --- Simulation Stage (Tight Toolbar) --- */
@@ -104,8 +118,8 @@
         }
         
         .sim-params { display: flex; gap: 1.5rem; flex-wrap: nowrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
-        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
-        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 150px; }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); cursor: pointer; }
         .param-group span { font-weight: 600; color: var(--text); float: right; }
         
         .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
@@ -115,18 +129,39 @@
         button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
         
         canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
-        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 0.65rem 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; background: var(--panel-2); padding: 0.85rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); }
         .readout span { color: var(--amber); font-weight: 600; }
+        .readout span.bad-val { color: var(--bad, #d97757); }
+        .readout span.teal-val { color: var(--teal, #4fb8a6); }
 
         /* --- Scenario Cards --- */
         .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
-        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.9rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.55; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.4rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-card p { font-size: 0.92rem; color: var(--muted); margin: 0 0 0.6rem 0; line-height: 1.55; }
         .scenario-card p strong { color: var(--text); }
-        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
         .scenario-ref a { color: var(--teal); text-decoration: none; }
         .scenario-ref a:hover { text-decoration: underline; }
+
+        /* --- Forensic & Architecture Sections --- */
+        table { width: 100%; border-collapse: collapse; margin: 1.5rem 0 2.25rem; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; overflow-wrap: anywhere; }
+        caption { caption-side: top; text-align: left; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 0.6rem; }
+        th, td { border: 1px solid var(--line); padding: 0.7rem 0.8rem; text-align: left; vertical-align: top; line-height: 1.5; }
+        th { color: var(--text); background: var(--panel-2); font-weight: 600; font-family: 'Libre Franklin', sans-serif; }
+        td { color: var(--muted); }
+        td strong { color: var(--text); }
+
+        .forensic-grid { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.35rem 1.5rem; margin: 1.5rem 0 2rem; }
+        .forensic-item { margin-bottom: 1.15rem; padding-bottom: 1.15rem; border-bottom: 1px dashed var(--line-soft); }
+        .forensic-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .forensic-label { display: inline-block; color: var(--amber); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.35rem; }
+        .forensic-item p { margin-bottom: 0.6rem; font-size: 0.96rem; }
+        .forensic-item p:last-child { margin-bottom: 0; }
+        .forensic-item ul { margin: 0.4rem 0 0.2rem 0; padding-left: 1.25rem; }
+        .forensic-item li { font-size: 0.95rem; margin-bottom: 0.3rem; }
+
+        .architecture-flow { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; line-height: 1.6; margin: 1.5rem 0 2rem; overflow-x: auto; padding: 1.25rem; white-space: pre; }
 
         /* --- Post Pager --- */
         .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
@@ -145,6 +180,7 @@
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
+            table { display: block; overflow-x: auto; }
         }
     </style>
 </head>
@@ -187,135 +223,304 @@
             </div>
 
             <div class="series-heading-row">
-                <h1>Heavy Tails, Scale-Free Dynamics & Extremes</h1>
+                <h1>Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew</h1>
             </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">November 7, 2026 · Part 5 of 8</div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">October 30, 2026 · Part 5 of 8</div>
 
             <blockquote class="snarky-quote">
-                <p class="snarky-quote-text">“The average does not exist.”</p>
-                <p class="snarky-quote-author">— <strong><em>Nassim Nicholas Taleb</em></strong>, The Black Swan</p>
+                <p class="snarky-quote-text">“The average does not exist. Look at the variance, or prepare to be liquidated by the tail.”</p>
+                <p class="snarky-quote-author">— Adapted from <strong><em>Nassim Nicholas Taleb</em></strong>, The Black Swan</p>
             </blockquote>
 
-            <p>The "80/20 rule" is a cute lie we tell product managers. In enterprise SaaS, it's often the 99/1 rule, and that 1% is a single enterprise tenant who uses your API in a way that physically breaks the database.</p>
+            <p>Every distributed-systems architecture diagram looks magnificent in PowerPoint. Boxes are symmetrically aligned, arrows flow peacefully from left to right, and the word <em>stateless</em> is sprinkled around like holy water to ward off capacity-planning questions.</p>
 
-            <p><strong>Zipf</strong> dictates that frequency decays as 1/rank. <strong>Pareto</strong> models extreme wealth/resource consumption concentration. <strong>Cauchy</strong> and <strong>Lévy</strong> represent math breaking down entirely—infinite variance means the "average" ceases to exist. And <strong>Gumbel</strong> (Extreme Value Theory) models the absolute worst case. </p>
+            <p>In the comforting fantasy of Gaussian land, traffic arrives in polite uniform waves, every tenant consumes an average slice of CPU, and deterministic hash partitioning spreads load across shards like warm butter on toast. Then production happens. The toast lands face-down on the datacenter floor, and one whale tenant, one unindexed partition scan, or one synchronized token refresh turns Shard 7 into molten slag while the other 15 shards operate at roughly 75% of their sustainable throughput. The cluster still has spare aggregate capacity, but that capacity is stranded on the wrong shards.</p>
 
-            <!-- ========================================== -->
-            <!-- 1. ZIPF DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>1. The Zipf Distribution (Popularity)</h2>
+            <p>A probability distribution does not cause an outage on its own; it is an empirical description of workload geometry. Outages happen when a heavy-tailed workload collides with a rigid boundary—a deterministic hash ring, a shared FIFO worker pool, a row lock, or an unthrottled retry loop.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Vocabulary of the Internet</div>
+                <div class="tldr-eyebrow">Architectural Thesis</div>
                 <div class="tldr-content">
-                    <p>If you look at any natural language, the most common word ("the") appears roughly twice as often as the second most common word ("of"), three times as often as the third, and so on. Zipf's Law says frequency is inversely proportional to rank.</p>
-                    <p>Your web traffic, cache hits, and database queries follow the exact same distribution. A tiny handful of URLs get 90% of the traffic. A massive ocean of endpoints gets almost none. This is why naive caching is easy (you just cache the top 10 URLs), but the remaining misses are brutally expensive.</p>
+                    <p><strong>Systems fail where workload skew meets a rigid partition boundary.</strong> When key popularity, tenant payload cost, or arrival cadence is heavy-tailed, aggregate cluster utilization becomes a vanity metric. You are only as healthy as your hottest shard, your deepest queue, and your widest fan-out tail.</p>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability of an item at rank <var>k</var> (where rank 1 is the most popular), given a skew exponent <var>s</var>:</p>
-            <div class="math-block">
-                <var>P</var>(<var>k</var>) = (1 / <var>k</var><sup><var>s</var></sup>) / &Sigma;<sub><var>i</var>=1</sub><sup><var>N</var></sup> (1 / <var>i</var><sup><var>s</var></sup>)
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>k</var>:</strong> The rank of the item (1st, 2nd, 3rd...).</li>
-                    <li><strong><var>s</var> (Skew):</strong> Controls how steep the drop-off is. If <var>s</var> = 1, it's a standard Zipf distribution. If <var>s</var> is higher, the top items dominate even more.</li>
-                    <li>The denominator is just a normalizing constant so all probabilities sum to 1.</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If <var>s</var>=1, rank 1 gets <code>1/1 = 1</code>. Rank 2 gets <code>1/2 = 0.5</code>. Rank 3 gets <code>1/3 = 0.33</code>. The probability drops off incredibly fast. This is why a cache of size 100 can serve 80% of your traffic.</p>
-            </div>
+            <h2>The Architect's Taxonomy of Skew &amp; Extremes</h2>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+            <p>Hash partitioning makes a bet about key placement: that hashing will distribute keys reasonably evenly across partitions. It does not guarantee that the keys receive equal traffic or consume equal resources. Queueing models make a different set of assumptions about arrival processes and service-time distributions. Production failures often occur when we confuse balanced placement with balanced work. When that bet fails, you need to know which mathematical regime you have entered:</p>
+
+            <table>
+                <caption>Table 1: Heavy-Tailed &amp; Extreme Regimes in Distributed Systems</caption>
+                <thead>
+                    <tr>
+                        <th>Distribution / Regime</th>
+                        <th>What It Models in Production</th>
+                        <th>Moment Behavior (Mean / Variance)</th>
+                        <th>Boundary Failure Mechanism</th>
+                        <th>Primary Control Plane Defense</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Zipf</strong><br>(Discrete Power Law)</td>
+                        <td>Key access frequency, cache key popularity, celebrity social graphs, DNS queries.</td>
+                        <td>Finite for finite <var>N</var>, but top 1% of keys routinely drive &gt;50% of load.</td>
+                        <td><strong>Shard Pinning &amp; Stampedes:</strong> Deterministic routing maps the #1 rank key to one physical node; TTL expiry triggers simultaneous miss storms.</td>
+                        <td><code>singleflight</code> request coalescing, jittered local micro-caches, salted write-sharding (<code>key#0..K</code>).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Synchronized Burst</strong><br>(Non-Stationary Arrival)</td>
+                        <td>Phase-locked OAuth token refreshes, BGP reconnect storms, cron-aligned ETL jobs.</td>
+                        <td>Dispersion index <var>D = &sigma;<sup>2</sup>/&mu; &gg; 1</var>; instantaneous arrival rate spikes 20&times;–50&times;.</td>
+                        <td><strong>Admission Collapse:</strong> Queue fill rate exceeds drain rate by an order of magnitude; crypto/HSM thread pools lock up.</td>
+                        <td>Client-side refresh jitter, Little's Law concurrency limiters, hierarchical per-tenant token buckets.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Pareto</strong><br>(Continuous Power Law)</td>
+                        <td>Multi-tenant batch sizes, analytical scan byte-counts, Iceberg/Parquet file skew.</td>
+                        <td>Variance is <strong>infinite</strong> for <var>&alpha; &le; 2</var>; Mean is <strong>infinite</strong> for <var>&alpha; &le; 1</var>.</td>
+                        <td><strong>Head-of-Line (HoL) Blocking:</strong> By Pollaczek–Khinchine, infinite service variance (<var>&sigma;<sub>S</sub><sup>2</sup> &rarr; &infin;</var>) drives FIFO queue wait times to infinity even at 35% CPU.</td>
+                        <td>Admission cost estimation, fast/heavy-lane pool isolation, byte-second tenant quotas, fair scheduling.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cauchy Regime</strong><br>(Undefined Averages)</td>
+                        <td>Unstable ratio metrics (success/capacity during brownouts), extreme heavy tails.</td>
+                        <td>Both Mean (<var>E[X]</var>) and Variance (<var>Var(X)</var>) are <strong>undefined</strong>. Law of Large Numbers fails.</td>
+                        <td><strong>Observability Blindness:</strong> Sample averages never converge and jump wildly; <var>&mu; &plusmn; 3&sigma;</var> anomaly alerts lose statistical meaning.</td>
+                        <td>Abandon mean/stddev alerts; enforce HDR Histograms, high-res quantiles (<var>p99</var>, <var>p99.9</var>), and Median Absolute Deviation (MAD).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Metastability &amp; Lévy Jumps</strong><br>(Closed-Loop Feedback)</td>
+                        <td>Self-amplifying retry storms, metastable lock convoys. (Lévy mathematically models heavy first-passage jumps).</td>
+                        <td>Infinite mean and variance; metastable latch-up pins the system in failure state indefinitely.</td>
+                        <td><strong>Retry Amplification:</strong> Nonlinear feedback (<var>p = p(&Lambda;)</var>) increases offered load as dependency saturation degrades.</td>
+                        <td>Process-wide retry budgets, exponential backoff with full jitter, CoDel shedding, LIFO bounding.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Extreme Value Theory</strong><br>(Gumbel/Fréchet/Weibull)</td>
+                        <td>Maximum daily RPS, worst-case shard queue depth, 100-node fan-out tail latency.</td>
+                        <td>Distribution of block maxima <var>M<sub>n</sub></var>. Limiting behavior depends on the underlying tail class.</td>
+                        <td><strong>Ceiling Breach:</strong> Sizing memory or connection pools for the 99th percentile fails when maxima over millions of windows exceed static buffers.</td>
+                        <td>Block-maxima return-level sizing, bounded hedged requests at <var>p95</var>, hard memory circuit breakers.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- ========================================== -->
+            <!-- 1. ZIPF DISTRIBUTION                       -->
+            <!-- ========================================== -->
+            <h2>1. Zipf's Law: Hot Keys, Shard Pinning, and Cache Stampedes</h2>
+
+            <p>In an egalitarian universe, all database keys are created equal. In production, a single global configuration row, a viral flash-sale SKU, or a celebrity account mapped through a deterministic partitioning boundary turns a horizontally scaled cluster into a localized smoking crater.</p>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
                 <div class="tldr-content">
-                    <p>If you assume your cache hit ratio is linear with cache size, you are going to have a bad time. Zipf curves are brutal. Adding 10% more cache size might only yield 1% more hits. But if the cache goes down, the "thundering herd" of requests for the top 1% of keys will instantly melt your database.</p>
+                    <p>Zipf's Law models discrete rank-frequency skew. If <var>N</var> distinct keys are ranked by access frequency (<var>k = 1, 2, &dots;, N</var>), the probability that a random request targets the key at rank <var>k</var> is inversely proportional to a power <var>s</var> of its rank:</p>
+                    <div class="math-block">
+                        <var>P</var>(<var>K = k</var>) = <span class="frac"><span class="num"><var>k</var><sup>&minus;<var>s</var></sup></span><span><var>H<sub>N,s</sub></var></span></span> &quad; where &quad; <var>H<sub>N,s</sub></var> = &sum;<sub><var>i</var>=1</sub><sup><var>N</var></sup> <var>i</var><sup>&minus;<var>s</var></sup>
+                    </div>
+                    <p>Here <var>H<sub>N,s</sub></var> is the generalized harmonic number normalizing the distribution. The skew exponent <var>s</var> must always be fitted against production key-access telemetry—never blindly assumed to be 1.0.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Forensic Case Study: The Celebrity Key vs. The Sharded Database</h3>
+
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. Observed Problem</div>
+                    <p>A 16-shard key-value storage cluster is benchmarked and certified for an aggregate sustainable capacity of <strong>24,000 RPS</strong> (1,500 RPS per shard). At 10:15 AM, aggregate cluster traffic reaches only <strong>20,000 RPS</strong> (83% of cluster capacity), yet upstream API gateways begin throwing massive waves of <code>HTTP 503 Service Unavailable</code> and <code>504 Gateway Timeout</code> errors.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. Evidence &amp; Telemetry Assumptions</div>
+                    <p>The keyspace contains <var>N = 10,000</var> active logical keys. Top-K sketch telemetry shows key access follows a Zipf distribution with fitted exponent <var>s = 1.0</var>. Routing uses deterministic hash partitioning without hot-key salting. Background traffic is assumed to be uniformly distributed across the remaining keys.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. Mathematical Model &amp; Derivation</div>
+                    <p>For <var>N = 10,000</var> and <var>s = 1.0</var>, the normalizing constant is:</p>
+                    <div class="math-block">
+                        <var>H</var><sub>10,000, 1</sub> &approx; 9.7875
+                    </div>
+                    <p>The single hottest key (<var>k = 1</var>) therefore commands a global traffic share of:</p>
+                    <div class="math-block">
+                        <var>P</var>(<var>K</var> = 1) = <span class="frac"><span class="num">1<sup>&minus;1</sup></span><span>9.7875</span></span> &approx; 0.1022 &quad; (10.22% of all cluster traffic)
+                    </div>
+                    <p>At an aggregate arrival rate of <var>&Lambda; = 20,000</var> RPS, key <var>k = 1</var> alone generates:</p>
+                    <div class="math-block">
+                        <var>&lambda;</var><sub><var>k</var>=1</sub> = 20,000 &times; 0.1022 = 2,044 RPS
+                    </div>
+                    <p>The background traffic hitting the cluster minus this hot key is <var>20,000 &minus; 2,044 = 17,956</var> RPS, distributed uniformly as <var>17,956 / 16 &approx; 1,122.25</var> RPS per shard.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">4. Failure Mechanism (The Normalized Load Ratio)</div>
+                    <p>Key <var>k = 1</var> maps deterministically to a specific physical node, let's call it <strong>Shard 7</strong>. Shard 7 receives all 2,044 RPS from the hot key, plus its 1,122.25 RPS of background traffic:</p>
+                    <div class="math-block">
+                        <var>&lambda;</var><sub>Shard 7</sub> &approx; 2,044 + 1,122.25 = 3,166.25 RPS
+                    </div>
+                    <p>Shard 7 is hit with <strong>211% of its 1,500 RPS ceiling</strong> (<var>&rho; = 2.11</var>) while the other shards cruise safely around 75% capacity. To formalize this imbalance, we use the <strong>Normalized Load Ratio (Gini-like coefficient)</strong> <var>H</var>:</p>
+                    <div class="math-block">
+                        <var>H</var> = <span class="frac"><span class="num">max<sub><var>i</var></sub>(<var>&lambda;</var><sub><var>i</var></sub>)</span><span>(1/<var>M</var>) &sum;<sub><var>i</var></sub> <var>&lambda;</var><sub><var>i</var></sub></span></span> = <span class="frac"><span class="num">3,166</span><span>1,250</span></span> = 2.53
+                    </div>
+                    <p>A low cluster-wide CPU metric effortlessly coexists with a completely saturated shard. Shard 7's connection pool saturates, and any multi-key scatter-gather query touching Shard 7 hangs until timeout.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">5. Architectural Controls</div>
+                    <ul>
+                        <li><strong>In-Flight Request Coalescing (<code>singleflight</code>):</strong> Deduplicate concurrent cache misses for identical key reads at the proxy tier. However, <code>singleflight</code> only coalesces <em>concurrent</em> requests; it does not eliminate sustained demand <em>after</em> the coalescing window completes.</li>
+                        <li><strong>Local Micro-Caches with Jittered TTLs:</strong> Cache hot reads in gateway memory for 50–200ms with uniform TTL jitter to prevent synchronized cache stampedes across proxy nodes.</li>
+                        <li><strong>Salted Write Sharding:</strong> Replicating a hot read is relatively straightforward. Distributing hot <em>writes</em> introduces ordering and consistency problems. Append a random suffix <code>key_1#0 .. key_1#7</code> to spread hot writes across 8 shards, accepting an 8-way aggregation penalty on reads.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Interactive Simulation: Zipf Key Skew &amp; Shard Pinning</h3>
+            <p>Adjust the Zipf exponent (<var>s</var>) and keyspace size (<var>N</var>). Notice how increasing <var>s</var> above 1.0 causes Rank 1 (the leftmost bar) to cannibalize the entire cluster's request volume.</p>
+
             <div class="stage" data-sim-type="zipf">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Skew Exp (s): <span id="v_s_zipf">1.10</span></div>
-                            <input type="range" id="s_zipf" aria-label="Zipf skew exponent s" min="0.5" max="2.5" step="0.05" value="1.1">
+                            <div>Skew Exponent (s): <span id="v_s_zipf">1.05</span></div>
+                            <input type="range" id="s_zipf" aria-label="Zipf skew exponent s" min="0.2" max="2.2" step="0.05" value="1.05">
                         </div>
                         <div class="param-group">
-                            <div>Max Rank: <span id="v_k_zipf">20</span></div>
-                            <input type="range" id="k_zipf" aria-label="Maximum rank N" min="5" max="40" step="1" value="20">
+                            <div>Keyspace (N): <span id="v_k_zipf">40</span></div>
+                            <input type="range" id="k_zipf" aria-label="Zipf keyspace size N" min="10" max="60" step="5" value="40">
                         </div>
                     </div>
                     <div class="controls">
                         <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-step">Step 100</button>
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Zipf distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Zipf distribution across key ranks"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean Rank: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean Rank: <span class="stat-theory">–</span></div>
+                    <div>Mean Rank: <span class="stat-mean">–</span></div>
+                    <div>Theory Mean: <span class="stat-theory">–</span></div>
+                    <div>Median (p50): <span class="stat-p50 teal-val">–</span></div>
+                    <div>p99 Rank: <span class="stat-p99">–</span></div>
+                    <div>Rank #1 Traffic Share: <span class="stat-tail bad-val">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Tail Spin" <span class="scenario-tag">Web Caching</span></div>
-                <p>A CDN caches the top 10,000 objects and achieves a 95% hit rate. But the remaining 5% of requests are cold misses that traverse the entire origin stack. When a viral event happens, the "cold" long tail suddenly becomes the hot path.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank">Facebook, "Scaling Memcache at Facebook"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Hot Partition" <span class="scenario-tag">DynamoDB</span></div>
-                <p>If you shard by user ID, a celebrity user (rank 1) will generate so much traffic that their single shard melts, while thousands of other shards sit idle. This is a classic Zipfian hot partition problem.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/database/designing-scalable-partition-keys-for-amazon-dynamodb/" target="_blank">AWS DynamoDB Partition Design</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Wikipedia Effect" <span class="scenario-tag">DNS Resolution</span></div>
-                <p>DNS queries follow a Zipf distribution. The top 1% of domain names account for the vast majority of resolver traffic. This is why DNS caching works so well, but also why DDoS attacks targeting specific popular domains are so effective.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_fall16_08_jung.pdf" target="_blank">Jung et al., "DNS Caching and Zipf's Law"</a></div>
+                <div class="scenario-title">Documented Precedent: Scaling Memcache at Facebook <span class="scenario-tag">Cache Stampedes</span></div>
+                <p>When a popular Zipf key expires in a distributed cache, thousands of web servers simultaneously experience a cache miss and hammer the underlying database. Facebook introduced <strong>leases</strong> (a 10-second token granted to the first miss; subsequent misses wait and retry cache) and regional pool replication for hot keys.</p>
+                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener noreferrer">Nishtala et al., "Scaling Memcache at Facebook" (USENIX NSDI '13)</a></div>
             </div>
 
             <!-- ========================================== -->
-            <!-- 2. PARETO DISTRIBUTION -->
+            <!-- 2. SYNCHRONIZED TOKEN REFRESH              -->
             <!-- ========================================== -->
-            <h2>2. The Pareto Distribution (The Whale Tenant)</h2>
+            <h2>2. Synchronized Token Refresh: Temporal &amp; Dependency Skew</h2>
+
+            <p>Popularity skew across keys is spatial. Distributed authentication and control-plane systems suffer from a second, equally lethal geometry: <strong>temporal arrival skew</strong>, where hundreds of thousands of otherwise well-behaved clients phase-lock into a synchronized thundering herd.</p>
+
+            <div class="architecture-flow">[120,000 Client Schedulers]
+       │  Regional network blip heals / Coordinated deployment restart
+       ▼
+[Regional API Gateway / Edge]
+       │  Independent Admission Rate Limits &amp; Throttling
+       ▼
+[Token Service Fleet]
+       │  Instantaneous 4,000 RPS spike (vs. 133.3 RPS Poisson average)
+       ▼
+[HSM / Credential Store]
+       │  Row-lock contention + Cryptographic signing queue exhaustion</div>
+
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. Observed Problem</div>
+                    <p>An enterprise identity control plane serves <var>N = 120,000</var> connected daemon clients. Access tokens have a fixed TTL of <var>T = 900</var> seconds (15 minutes). Following a brief 5-second BGP route flap on a major transit provider, all 120,000 clients reconnect and request token refreshes within a <strong>30-second window</strong>, collapsing the Token Service.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. Mathematical Model: Poisson Illusion vs. Phase-Locked Reality</div>
+                    <p>During capacity planning, the team modeled token refreshes as a stationary Poisson process:</p>
+                    <div class="math-block">
+                        <var>&lambda;</var><sub>avg</sub> = <span class="frac"><span class="num">120,000 clients</span><span>900 seconds</span></span> &approx; 133.33 RPS
+                    </div>
+                    <p>Provisioning the cluster for <strong>1,500 RPS</strong> looked like a conservative 10&times; safety margin. However, phase-locking compresses all <var>N</var> arrivals into <var>&Delta;t = 30</var> seconds:</p>
+                    <div class="math-block">
+                        <var>&lambda;</var><sub>burst</sub> = <span class="frac"><span class="num">120,000</span><span>30 s</span></span> = 4,000 RPS &quad; (2.67&times; total cluster capacity)
+                    </div>
+                    <p><strong>The Follow-On Avalanche:</strong> When clients refresh at a fixed fraction of their token lifetime, synchronized issuance creates synchronized future refresh cohorts. Without randomized refresh scheduling, the system repeatedly reproduces a concentrated arrival pattern.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. Little's Law Admission Control &amp; Damping Math</div>
+                    <p>To break the cohort synchronization and protect downstream systems, we apply two separate controls:</p>
+                    <ul>
+                        <li><strong>Admission Rate:</strong> Hard limit of 1,200 requests/second at the edge.</li>
+                        <li><strong>Concurrency Limit (Little's Law):</strong> Little's Law (<var>L = &lambda;W</var>) describes <em>average</em> concurrency under stable conditions. If the measured, stable mean time in the system is <var>W = 50</var> ms, a safe concurrency bound is:
+                            <div class="math-block"><var>L</var> = 1,200 &times; 0.05 = 60 concurrent requests</div>
+                            This 60-slot concurrency limit is derived from measured service time and downstream capacity, enforced by an independently configured queue and deadline budget.
+                        </li>
+                    </ul>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">4. Architectural Caveats: The Retry-After Illusion</div>
+                    <p>Shedding requests with a randomized <code>Retry-After: U(5, 45)</code> header is useful, <strong>but only if clients respect it, preserve their original deadline, and apply a retry budget</strong>. Otherwise, you simply move the synchronized burst 5–45 seconds into the future. Robust defense requires hierarchical per-tenant token buckets and strict client-side refresh jitter persisted across restarts.</p>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 3. PARETO DISTRIBUTION                     -->
+            <!-- ========================================== -->
+            <h2>3. Pareto Distribution: Tenant Skew, Pollaczek–Khinchine, and HoL Blocking</h2>
+
+            <p>The "80/20 rule" is a polite bedtime story we tell product managers. In multi-tenant SaaS, regulatory trade reporting, and cloud data gateways, workload costs follow a <strong>99/1 power law</strong>: 99 tenants submit 50 KB incremental queries, and 1 "Whale" global institution dumps a 40 GB cross-partition reconciliation query into the exact same execution pool.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Multi-Tenant Nightmare</div>
+                <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
                 <div class="tldr-content">
-                    <p>You run a multi-tenant SaaS platform. You have 10,000 customers. You provision your database based on the average resource usage of a customer. Then, Customer #1 (a massive Fortune 500 company) runs a nightly batch job that consumes 90% of your database's IOPS. The other 9,999 customers experience a total outage.</p>
-                    <p>Pareto distributions model this "wealth concentration." The 80/20 rule (20% of the causes create 80% of the effects) is a Pareto distribution. In real systems, it's often 99/1.</p>
+                    <p>A continuous random variable <var>X</var> (such as tenant query bytes) follows a Pareto distribution with minimum scale <var>x<sub>m</sub> &gt; 0</var> and tail index <var>&alpha; &gt; 0</var> if its survival function and density are:</p>
+                    <div class="math-block">
+                        <var>P</var>(<var>X &gt; x</var>) = <mrow><mo>(</mo><span class="frac"><span class="num"><var>x<sub>m</sub></var></span><span><var>x</var></span></span><mo>)</mo></mrow><sup><var>&alpha;</var></sup>, &quad; <var>f</var>(<var>x</var>) = <span class="frac"><span class="num"><var>&alpha; x<sub>m</sub><sup>&alpha;</sup></var></span><span><var>x</var><sup><var>&alpha;</var>+1</sup></span></span> &quad; for <var>x &ge; x<sub>m</sub></var>
+                    </div>
+                    <p>The moments of a Pareto distribution expose a terrifying threshold:</p>
+                    <ul>
+                        <li><strong>First Moment (Mean):</strong> <var>E[X] = (&alpha; x<sub>m</sub>) / (&alpha; &minus; 1)</var> for <var>&alpha; &gt; 1</var>. If <var>&alpha; &le; 1</var>, the mean is <strong>infinite</strong>.</li>
+                        <li><strong>Second Moment &amp; Variance:</strong> <var>Var(X) = (&alpha; x<sub>m</sub><sup>2</sup>) / [(&alpha; &minus; 1)<sup>2</sup>(&alpha; &minus; 2)]</var> for <var>&alpha; &gt; 2</var>. If <strong><var>&alpha; &le; 2</var>, the variance is infinite (<var>&sigma;<sup>2</sup> = &infin;</var>)</strong>.</li>
+                    </ul>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for a Pareto distribution, where <var>x<sub>m</sub></var> is the minimum possible value and <var>&alpha;</var> is the tail index:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = (<var>&alpha;</var> &middot; <var>x<sub>m</sub></var><sup><var>&alpha;</var></sup>) / <var>x</var><sup><var>&alpha;</var>+1</sup>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>&alpha;</var> (Alpha):</strong> The tail index. The smaller the alpha, the heavier the tail (more extreme whales).</li>
-                    <li><strong><var>x<sub>m</sub></var>:</strong> The minimum value (e.g., the minimum billing tier).</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If your average API usage is 10,000 requests/day, but your <var>&alpha;</var> = 1.2, the top 1% of your tenants might be making 10 <em>million</em> requests/day. If you capacity-plan for the average, that one tenant will take down your whole platform.</p>
-            </div>
+            <h3>Forensic Case Study: How Infinite Service Variance Destroys a Low-CPU Worker Lane</h3>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Averages are completely useless in a Pareto system. You cannot provision for the mean when the variance is infinite (or highly unstable). You have to provision for the maximum expected tenant (the p99.9 of tenant sizes), or implement strict per-tenant rate limiting (admission control) so no single whale can drown the pool.</p>
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. Observed Problem</div>
+                    <p>A parallel query gateway lane runs at a comfortable <strong>50% average CPU utilization (<var>&rho; = 0.50</var>)</strong>. Mean query execution time is <var>E[S] = 25</var> ms. Yet every afternoon, <strong>mean queue wait times spike above 1,700 ms</strong>, causing widespread client timeouts for small operational lookups.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. Mathematical Model: The Pollaczek–Khinchine Trap</div>
+                    <p>Telemetry reveals that multi-tenant scan sizes follow a Pareto distribution with tail index <var>&alpha; = 1.6</var>. An ideal Pareto with <var>&alpha; = 1.6</var> has infinite variance. Crucially, Pareto-distributed scan bytes (<var>B</var>) create Pareto-like service times (<var>S</var>) via the physical mechanism <var>S &approx; S<sub>0</sub> + B / R<sub>effective</sub></var>.</p>
+                    <p>To establish our empirical variance, we measure service times for completed queries over a 1-hour window. Note that a 60-second client timeout only truncates backend service time because we implemented explicit deadline cancellation propagation. From this truncated distribution, we calculate the sample mean and variance to find a massive squared coefficient of variation: <var>C<sub>S</sub><sup>2</sup> = &sigma;<sub>S</sub><sup>2</sup> / E[S]<sup>2</sup> &approx; 140</var>.</p>
+                    <p>We model a single bottleneck worker thread within this lane using the <var>M/G/1</var> single-server FIFO queue approximation. The <strong>Pollaczek–Khinchine formula</strong> states that mean waiting time <var>W<sub>q</sub></var> is driven directly by the second moment of service time <var>E[S<sup>2</sup>]</var>:</p>
+                    <div class="math-block">
+                        <var>W<sub>q</sub></var> = <span class="frac"><span class="num"><var>&lambda; E</var>[<var>S</var><sup>2</sup>]</span><span>2(1 &minus; <var>&rho;</var>)</span></span> = <span class="frac"><span class="num"><var>&lambda;</var> (<var>&sigma;<sub>S</sub></var><sup>2</sup> + <var>E</var>[<var>S</var>]<sup>2</sup>)</span><span>2(1 &minus; <var>&rho;</var>)</span></span>
+                    </div>
+                    <p>Compare two workloads for this thread at <var>&rho; = 0.5</var> and <var>E[S] = 25</var> ms:</p>
+                    <ul>
+                        <li><strong>Deterministic Service (<var>C<sub>S</sub><sup>2</sup> = 0</var>):</strong> <var>W<sub>q</sub> = 1 \times (1/2) \times 25 = 12.5</var> ms.</li>
+                        <li><strong>Heavy-Tailed Pareto Service (<var>C<sub>S</sub><sup>2</sup> = 140</var>):</strong> <var>W<sub>q</sub> = 1 \times (141/2) \times 25 = 1,762.5</var> ms (a <strong>141&times; queue delay explosion</strong> at the exact same CPU utilization!).</li>
+                    </ul>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. Architectural Controls (SITA-E Workload Isolation)</div>
+                    <p>The <var>M/G/1</var> formula models a single FIFO bottleneck. To break the math, you must isolate the lanes:</p>
+                    <ul>
+                        <li><strong>Fast Lane / Heavy Lane Isolation:</strong> Estimate query cost from metadata manifests before execution. Route sub-10MB interactive queries to a Fast Lane and multi-GB analytical scans to a dedicated Heavy Lane worker pool.</li>
+                        <li><strong>Fair Scheduling &amp; Cancellation:</strong> Prevent one tenant from monopolizing the Heavy Lane using Deficit Round Robin. Actively cancel running execution graphs when the caller's upstream deadline expires.</li>
+                        <li><strong>Cost-Based Token Buckets:</strong> Replace naive request-count rate limiters (<code>100 req/min</code>) with per-tenant <strong>CPU-millisecond</strong> and <strong>byte-second</strong> budgets.</li>
+                    </ul>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Pareto Tail Index (<var>&alpha;</var>) Explorer</h3>
+            <p>Drag <var>&alpha;</var> below <code>2.0</code> (infinite variance domain) and watch the rightmost <strong>red overflow bar</strong> accumulate extreme Whale tenants that drag the Observed Mean far away from the Median (<var>p50</var>).</p>
+
             <div class="stage" data-sim-type="pareto">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -324,13 +529,13 @@
                             <input type="range" id="xm_pareto" aria-label="Pareto minimum scale xm" min="0.5" max="3.0" step="0.1" value="1.0">
                         </div>
                         <div class="param-group">
-                            <div>Tail Index (α): <span id="v_a_pareto">1.2</span></div>
-                            <input type="range" id="a_pareto" aria-label="Pareto tail index alpha" min="0.5" max="4.0" step="0.1" value="1.2">
+                            <div>Tail Index (α): <span id="v_a_pareto">1.4</span></div>
+                            <input type="range" id="a_pareto" aria-label="Pareto tail index alpha" min="0.6" max="3.5" step="0.1" value="1.4">
                         </div>
                     </div>
                     <div class="controls">
                         <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-step">Step 100</button>
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
@@ -338,69 +543,66 @@
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
+                    <div>Theory Mean: <span class="stat-theory">–</span></div>
+                    <div>Median (p50): <span class="stat-p50 teal-val">–</span></div>
+                    <div>p99 Value: <span class="stat-p99">–</span></div>
+                    <div>Max Whale / Tail &gt;Plot: <span class="stat-tail bad-val">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Justin Bieber" Problem <span class="scenario-tag">Twitter (Early Days)</span></div>
-                <p>In early Twitter, a tweet was pushed synchronously to the timeline cache of every follower. When a Pareto whale with 50 million followers tweeted, the queueing architecture collapsed attempting 50 million simultaneous writes. Twitter had to re-architect: push for normal users, pull for whales.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.infoq.com/presentations/Twitter-Timeline-Scalability/" target="_blank">Raffi Krikorian, "Timelines at Scale"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Noisy Neighbor" <span class="scenario-tag">AWS RDS</span></div>
-                <p>You have 100 databases on a shared RDS instance. One database hits a missing index and performs a full table scan, consuming 100% of the disk IOPS. All other 99 databases are effectively offline.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/database/improving-performance-with-resource-governor-on-amazon-rds-for-postgresql/" target="_blank">AWS RDS Resource Governor</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Storage Whale" <span class="scenario-tag">AWS S3</span></div>
-                <p>The distribution of S3 bucket sizes follows a Pareto distribution. A single bucket can hold petabytes of data, while millions of buckets hold a few megabytes. AWS has to build dedicated capacity just to handle the metadata for the biggest buckets.</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/aws/amazon-s3-update-56-trillion-objects/" target="_blank">AWS S3 Update (56 Trillion Objects)</a></div>
-            </div>
+            <!-- ========================================== -->
+            <!-- 4. CAUCHY DISTRIBUTION                     -->
+            <!-- ========================================== -->
+            <h2>4. The Cauchy Regime: Ratio Metrics &amp; Undefined Averages</h2>
 
-            <!-- ========================================== -->
-            <!-- 3. CAUCHY DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>3. The Cauchy Distribution (Math Breaks Down)</h2>
+            <p>Every engineer is taught that if you take enough samples (<var>N &rarr; &infin;</var>), the sample mean converges to the true population average. That theorem requires the distribution's absolute first moment to be finite. In Cauchy-like regimes, that condition fails, and your monitoring dashboards hallucinate.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Average is a Hallucination</div>
+                <div class="tldr-eyebrow">The Mathematical Counterexample</div>
                 <div class="tldr-content">
-                    <p>The Cauchy distribution is what happens when the tail is so heavy that the mean and variance are literally <strong>undefined</strong>. The Law of Large Numbers, which guarantees that your average will converge as you collect more data, completely fails here.</p>
-                    <p>You can collect 1,000,000 samples, and the average will still bounce around wildly. A single extreme outlier can swing the mean by millions of milliseconds. If your latency follows a Cauchy distribution, standard deviation and average dashboards are actively lying to you.</p>
+                    <p>A Cauchy distribution with location peak <var>x<sub>0</sub></var> and scale <var>&gamma; &gt; 0</var> has probability density:</p>
+                    <div class="math-block">
+                        <var>f</var>(<var>x</var>; <var>x</var><sub>0</sub>, <var>&gamma;</var>) = <span class="frac"><span class="num">1</span><span>&pi;<var>&gamma;</var> [1 + ((<var>x</var> &minus; <var>x</var><sub>0</sub>) / <var>&gamma;</var>)<sup>2</sup>]</span></span>
+                    </div>
+                    <p>The tails decay slowly as <var>x<sup>&minus;2</sup></var>. Therefore, the integral defining expected value diverges:</p>
+                    <div class="math-block">
+                        <var>E</var>[|<var>X</var>|] = <span class="frac"><span class="num">2</span><span>&pi;</span></span> &int;<sub>0</sub><sup>&infin;</sup> <span class="frac"><span class="num"><var>x</var></span><span>1 + <var>x</var><sup>2</sup></span></span> <var>dx</var> = &infin;
+                    </div>
                 </div>
             </div>
 
-            <h3>The Math</h3>
-            <p>The probability density function for a Cauchy distribution, with location <var>x<sub>0</sub></var> and scale <var>&gamma;</var>:</p>
+            <h3>Operational Relevance: When Averages Lie</h3>
+
+            <p>API latency itself is strictly nonnegative and bounded by timeouts, so it never literally spans <var>&minus;&infin;</var> to <var>+&infin;</var> like a true Cauchy variable. However, engineers encounter the <var>x<sup>&minus;2</sup></var> Cauchy-like decay in two critical scenarios:</p>
+            <ol>
+                <li><strong>Heavy-Tailed Power Laws</strong> exhibiting <var>&alpha; = 1</var> behavior over an observed range.</li>
+                <li><strong>Unstable Ratio Metrics:</strong> Calculating throughput efficiency <var>R = \text{Successful Requests} / \text{Available Capacity}</var> during a brownout where the denominator oscillates near zero. This creates enormous, volatile outliers.</li>
+            </ol>
+
+            <p>Via characteristic functions, the average of <var>N</var> independent true Cauchy samples has the <strong>exact same distribution as a single sample</strong>:</p>
+
             <div class="math-block">
-                <var>f</var>(<var>x</var>) = 1 / [&pi;<var>&gamma;</var>(1 + ((<var>x</var> - <var>x<sub>0</sub></var>)/<var>&gamma;</var>)<sup>2</sup>)]
+                <span style="text-decoration:overline"><var>X</var></span><sub><var>N</var></sub> = <span class="frac"><span class="num">1</span><span><var>N</var></span></span> &sum;<sub><var>i</var>=1</sub><sup><var>N</var></sup> <var>X<sub>i</sub></var> &sim; Cauchy(<var>x</var><sub>0</sub>, <var>&gamma;</var>)
             </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>x<sub>0</sub></var>:</strong> The location parameter (the peak of the curve).</li>
-                    <li><strong><var>&gamma;</var>:</strong> The scale parameter (how wide the curve is).</li>
-                </ul>
-                <p><strong>Worked Example:</strong> The integral of this function from <code>-infinity</code> to <code>+infinity</code> is infinite in both directions. This means you cannot calculate an expected value. If you take the average of 100 samples, then add one sample of 1,000,000, the mean instantly jumps to ~10,000.</p>
-            </div>
+
+            <p>Read that twice: <strong>averaging 1,000,000 observations reduces noise by 0%</strong>. In contrast, the sample <strong>Median (<var>p50</var>)</strong> and <strong>Interquartile Range (IQR = <var>2&gamma;</var>)</strong> are rigorously bounded and converge rapidly.</p>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
+                <div class="tldr-eyebrow">The Observability Rule</div>
                 <div class="tldr-content">
-                    <p>If you see a system that looks like Cauchy, standard monitoring is useless. You cannot use standard deviation for alerting. You have to use percentiles (p99, p99.9) or robust statistics (like the Median Absolute Deviation) because they are not dragged around by extreme outliers.</p>
+                    <p>Never trigger auto-scalers or PagerDuty alerts using <code>avg(ratio) + 3 * stddev(ratio)</code>. In heavy-tailed regimes, a single outlier inflates the sample <code>stddev</code> so severely that the threshold becomes unstable and loses statistical meaning. Instead, alert on <strong>high-resolution histogram-derived quantiles (<var>p99, p99.9</var>)</strong> combined with the robust <strong>Median Absolute Deviation (MAD)</strong>.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Watch the Mean Fail to Converge</h3>
+            <p>Click <strong>Run</strong>. The Median stays locked near <var>x<sub>0</sub></var> while a single extreme ratio outlier teleports the Observed Mean across the screen repeatedly.</p>
+
             <div class="stage" data-sim-type="cauchy">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
                             <div>Location (x0): <span id="v_x0_cauchy">0.0</span></div>
-                            <input type="range" id="x0_cauchy" aria-label="Cauchy location parameter x0" min="-2.0" max="2.0" step="0.1" value="0">
+                            <input type="range" id="x0_cauchy" aria-label="Cauchy location parameter x0" min="-2.0" max="2.0" step="0.1" value="0.0">
                         </div>
                         <div class="param-group">
                             <div>Scale (γ): <span id="v_g_cauchy">0.5</span></div>
@@ -409,192 +611,116 @@
                     </div>
                     <div class="controls">
                         <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
+                        <button class="sim-btn secondary btn-step">Step 100</button>
                         <button class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Cauchy distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">Undefined</span></div>
+                    <div>Observed Mean: <span class="stat-mean bad-val">–</span></div>
+                    <div>Theory Mean: <span class="stat-theory">Undefined</span></div>
+                    <div>Median (p50): <span class="stat-p50 teal-val">–</span></div>
+                    <div>p99 Value: <span class="stat-p99">–</span></div>
+                    <div>Max Outlier: <span class="stat-tail bad-val">–</span></div>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Dashboard Lie" <span class="scenario-tag">Metrics Aggregation</span></div>
-                <p>You aggregate the latency of 10,000 requests. 9,999 take 10ms. One request hangs for 10 seconds due to a network partition. The mean jumps from 10ms to 11ms. A few more of those and your capacity planning model is completely broken.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.youtube.com/watch?v=lJ8ydIuPFeU" target="_blank">Gil Tene, "How NOT to Measure Latency"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Resonance" <span class="scenario-tag">Mechanical Systems</span></div>
-                <p>In mechanical engineering, resonance (like a bridge swaying) can be modeled by the Cauchy distribution. The tails are so heavy that the bridge will eventually oscillate to infinite amplitude. In software, this looks like an uncontrolled retry storm.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Cauchy_distribution" target="_blank">Cauchy Distribution (Properties)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Bufferbloat" <span class="scenario-tag">Network Queueing</span></div>
-                <p>A poorly configured network buffer can cause latency to spike from 10ms to 2000ms when the buffer fills up. The distribution of these delays is extremely heavy-tailed.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.bufferbloat.net/projects/" target="_blank">Bufferbloat Project</a></div>
-            </div>
+            <!-- ========================================== -->
+            <!-- 5. LÉVY DISTRIBUTION & RETRY CASCADES      -->
+            <!-- ========================================== -->
+            <h2>5. Lévy First-Passage Jumps &amp; Metastable Retry Cascades</h2>
 
-            <!-- ========================================== -->
-            <!-- 4. LÉVY DISTRIBUTION -->
-            <!-- ========================================== -->
-            <h2>4. The Lévy Distribution (Cascading Failures)</h2>
+            <p>We must carefully separate a mathematical model from a distributed systems phenomenon. The <strong>Lévy distribution</strong> is a one-sided stable distribution (<var>&alpha; = 0.5</var>) that models extreme positive jumps and <strong>first-passage times</strong> (e.g., how long a random walk takes to hit a barrier). A <strong>Retry Storm</strong>, conversely, is a nonlinear feedback mechanism where a system remains in a degraded state (metastability) after the original trigger disappears.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The Cascade</div>
+                <div class="tldr-eyebrow">The Mathematical Model: Lévy Jumps</div>
                 <div class="tldr-content">
-                    <p>If the Cauchy distribution is bad, the Lévy is worse. It models the time between large, sudden jumps. Think of a system that is running perfectly fine, and then a packet drop causes a retry storm, which causes a queue buildup, which causes an OOM kill, which causes the node to fail.</p>
-                    <p>It is the mathematical signature of a cascading failure. Long periods of absolute calm, punctuated by massive, catastrophic leaps in latency or error rate.</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability density function for a Lévy distribution, with location <var>&mu;</var> and scale <var>c</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = &radic;(<var>c</var> / (2&pi;)) &middot; <var>e</var><sup>-<var>c</var> / (2(<var>x</var> - <var>&mu;</var>))</sup> / (<var>x</var> - <var>&mu;</var>)<sup>3/2</sup>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>&mu;</var>:</strong> The location (minimum value).</li>
-                    <li><strong><var>c</var>:</strong> The scale parameter.</li>
-                    <li><strong>The <var>x</var><sup>3/2</sup> denominator:</strong> This is what makes the tail so heavy. As <var>x</var> gets large, the probability drops off slower than almost any other distribution.</li>
-                </ul>
-                <p><strong>Worked Example:</strong> In a Lévy distribution, the chance of a value 100x larger than the median is actually plausible. You can't just assume that a 10x latency spike is the worst-case scenario.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>Lévy processes are "scale-invariant." This means the distribution of latency over a 1-minute window looks identical to the distribution over a 1-hour window (just zoomed out). You cannot average a Lévy process. You must build system-level circuit breakers because the math guarantees a jump will eventually happen.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="levy">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Location (μ): <span id="v_mu_levy">0.0</span></div>
-                            <input type="range" id="mu_levy" aria-label="Levy location parameter mu" min="0" max="2.0" step="0.1" value="0">
-                        </div>
-                        <div class="param-group">
-                            <div>Scale (c): <span id="v_c_levy">0.5</span></div>
-                            <input type="range" id="c_levy" aria-label="Levy scale parameter c" min="0.1" max="2.0" step="0.1" value="0.5">
-                        </div>
+                    <p>A Lévy distribution over <var>x &gt; &mu;</var> with scale <var>c &gt; 0</var> has probability density:</p>
+                    <div class="math-block">
+                        <var>f</var>(<var>x</var>; <var>&mu;</var>, <var>c</var>) = <radic><span class="frac"><span class="num"><var>c</var></span><span>2&pi;</span></span></radic> &middot; <span class="frac"><span class="num">exp(&minus;<var>c</var> / [2(<var>x</var> &minus; <var>&mu;</var>)])</span><span>(<var>x</var> &minus; <var>&mu;</var>)<sup>3/2</sup></span></span>
                     </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Levy distribution"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">Undefined</span></div>
+                    <p>Because the denominator decays at <var>x<sup>3/2</sup></var>, both its mean and variance are infinite. Depending on the scale parameter, a single Lévy jump can easily exceed the median by orders of magnitude, providing a mathematical vocabulary for heavy-tailed recovery times.</p>
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Retry Storm" <span class="scenario-tag">GitHub Outage</span></div>
-                <p>A database partition caused application workers to stall. When the database returned, every worker retried their connection at the exact same millisecond, creating a massive synchronous jump in load that cascaded through the rest of the system.</p>
-                <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank">GitHub's October 21 Incident Report</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Flash Sale" <span class="scenario-tag">Shopify Black Friday</span></div>
-                <p>Shopify handles Black Friday by strictly enforcing virtual waiting rooms (admission control) to prevent a Lévy-like jump in traffic from collapsing their queueing architecture.</p>
-                <div class="scenario-ref">Reference: <a href="https://shopify.engineering/how-shopify-prepared-for-black-friday-cyber-monday" target="_blank">Shopify Engineering: Preparing for Black Friday</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "DDoS Attack" <span class="scenario-tag">Cloudflare</span></div>
-                <p>DDoS traffic follows an extremely heavy-tailed distribution. A sudden jump in packet volume can instantly overwhelm edge routers if they aren't configured for the extreme tail.</p>
-                <div class="scenario-ref">Reference: <a href="https://blog.cloudflare.com/the-notorious-google-ddos-attack-in-september-2023/" target="_blank">Cloudflare: Largest DDoS Attack</a></div>
+            <h3>Forensic Workout: The Mechanics of Retry Amplification</h3>
+
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. Closed-Loop Feedback Equation</div>
+                    <p>When a downstream microservice saturates, callers do not passively observe a static probability distribution—they actively increase offered load via retries. Suppose a client is configured with <var>k = 3</var> retries (4 total attempts) and each attempt fails with load-dependent probability <var>p(&Lambda;)</var>.</p>
+                    <p>Under a simplified assumption of a fixed, independent per-attempt failure probability, the expected attempts <var>E[A]</var> per logical request is:</p>
+                    <div class="math-block">
+                        <var>E</var>[<var>A</var>] = 1 + <var>p</var> + <var>p</var><sup>2</sup> + <var>p</var><sup>3</sup>
+                    </div>
+                    <p>At <var>p = 0.5</var>, <var>E[A] = 1.875</var>. But at <var>p = 0.9</var> (severe saturation), <var>E[A] = 3.439</var>. However, the actual architectural danger is a nonlinear fixed-point feedback loop:</p>
+                    <div class="math-block">
+                        <var>&Lambda;</var><sub>attempt</sub> = <var>&Lambda;</var><sub>logical</sub> &middot; <var>E</var>[<var>A</var>(<var>&Lambda;</var><sub>attempt</sub>)]
+                    </div>
+                    <p>More retries increase offered load, which increases failure probability, which generates more retries. Across a 3-tier microservice chain where each tier retries independently (under simplified independence assumptions), the expected amplification under <var>p=0.9</var> explodes to <var>3.439<sup>3</sup> &approx; 40.7&times;</var>.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. Breaking the Metastable Latch-Up</div>
+                    <ul>
+                        <li><strong>Process-Wide Retry Token Budgets:</strong> Maintain a local bucket where successes deposit <code>0.1</code> tokens and retries consume <code>1.0</code> tokens. This roughly limits retry overhead to 10% in steady-state, though it requires precise tuning to handle burst thresholds correctly.</li>
+                        <li><strong>Exponential Backoff with Full Jitter:</strong> Break temporal synchronization:
+                            <div class="math-block"><var>t</var><sub>sleep</sub> = <var>U</var>(0, min(<var>T</var><sub>cap</sub>, <var>T</var><sub>base</sub> &middot; 2<sup>attempt</sup>))</div>
+                        </li>
+                    </ul>
+                    <p><strong>LIFO Scheduling and Active Queue Management:</strong></p>
+                    <ul>
+                        <li><strong>CoDel (Controlled Delay):</strong> Controls persistent queueing delay by shedding load when queue sojourn time consistently exceeds a target interval.</li>
+                        <li><strong>Deadline Propagation:</strong> Explicitly cancels execution graphs when the caller's upstream deadline expires, stopping work that can no longer produce a useful response.</li>
+                        <li><strong>LIFO Scheduling:</strong> Switches queues to Last-In, First-Out under extreme overload to prioritize newer work, accepting the trade-off that older requests will starve.</li>
+                    </ul>
+                </div>
             </div>
 
             <!-- ========================================== -->
-            <!-- 5. GUMBEL DISTRIBUTION -->
+            <!-- 6. GUMBEL DISTRIBUTION (EVT)               -->
             <!-- ========================================== -->
-            <h2>5. The Gumbel Distribution (Extreme Value Theory)</h2>
+            <h2>6. Extreme Value Theory &amp; Fan-Out Maxima</h2>
+
+            <p>The Fisher–Tippett–Gnedenko theorem proves that block maxima <var>M<sub>n</sub></var> converge to one of three Extreme Value distributions based on the underlying tail: Gumbel (light/unbounded tails), Fréchet (heavy/Pareto tails), or Weibull (finite upper endpoints). Here we focus on the Gumbel regime for sizing infrastructure capacity ceilings.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: The 100-Year Storm</div>
+                <div class="tldr-eyebrow">The Mathematics of the Worst Case</div>
                 <div class="tldr-content">
-                    <p>Standard distributions model the <em>typical</em> behavior. The Gumbel distribution is part of Extreme Value Theory (EVT). It models the <strong>maximum</strong> of a set of observations. If you record the highest temperature every day for 100 years, the distribution of those maximums follows a Gumbel distribution.</p>
-                    <p>In SRE terms, this is how you size your infrastructure ceilings. You don't size for the average load. You size for the absolute worst-case spike that occurs once a year (or once a decade).</p>
-                </div>
-            </div>
-
-            <h3>The Math</h3>
-            <p>The probability density function for a Gumbel distribution, with location <var>&mu;</var> and scale <var>&beta;</var>:</p>
-            <div class="math-block">
-                <var>f</var>(<var>x</var>) = (1/<var>&beta;</var>) &middot; <var>e</var><sup>-((<var>x</var>-<var>&mu;</var>)/<var>&beta;</var> + <var>e</var><sup>-((<var>x</var>-<var>&mu;</var>)/<var>&beta;</var>)</sup>)</sup>
-            </div>
-            
-            <div class="math-explanation">
-                <strong>Let's decode this:</strong>
-                <ul>
-                    <li><strong><var>&mu;</var>:</strong> The location (the mode of the distribution).</li>
-                    <li><strong><var>&beta;</var>:</strong> The scale parameter (how spread out the extremes are).</li>
-                </ul>
-                <p><strong>Worked Example:</strong> If the maximum daily traffic for your API is 10,000 RPS (<var>&mu;</var>=10,000) with a spread of 2,000 (<var>&beta;</var>=2,000), the Gumbel distribution tells you the probability of exceeding 15,000 RPS in a single day. This is how you calculate the capacity of your auto-scaling group.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE Trap</div>
-                <div class="tldr-content">
-                    <p>EVT tells you the <em>distribution of the extremes</em>, not the absolute maximum. There is always a probability of an extreme beyond your data. If you only have 30 days of data, EVT will severely underestimate the 1-in-100-year event. You need years of data to accurately fit the tail.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <div class="stage" data-sim-type="gumbel">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Location (μ): <span id="v_mu_gumbel">2.0</span></div>
-                            <input type="range" id="mu_gumbel" aria-label="Gumbel location parameter mu" min="0" max="5.0" step="0.1" value="2.0">
-                        </div>
-                        <div class="param-group">
-                            <div>Scale (β): <span id="v_beta_gumbel">0.8</span></div>
-                            <input type="range" id="beta_gumbel" aria-label="Gumbel scale parameter beta" min="0.3" max="3.0" step="0.1" value="0.8">
-                        </div>
+                    <p>The Gumbel distribution with location mode <var>&mu;</var> and scale <var>&beta; &gt; 0</var> has the CDF:</p>
+                    <div class="math-block">
+                        <var>F</var>(<var>x</var>) = exp(&minus;<var>e</var><sup>&minus;(<var>x</var>&minus;<var>&mu;</var>)/<var>&beta;</var></sup>)
                     </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                    <p>By inverting the CDF, we obtain the exact <strong>Return-Level Formula</strong> for sizing buffers against a <var>1-in-T</var> extreme event (<var>p = 1 &minus; 1/T</var>):</p>
+                    <div class="math-block">
+                        <var>x<sub>p</sub></var> = <var>&mu;</var> &minus; <var>&beta;</var> ln(&minus;ln(<var>p</var>))
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Gumbel distribution"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
-                </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "100-Year Flood" <span class="scenario-tag">Civil Engineering</span></div>
-                <p>Civil engineers use Gumbel to design coastal flood defenses. They look at centuries of storm data to model the extreme event (the 100-year storm) and build the wall to withstand it. You should do the same for your database capacity.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Extreme_value_theory" target="_blank">Extreme Value Theory (EVT)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "High-Frequency Trading" <span class="scenario-tag">Latency Spikes</span></div>
-                <p>HFT firms use EVT to model the absolute worst-case latency spikes in the exchange. If the max latency spike is 5ms, they set their timeout at 10ms. They don't care about the average.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.amazon.com/Extreme-Value-Theory-Finance-Applications/dp/0470849430" target="_blank">Extreme Value Theory in Finance</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Queue Max Depth" <span class="scenario-tag">RabbitMQ / Kafka</span></div>
-                <p>You need to size your message queue buffer. You don't size it for the average message rate. You use EVT to model the maximum burst rate, ensuring the queue doesn't overflow during the worst possible spike.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.rabbitmq.com/docs/max-length" target="_blank">RabbitMQ Queue Length Limits</a></div>
+            <h3>Forensic Workout: Scatter-Gather Tail Amplification</h3>
+
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. Sizing the 1,000-Day Burst</div>
+                    <p>Assume daily peak 1-second RPS maxima are stationary, independent, and accurately fit a Gumbel model with <var>&mu; = 10,000</var> and <var>&beta; = 2,000</var>. The required capacity for the <strong>1-in-1,000-day</strong> (<var>p = 0.999</var>) storm is:</p>
+                    <div class="math-block">
+                        <var>x</var><sub>0.999</sub> = 10,000 &minus; 2,000 &middot; ln(&minus;ln(0.999)) &approx; 23,815 RPS
+                    </div>
+                    <p><em>Caveat: Return periods are not guarantees; parameter uncertainty matters enormously at extreme quantiles.</em></p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. The Mathematics of Fan-Out Latency</div>
+                    <p>When an API gateway fans out a request to <var>K = 50</var> independent shards, the user's response time is <var>M<sub>50</sub> = max(L<sub>1</sub>, &dots;, L<sub>50</sub>)</var>. The exact distribution of the maximum is <var>P(M<sub>K</sub> &le; x) = F<sub>L</sub>(x)<sup>K</sup></var>. To ensure a 99th-percentile (<var>0.99</var>) user experience, each individual shard must operate at extraordinary speed:</p>
+                    <div class="math-block">
+                        <var>F</var><sub><var>L</var></sub>(<var>x</var>) = 0.99<sup>1/50</sup> &approx; 0.999799
+                    </div>
+                    <p>Every single shard must return in SLA <strong>99.98% of the time</strong> to protect the root aggregator.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. Hedged Requests: A Dangerous Weapon</div>
+                    <p>To prune this EVT fan-out tail, issue a hedged (backup) request against a replica once a shard crosses a measured latency threshold. <strong>Caution:</strong> Hedging increases offered load. Only hedge after a measured threshold, aggressively cancel losing requests, apply a strict hedge budget, and disable hedging entirely during cluster overload.</p>
+                </div>
             </div>
 
             <nav class="post-pager" aria-label="Series pagination">
@@ -635,7 +761,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
+                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -649,8 +775,9 @@
                 return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
             }
 
-            function getCssVar(name) {
-                return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            function getCssVar(name, fallback) {
+                const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+                return val || fallback;
             }
 
             function randNormal() {
@@ -658,6 +785,17 @@
                 while (u === 0) u = Math.random();
                 while (v === 0) v = Math.random();
                 return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function calcQuantile(sortedArr, q) {
+                if (sortedArr.length === 0) return 0;
+                const pos = (sortedArr.length - 1) * q;
+                const base = Math.floor(pos);
+                const rest = pos - base;
+                if (sortedArr[base + 1] !== undefined) {
+                    return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base]);
+                }
+                return sortedArr[base];
             }
 
             class Simulator {
@@ -673,6 +811,10 @@
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statMean = stageElement.querySelector('.stat-mean');
                     this.statTheory = stageElement.querySelector('.stat-theory');
+                    this.statP50 = stageElement.querySelector('.stat-p50');
+                    this.statP99 = stageElement.querySelector('.stat-p99');
+                    this.statTail = stageElement.querySelector('.stat-tail');
+
                     this.btnRun = stageElement.querySelector('.btn-run');
                     this.btnStep = stageElement.querySelector('.btn-step');
                     this.btnReset = stageElement.querySelector('.btn-reset');
@@ -680,12 +822,11 @@
                     this.bindInputs(stageElement);
 
                     this.btnRun.onclick = () => this.toggleRun();
-                    this.btnStep.onclick = () => this.step(50);
+                    this.btnStep.onclick = () => this.step(100);
                     this.btnReset.onclick = () => this.reset();
 
                     this.resize();
                     
-                    // Use ResizeObserver for reliable chart resizing
                     this.resizeObserver = new ResizeObserver(() => this.resize());
                     this.resizeObserver.observe(this.canvas.parentElement);
 
@@ -701,10 +842,10 @@
                         const labelK = stage.querySelector('#v_k_zipf');
 
                         this.params.s = parseFloat(inputS.value);
-                        this.params.kk = parseInt(inputK.value);
+                        this.params.kk = parseInt(inputK.value, 10);
 
                         inputS.oninput = (e) => { this.params.s = parseFloat(e.target.value); labelS.textContent = this.params.s.toFixed(2); this.reset(); };
-                        inputK.oninput = (e) => { this.params.kk = parseInt(e.target.value); labelK.textContent = this.params.kk; this.reset(); };
+                        inputK.oninput = (e) => { this.params.kk = parseInt(e.target.value, 10); labelK.textContent = this.params.kk; this.reset(); };
                     } else if (this.type === 'pareto') {
                         const inputXm = stage.querySelector('#xm_pareto');
                         const labelXm = stage.querySelector('#v_xm_pareto');
@@ -755,7 +896,7 @@
                 resize() {
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = rect.width - 48;
+                    const logicalW = Math.max(260, rect.width - 48);
                     const logicalH = 220;
 
                     this.canvas.width = logicalW * dpr;
@@ -782,27 +923,27 @@
                         let r = u * t, acc = 0;
                         for (let i = 0; i < w.length; i++) {
                             acc += w[i];
-                            if (r <= acc) return i;
+                            if (r <= acc) return i + 1; 
                         }
-                        return w.length - 1;
+                        return this.params.kk;
                     } else if (this.type === 'pareto') {
                         return this.params.xm / Math.pow(1 - u, 1 / this.params.a);
                     } else if (this.type === 'cauchy') {
                         return this.params.x0 + this.params.g * Math.tan(Math.PI * (u - 0.5));
                     } else if (this.type === 'levy') {
                         let z = randNormal();
-                        return this.params.mu + this.params.c / (z * z + 1e-6);
+                        return this.params.mu + this.params.c / (z * z + 1e-7);
                     } else if (this.type === 'gumbel') {
-                        return this.params.mu - this.params.beta * Math.log(-Math.log(1 - u));
+                        return this.params.mu - this.params.beta * Math.log(-Math.log(Math.max(1e-12, 1 - u)));
                     }
                 }
 
                 getRange() {
-                    if (this.type === 'zipf') return [0, this.params.kk - 1];
+                    if (this.type === 'zipf') return [1, this.params.kk];
                     if (this.type === 'pareto') return [this.params.xm, this.params.xm * 15];
-                    if (this.type === 'cauchy') return [this.params.x0 - 6 * this.params.g, this.params.x0 + 6 * this.params.g];
-                    if (this.type === 'levy') return [this.params.mu, this.params.mu + this.params.c * 20];
-                    if (this.type === 'gumbel') return [this.params.mu - 2 * this.params.beta, this.params.mu + 6 * this.params.beta];
+                    if (this.type === 'cauchy') return [this.params.x0 - 8 * this.params.g, this.params.x0 + 8 * this.params.g];
+                    if (this.type === 'levy') return [this.params.mu, this.params.mu + this.params.c * 25];
+                    if (this.type === 'gumbel') return [this.params.mu - 2.5 * this.params.beta, this.params.mu + 6.5 * this.params.beta];
                 }
 
                 isDiscrete() {
@@ -820,13 +961,17 @@
                     const gridColor = light ? '#cbd5e1' : '#2a323e';
                     const labelColor = light ? '#475569' : '#8b93a3';
 
-                    let barColor = getCssVar('--teal');
-                    if (this.type === 'pareto') barColor = getCssVar('--amber');
-                    if (this.type === 'cauchy') barColor = getCssVar('--bad');
-                    if (this.type === 'levy') barColor = getCssVar('--bad');
-                    if (this.type === 'gumbel') barColor = getCssVar('--good');
+                    const tealColor = getCssVar('--teal', '#4fb8a6');
+                    const amberColor = getCssVar('--amber', '#d4a72c');
+                    const badColor = getCssVar('--bad', '#d97757');
+                    const goodColor = getCssVar('--good', '#57ab5a');
 
-                    const pad = { l: 40, r: 20, t: 20, b: 30 };
+                    let barColor = tealColor;
+                    if (this.type === 'pareto') barColor = amberColor;
+                    if (this.type === 'cauchy' || this.type === 'levy') barColor = badColor;
+                    if (this.type === 'gumbel') barColor = goodColor;
+
+                    const pad = { l: 42, r: 24, t: 24, b: 30 };
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
@@ -838,103 +983,171 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    // Calculate Theoretical Mean
                     let theoreticalMean = null;
                     if (this.type === 'zipf') {
-                        let sumWeights = 0;
-                        let sumValues = 0;
+                        let sumWeights = 0, sumValues = 0;
                         for (let i = 1; i <= this.params.kk; i++) {
                             let w = 1 / Math.pow(i, this.params.s);
                             sumWeights += w;
-                            sumValues += (i - 1) * w; // 0-indexed mean
+                            sumValues += i * w;
                         }
                         theoreticalMean = sumValues / sumWeights;
                     } else if (this.type === 'pareto') {
-                        if (this.params.a > 1) {
-                            theoreticalMean = (this.params.a * this.params.xm) / (this.params.a - 1);
+                        if (this.params.a > 1.0) {
+                            theoreticalMean = (this.params.a * this.params.xm) / (this.params.a - 1.0);
                         }
                     } else if (this.type === 'gumbel') {
-                        theoreticalMean = this.params.mu + this.params.beta * 0.5772156649; // Euler-Mascheroni constant
+                        theoreticalMean = this.params.mu + this.params.beta * 0.5772156649;
                     }
 
                     if (this.statTheory) {
-                        this.statTheory.textContent = (theoreticalMean !== null && isFinite(theoreticalMean)) ? theoreticalMean.toFixed(2) : "Undefined";
+                        if (this.type === 'cauchy') {
+                            this.statTheory.textContent = "Undefined";
+                        } else if (this.type === 'levy' || (this.type === 'pareto' && this.params.a <= 1.0)) {
+                            this.statTheory.textContent = "Infinite (∞)";
+                        } else {
+                            this.statTheory.textContent = (theoreticalMean !== null && isFinite(theoreticalMean)) ? theoreticalMean.toFixed(2) : "Undefined";
+                        }
                     }
 
                     if (this.samples.length === 0) {
                         ctx.fillStyle = labelColor;
                         ctx.font = '12px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('Click "Run" or "Step 50" to generate data', W / 2, H / 2);
+                        ctx.fillText('Click "▶ Run" or "Step 100" to simulate workload', W / 2, H / 2);
                         this.statN.textContent = '0';
                         this.statMean.textContent = '–';
+                        if (this.statP50) this.statP50.textContent = '–';
+                        if (this.statP99) this.statP99.textContent = '–';
+                        if (this.statTail) this.statTail.textContent = '–';
                         return;
                     }
 
                     const [rmin, rmax] = this.getRange();
-                    const bins = this.isDiscrete() ? Math.min(60, rmax - rmin + 1) : 50;
-                    const binWidth = (rmax - rmin) / bins;
+                    const bins = this.isDiscrete() ? (rmax - rmin + 1) : 48;
+                    const binWidth = this.isDiscrete() ? 1 : (rmax - rmin) / bins;
                     const counts = new Array(bins).fill(0);
+                    let overflowCount = 0;
                     let sum = 0;
+                    let rank1Count = 0;
 
                     this.samples.forEach(v => {
                         sum += v;
-                        if (v >= rmin && v <= rmax) {
-                            let idx = Math.floor((v - rmin) / binWidth);
-                            if (idx >= bins) idx = bins - 1;
-                            counts[idx]++;
+                        if (this.type === 'zipf' && v === 1) rank1Count++;
+                        if (this.isDiscrete()) {
+                            let idx = Math.round(v - rmin);
+                            if (idx >= 0 && idx < bins) counts[idx]++;
+                        } else {
+                            if (v >= rmin && v < rmax) {
+                                let idx = Math.floor((v - rmin) / binWidth);
+                                if (idx >= bins) idx = bins - 1;
+                                counts[idx]++;
+                            } else {
+                                overflowCount++;
+                            }
                         }
                     });
 
+                    const sorted = [...this.samples].sort((a, b) => a - b);
+                    const p50 = calcQuantile(sorted, 0.50);
+                    const p99 = calcQuantile(sorted, 0.99);
+                    const maxVal = sorted[sorted.length - 1];
+                    const minVal = sorted[0];
+                    const extremeVal = (this.type === 'cauchy' && Math.abs(minVal) > Math.abs(maxVal)) ? minVal : maxVal;
+
                     const mean = sum / this.samples.length;
-                    const maxCount = Math.max(1, ...counts);
-                    const bw = plotW / bins;
+                    const totalColumns = this.isDiscrete() ? bins : bins + 1;
+                    const maxCount = Math.max(1, ...counts, this.isDiscrete() ? 0 : overflowCount);
+                    const bw = plotW / totalColumns;
 
                     ctx.fillStyle = barColor;
                     counts.forEach((c, i) => {
-                        const h = (c / maxCount) * plotH * 0.9;
+                        const h = (c / maxCount) * plotH * 0.88;
                         const x = pad.l + (i * bw);
                         ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
                     });
 
-                    // Draw Observed Mean Line
-                    if (mean >= rmin && mean <= rmax) {
-                        const meanX = pad.l + ((mean - rmin) / (rmax - rmin)) * plotW;
-                        ctx.beginPath();
-                        ctx.strokeStyle = getCssVar('--bad');
-                        ctx.lineWidth = 2;
-                        ctx.moveTo(meanX, pad.t);
-                        ctx.lineTo(meanX, H - pad.b);
-                        ctx.stroke();
+                    if (!this.isDiscrete() && overflowCount > 0) {
+                        const h = (overflowCount / maxCount) * plotH * 0.88;
+                        const x = pad.l + (bins * bw);
+                        ctx.fillStyle = badColor;
+                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(2, bw - 1), h);
+                        ctx.font = 'bold 9px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'right';
+                        ctx.fillText('TAIL>', W - pad.r, H - pad.b + 14);
+                    }
 
-                        ctx.fillStyle = getCssVar('--bad');
+                    ctx.fillStyle = labelColor;
+                    ctx.font = '10px "IBM Plex Mono", monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(rmin.toFixed(this.isDiscrete() ? 0 : 1), pad.l, H - pad.b + 14);
+                    if (this.isDiscrete()) {
+                        ctx.textAlign = 'right';
+                        ctx.fillText('Rank ' + rmax, W - pad.r, H - pad.b + 14);
+                    }
+
+                    const valToX = (val) => {
+                        const effectiveW = this.isDiscrete() ? plotW : (plotW * (bins / totalColumns));
+                        return pad.l + ((val - rmin) / (rmax - rmin)) * effectiveW;
+                    };
+
+                    if (p50 >= rmin && p50 <= rmax) {
+                        const p50X = valToX(p50);
+                        ctx.beginPath();
+                        ctx.strokeStyle = tealColor;
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([2, 3]);
+                        ctx.moveTo(p50X, pad.t);
+                        ctx.lineTo(p50X, H - pad.b);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+
+                    if (theoreticalMean !== null && isFinite(theoreticalMean) && theoreticalMean >= rmin && theoreticalMean <= rmax) {
+                        const expX = valToX(theoreticalMean);
+                        ctx.beginPath();
+                        ctx.strokeStyle = amberColor;
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.moveTo(expX, pad.t);
+                        ctx.lineTo(expX, H - pad.b);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        ctx.fillStyle = amberColor;
                         ctx.font = 'bold 10px "IBM Plex Mono", monospace';
                         ctx.textAlign = 'center';
-                        ctx.fillText('OBSERVED', meanX, pad.t - 5);
+                        ctx.fillText('THEORY', expX, pad.t - 6);
                     }
 
-                    // Draw Expected Mean Line
-                    if (theoreticalMean !== null && isFinite(theoreticalMean)) {
-                        const expX = pad.l + ((theoreticalMean - rmin) / (rmax - rmin)) * plotW;
-                        if (theoreticalMean >= rmin && theoreticalMean <= rmax) {
-                            ctx.beginPath();
-                            ctx.strokeStyle = getCssVar('--amber');
-                            ctx.lineWidth = 1.5;
-                            ctx.setLineDash([4, 4]);
-                            ctx.moveTo(expX, pad.t);
-                            ctx.lineTo(expX, H - pad.b);
-                            ctx.stroke();
-                            ctx.setLineDash([]);
+                    const clampedMean = Math.min(rmax, Math.max(rmin, mean));
+                    const meanX = valToX(clampedMean);
+                    ctx.beginPath();
+                    ctx.strokeStyle = badColor;
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(meanX, pad.t);
+                    ctx.lineTo(meanX, H - pad.b);
+                    ctx.stroke();
 
-                            ctx.fillStyle = getCssVar('--amber');
-                            ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-                            ctx.textAlign = 'center';
-                            ctx.fillText('EXPECTED', expX, pad.t - 5);
-                        }
-                    }
+                    ctx.fillStyle = badColor;
+                    ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(mean > rmax ? 'MEAN >>' : (mean < rmin ? '<< MEAN' : 'OBSERVED'), meanX, H - pad.b + 24);
 
                     this.statN.textContent = this.samples.length;
                     this.statMean.textContent = mean.toFixed(2);
+                    if (this.statP50) this.statP50.textContent = p50.toFixed(2);
+                    if (this.statP99) this.statP99.textContent = p99.toFixed(2);
+                    if (this.statTail) {
+                        if (this.type === 'zipf') {
+                            const pct = ((rank1Count / this.samples.length) * 100).toFixed(1);
+                            this.statTail.textContent = `${pct}% (${rank1Count})`;
+                        } else {
+                            const tailPct = ((overflowCount / this.samples.length) * 100).toFixed(1);
+                            const maxStr = Math.abs(extremeVal) > 9999 ? extremeVal.toExponential(1) : extremeVal.toFixed(1);
+                            this.statTail.textContent = `${maxStr} (${tailPct}%)`;
+                        }
+                    }
                 }
 
                 toggleRun() {
@@ -947,7 +1160,7 @@
                     this.running = true;
                     this.btnRun.textContent = '⏸ Pause';
                     this.timer = setInterval(() => {
-                        this.step(15);
+                        this.step(20);
                     }, 50);
                 }
 
@@ -955,7 +1168,6 @@
                     for (let i = 0; i < n; i++) {
                         this.samples.push(this.generateSample());
                     }
-                    // Keep the latest observations so continuous runs stay responsive.
                     const maxSamples = 5000;
                     if (this.samples.length > maxSamples) {
                         this.samples.splice(0, this.samples.length - maxSamples);
