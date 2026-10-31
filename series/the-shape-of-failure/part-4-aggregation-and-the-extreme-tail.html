@@ -83,10 +83,8 @@
         .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
         .tldr-content li { margin-bottom: 0.4rem; }
 
-        /* --- Math Block (Transparent background styling) --- */
-        .math-block { background: transparent; border: none; padding: 0.75rem 0; text-align: center; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.2rem; color: var(--text); margin: 1.2rem 0; overflow-x: auto; }
-        .math-block var { font-style: italic; color: var(--amber); }
-        
+        /* --- Math Block (KaTeX Transparent Equation Flow) --- */
+        .equation-flow { background: transparent; border: none; overflow-x: auto; margin: 1.5rem 0; padding: 0.5rem; text-align: center; }
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
@@ -147,17 +145,13 @@
         main li { margin-bottom: 0.45rem; }
         .param-group label { color: var(--muted); line-height: 1.5; }
         .param-group label span { color: var(--text); font-weight: 600; }
-        .math-block { line-height: 1.7; }
         .math-explanation ul { margin-top: 0.5rem; }
         .scenario-card a, main > ul a { overflow-wrap: anywhere; }
         .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25rem 0; }
+        
         @media (max-width: 650px) {
             .series-heading-row h1 { font-size: 1.65rem; }
-            .math-block { text-align: left; font-size: 1rem; padding: 1rem; }
             .readout { font-size: 0.72rem; }
-        }
-
-        @media (max-width: 650px) {
             .sim-toolbar { flex-direction: column; align-items: stretch; overflow-x: visible; }
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
@@ -177,6 +171,12 @@
         .wb-warning { border-left:4px solid var(--bad, #d55); padding:.7rem .9rem; margin:.7rem 0; }
         .wb-ok { border-left:4px solid var(--good, #39865d); padding:.7rem .9rem; margin:.7rem 0; }
         @media (max-width:640px) { .wb-grid { grid-template-columns:1fr; } .workbench-canvas { height:230px; } }
+        
+        table { width: 100%; border-collapse: collapse; margin: 1.75rem 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.92rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+        table th { background: var(--panel-2); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); }
+        table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--line-soft); color: var(--text); vertical-align: top; line-height: 1.5; }
+        table tr:last-child td { border-bottom: none; }
+        table caption { text-align: left; font-style: italic; color: var(--muted); margin-bottom: 0.5rem; }
     </style>
 </head>
 <body>
@@ -253,7 +253,7 @@
 <ol>
     <li><strong>Observe:</strong> collect representative distributed traces, unaggregated histograms, error counts, and saturation metrics.</li>
     <li><strong>Explain the mechanism:</strong> identify sequential accumulation, parallel fan-out, cache/fallback mixtures, resource contention, or shared bottlenecks.</li>
-    <li><strong>Choose a candidate model:</strong> select Order Statistics, Normal, Student's <em>t</em>-inference, Log-Normal, Mixture, or Extreme Value Theory based on the mechanism.</li>
+    <li><strong>Choose a candidate model:</strong> select Order Statistics, Normal, Student's \( t \)-inference, Log-Normal, Mixture, or Extreme Value Theory based on the mechanism.</li>
     <li><strong>Fit and validate:</strong> compare fitted quantiles with empirical quantiles, inspect residuals, and quantify parameter uncertainty.</li>
     <li><strong>Make an engineering decision:</strong> translate the validated model into deadlines, duplicate-work budgets, canary gates, or queue bounds.</li>
     <li><strong>Verify in production:</strong> compare predictions against live telemetry, chaos experiments, and workload shifts.</li>
@@ -274,9 +274,11 @@
 
 <h2>1. Order Statistics and the Fan-Out Tax</h2>
 
-<p>When an API gateway or aggregator fans out a request to <var>n</var> downstream services in parallel and waits for all of them before rendering a response, end-to-end latency is not the average of the downstream services. It is the maximum:</p>
+<p>When an API gateway or aggregator fans out a request to \( N \) downstream services in parallel and waits for all of them before rendering a response, end-to-end latency is not the average of the downstream services. It is the maximum over all independent child latencies \( X_i \):</p>
 
-<div class="math-block">\(T_{\text{total}} = \max(T_1, T_2, \dots, T_n)\)</div>
+<div class="equation-flow">
+    \[ Y_{(N)} = \max(X_1, X_2, \dots, X_N) \]
+</div>
 
 <p>In probability theory, the distribution of the maximum is governed by <strong>order statistics</strong>. Even if every individual service is well behaved, taking the maximum across dozens of concurrent calls systematically pushes the aggregate system into the extreme tail of the individual components.</p>
 
@@ -285,32 +287,36 @@
     
     <p><strong>1. The Incident:</strong> The Multi-Tenant Analytics Gateway executes a distributed scatter-gather query across 100 Apache Iceberg storage partitions. The gateway enforces a strict 200 ms timeout to protect user experience. Over 60% of aggregate queries begin failing with timeout exceptions, triggering page alerts.</p>
     
-    <p><strong>2. Architectural Assumption:</strong> The storage nodes boast a historical p99 latency of 200 ms. The architect assumed, "If the storage tier is 99% reliable at our deadline, the gateway will easily meet its SLA."</p>
+    <p><strong>2. Architectural Assumption:</strong> The storage nodes boast a historical \( P_{99} \) latency of 200 ms. The architect assumed, "If the storage tier is 99% reliable at our deadline, the gateway will easily meet its SLA."</p>
     
     <p><strong>3. Physical Mechanism:</strong> The gateway issues 100 requests in parallel, but it <em>blocks</em> until the last partition returns its fragment. The query's completion time is dictated strictly by the slowest partition involved.</p>
     
-    <p><strong>4. Mathematical Model:</strong> Order Statistics of the maximum. Assuming the downstream calls are statistically independent and identically distributed, the probability that the maximum latency is less than a threshold $t$ is the probability that <em>all</em> $n$ partitions finish before $t$. The CDF is $F_{\max}(t) = F(t)^n$.</p>
+    <p><strong>4. Mathematical Model:</strong> Order Statistics of the maximum. Assuming the downstream calls are statistically independent and identically distributed, the probability that the maximum latency is less than a threshold \( \tau \) is the probability that <em>all</em> \( N \) partitions finish before \( \tau \).</p>
 
-    <p><strong>5. The Calculation:</strong> We know the individual partition has a 99% chance of beating 200 ms ($F(200\text{ ms}) = 0.99$). What is the probability that all 100 finish in time?</p>
+    <p><strong>5. The Calculation:</strong> Let individual exceedance probability be \( p = P(X_i > \tau) = 0.01 \). What is the probability that all 100 finish in time?</p>
     
-    <div class="math-block">\(P(\max(T_1, \dots, T_{100}) \le 200\text{ ms}) = 0.99^{100} \approx 0.3660\)</div>
+    <div class="equation-flow">
+        \[ P(Y_{(N)} \le \tau) = P(X_1 \le \tau) \dots P(X_N \le \tau) = (1 - p)^N = 0.99^{100} \approx 0.3660 \]
+    </div>
     
-    <p>The complement is the probability that at least one partition breaches the deadline:</p>
+    <p>The complement is the probability that at least one partition breaches the threshold:</p>
     
-    <div class="math-block">\(P(\text{at least one slow}) = 1 - 0.3660 \approx \mathbf{0.6340 \ (63.4\%)}\)</div>
+    <div class="equation-flow">
+        \[ P(\text{at least one slow}) = 1 - (1 - p)^N = 1 - 0.3660 \approx \mathbf{0.6340 \ (63.4\%)} \]
+    </div>
 
-    <p>To keep the <em>aggregate</em> Gateway query under 200 ms at p99, the individual storage nodes would need to meet a much stricter target: $F(200\text{ ms})^{100} = 0.99 \implies F(200\text{ ms}) = 0.9998995$ (the p99.99).</p>
+    <p>To keep the <em>aggregate</em> Gateway query under 200 ms at \( P_{99} \), the individual storage nodes would need to meet a much stricter target: \( (1-p)^{100} = 0.99 \implies (1-p) = 0.9998995 \) (the \( P_{99.99} \)).</p>
     
-    <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow partition does not have to mean a 63.4% failure rate for the user. The architect implements <strong>bounded hedging</strong>: if a partition hasn't responded by the 95th percentile expected time, the Gateway fires a duplicate request to a secondary replica. Concurrently, they enable <strong>partial result semantics</strong>, allowing the Gateway to return 99 partitions of data with a "partial result" flag rather than failing the entire dashboard.</p>
+    <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow partition does not have to mean a 63.4% failure rate for the user. The architect implements <strong>bounded hedging</strong>: if a partition hasn't responded by the 95th percentile expected time, the Gateway fires a duplicate request to a secondary replica. Concurrently, they enable <strong>partial result semantics</strong>, allowing the Gateway to return 99 partitions of data with a "partial result" flag rather than treating the \( 63.4\% \) parent-wait probability as a hard failure.</p>
     
     <p><strong>7. Production Verification:</strong> The team adds distributed tracing to log individual partition fetch times separately from the aggregate query time. They monitor the duplicate-request rate to ensure hedging is bounded by a token bucket—preventing a retry storm from collapsing an already saturated storage tier.</p>
 </div>
 
 <h3>The independence caveat</h3>
 
-<p>The equation \(F_{\max}(t) = F(t)^n\) assumes strict independence. Production services often share RDS clusters, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
+<p>The equation \( (1-p)^N \) assumes strict independence. Production services often share RDS clusters, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
 
-<p>Consequently, \(F(t)^n\) is an optimistic baseline for isolated jitter—not a worst-case bound during shared saturation.</p>
+<p>Consequently, \( (1-p)^N \) is an optimistic baseline for isolated jitter—not a worst-case bound during shared saturation. Conversely, partial-result aggregators or \( k \)-of-\( N \) quorum reads rely on the \( Y_{(k)} \) order statistic, decoupling the caller from the absolute worst straggler.</p>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Fan-Out Tax</div>
@@ -355,7 +361,9 @@
     <div class="tldr-eyebrow">Why negative latency is a weak objection</div>
     <div class="tldr-content">
         <p>For \(\mu = 100\text{ ms}\) and \(\sigma = 15\text{ ms}\), zero milliseconds is 6.67 standard deviations below the mean:</p>
-        <div class="math-block">\(P(T < 0) \approx 1.3 \times 10^{-11}\)</div>
+        <div class="equation-flow">
+            \[ P(T < 0) \approx 1.3 \times 10^{-11} \]
+        </div>
         <p>The more important failure is usually the right tail. A Normal tail decays like \(\exp(-x^2/2)\), so it can badly understate real-world queueing stalls and bimodal execution paths even when its impossible negative mass is numerically negligible.</p>
     </div>
 </div>
@@ -366,7 +374,9 @@
 
 <p>Suppose a tenant validation service historically behaves normally:</p>
 
-<div class="math-block">\(T \sim \mathcal{N}(100,15^2)\text{ ms}\)</div>
+<div class="equation-flow">
+    \[ T \sim \mathcal{N}(100, 15^2) \text{ ms} \]
+</div>
 
 <table>
     <caption>Normal baseline versus post-deployment observations</caption>
@@ -387,7 +397,7 @@
     </tbody>
 </table>
 
-<p>An overall mean of 103.5 ms can look completely healthy on a Grafana gauge while p99.9 spikes to 800 ms. The massive residual at the far tail is evidence that the system is no longer a single unimodal process with symmetric jitter. In this scenario, 0.5% of requests from legacy tenants are entering a synchronous, unindexed database fallback path.</p>
+<p>An overall mean of 103.5 ms can look completely healthy on a Grafana gauge while \( P_{99.9} \) spikes to 800 ms. The massive residual at the far tail is evidence that the system is no longer a single unimodal process with symmetric jitter. In this scenario, 0.5% of requests from legacy tenants are entering a synchronous, unindexed database fallback path.</p>
 
 <h3>Production controls</h3>
 
@@ -431,23 +441,25 @@
                 <div class="tldr-eyebrow">The intuition: “my load test said it was fine”</div>
                 <div class="tldr-content">
                     <p>You run a short benchmark and measure a mean of 50 ms. How certain are you that the underlying mean is near 50 ms? With a small sample, the answer may be “not very.” Student's t helps quantify uncertainty in a sample mean under suitable assumptions.</p>
-                    <p><strong>Important distinction:</strong> the t-distribution is not automatically a model for individual request latency, and a confidence interval for a mean is absolutely not a p99 estimate.</p>
+                    <p><strong>Important distinction:</strong> A confidence interval bounds the epistemic uncertainty of the <em>population mean</em>. It provides zero information about where the \( P_{99} \) percentile of individual requests will land.</p>
                 </div>
             </div>
 
             <h3>The math</h3>
-            <p>For independent observations from a Normal population with unknown variance, a confidence interval for the population mean is:</p>
-            <div class="math-block">\(\bar{x} \pm t_{1-\alpha/2, n-1} \cdot \frac{s}{\sqrt{n}}\)</div>
+            <p>We must explicitly separate the population distribution of individual latencies \( X_i \) from the sampling distribution of the sample mean \( \bar{X} \). Under the Central Limit Theorem (or assuming Normal populations), \( \bar{X} \sim \mathcal{N}(\mu, \sigma^2/n) \). A confidence interval for the population mean \( \mu \) is:</p>
+            <div class="equation-flow">
+                \[ \text{CI} = \bar{x} \pm t_{1-\alpha/2, n-1} \frac{s}{\sqrt{n}} \]
+            </div>
             <div class="math-explanation">
                 <ul>
-                    <li><strong>\(\bar{x}\):</strong> observed sample mean.</li>
-                    <li><strong>\(s\):</strong> sample standard deviation.</li>
-                    <li><strong>\(n\):</strong> sample size.</li>
-                    <li><strong>\(t\):</strong> the critical value determined by the confidence level and degrees of freedom.</li>
+                    <li><strong>\( \bar{x} \):</strong> observed sample mean.</li>
+                    <li><strong>\( s \):</strong> sample standard deviation.</li>
+                    <li><strong>\( n \):</strong> sample size.</li>
+                    <li><strong>\( t \):</strong> the critical value determined by the confidence level and degrees of freedom.</li>
                 </ul>
                 <p><strong>Worked example:</strong> 10 independent benchmark observations have a mean of 50 ms and sample standard deviation of 20 ms. With 9 degrees of freedom, the 95% critical value is about 2.262:</p>
                 <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx 50 \pm 14.3 \approx [35.7, 64.3]\) ms</p>
-                <p>This interval describes uncertainty about the population mean under the assumptions. It does <strong>not</strong> mean 95% of requests fall between 35.7 and 64.3 ms.</p>
+                <p>This interval describes where the <em>average</em> lies. It does <strong>not</strong> mean 95% of requests fall between 35.7 and 64.3 ms.</p>
             </div>
 
             <h3>Interactive simulation</h3>
@@ -477,7 +489,7 @@
             <div class="scenario-card">
                 <div class="scenario-title">Case study: a canary with zero observed errors <span class="scenario-tag">Small sample</span></div>
                 <p>A canary receives 100 independent requests and records zero errors. The “rule of three” gives an approximate 95% upper bound of 3% on the true error probability. Zero observed errors is not proof of zero risk.</p>
-                <p>If the true error rate is 1%, the chance of seeing zero errors in 100 requests is \(0.99^{100} \approx 36.6\%\). So this tiny canary has a substantial chance of missing a 1% regression.</p>
+                <p>If the true error rate is 1%, the chance of seeing zero errors in 100 requests is \( 0.99^{100} \approx 36.6\% \). So this tiny canary has a substantial chance of missing a 1% regression.</p>
                 <p><strong>Controls:</strong> choose sample sizes around the smallest harmful regression; exercise representative request paths and tenants; compare latency and error metrics; and use rollout gates that account for repeated looks at the data.</p>
                 <div class="scenario-ref">Further reading: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank" rel="noopener noreferrer">Netflix, “Automated Canary Analysis”</a></div>
             </div>
@@ -494,7 +506,9 @@
 
             <h3>The math</h3>
             <p>If \(\ln X \sim \mathcal{N}(\mu,\sigma^2)\), then \(X\) is Log-Normal and has density:</p>
-            <div class="math-block">\(f(x) = \frac{1}{x\sigma\sqrt{2\pi}} e^{-\frac{(\ln x - \mu)^2}{2\sigma^2}}, \quad x > 0\)</div>
+            <div class="equation-flow">
+                \[ f(x) = \frac{1}{x\sigma\sqrt{2\pi}} e^{-\frac{(\ln x - \mu)^2}{2\sigma^2}}, \quad x > 0 \]
+            </div>
             <div class="math-explanation">
                 <ul>
                     <li><strong>\(\mu\):</strong> mean of the natural logarithm of the variable—not the arithmetic mean latency.</li>
@@ -503,8 +517,8 @@
                     <li><strong>Mean:</strong> \(e^{\mu+\sigma^2/2}\).</li>
                     <li><strong>Percentile:</strong> \(Q_p = e^{\mu+z_p\sigma}\), where \(z_p\) is the Normal quantile.</li>
                 </ul>
-                <p><strong>Worked example:</strong> for \(\mu=0.3\) and \(\sigma=0.6\), the median is \(e^{0.3} \approx 1.35\), the mean is \(e^{0.3+0.6^2/2} \approx 1.62\), p99 is approximately \(\mathbf{5.45}\), and p99.9 is approximately \(\mathbf{8.62}\) in the variable's units.</p>
-                <p>Here p99.9 is about 6.38 times the median. A ratio of 10× or 100× is possible for other parameters, but it is not a universal property of Log-Normal data.</p>
+                <p><strong>Worked example:</strong> for \(\mu=0.3\) and \(\sigma=0.6\), the median is \(e^{0.3} \approx 1.35\), the mean is \(e^{0.3+0.6^2/2} \approx 1.62\), \( P_{99} \) is approximately \(\mathbf{5.45}\), and \( P_{99.9} \) is approximately \(\mathbf{8.62}\) in the variable's units.</p>
+                <p>Here \( P_{99.9} \) is about 6.38 times the median. A ratio of 10× or 100× is possible for other parameters, but it is not a universal property of Log-Normal data.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -550,8 +564,10 @@
                 <div class="tldr-eyebrow">A two-path model</div>
                 <div class="tldr-content">
                     <p>Suppose 99% of requests hit Redis in 10 ms and 1% hit Cosmos DB in 250 ms:</p>
-                    <p style="text-align:center;font-family:'IBM Plex Mono',monospace">\(\mathbb{E}[T] = 0.99 \times 10 + 0.01 \times 250 = 12.4\) ms</p>
-                    <p>The mean looks incredibly healthy, while the rare path is 25 times slower. In this simplified two-point distribution, p99 is 10 ms (depending on quantile convention) and p99.9 is 250 ms. Attempting to fit a single Log-Normal curve to this data would fail because the physical mechanism is a weighted mixture, not a single process.</p>
+                    <div class="equation-flow">
+                        \[ \mathbb{E}[T] = 0.99 \times 10 + 0.01 \times 250 = 12.4 \text{ ms} \]
+                    </div>
+                    <p>The mean looks incredibly healthy, while the rare path is 25 times slower. In this simplified two-point distribution, \( P_{99} \) is 10 ms (depending on quantile convention) and \( P_{99.9} \) is 250 ms. Attempting to fit a single Log-Normal curve to this data would fail because the physical mechanism is a weighted mixture, not a single process.</p>
                 </div>
             </div>
 
@@ -561,9 +577,20 @@
 
             <h2>7. Extreme Value Theory: looking beyond the data you have</h2>
 
-            <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers tools for studying extremes. One approach, the peaks-over-threshold method, models the amount by which observations exceed a chosen threshold using a Generalized Pareto Distribution (GPD).</p>
+            <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers tools for studying extremes. The Peaks Over Threshold (POT) method models the amount by which observations exceed a chosen threshold \( u \). The conditional excess latency \( Y = T - u \mid T > u \) converges to the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
 
-            <div class="math-block">\(P(Y > y \mid T > u) = \left(1 + \frac{\xi y}{\beta}\right)^{-1/\xi}, \quad \xi \neq 0\)</div>
+            <div class="equation-flow">
+                \[ G_{\xi, \sigma}(y) = 1 - \left(1 + \xi \frac{y}{\sigma}\right)^{-1/\xi} \quad (\text{for } \xi \neq 0) \]
+            </div>
+
+            <p>The shape parameter \( \xi \) defines the three Maximum Domains of Attraction (MDA):</p>
+            <div class="math-explanation">
+                <ul>
+                    <li><strong>Weibull Domain (\( \xi < 0 \)):</strong> The tail has a finite upper bound. This models systems with hard timeouts or strict capacity limits that cap latency.</li>
+                    <li><strong>Gumbel Domain (\( \xi = 0 \)):</strong> Light-tailed exponential decay. Distributions like Normal, Gamma, and Log-Normal eventually behave this way in the extreme tail.</li>
+                    <li><strong>Fréchet Domain (\( \xi > 0 \)):</strong> Heavy-tailed power-law decay (like Pareto or Cauchy). Typical of unbounded queueing delays or cascade failures.</li>
+                </ul>
+            </div>
 
             <p>Fitting a GPD allows you to estimate rare percentiles (return levels). <strong>However, extrapolating far beyond observed data assumes the tail mechanism remains stable.</strong> A model fitted to queueing jitter cannot predict when the server will run out of physical memory and crash.</p>
 
@@ -633,17 +660,17 @@
         </tr>
         <tr>
             <th scope="row">Independence audit</th>
-            <td>Does the model assume \(P(A \cap B)=P(A)P(B)\) across services or regions?</td>
+            <td>Does the model assume \( P(A \cap B) = P(A)P(B) \) across services or regions?</td>
             <td>Map shared IdP, DNS, database, network, and control-plane dependencies. Add a common-cause term.</td>
         </tr>
         <tr>
             <th scope="row">Uncertainty and sample size</th>
             <td>Are we declaring a benchmark win on too few runs or promoting an error-free canary too early?</td>
-            <td>Use t-intervals for means, block bootstrap for percentiles, and \(n \ge 3/p_{\text{tolerable}}\) for zero-error gates.</td>
+            <td>Use t-intervals for means, block bootstrap for percentiles, and \( n \ge 3/p_{\text{tolerable}} \) for zero-error gates.</td>
         </tr>
         <tr>
             <th scope="row">Tail validation</th>
-            <td>Do model p99 and p99.9 predictions match empirical quantiles?</td>
+            <td>Do model \( P_{99} \) and \( P_{99.9} \) predictions match empirical quantiles?</td>
             <td>Reject a single unimodal fit when residuals diverge. Segment the mixture or fit a GPD above a validated threshold.</td>
         </tr>
         <tr>
@@ -679,25 +706,13 @@
 
     </div>
 
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderArticleMath()"></script>
-    <script>
-        function renderArticleMath() {
-            if (typeof renderMathInElement !== "function") return;
-            renderMathInElement(document.querySelector("main"), {
-                delimiters: [
-                    {left: "\\[", right: "\\]", display: true},
-                    {left: "\\(", right: "\\)", display: false}
-                ],
-                throwOnError: false
-            });
-        }
-    </script>
-
     <!-- Simulator & Theme Engine -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const canvasToSim = new Map();
+
+            // --- Safe PRNG ---
+            const safeRand = () => Math.min(1 - 1e-12, Math.max(1e-12, Math.random()));
 
             // --- Fan-out calculator ---
             const fanoutN = document.getElementById('fanout_n');
@@ -753,9 +768,7 @@
             }
 
             function randNormal() {
-                let u = 0, v = 0;
-                while (u === 0) u = Math.random();
-                while (v === 0) v = Math.random();
+                let u = safeRand(), v = safeRand();
                 return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
             }
 
@@ -1034,6 +1047,8 @@
       const fmt = (n, d=2) => Number.isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}) : '—';
       const pct = (n,d=3) => (100*n).toLocaleString(undefined,{maximumFractionDigits:d}) + '%';
       
+      const safeRand = () => Math.min(1 - 1e-12, Math.max(1e-12, Math.random()));
+
       function quantile(a,p) { return a[Math.max(0,Math.min(a.length-1,Math.ceil(p*a.length)-1))]; }
       function updateLabels(pairs) { 
           pairs.forEach(([id, out, fn]) => { if($(id)&&$(out)) $(out).textContent=fn(Number($(id).value)); }); 
@@ -1069,8 +1084,8 @@
         const fast=+$('mix-fast-mean').value, sd=+$('mix-fast-sd').value, w=+$('mix-weight').value/100, slow=+$('mix-slow-mean').value, n=+$('mix-sample-n').value;
         updateLabels([['mix-fast-mean','mix-fast-mean-v',v=>v+' ms'],['mix-fast-sd','mix-fast-sd-v',v=>v+' ms'],['mix-weight','mix-weight-v',v=>v+'%'],['mix-slow-mean','mix-slow-mean-v',v=>v+' ms'],['mix-sample-n','mix-sample-n-v',v=>v.toLocaleString()]]);
         
-        let seed=20261029; const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
-        const gauss=()=>{let u=Math.max(rnd(),1e-12),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+        let seed=20261029; const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return Math.min(1 - 1e-12, Math.max(1e-12, seed/4294967296));};
+        const gauss=()=>{let u=rnd(),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
         const sample=[];let sum=0,sum2=0,slowCount=0;
         
         for(let i=0;i<n;i++){
