@@ -16,7 +16,7 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Hard capacity boundaries, uniform retry desynchronization, multinomial routing variance, Dirichlet traffic shares, and hypergeometric shuffle sharding. Why probability models don't save you from a full disk.">
+    <meta name="description" content="Hard capacity boundaries, uniform retry desynchronization, multinomial routing variance, Dirichlet traffic shares, and hypergeometric shuffle sharding.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
@@ -55,7 +55,7 @@
 
     <style>
         /* =======================================================================
-            SERIES-ALIGNED STYLES & LAYOUT
+           SERIES-ALIGNED STYLES & LAYOUT
            ======================================================================= */
 
         .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
@@ -113,7 +113,7 @@
         
         .sim-params { display: flex; gap: 1.5rem; flex-wrap: wrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
         .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 140px; }
-        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); }
+        .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); cursor: pointer; }
         .param-group select { margin-top: 0.4rem; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; }
         .param-group span { font-weight: 600; color: var(--text); float: right; }
         
@@ -151,6 +151,7 @@
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
+            table { display: block; overflow-x: auto; }
         }
     </style>
 </head>
@@ -293,7 +294,7 @@
                 <p><strong>Worked Example:</strong> Suppose 10,000 clients fail simultaneously and apply Full Jitter across <var>a</var> = 0s to <var>b</var> = 5s. The density is <code>1 / (5 &minus; 0) = 0.20 s<sup>&minus;1</sup></code>. Over any 1-second interval, assuming observation lies entirely within the window, the expected arrival count is:</p>
                 <div style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; margin:0.5rem 0;">
                     E[X] = 10,000 &times; (1 / 5) = 2,000 requests<br>
-                    Var(X) = 10,000 &times; (0.2) &times; (0.8) = 1,600 &implies; &sigma; &approx; 40 requests
+                    Var(X) = 10,000 &times; (0.2) &times; (0.8) = 1,600 &implies; &sigma; = 40 requests
                 </div>
                 <p>Instead of an instantaneous Dirac impulse of 10,000 requests in 1 millisecond, the database receives an <strong>expected arrival rate of 2,000 RPS</strong> over 5 seconds. Jitter flattens the expected arrival rate, though independent random arrivals still create minor statistical fluctuations around the mean.</p>
             </div>
@@ -427,7 +428,7 @@
             <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The Power of Two Random Choices (P2C) <span class="scenario-tag">Mitzenmacher / Service Meshes</span></div>
-                <p>Michael Mitzenmacher proved that in a balls-into-bins model throwing <var>n</var> items into <var>n</var> bins, picking 1 random bin results in a maximum load of <code>O(ln n / ln ln n)</code>. However, picking <strong>two candidate bins uniformly at random</strong> and assigning the request to the less-loaded bin collapses the maximum load to <code>ln ln n / ln 2 + O(1)</code>. Modern load balancers (such as Envoy, Linkerd, and HAProxy) use P2C with least-request tracking to eliminate hot shards without requiring a centralized, globally synchronized state coordinator.</p>
+                <p>Michael Mitzenmacher proved that in a balls-into-bins model throwing <var>n</var> items into <var>n</var> bins, picking 1 random bin results in a maximum load of <code>O(ln n / ln ln n)</code>. However, picking <strong>two candidate bins uniformly at random</strong> and assigning the request to the less-loaded bin collapses the maximum load to <code>O(ln ln n / ln 2)</code>. Modern load balancers (such as Envoy, Linkerd, and HAProxy) use P2C with least-request tracking to eliminate hot shards without requiring a centralized, globally synchronized state coordinator.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/tpds2001.pdf" target="_blank" rel="noopener noreferrer">Mitzenmacher (2001), "The Power of Two Choices in Randomized Load Balancing"</a></div>
             </div>
             <div class="scenario-card">
@@ -448,7 +449,7 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: A Probability Distribution Over Probabilities</div>
                 <div class="tldr-content">
-                    <p>In Part 5, we used the Beta distribution to represent uncertainty regarding a single binary success rate. The <strong>Dirichlet distribution</strong> is the multivariate generalization of Beta, defined across a simplex where the components sum to <code>1.0</code> (&sum;<var>x<sub>i</sub></var> = 1). Crucially, Dirichlet serves as the <strong>conjugate prior to the Categorical and Multinomial distributions</strong>.</p>
+                    <p>In Part 6, we used the Beta distribution to represent uncertainty regarding a single binary success rate. The <strong>Dirichlet distribution</strong> is the multivariate generalization of Beta, defined across a simplex where the components sum to <code>1.0</code> (&sum;<var>x<sub>i</sub></var> = 1). Crucially, Dirichlet serves as the <strong>conjugate prior to the Categorical and Multinomial distributions</strong>.</p>
                     <p>When an adaptive routing controller tracks traffic shares or error mixes across three or more endpoints, the Dirichlet distribution provides the mathematical framework for tracking uncertainty over competing categorical outcomes.</p>
                 </div>
             </div>
@@ -689,9 +690,11 @@
 
             <p>The ultimate objective of mathematical modeling in system architecture is not to predict every production failure with decimal precision. It is to guarantee that when extreme events inevitably strike, your infrastructure degrades in a predictable, contained, and survivable manner.</p>
 
+            <p>We are finally ready to step off the traditional cloud. In Part 8, we apply this entire stochastic toolkit to the most non-deterministic systems of all: generative AI, KV-cache pressure, and agentic workflows.</p>
+
             <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-6-chaos-jitter-whale-tenants.html">← Part 6: Chaos, Jitter, and Whale Tenants</a>
-                <a href="part-8-stochastic-shape-of-ai-systems.html">Part 8: The AI/LLM Frontier →</a>
+                <a href="part-6-state-empiricism-and-simulation.html">← Part 6: State, Empiricism, and the Simulation Fallacy</a>
+                <a href="part-8-stochastic-shape-of-ai-systems.html">Part 8: The Stochastic Shape of AI Systems →</a>
             </nav>
         </main>
 
@@ -1124,16 +1127,22 @@
 
                 toggleRun() {
                     if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
+                        this.pause();
                         return;
                     }
                     this.running = true;
                     this.btnRun.textContent = '⏸ Pause';
                     this.timer = setInterval(() => {
-                        this.step(15);
+                        this.step(25);
                     }, 50);
+                }
+
+                pause() {
+                    if (this.running) {
+                        this.running = false;
+                        this.btnRun.textContent = '▶ Run';
+                        clearInterval(this.timer);
+                    }
                 }
 
                 step(n) {
@@ -1149,17 +1158,21 @@
 
                 reset() {
                     this.samples = [];
-                    if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
-                    }
+                    this.pause();
                     this.draw();
                 }
             }
 
+            const simulators = [];
             document.querySelectorAll('.stage').forEach(stage => {
-                new Simulator(stage);
+                simulators.push(new Simulator(stage));
+            });
+
+            // Automatically pause continuous execution when switching tabs to prevent main-thread throttling
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    simulators.forEach(sim => sim.pause());
+                }
             });
         });
     </script>

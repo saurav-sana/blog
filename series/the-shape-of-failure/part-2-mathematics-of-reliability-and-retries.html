@@ -1,1521 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { window.dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-MM2SH8Z0L6');
-    </script>
-
-    <!-- Primary SEO & AIO Meta Tags -->
-    <title>Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana</title>
-    <meta name="title" content="Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Why n-way replication is theater when your failure domains overlap: the formal math of common-cause failures, retry storms, software aging, and 16K-GPU series collapse.">
-    <meta name="author" content="Saurav Sana">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
-
-    <!-- Early Theme Initialization -->
-    <script>
-        (function () {
-            try {
-                var root = document.documentElement;
-                var saved = localStorage.getItem('theme');
-                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
-                root.setAttribute('data-theme', initialTheme);
-                root.classList.add(initialTheme, 'theme-' + initialTheme);
-            } catch (e) {}
-        })();
-    </script>
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-
-    <!-- KaTeX for Publication-Grade Math Rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
-        onload="renderMathInElement(document.body, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false}
-            ],
-            ignoredClasses: ['readout', 'stat-cum-fail', 'stat-hazard', 'stat-cond-fail', 'stat-regime', 'stat-q3', 'stat-q5', 'stat-q7', 'stat-ceil', 'stat-n', 'stat-base-err', 'stat-job-fail', 'stat-fano', 'stat-mtbf', 'stat-tau', 'stat-goodput', 'stat-cost'],
-            throwOnError: false
-        });"></script>
-
-    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
-
-    <style>
-        /* =======================================================================
-           SERIES-ALIGNED STYLES & CLEAN EDITORIAL TYPOGRAPHY
-           ======================================================================= */
-        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
-        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 820px; margin-left: auto; margin-right: auto; }
-
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.65rem; margin-top: 3.5rem; margin-bottom: 1.15rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--line-soft); color: var(--text); letter-spacing: -0.01em; }
-        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.25rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.75rem; }
-        h4 { font-family: 'Libre Franklin', sans-serif; font-size: 1.05rem; color: var(--text); margin-top: 1.25rem; margin-bottom: 0.5rem; }
-        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.75; color: var(--text); }
-        p { margin-bottom: 1.25rem; }
-        ul { margin-bottom: 1.25rem; padding-left: 1.35rem; }
-        li { margin-bottom: 0.45rem; }
-        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
-
-        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.2rem 0 0.2rem 1.25rem; margin: 1.75rem 0 2.5rem 0; background: transparent; }
-        .snarky-quote-text { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.45rem 0; }
-        .snarky-quote-author { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; color: var(--muted); margin: 0; }
-        .snarky-quote-author strong { font-weight: 600; color: var(--text); }
-
-        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; line-height: 1.2; letter-spacing: -0.02em; }
-
-        /* Callout Boxes */
-        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.2rem 1.4rem; margin: 1.5rem 0 2rem 0; border-radius: 0 6px 6px 0; }
-        .tldr-box--warning { background: rgba(217, 119, 87, 0.07); border-left-color: var(--bad, #d97757); }
-        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600; }
-        .tldr-box--warning .tldr-eyebrow { color: var(--bad, #d97757); }
-        .tldr-content p { margin: 0 0 0.75rem 0; color: var(--text); font-size: 0.96rem; line-height: 1.65; }
-        .tldr-content p:last-child { margin-bottom: 0; }
-
-        /* KaTeX Math Blocks - Clean and Background-free */
-        .math-block { background: transparent !important; border: none !important; border-radius: 0 !important; padding: 0.6rem 0 !important; margin: 1.25rem 0 !important; overflow-x: auto; text-align: center; }
-        .math-block .katex-display { margin: 0.4rem 0 !important; }
-        .math-block .katex { font-size: 1.15em; color: var(--text); }
-        p .katex, li .katex, td .katex { font-size: 1.02em; }
-
-        /* Clean Incident Context Strip & Control Panel */
-        .incident-banner { border-left: 3px solid var(--amber, #D4A72C); background: var(--panel); border-top: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); padding: 0.95rem 1.2rem; border-radius: 0 6px 6px 0; margin: 1.5rem 0; font-size: 0.95rem; }
-        .incident-banner-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.35rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); font-weight: 600; }
-        .incident-banner-head a { color: var(--teal); text-decoration: none; font-weight: 500; }
-        .incident-banner-head a:hover { text-decoration: underline; }
-        .incident-banner p { margin: 0; font-size: 0.95rem; color: var(--muted); line-height: 1.6; }
-        .incident-banner p strong { color: var(--text); }
-
-        .epistemic-note { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; font-style: italic; color: var(--muted); margin-top: -0.4rem; margin-bottom: 1.15rem; }
-
-        .control-panel { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem 1.4rem; margin: 1.75rem 0; }
-        .control-panel-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal); margin: 0 0 0.75rem 0; }
-        .control-panel ul { margin-bottom: 0.85rem; }
-        .control-panel li { font-size: 0.95rem; line-height: 1.65; }
-        .telemetry-strip { border-top: 1px dashed var(--line); padding-top: 0.9rem; margin-top: 0.9rem; font-size: 0.95rem; }
-        .telemetry-strip-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--amber); font-weight: 600; margin-bottom: 0.35rem; }
-        .telemetry-strip p { margin: 0; font-size: 0.94rem; color: var(--muted); line-height: 1.6; }
-        .telemetry-strip p strong { color: var(--text); }
-
-        /* Data Tables */
-        .table-container { overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--line); border-radius: 6px; }
-        table.matrix-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; text-align: left; }
-        table.matrix-table th { background: var(--panel-2); color: var(--text); font-family: 'IBM Plex Mono', monospace; font-weight: 600; padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--line); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        table.matrix-table td { padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; line-height: 1.55; }
-        table.matrix-table tr:last-child td { border-bottom: none; }
-        table.matrix-table td strong { color: var(--text); }
-
-        /* Simulation Stages - Tight, Perfectly Aligned */
-        .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.2rem; margin: 1.5rem 0 2.25rem 0; border-radius: 8px; }
-        .sim-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.75rem; gap: 0.5rem; }
-        .sim-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.04em; }
-        .sim-subtitle { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.8rem; color: var(--muted); }
-        
-        .sim-toolbar { display: flex; justify-content: space-between; align-items: stretch; gap: 0.75rem; margin-bottom: 0.85rem; flex-wrap: wrap; }
-        .sim-params { display: flex; gap: 0.85rem; flex-wrap: wrap; background: var(--panel-2); padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--line-soft); flex: 1; align-items: center; }
-        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; color: var(--muted); min-width: 130px; flex: 1; }
-        .param-group input[type=range] { margin-top: 0.35rem; accent-color: var(--teal); cursor: pointer; }
-        .param-group select { margin-top: 0.25rem; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 0.25rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; cursor: pointer; }
-        .param-group span { font-weight: 600; color: var(--text); float: right; }
-
-        .controls { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
-        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.45rem 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; transition: all 0.16s ease; white-space: nowrap; }
-        [data-theme="light"] button.sim-btn { color: #ffffff; }
-        button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
-        button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-
-        canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; box-sizing: border-box; }
-        
-        /* Unified Readout Row - Robust & Defensively Formatted */
-        .readout { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: stretch; 
-            flex-wrap: wrap;
-            gap: 0.65rem; 
-            margin-top: 0.85rem; 
-            background: var(--panel-2); 
-            padding: 0.65rem 0.85rem; 
-            border-radius: 6px; 
-            border: 1px solid var(--line); 
-        }
-        .readout-item { 
-            flex: 1 1 120px; 
-            min-width: 110px;
-            font-family: 'IBM Plex Mono', monospace; 
-            font-size: 0.74rem; 
-            color: var(--muted);
-            line-height: 1.35;
-        }
-        .readout-item span { 
-            color: var(--amber); 
-            font-weight: 600; 
-            display: block; 
-            font-size: 0.92rem; 
-            margin-top: 0.25rem; 
-            white-space: nowrap; 
-        }
-
-        .post-pager { margin-top: 3.5rem; padding-top: 1.75rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
-        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
-
-        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
-        .theme-toggle:hover { color: var(--teal); }
-        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
-        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
-        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
-
-        @media (max-width: 650px) {
-            .readout-item { flex: 1 1 45%; }
-            .sim-toolbar { flex-direction: column; }
-            .sim-params { flex-direction: column; }
-            .param-group { width: 100%; }
-            .controls { justify-content: flex-start; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana</title>
+  <meta name="title" content="Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana">
+  <meta name="description" content="A practical guide to Bernoulli and binomial reliability models, common-cause failures, retries, Weibull aging, and the economics of large synchronous AI training jobs.">
+  <meta name="author" content="Saurav Sana">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
+  <meta property="og:title" content="Reliability, Redundancy, and the Independence Delusion">
+  <meta property="og:description" content="Why replicas, retries and large GPU fleets fail when independence assumptions meet production reality.">
+  <meta property="og:type" content="article">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-MM2SH8Z0L6');</script>
+  <script>
+    (function(){try{var s=localStorage.getItem('theme');var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches;var t=s||(p?'light':'dark');document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.add(t,'theme-'+t);}catch(e){}})();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+  <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+  <style>
+    main{max-width:820px;margin:1.5rem auto 0;padding:0 0 1rem} .site-header{margin-bottom:0!important;padding-bottom:1rem!important;border-bottom:1px solid var(--line-soft)}
+    h1,h2,h3,h4{font-family:'Libre Franklin',sans-serif;color:var(--text);letter-spacing:-.02em}h1{font-size:clamp(1.8rem,4vw,2.35rem);line-height:1.2;margin:.2rem 0 .7rem}h2{font-size:1.62rem;margin:3.2rem 0 1rem;padding-bottom:.4rem;border-bottom:1px solid var(--line-soft)}h3{font-size:1.22rem;color:var(--teal);margin:2rem 0 .7rem}h4{font-size:1.04rem;margin:1.3rem 0 .5rem}
+    p,li{font-family:'IBM Plex Sans',sans-serif;font-size:1.04rem;line-height:1.76;color:var(--text)}p{margin:0 0 1.15rem}li{margin:.35rem 0}ul,ol{padding-left:1.35rem;margin:0 0 1.2rem}a{color:var(--teal)}code{font-family:'IBM Plex Mono',monospace;font-size:.86em;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:.1rem .32rem;color:var(--teal)}
+    .series-heading-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:.75rem}.post-meta{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted);margin-bottom:1rem}.snarky-quote{border-left:3px solid var(--amber,#d4a72c);padding:.25rem 0 .25rem 1.2rem;margin:1.7rem 0 2rem}.snarky-quote-text{font:italic 1.15rem/1.6 'IBM Plex Serif',serif;color:var(--muted);margin:0 0 .35rem}.snarky-quote-author{font-size:.9rem;color:var(--muted);margin:0}
+    .tldr-box{background:var(--panel-2);border-left:3px solid var(--teal);padding:1.1rem 1.3rem;margin:1.4rem 0 1.8rem;border-radius:0 6px 6px 0}.tldr-box.warning{border-left-color:var(--bad,#d97757);background:rgba(217,119,87,.07)}.eyebrow,.panel-title,.sim-title,.telemetry-title{font:600 .75rem 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--teal);margin-bottom:.55rem}.tldr-box p{font-size:.96rem;line-height:1.65;margin-bottom:.65rem}.tldr-box p:last-child{margin:0}.math-block{overflow-x:auto;text-align:center;padding:.55rem 0;margin:1rem 0 1.3rem}.math-block .katex{font-size:1.12em;color:var(--text)}.epistemic-note{font-size:.87rem;color:var(--muted);font-style:italic;margin-top:-.3rem}
+    .incident-banner{background:var(--panel);border:1px solid var(--line-soft);border-left:3px solid var(--amber);padding:1rem 1.2rem;margin:1.5rem 0;border-radius:0 6px 6px 0}.incident-head{font:600 .75rem 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--amber);margin-bottom:.45rem}.incident-banner p{font-size:.95rem;line-height:1.65;color:var(--muted);margin:0}.incident-banner strong{color:var(--text)}
+    .control-panel{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:1.15rem 1.3rem;margin:1.6rem 0}.control-panel li{font-size:.96rem;line-height:1.65}.telemetry{border-top:1px dashed var(--line);padding-top:.85rem;margin-top:.85rem}.telemetry-title{color:var(--amber)}.telemetry p{font-size:.93rem;color:var(--muted);margin:0}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;margin:1.4rem 0}table{border-collapse:collapse;width:100%;font: .87rem 'IBM Plex Sans',sans-serif;text-align:left}th{background:var(--panel-2);font:600 .73rem 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--text)}th,td{padding:.72rem .8rem;border-bottom:1px solid var(--line-soft);vertical-align:top}td{color:var(--muted);line-height:1.55}td strong{color:var(--text)}tr:last-child td{border-bottom:0}
+    .stage{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1.15rem;margin:1.6rem 0 2rem}.sim-header{display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem}.sim-title{color:var(--text);margin:0}.sim-subtitle{font-size:.8rem;color:var(--muted)}.sim-toolbar{display:flex;justify-content:space-between;gap:.8rem;flex-wrap:wrap;margin-bottom:.8rem}.sim-params{display:flex;gap:.9rem;flex:1;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:6px;padding:.7rem}.param{display:flex;flex-direction:column;gap:.3rem;flex:1 1 145px;font: .74rem 'IBM Plex Mono',monospace;color:var(--muted)}.param strong{color:var(--text)}input[type=range],select{accent-color:var(--teal);width:100%}select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:.35rem}.controls{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap}button.sim-btn{background:var(--teal);color:#071411;border:0;border-radius:5px;padding:.48rem .75rem;font:600 .75rem 'IBM Plex Mono',monospace;cursor:pointer}html[data-theme=light] button.sim-btn{color:white}button.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line)}canvas{display:block;width:100%;height:220px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:5px}.readout{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.8rem;padding:.7rem;background:var(--panel-2);border:1px solid var(--line);border-radius:6px}.readout-item{flex:1 1 125px;font: .72rem 'IBM Plex Mono',monospace;color:var(--muted)}.readout-item span{display:block;color:var(--amber);font-size:.9rem;font-weight:600;margin-top:.2rem}.sim-note{font-size:.83rem;color:var(--muted);margin:.7rem 0 0}
+    .post-pager{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line-soft)}.post-pager a{font:600 .85rem 'IBM Plex Mono',monospace;text-decoration:none}.theme-toggle{background:transparent;border:0;color:var(--muted);cursor:pointer}.theme-toggle .icon-moon,.theme-toggle .icon-bulb{display:none}html[data-theme=light] .theme-toggle .icon-moon{display:block}html[data-theme=dark] .theme-toggle .icon-bulb{display:block}
+    @media(max-width:650px){main{padding-left:.1rem;padding-right:.1rem}p,li{font-size:1rem}.sim-toolbar{flex-direction:column}.param{flex-basis:100%}.readout-item{flex-basis:42%}}
+  </style>
 </head>
-<body>
-    <div class="container">
-
-        <header class="site-header">
-            <a href="../../index.html" class="site-title">
-                <span class="site-title__badge">SS</span>
-                <span>Saurav Sana | Field Notes</span>
-            </a>
-
-            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
-                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
-                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
-                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
-                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
-                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                    </svg>
-                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="5"/>
-                        <line x1="12" y1="1" x2="12" y2="3"/>
-                        <line x1="12" y1="21" x2="12" y2="23"/>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                        <line x1="1" y1="12" x2="3" y2="12"/>
-                        <line x1="21" y1="12" x2="23" y2="12"/>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                    </svg>
-                </button>
-            </nav>
-        </header>
-
-        <main>
-            <div class="post-meta" style="margin-bottom: 0.5rem;">
-                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
-            </div>
-
-            <div class="series-heading-row">
-                <h1>Reliability, Redundancy, and the Independence Delusion</h1>
-            </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">October 18, 2026 · Part 2 of 8</div>
-
-            <blockquote class="snarky-quote">
-                <p class="snarky-quote-text">“Everything fails, all the time.”</p>
-                <p class="snarky-quote-author">— <strong>Werner Vogels</strong>, CTO of Amazon (usually quoted by architects right before deploying a single point of failure across three availability zones)</p>
-            </blockquote>
-
-            <p>Welcome to the mathematics of things breaking. In enterprise architecture reviews, we routinely calculate cluster reliability using the kind of optimistic multiplication usually reserved for lottery tickets. We spin up three database replicas, assume each node has a $99\%$ chance of staying up, multiply $0.01^3$ on a whiteboard, and proudly declare our platform "five-nines highly available." Nobody in the room asks whether all three nodes share the same Top-of-Rack switch, the same kernel security agent, or the same intern running a Terraform script.</p>
-
-            <p>This is <strong>Replication Theater</strong>: counting boxes on an architecture diagram without verifying whether their failure modes are statistically independent. Cloud components share power buses, control planes, IAM token issuers, DNS resolvers, and CI/CD pipelines. Three replicas are useful only to the extent that they fail separately—and that separation must be proven mathematically and enforced via architectural blast doors, not inferred from the fact that you drew three separate rectangles in Lucidchart.</p>
-
-            <p>A probability distribution is not a magic incantation that prevents outages; it is a diagnostic model that connects a physical failure mechanism to an engineering control. Below, we examine the three foundational distributions of reliability engineering—<strong>Bernoulli, Binomial, and Weibull</strong>—and then combine all three to dissect the ultimate modern series-system nightmare: <strong>a 16,384-GPU synchronous AI training fleet</strong>.</p>
-
-            <!-- ======================================================= -->
-            <!-- 1. BERNOULLI DISTRIBUTION & RETRY AMPLIFICATION -->
-            <!-- ======================================================= -->
-            <h2>1. The Bernoulli Distribution: Per-Request Trials, Composite Traps, and Self-DDoS</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: One Coin Flip vs. A Thousand</div>
-                <div class="tldr-content">
-                    <p>Ignore your Prometheus cluster dashboard for a moment and look at <em>one single request</em> hitting your gateway. Did it return HTTP 200 ($X=0$), or did it throw a 500/timeout ($X=1$)? That single binary outcome is a <strong>Bernoulli trial</strong> with failure probability $q$.</p>
-                    <p>The trap isn't the single coin flip—it's what happens when a single user session requires flipping that coin $1,000$ times in a row, and what happens when your SDK tries to "fix" a bad flip by flipping three more coins while the server is on fire.</p>
-                </div>
-            </div>
-
-            <p>For a single atomic request, the probability mass function of a Bernoulli random variable $X \sim \text{Bernoulli}(q)$ is almost insultingly simple:</p>
-
-            <div class="math-block">
-                $$P(X = k) = q^k (1 - q)^{1 - k}, \quad k \in \{0, 1\}, \quad \mathbb{E}[X] = q$$
-            </div>
-
-            <p>Because nobody gets promoted for writing down $\mathbb{E}[X] = q$, engineers quickly move on to setting a service-level objective (say, $99.9\%$ success, so $q = 0.001$) and slapping `@Retryable(maxAttempts = 3)` onto every RPC client. Both decisions look completely reasonable in isolation, and both routinely destroy production systems.</p>
-
-            <div class="incident-banner">
-                <div class="incident-banner-head">
-                    <span>Operational Anchor: AWS S3 Outage (Feb 28, 2017)</span>
-                    <a href="https://aws.amazon.com/message/41926/" target="_blank" rel="noopener noreferrer">Read Post-Mortem ↗</a>
-                </div>
-                <p><strong>What happened:</strong> An operator debugging the S3 billing subsystem in <code>us-east-1</code> executed a playbook command intended to remove a few servers. A typo removed a massive capacity pool supporting the S3 index and placement subsystems. Once capacity dropped below the operational threshold, requests stopped failing independently—and aggressive client retries across the internet turned a capacity dip into a multi-hour regional gridlock.</p>
-            </div>
-
-            <h3>The Worked Math: Why 99.9% Availability Equals a 63% Job Failure Rate</h3>
-            <p class="epistemic-note">Epistemic note: The parameters below represent an illustrative architectural model for a data gateway, not internal AWS telemetry.</p>
-
-            <p>Suppose you operate a smart data gateway. A single logical user query isn't one request; it is a composite workflow that authenticates a token, fetches table metadata, and reads $M = 1,000$ Parquet footers from object storage. Each sub-request is a Bernoulli trial with failure rate $q = 0.001$ ($99.9\%$ component SLO).</p>
-
-            <p>If sub-requests are independent and the logical query requires all $M = 1,000$ reads to succeed, the probability that the user's job fails is:</p>
-
-            <div class="math-block">
-                $$P(\text{Job Failure}) = 1 - (1 - q)^M = 1 - (0.999)^{1000} \approx 0.6323 \text{ (63.23\%)}$$
-            </div>
-
-            <p>Read that again: your storage team hits their $99.9\%$ SLA target, collects their quarterly bonus, and goes home happy—while <strong>$63.2\%$ of your users' batch queries fail</strong>. This is why microservice architectures with deep fan-out trees feel perpetually broken despite every individual service reporting a green dashboard.</p>
-
-            <p>To mask this, a well-meaning developer adds client-side retries ($k = 3$ attempts per sub-request). When failures are genuinely independent (a random packet drop), retries are magic: the sub-request failure rate plummets from $q = 10^{-3}$ to $q^3 = 10^{-9}$, rescuing the composite job:</p>
-
-            <div class="math-block">
-                $$P(\text{Job Failure}_{\text{retry}} \mid \text{Independent}) = 1 - \left(1 - 10^{-9}\right)^{1000} \approx 1.0 \times 10^{-6} \text{ (0.0001\%)}$$
-            </div>
-
-            <p><strong>The Independence Collapse:</strong> Now enters the S3 capacity cliff. When the downstream placement subsystem saturates, trials stop being independent. If your first request times out because the server's thread pool is wedged, retrying 50 milliseconds later does not give you a fresh $0.001$ draw. The conditional probability of failing on attempt 2 given failure on attempt 1 approaches certainty: $P(X_{i,2}=1 \mid X_{i,1}=1) \to 1.0$.</p>
-
-            <p>Under state collapse, retries provide <strong>zero reliability improvement</strong> ($1.0^3 = 1.0$), while multiplying inbound traffic on the dying service by $3\times$:</p>
-
-            <div class="math-block">
-                $$\lambda_{\text{effective}} = \lambda_{\text{base}} \cdot \Big(1 + q + q \cdot P(\text{fail}_2 \mid \text{fail}_1) + \dots \Big) \xrightarrow{P \to 1} 3\lambda_{\text{base}}$$
-            </div>
-
-            <p>Your own clients are now executing a coordinated $3\times$ DDoS attack against your storage tier, preventing the index servers from ever recovering.</p>
-
-            <div class="control-panel">
-                <div class="control-panel-title">Architectural Controls Derived from the Math</div>
-                <ul>
-                    <li><strong>Process-Wide Adaptive Retry Budgets:</strong> Ban naive per-request retry loops. Implement a token-bucket retry budget at the client process or Envoy sidecar level: every successful request deposits $0.1$ tokens; every retry withdraws $1.0$ token. As soon as downstream error rates cross $10\%$, the bucket drains to zero and retries halt globally without requiring a central coordinator.</li>
-                    <li><strong>Administrative Capacity Blast Doors:</strong> Following S3 2017, operational tooling must enforce hard cardinality invariants. Any CLI command or automated scaler attempting to drain more than $X\%$ of an active subsystem pool must hard-fail unless accompanied by a two-party cryptographic lease.</li>
-                </ul>
-                <div class="telemetry-strip">
-                    <div class="telemetry-strip-title">Telemetry Falsification: The Fano Factor Audit</div>
-                    <p>Stop averaging HTTP 5xx rates over 5-minute windows—a $0.1\%$ average hides whether errors arrived as harmless random static or a 30-second total blackout. Compute the <strong>Index of Dispersion (Fano Factor)</strong> across 1-second buckets: $$D = \frac{\sigma^2_{\text{errors}}}{\mu_{\text{errors}}}$$ If $D \approx 1$, errors are independent Poisson arrivals and retries work. If $D \gg 1$, failures are heavily clustered—your independence assumption is dead, and retry budgets must trip immediately.</p>
-                </div>
-            </div>
-
-            <!-- SIMULATOR 1 -->
-            <div class="stage" data-sim-type="bernoulli">
-                <div class="sim-header">
-                    <span class="sim-title">Interactive Lab 1: Composite Job Amplification &amp; Burst Clustering</span>
-                    <span class="sim-subtitle">Compare independent coin flips against correlated state collapse</span>
-                </div>
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Failure Regime:</div>
-                            <select id="mode_bernoulli">
-                                <option value="independent">Independent Draws (Memoryless)</option>
-                                <option value="correlated">Markov Burst (Downstream Collapse)</option>
-                            </select>
-                        </div>
-                        <div class="param-group">
-                            <div>Sub-Req Error (q): <span id="v_q_bernoulli">0.02</span></div>
-                            <input type="range" id="q_bernoulli" min="0.01" max="0.20" step="0.01" value="0.02">
-                        </div>
-                        <div class="param-group">
-                            <div>Calls per Job (M): <span id="v_m_bernoulli">50</span></div>
-                            <input type="range" id="m_bernoulli" min="10" max="150" step="10" value="50">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" height="220" role="img" aria-label="Histogram of simulated batch failures"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div class="readout-item">Simulated Jobs:<span class="stat-n">0</span></div>
-                    <div class="readout-item">Per-Call Error:<span class="stat-base-err">–</span></div>
-                    <div class="readout-item">Failed Jobs:<span class="stat-job-fail">–</span></div>
-                    <div class="readout-item">Fano Factor:<span class="stat-fano">–</span></div>
-                </div>
-            </div>
-
-            <!-- ======================================================= -->
-            <!-- 2. BINOMIAL DISTRIBUTION & COMMON-CAUSE COUPLING -->
-            <!-- ======================================================= -->
-            <h2>2. The Binomial Distribution: Quorum Math &amp; The $\beta$-Factor Ceiling</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Architecture Review Delusion</div>
-                <div class="tldr-content">
-                    <p>When designing a consensus cluster (etcd, Raft, Paxos), architects reach for the Binomial distribution to answer: <em>"If we run $n=5$ voters and each has a $p=1\%$ failure probability, what are the odds we lose $k \ge 3$ nodes and lose quorum?"</em></p>
-                    <p>The textbook Binomial equation promises a comforting $0.000985\%$ risk. Unfortunately, the textbook assumes your five servers don't share the same kernel module, configuration push pipeline, or hypervisor bug.</p>
-                </div>
-            </div>
-
-            <p>If—and only if—$n$ replicas fail independently with identical probability $p$, the number of failed nodes $X$ follows $X \sim \text{Binomial}(n, p)$:</p>
-
-            <div class="math-block">
-                $$P(X = k) = \binom{n}{k} p^k (1 - p)^{n - k}$$
-            </div>
-
-            <p>This formula is responsible for more misplaced confidence in distributed systems than almost any other equation in computer science. Because $p^k$ shrinks exponentially as $k$ grows, it tricks engineers into believing they can buy infinite availability simply by throwing more hardware replicas at a cluster.</p>
-
-            <div class="incident-banner">
-                <div class="incident-banner-head">
-                    <span>Operational Anchor: CrowdStrike Channel File 291 (July 2024) &amp; Knight Capital (2012)</span>
-                    <a href="https://www.crowdstrike.com/en-us/blog/channel-file-291-rca-available/" target="_blank" rel="noopener noreferrer">Read CrowdStrike RCA ↗</a>
-                </div>
-                <p><strong>What happened:</strong> On July 19, 2024, CrowdStrike pushed a dynamic configuration update (<code>Channel File 291</code>) that bypassed staged rollout rings and landed simultaneously on millions of Windows hosts globally, triggering an out-of-bounds kernel read and instant BSOD regardless of cloud region or availability zone. Twelve years earlier, Knight Capital deployed new trading code across 8 servers; a missed flag on one server and latent legacy code ("Power Peg") across the cluster turned hardware redundancy into a synchronized $\$460\text{M}$ loss in 45 minutes.</p>
-            </div>
-
-            <h3>The Worked Math: Independent Quorum vs. The Common-Cause Wall</h3>
-            <p class="epistemic-note">Epistemic note: Illustrative consensus cluster model demonstrating the formal $\beta$-factor common-cause bound.</p>
-
-            <p>Consider a 5-voter consensus group ($n = 5$) requiring a majority of 3 nodes to remain available. Each node has an independent hardware/OS unavailability rate of $p_{\text{ind}} = 0.01$ ($99\%$ availability) over an observation window. Under the naive Binomial model, quorum is lost when 3, 4, or all 5 voters fail simultaneously:</p>
-
-            <div class="math-block">
-                $$P(\text{Quorum Loss}_{\text{ind}}) = \sum_{k=3}^{5} \binom{5}{k} (0.01)^k (0.99)^{5-k} = 10(10^{-6})(0.9801) + 5(10^{-8})(0.99) + 10^{-10} \approx 9.85 \times 10^{-6}$$
-            </div>
-
-            <p>At $0.000985\%$ (roughly five-nines of quorum availability), everyone congratulates themselves and approves the design doc. Now let’s introduce reality using the <strong>Common-Cause $\beta$-Factor Model</strong>.</p>
-
-            <p>Suppose all 5 nodes subscribe to a shared automated control plane—a kernel security agent, an automated config distributor, a shared TLS certificate rotator, or a single DNS/IAM dependency—that experiences a correlated defect with probability $p_{\text{cc}} = 0.001$ ($0.1\%$) during the same observation window. By the law of total probability:</p>
-
-            <div class="math-block">
-                $$P(\text{Quorum Loss}_{\text{actual}}) = p_{\text{cc}} + (1 - p_{\text{cc}}) \cdot P(X \ge 3 \mid \text{No Common Cause})$$
-                $$= 0.001 + (0.999)\left(9.85 \times 10^{-6}\right) \approx 0.0010098 \text{ (0.101\%)}$$
-            </div>
-
-            <div class="table-container">
-                <table class="matrix-table">
-                    <thead>
-                        <tr>
-                            <th>Cluster Metric</th>
-                            <th>Naive Independent Binomial</th>
-                            <th>Coupled Common-Cause Model</th>
-                            <th>Architectural Consequence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Single Node Unavailability ($p_{\text{ind}}$)</strong></td>
-                            <td>$1.0\%$</td>
-                            <td>$1.0\%$</td>
-                            <td>Identical underlying server hardware</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Shared Control-Plane Risk ($p_{\text{cc}}$)</strong></td>
-                            <td>$0\%$ (Ignored on whiteboard)</td>
-                            <td>$0.1\%$</td>
-                            <td>Shared agent push / config / IAM / cert</td>
-                        </tr>
-                        <tr>
-                            <td><strong>5-Node Quorum Loss Probability</strong></td>
-                            <td><strong>$0.000985\%$</strong> ($\sim 5$ nines)</td>
-                            <td><strong>$0.101\%$</strong> ($\sim 3$ nines)</td>
-                            <td><strong>Risk underestimated by $102.5\times$</strong></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Scaling Cluster from $n=5$ to $n=7$</strong></td>
-                            <td>Drops to $3.4 \times 10^{-7}$</td>
-                            <td>Stalls at <strong>$0.100\%$</strong></td>
-                            <td><strong>Zero availability gain from extra nodes</strong></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p>Look at the bottom row of that table. Once $p_{\text{cc}} \gg p_{\text{ind}}^3$, scaling your cluster from 5 nodes to 7, 9, or 99 nodes buys you <strong>zero additional availability</strong>. The shared risk term $p_{\text{cc}}$ acts as an impenetrable horizontal ceiling.</p>
-
-            <div class="control-panel">
-                <div class="control-panel-title">Architectural Controls Derived from the Math</div>
-                <ul>
-                    <li><strong>Cellular Staggered Deployment Waves:</strong> Because $p_{\text{cc}}$ dominates, your primary engineering goal is driving $P(\text{All voters receive a mutation simultaneously}) \to 0$. Enforce cellular deployment rings where no two voters in the same quorum belong to the same patch wave. Voter $i$ cannot pull a control-plane update or kernel definition until Voter $i-1$ has baked for $\Delta t$ exceeding your P99 defect detection window.</li>
-                    <li><strong>Static Stability of the Data Plane:</strong> A running consensus group must survive even if the central control plane, IAM service, or secret manager catches fire. Cache active leases and verify tokens locally via asymmetric public keys so control-plane outages cannot cascade into data-plane quorum loss.</li>
-                </ul>
-                <div class="telemetry-strip">
-                    <div class="telemetry-strip-title">Telemetry Falsification: The Shared-Fate Dependency Matrix</div>
-                    <p>Run an automated daily audit across every consensus group inspecting 6 columns: <strong>Availability Zone, Hypervisor Generation, Kernel/Agent Patch Ring, TLS Certificate Expiry Timestamp, DNS Resolver, and CI/CD Wave</strong>. Any column where $\ge 3$ out of $5$ voters share an identical value is an unmodeled $p_{\text{cc}}$ term waiting to page you at 3 AM.</p>
-                </div>
-            </div>
-
-            <!-- SIMULATOR 2 -->
-            <div class="stage" data-sim-type="binomial">
-                <div class="sim-header">
-                    <span class="sim-title">Interactive Lab 2: The Common-Cause Ceiling on Quorum Scaling</span>
-                    <span class="sim-subtitle">Log-scale unavailability across N=3, 5, 7, 9, 11 replicas</span>
-                </div>
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Node Fail Prob ($p_{\text{ind}}$): <span id="v_p_binomial">0.05</span></div>
-                            <input type="range" id="p_binomial" min="0.01" max="0.20" step="0.01" value="0.05">
-                        </div>
-                        <div class="param-group">
-                            <div>Shared Defect ($p_{\text{cc}}$): <span id="v_pcc_binomial">0.002</span></div>
-                            <input type="range" id="pcc_binomial" min="0.000" max="0.020" step="0.001" value="0.002">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn secondary btn-reset">Zero Shared Risk (p_cc = 0)</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" height="220" role="img" aria-label="Log-scale graph of quorum failure probability vs replica count"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div class="readout-item">3-Voter Loss:<span class="stat-q3">–</span></div>
-                    <div class="readout-item">5-Voter Loss:<span class="stat-q5">–</span></div>
-                    <div class="readout-item">7-Voter Loss:<span class="stat-q7">–</span></div>
-                    <div class="readout-item">Ceiling Bound:<span class="stat-ceil">–</span></div>
-                </div>
-            </div>
-
-            <!-- ======================================================= -->
-            <!-- 3. WEIBULL DISTRIBUTION & RESIDUAL LIFE -->
-            <!-- ======================================================= -->
-            <h2>3. The Weibull Distribution: Conditional Hazard Rates &amp; Software Aging</h2>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Ticking Time Bomb: Why High Uptime Is Not Proof of Stability</div>
-                <div class="tldr-content">
-                    <p>Every engineering org has that one haunted server someone brags about: <em>"That broker has been running for 400 days straight without a restart—don't touch it!"</em></p>
-                    <p>When failure risk increases with age ($\beta > 1$), surviving for 400 days does not mean the node is battle-tested. It means the node is standing on the edge of a statistical cliff. The Weibull distribution quantifies how both physical hardware and leaky software processes rot over time.</p>
-                </div>
-            </div>
-
-            <p>The Exponential distribution assumes systems are memoryless ($\beta = 1$): a 5-year-old hard drive is just as likely to survive the next hour as a brand-new drive. Outside of textbook homework problems, almost nothing works like this. The two-parameter <strong>Weibull distribution</strong> introduces a shape parameter $\beta$ and scale parameter $\eta$ (characteristic life) to model changing hazard rates over time $t$:</p>
-
-            <div class="math-block">
-                $$S(t) = P(T > t) = e^{-(t/\eta)^\beta}, \qquad h(t) = \frac{f(t)}{S(t)} = \frac{\beta}{\eta}\left(\frac{t}{\eta}\right)^{\beta - 1}$$
-            </div>
-
-            <ul>
-                <li><strong>$\beta < 1$ (Infant Mortality / Burn-In):</strong> Hazard rate decreases over time. Bad solder joints, DOA optical transceivers, and botched config deploys fail immediately; if a node survives the first 24 hours, it stabilizes.</li>
-                <li><strong>$\beta = 1$ (Memoryless Random Failures):</strong> Constant hazard rate (reduces to Exponential). Cosmic rays and random network blips.</li>
-                <li><strong>$\beta > 1$ (Wear-Out &amp; Software Aging):</strong> Hazard rate accelerates with age. Mechanical bearing wear, SSD NAND oxide degradation, JVM heap fragmentation, uncollected C++/Arrow off-heap buffers, and RocksDB compaction debt.</li>
-            </ul>
-
-            <div class="incident-banner">
-                <div class="incident-banner-head">
-                    <span>Operational Anchor: Backblaze Fleet Telemetry &amp; Stateful Worker Exhaustion</span>
-                    <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank" rel="noopener noreferrer">Explore Backblaze Data ↗</a>
-                </div>
-                <p><strong>What happens in production:</strong> Backblaze’s quarterly reliability reports across $250,000+$ drives show that once drives pass age 3–4 years, annualized failure rates spike non-linearly as mechanical wear-out ($\beta > 1$) takes over. In software infrastructure, homogeneous clusters deployed simultaneously hit memory fragmentation or descriptor exhaustion cliffs in lockstep.</p>
-            </div>
-
-            <h3>The Worked Math: Cumulative Failure vs. Conditional Residual Risk</h3>
-            <p class="epistemic-note">Epistemic note: Illustrative Weibull parameters ($\beta=3, \eta=5$) modeling an aging storage cohort or stateful worker pool; raw Backblaze AFR tables require Kaplan-Meier fitting with right-censoring before extracting $\beta$.</p>
-
-            <p>Suppose your stateful storage nodes follow a Weibull lifetime distribution with shape $\beta = 3.0$ (accelerating wear-out) and scale $\eta = 5.0\text{ years}$ (or, for a leaky software worker, $\eta = 50\text{ days}$ of uptime). The cumulative probability that a node fails by age $t = 4$ is:</p>
-
-            <div class="math-block">
-                $$F(4) = 1 - S(4) = 1 - e^{-(4/5)^3} = 1 - e^{-0.512} \approx 39.95\%$$
-            </div>
-
-            <p>Here is where naive capacity planning goes off the rails. As an operator looking at the nodes <em>currently running</em> in production at age $t_0 = 4$, the cumulative number $F(4)$ is history. You need the <strong>Conditional Probability of Failure</strong> over the <em>next</em> planning window ($\Delta t = 1$) given that the node has already survived to age 4:</p>
-
-            <div class="math-block">
-                $$P(4 < T \le 5 \mid T > 4) = 1 - \frac{S(5)}{S(4)} = 1 - \exp\left[\left(\frac{4}{5}\right)^3 - \left(\frac{5}{5}\right)^3\right] = 1 - e^{-0.488} \approx \mathbf{38.63\%}$$
-            </div>
-
-            <p>Compare that against a fresh node during its very first window ($t = 0 \to 1$):</p>
-
-            <div class="math-block">
-                $$P(0 < T \le 1 \mid T > 0) = 1 - e^{-(1/5)^3} = 1 - e^{-0.008} \approx \mathbf{0.80\%}$$
-            </div>
-
-            <p>A node that has "proven itself" by surviving for 4 intervals is <strong>$48\times$ more likely to crash in the upcoming window</strong> than a fresh node ($38.63\%$ vs. $0.80\%$). If you provisioned all your nodes on the same day, $38.6\%$ of your surviving fleet is going to detonate during window 5, overwhelming your erasure-coding or replica rebuild bandwidth.</p>
-
-            <div class="control-panel">
-                <div class="control-panel-title">Architectural Controls Derived from the Math</div>
-                <ul>
-                    <li><strong>Jittered Proactive Rejuvenation:</strong> Never let stateful software workers or hardware cohorts age in lockstep. Trigger automated rolling drains and restarts at age $t_{\text{recycle}} \pm \text{Uniform}(-20\%, +20\%)$, chosen where the conditional hazard $h(t)$ crosses your background replica-rebuild bandwidth limit.</li>
-                    <li><strong>Separate Deterministic Leaks from Stochastic Aging:</strong> Do not fit a Weibull curve to a deterministic memory leak. If $\text{d(RSS)}/\text{d}t$ is a straight line per 1,000 requests, fix the pointer bug or alert on memory slope. Reserve Weibull modeling for compound wear-out where failure is a stochastic function of varied multi-tenant workloads.</li>
-                </ul>
-                <div class="telemetry-strip">
-                    <div class="telemetry-strip-title">Telemetry Falsification: Right-Censoring Discipline (Kaplan-Meier)</div>
-                    <p>The most common statistical blunder in postmortems is calculating MTBF by averaging the uptime of nodes that <em>crashed</em>—completely ignoring the 900 healthy nodes still running or gracefully terminated by deployments. That is textbook survivorship bias. Always estimate $(\beta, \eta)$ using a <strong>Kaplan-Meier survival estimator</strong> or Maximum Likelihood Estimation (MLE) that treats every healthy running node and graceful deploy restart as a <strong>right-censored observation ($T > t_{\text{observed}}$)</strong>.</p>
-                </div>
-            </div>
-
-            <!-- SIMULATOR 3 -->
-            <div class="stage" data-sim-type="weibull">
-                <div class="sim-header">
-                    <span class="sim-title">Interactive Lab 3: Weibull Hazard Explorer &amp; Conditional Next-Window Risk</span>
-                    <span class="sim-subtitle">See how shape parameter β transforms uptime from safety into liability</span>
-                </div>
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Shape (&beta;): <span id="v_k_weibull">3.0</span></div>
-                            <input type="range" id="k_weibull" min="0.5" max="4.0" step="0.1" value="3.0">
-                        </div>
-                        <div class="param-group">
-                            <div>Scale (&eta;): <span id="v_lam_weibull">5.0</span></div>
-                            <input type="range" id="lam_weibull" min="2.0" max="8.0" step="0.5" value="5.0">
-                        </div>
-                        <div class="param-group">
-                            <div>Current Age (t₀): <span id="v_t0_weibull">4.0</span></div>
-                            <input type="range" id="t0_weibull" min="0.0" max="7.0" step="0.2" value="4.0">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn secondary btn-reset">Reset to β=3.0</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" height="220" role="img" aria-label="Hazard function curve and conditional failure probability"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div class="readout-item">Cum. Failed:<span class="stat-cum-fail">–</span></div>
-                    <div class="readout-item">Hazard h(t₀):<span class="stat-hazard">–</span></div>
-                    <div class="readout-item">Next-Window Risk:<span class="stat-cond-fail">–</span></div>
-                    <div class="readout-item">Regime:<span class="stat-regime">–</span></div>
-                </div>
-            </div>
-
-            <!-- ======================================================= -->
-            <!-- 4. CAPSTONE SYNTHESIS: 16K-GPU FLEET RELIABILITY -->
-            <!-- ======================================================= -->
-            <h2>4. Capstone Synthesis: The 16,384-GPU Synchronous Trap &amp; Goodput Economics</h2>
-
-            <div class="tldr-box tldr-box--warning">
-                <div class="tldr-eyebrow">Where All Three Distributions Collide: AI Infrastructure at Scale</div>
-                <div class="tldr-content">
-                    <p>In stateless web services, $N$ nodes provide parallel redundancy. In synchronous LLM pre-training (Ring-AllReduce / FSDP across NVLink and InfiniBand), <strong>$N = 16,384$ GPUs are wired in series</strong>.</p>
-                    <p>If one HBM3 memory bank throws an uncorrectable ECC error or one optical transceiver flaps, all 16,384 GPUs stall immediately. At this scale, reliability math stops being an academic exercise and directly governs whether you burn <strong>$\$16\text{ Million}$</strong> in wasted GPU compute.</p>
-                </div>
-            </div>
-
-            <div class="incident-banner">
-                <div class="incident-banner-head">
-                    <span>Operational Anchor: Meta Llama 3.1 (405B) Training Cluster (2024)</span>
-                    <a href="https://ai.meta.com/research/publications/the-llama-3-herd-of-models/" target="_blank" rel="noopener noreferrer">Read Llama 3 Paper (Sec 3) ↗</a>
-                </div>
-                <p><strong>The documented numbers:</strong> During a 54-day pre-training snapshot of Llama 3 405B across $N = 16,384$ Nvidia H100 (80GB) GPUs, Meta recorded <strong>$419$ unexpected job interruptions</strong> ($148$ faulty GPUs, $72$ HBM3 memory errors, $19$ SRAM faults, plus switch and cable flaps)—averaging <strong>one cluster-halting failure every $3.09\text{ hours}$</strong>.</p>
-            </div>
-
-            <h3>Step A: Series Fragility — How 99.95% Reliable GPUs Crash Every 3 Hours</h3>
-            <p class="epistemic-note">Epistemic note: Cluster size ($16,384$) and interruption count ($419$ over $54$ days) are empirical figures from Meta's Llama 3 report; cost rates, checkpoint stall ($\delta$), and restart times ($R$) are illustrative FinOps planning models.</p>
-
-            <p>Over 54 days ($1,296\text{ hours}$), $16,384$ GPUs accumulate $21,233,664\text{ GPU-hours}$ of runtime. Dividing $419$ interruptions by total GPU-hours yields the individual per-GPU failure rate $\lambda_{\text{gpu}}$:</p>
-
-            <div class="math-block">
-                $$\lambda_{\text{gpu}} = \frac{419}{21,233,664\text{ GPU-hours}} \approx 1.973 \times 10^{-5}\text{ failures / GPU-hour}$$
-            </div>
-
-            <p>In isolation, that is phenomenal hardware engineering: a single H100 has an MTBF of $50,677\text{ hours}$ ($\sim 5.78\text{ years}$), or a $99.95\%$ chance of surviving a 24-hour day. If you ran a small 8-GPU box, you would see a hardware crash once every 264 days.</p>
-
-            <p>But in synchronous training, all $N = 16,384$ GPUs must complete every step barrier together. Because the system is wired in series, the cluster failure rate scales linearly with $N$ ($\Lambda_{\text{cluster}} = N \cdot \lambda_{\text{gpu}}$):</p>
-
-            <div class="math-block">
-                $$M_{\text{cluster}} = \text{Cluster MTBF} = \frac{1}{N \cdot \lambda_{\text{gpu}}} = \frac{50,677\text{ hours}}{16,384} \approx \mathbf{3.09\text{ hours (185.4 minutes)}}$$
-            </div>
-
-            <p>The probability that your $16,384$-GPU job runs for a single 24-hour day without crashing is $P(T > 24\text{h}) = e^{-24 / 3.09} \approx \mathbf{0.042\%}$. Outages are no longer "incidents"—they are your steady-state operating environment.</p>
-
-            <h3>Step B: The Young-Daly Equation — Turning Failure Math into $\$13.6\text{M}$ of Saved Compute</h3>
-
-            <p>Because the cluster crashes every $M = 185.4\text{ minutes}$, you must periodically pause training to write model checkpoints to storage. This creates a classic economic trade-off:</p>
-            <ul>
-                <li><strong>Checkpoint too frequently (small $\tau$):</strong> You waste massive GPU time stalled on storage I/O ($\delta$ minutes per checkpoint).</li>
-                <li><strong>Checkpoint too rarely (large $\tau$):</strong> When a crash occurs, you lose an average of $\frac{\tau}{2}$ minutes of computed gradients, plus $R$ minutes of restart overhead (detecting the hung NCCL collective, draining the dead node, re-initializing $16,384$ ranks, and pulling weights from storage).</li>
-            </ul>
-
-            <p>The fraction of total fleet wall-clock time wasted—$\text{Waste}(\tau)$—is the sum of checkpoint write tax and crash rollback/recovery tax:</p>
-
-            <div class="math-block">
-                $$\text{Waste}(\tau) = \underbrace{\frac{\delta}{\tau}}_{\text{Checkpoint Write Tax}} + \underbrace{\frac{\frac{\tau}{2} + R}{M}}_{\text{Rollback + Restart Tax}}$$
-            </div>
-
-            <p>Taking the derivative with respect to $\tau$ and setting $\frac{\text{d}}{\text{d}\tau}\text{Waste}(\tau) = -\frac{\delta}{\tau^2} + \frac{1}{2M} = 0$ gives <strong>Young’s First-Order Optimal Checkpoint Interval ($\tau^*$)</strong>:</p>
-
-            <div class="math-block">
-                $$\tau^* = \sqrt{2 \cdot \delta \cdot M}$$
-            </div>
-
-            <p>Assume an amortized cluster cost of <strong>$\$2.50\text{ per GPU-hour}$</strong> ($\$40,960/\text{hour}$ for the fleet, or <strong>$\$53.08\text{ Million}$</strong> over 54 days). For a synchronous blocking checkpoint stall of $\delta = 2.0\text{ min}$ and cold restart time $R = 20.0\text{ min}$, the optimal interval is $\tau^* = \sqrt{2 \times 2.0 \times 185.4} \approx \mathbf{27.2\text{ minutes}}$.</p>
-
-            <div class="table-container">
-                <table class="matrix-table">
-                    <thead>
-                        <tr>
-                            <th>Fleet Engineering Strategy</th>
-                            <th>Interval ($\tau$)</th>
-                            <th>Stall ($\delta$)</th>
-                            <th>Restart ($R$)</th>
-                            <th>Fleet Goodput</th>
-                            <th>Wasted Capital (54 Days @ $\$2.50$/GPU-hr)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>1. Naive Baseline</strong> (Hourly checkpoint, cold node replacement)</td>
-                            <td>$60.0\text{ min}$</td>
-                            <td>$2.0\text{ min}$</td>
-                            <td>$20.0\text{ min}$</td>
-                            <td>$69.8\%$</td>
-                            <td><strong>$\$16.03\text{ Million}$ wasted</strong> ($6.41\text{M}$ GPU-hrs)</td>
-                        </tr>
-                        <tr>
-                            <td><strong>2. Math-Optimized Schedule</strong> (Tuning $\tau^*$ via Young's formula)</td>
-                            <td><strong>$27.2\text{ min}$</strong></td>
-                            <td>$2.0\text{ min}$</td>
-                            <td>$20.0\text{ min}$</td>
-                            <td>$74.5\%$</td>
-                            <td><strong>$\$13.53\text{ Million}$ wasted</strong> <em>(Saves $\$2.50\text{M}$ via config)</em></td>
-                        </tr>
-                        <tr>
-                            <td><strong>3. Async Checkpointing + Warm Spares</strong> ($\delta \div 10, R \div 5$)</td>
-                            <td><strong>$8.6\text{ min}$</strong></td>
-                            <td>$0.2\text{ min}$</td>
-                            <td>$4.0\text{ min}$</td>
-                            <td><strong>$95.5\%$</strong></td>
-                            <td><strong>$\$2.38\text{ Million}$ wasted</strong> <em>(Saves <strong>$\$13.65\text{M}$</strong> net)</em></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <h3>Step C: Sizing the Warm-Spare Buffer with Weibull ($\beta < 1$ vs. $\beta > 1$)</h3>
-
-            <p>Look at Row 3: how do you slash restart time $R$ from $20\text{ minutes}$ down to $4\text{ minutes}$? You cannot wait for cloud provisioning or hardware technicians when a GPU dies; you must immediately swap in an pre-initialized <strong>Warm-Spare Node</strong> while the broken node enters a 24-hour repair/burn-in loop ($T_{\text{repair}} = 24\text{h}$).</p>
-
-            <p>With a cluster failure occurring every $3.09\text{ hours}$, the average number of broken nodes in the 24-hour repair pipeline is:</p>
-
-            <div class="math-block">
-                $$\mu_{\text{repair}} = \Lambda_{\text{cluster}} \cdot T_{\text{repair}} = \frac{24\text{ hours}}{3.09\text{ hours}} \approx 7.77\text{ nodes/day}$$
-            </div>
-
-            <p>To guarantee a $99.9\%$ probability that your warm-spare pool never runs dry during a bad day of failures (which would spike $R$ back to $45+$ minutes), we solve for the Poisson tail $P(X > S \mid \mu = 7.77) < 0.001$, which requires <strong>$S = 18\text{ warm-spare nodes}$ ($144\text{ GPUs}$, or just $0.88\%$ fleet overhead)</strong>. Paying a $0.88\%$ CapEx tax for 18 idle warm spares rescues $21\%$ of cluster Goodput across the other $16,384$ GPUs.</p>
-
-            <div class="control-panel">
-                <div class="control-panel-title">Architectural Controls Derived from the Math</div>
-                <ul>
-                    <li><strong>Two-Tier Asynchronous Checkpointing (Crushing $\delta$):</strong> Never block GPU tensor cores on remote object-store I/O. Copy model shards over PCIe into local host DRAM / NVMe in $\delta = 0.2\text{ min}$ ($12\text{ seconds}$), immediately resume training step $t+1$, and flush from host RAM to distributed storage asynchronously in the background.</li>
-                    <li><strong>Weibull Infant-Mortality Quarantine Gate ($\beta < 1$ Control):</strong> Freshly racked or repaired GPU nodes exhibit steep infant mortality ($\beta \approx 0.6$) due to loose OSFP optics and marginal HBM3 solder joints. Never admit a new or repaired node directly into the 16K synchronous ring; force it through a 24-hour high-TDP burn-in gauntlet (synthetic GEMM + NCCL all-reduce stress) until its conditional hazard rate drops to the fleet baseline.</li>
-                    <li><strong>Out-of-Band Flight Recorder (Crushing $R$):</strong> When Rank 4,112 hangs on a degraded optical transceiver, all $16,384$ ranks throw an identical NCCL collective timeout. If you wait for the default 10-minute PyTorch timeout and restart blindly, your scheduler will place the job right back onto the broken node ($P(\text{Fail}_2 \mid \text{Fail}_1) = 1.0$). Run a $100\text{ms}$ out-of-band daemon scraping PCIe AER errors, NVLink CRC retries, and NIC link flaps to cordon the exact culprit node within 15 seconds.</li>
-                </ul>
-                <div class="telemetry-strip">
-                    <div class="telemetry-strip-title">Telemetry Falsification: Effective Goodput vs. Node Uptime</div>
-                    <p>Ban "Node Uptime %" as a primary KPI for AI infrastructure. A single thermally throttling GPU running at $70\%$ clock speed forces all $16,383$ healthy GPUs to idle at every AllReduce barrier while reporting $100\%$ uptime. Measure <strong>Effective Goodput</strong>: the ratio of productive FLOPs permanently committed to storage checkpoints divided by total wall-clock cluster FLOPs.</p>
-                </div>
-            </div>
-
-            <!-- SIMULATOR 4: GPU GOODPUT & YOUNG-DALY OPTIMIZER -->
-            <div class="stage" data-sim-type="gpu">
-                <div class="sim-header">
-                    <span class="sim-title">Interactive Lab 4: 16K-GPU Goodput &amp; Young-Daly Checkpoint Optimizer</span>
-                    <span class="sim-subtitle">Explore how fleet size (N), checkpoint stall (δ), and restart time (R) dictate wasted millions</span>
-                </div>
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Fleet Size (N): <span id="v_n_gpu">16384</span></div>
-                            <input type="range" id="n_gpu" min="1024" max="32768" step="1024" value="16384">
-                        </div>
-                        <div class="param-group">
-                            <div>Stall (&delta; min): <span id="v_delta_gpu">2.0</span></div>
-                            <input type="range" id="delta_gpu" min="0.2" max="5.0" step="0.2" value="2.0">
-                        </div>
-                        <div class="param-group">
-                            <div>Restart (R min): <span id="v_r_gpu">20.0</span></div>
-                            <input type="range" id="r_gpu" min="2.0" max="40.0" step="2.0" value="20.0">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn secondary btn-reset">Apply Async + Warm Spares</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" height="220" role="img" aria-label="Curve of GPU cluster waste vs checkpoint interval"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div class="readout-item">Cluster MTBF:<span class="stat-mtbf">–</span></div>
-                    <div class="readout-item">Optimal Interval:<span class="stat-tau">–</span></div>
-                    <div class="readout-item">Fleet Goodput:<span class="stat-goodput">–</span></div>
-                    <div class="readout-item">54-Day Wasted:<span class="stat-cost">–</span></div>
-                </div>
-            </div>
-
-            <!-- ======================================================= -->
-            <!-- 5. ARCHITECT'S DIAGNOSTIC MATRIX & CONCLUSION -->
-            <!-- ======================================================= -->
-            <h2>5. The Principal Architect's Diagnostic Matrix</h2>
-
-            <p>A probability distribution is only useful if you know how to falsify its assumptions in production telemetry and translate its failure mode into a hard engineering control. Keep this reference table handy the next time someone claims five-nines availability on a slide deck:</p>
-
-            <div class="table-container">
-                <table class="matrix-table">
-                    <thead>
-                        <tr>
-                            <th>Failure Mechanism</th>
-                            <th>Mathematical Model</th>
-                            <th>Where Naive Math Lies</th>
-                            <th>Telemetry Test to Falsify</th>
-                            <th>Architectural Blast Door</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Single &amp; Composite Request Failure</strong></td>
-                            <td>$\text{Bernoulli}(q)$ &amp; Compound $1-(1-q)^M$</td>
-                            <td>Assumes retries are independent draws ($q^k$) even during saturation cliffs.</td>
-                            <td><strong>Fano Factor ($D = \sigma^2/\mu$)</strong> on 1s error buckets; track $P(\text{Fail}_2 \mid \text{Fail}_1)$.</td>
-                            <td>Process-wide token-bucket <strong>Retry Budgets</strong>; admission control load shedding.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Replicated Quorum / Cluster Loss</strong></td>
-                            <td>$\text{Binomial}(n, p)$ + Common-Cause $p_{\text{cc}}$</td>
-                            <td>Assumes $p^k$ scaling holds across shared control planes, AZs, or agents.</td>
-                            <td><strong>Shared-Fate Audit</strong> across config waves, kernels, certs, and IAM dependencies.</td>
-                            <td><strong>Cellular deployment rings</strong>, time-staggered baking, and static data-plane stability.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Hardware Wear-Out &amp; Software Aging</strong></td>
-                            <td>$\text{Weibull}(\beta, \eta)$ Conditional Survival</td>
-                            <td>Treats high uptime as safety when $\beta > 1$; ignores right-censored survivors.</td>
-                            <td><strong>Kaplan-Meier survival fit</strong> encoding healthy/restarted nodes as right-censored.</td>
-                            <td><strong>Jittered proactive rejuvenation</strong> before conditional hazard $h(t)$ crosses rebuild bandwidth.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Synchronous Series Execution (AI Fleets)</strong></td>
-                            <td>Series $\Lambda = N\lambda$ &amp; Young-Daly $\tau^* = \sqrt{2\delta M}$</td>
-                            <td>Assumes $N$ nodes add capacity without multiplying crash frequency by $N$.</td>
-                            <td><strong>Effective Goodput</strong> tracking; $100\text{ms}$ out-of-band NIC/PCIe AER flight recorders.</td>
-                            <td>Two-tier <strong>async checkpointing</strong>; 24h burn-in quarantine pool ($\beta < 1$); $0.9\%$ warm spares.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p>In Part 3, we leave discrete component failures behind and enter the continuous, non-linear physics of time, traffic bursts, and <strong>Kingman’s Queueing Formula</strong>—where running a server at $90\%$ utilization doesn't mean you have $10\%$ headroom; it means your latency is already heading toward infinity.</p>
-
-            <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
-                <a href="part-3-physics-of-time-traffic-and-queues.html">Part 3: Kingman's Formula &amp; Queue Collapse →</a>
-            </nav>
-        </main>
-
-        <footer class="site-footer">
-            <div>© 2026 Saurav Sana</div>
-            <div class="footer-links">
-                <a href="https://github.com/saurav-sana" target="_blank" rel="noopener noreferrer">Github</a>
-                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
-                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a href="../../contact.html">Email</a>
-            </div>
-        </footer>
-
-    </div>
-
-    <!-- Simulator Engine -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const canvasToSim = new Map();
-
-            // --- Theme Toggle Logic ---
-            const themeBtn = document.querySelector('.theme-toggle');
-            if (themeBtn) {
-                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
-
-                themeBtn.addEventListener('click', () => {
-                    const root = document.documentElement;
-                    const current = root.getAttribute('data-theme') || 'dark';
-                    const newTheme = current === 'light' ? 'dark' : 'light';
-                    
-                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
-                    root.setAttribute('data-theme', newTheme);
-                    root.classList.add(newTheme, 'theme-' + newTheme);
-                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    
-                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
-
-                    document.querySelectorAll('.sim-canvas').forEach(canvas => {
-                        const sim = canvasToSim.get(canvas);
-                        if (sim) sim.draw();
-                    });
-                });
-            }
-
-            function isLightMode() {
-                const root = document.documentElement;
-                return root.getAttribute('data-theme') === 'light' || root.classList.contains('light');
-            }
-
-            function getCssVar(name) {
-                return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#4fb8a6';
-            }
-
-            // ==========================================
-            // SIMULATOR 1: BERNOULLI & RETRY STORMS
-            // ==========================================
-            class BernoulliSimulator {
-                constructor(stage) {
-                    this.canvas = stage.querySelector('.sim-canvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.qInput = stage.querySelector('#q_bernoulli');
-                    this.mInput = stage.querySelector('#m_bernoulli');
-                    this.modeInput = stage.querySelector('#mode_bernoulli');
-                    this.vq = stage.querySelector('#v_q_bernoulli');
-                    this.vm = stage.querySelector('#v_m_bernoulli');
-                    
-                    this.statN = stage.querySelector('.stat-n');
-                    this.statBase = stage.querySelector('.stat-base-err');
-                    this.statJob = stage.querySelector('.stat-job-fail');
-                    this.statFano = stage.querySelector('.stat-fano');
-                    
-                    this.btnRun = stage.querySelector('.btn-run');
-                    this.btnStep = stage.querySelector('.btn-step');
-                    this.btnReset = stage.querySelector('.btn-reset');
-                    
-                    this.samples = [];
-                    this.jobFailures = 0;
-                    this.totalSubrequests = 0;
-                    this.totalFailedSubrequests = 0;
-                    this.running = false;
-                    this.timer = null;
-                    
-                    this.bind();
-                    this.resize();
-                    window.addEventListener('resize', () => this.resize());
-                    canvasToSim.set(this.canvas, this);
-                    this.step(100);
-                }
-
-                bind() {
-                    this.qInput.oninput = (e) => { this.vq.textContent = parseFloat(e.target.value).toFixed(2); this.resetAndSeed(); };
-                    this.mInput.oninput = (e) => { this.vm.textContent = e.target.value; this.resetAndSeed(); };
-                    this.modeInput.onchange = () => this.resetAndSeed();
-                    
-                    this.btnRun.onclick = () => this.toggle();
-                    this.btnStep.onclick = () => this.step(50);
-                    this.btnReset.onclick = () => this.reset();
-                }
-
-                resetAndSeed() {
-                    this.samples = [];
-                    this.jobFailures = 0;
-                    this.totalSubrequests = 0;
-                    this.totalFailedSubrequests = 0;
-                    this.step(100);
-                }
-
-                resize() {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = this.canvas.getBoundingClientRect();
-                    this.logicalW = rect.width;
-                    this.logicalH = 220;
-                    this.canvas.width = this.logicalW * dpr;
-                    this.canvas.height = this.logicalH * dpr;
-                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    this.ctx.scale(dpr, dpr);
-                    this.draw();
-                }
-
-                toggle() {
-                    if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
-                    } else {
-                        this.running = true;
-                        this.btnRun.textContent = '⏸ Pause';
-                        this.timer = setInterval(() => this.step(15), 50);
-                    }
-                }
-
-                step(count) {
-                    const q = parseFloat(this.qInput.value);
-                    const M = parseInt(this.mInput.value);
-                    const mode = this.modeInput.value;
-
-                    for (let s = 0; s < count; s++) {
-                        let batchErrors = 0;
-                        let inBurst = false;
-
-                        for (let i = 0; i < M; i++) {
-                            let failed = false;
-                            if (mode === 'independent') {
-                                failed = Math.random() < q;
-                            } else {
-                                if (inBurst) {
-                                    failed = Math.random() < 0.85;
-                                    if (Math.random() < 0.22) inBurst = false;
-                                } else {
-                                    failed = Math.random() < (q * 0.35);
-                                    if (failed) inBurst = true;
-                                }
-                            }
-                            if (failed) batchErrors++;
-                        }
-
-                        this.samples.push(batchErrors);
-                        this.totalSubrequests += M;
-                        this.totalFailedSubrequests += batchErrors;
-                        if (batchErrors > 0) this.jobFailures++;
-                    }
-
-                    if (this.samples.length > 4000) this.samples.splice(0, this.samples.length - 4000);
-                    this.draw();
-                }
-
-                reset() {
-                    this.samples = [];
-                    this.jobFailures = 0;
-                    this.totalSubrequests = 0;
-                    this.totalFailedSubrequests = 0;
-                    if (this.running) {
-                        this.running = false;
-                        this.btnRun.textContent = '▶ Run';
-                        clearInterval(this.timer);
-                    }
-                    this.draw();
-                }
-
-                draw() {
-                    const ctx = this.ctx;
-                    const W = this.logicalW;
-                    const H = this.logicalH;
-                    ctx.clearRect(0, 0, W, H);
-
-                    const light = isLightMode();
-                    const gridColor = light ? '#cbd5e1' : '#2a323e';
-                    const labelColor = light ? '#475569' : '#8b93a3';
-                    const barColor = getCssVar('--teal');
-                    const badColor = getCssVar('--bad');
-
-                    const pad = { l: 40, r: 15, t: 20, b: 30 };
-                    const plotW = W - pad.l - pad.r;
-                    const plotH = H - pad.t - pad.b;
-
-                    ctx.strokeStyle = gridColor;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(pad.l, pad.t);
-                    ctx.lineTo(pad.l, H - pad.b);
-                    ctx.lineTo(W - pad.r, H - pad.b);
-                    ctx.stroke();
-
-                    if (this.samples.length === 0) {
-                        ctx.fillStyle = labelColor;
-                        ctx.font = '11px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('Click "Run" or "Step 50" to simulate composite user jobs', W / 2, H / 2);
-                        this.statN.textContent = '0';
-                        this.statBase.textContent = '–';
-                        this.statJob.textContent = '–';
-                        this.statFano.textContent = '–';
-                        return;
-                    }
-
-                    const M = parseInt(this.mInput.value);
-                    const bins = Math.min(M + 1, 35);
-                    const binWidth = Math.max(1, M / bins);
-                    const counts = new Array(bins).fill(0);
-                    
-                    let sum = 0;
-                    this.samples.forEach(v => {
-                        sum += v;
-                        let idx = Math.min(bins - 1, Math.floor(v / binWidth));
-                        counts[idx]++;
-                    });
-
-                    const mean = sum / this.samples.length;
-                    let varianceSum = 0;
-                    this.samples.forEach(v => { varianceSum += Math.pow(v - mean, 2); });
-                    const variance = varianceSum / this.samples.length;
-                    const fano = mean > 0 ? (variance / mean) : 1;
-
-                    const maxCount = Math.max(1, ...counts);
-                    const bw = plotW / bins;
-
-                    counts.forEach((c, i) => {
-                        const h = (c / maxCount) * plotH * 0.92;
-                        const x = pad.l + (i * bw);
-                        ctx.fillStyle = i === 0 ? barColor : badColor;
-                        ctx.fillRect(x + 1, H - pad.b - h, Math.max(1, bw - 2), h);
-                    });
-
-                    ctx.fillStyle = labelColor;
-                    ctx.font = '10px "IBM Plex Mono", monospace';
-                    ctx.textAlign = 'left';
-                    ctx.fillText('0 Errors (Pass)', pad.l + 4, H - pad.b + 16);
-                    ctx.textAlign = 'right';
-                    ctx.fillText(M + ' Errors (Wipeout)', W - pad.r, H - pad.b + 16);
-
-                    this.statN.textContent = this.samples.length;
-                    this.statBase.textContent = ((this.totalFailedSubrequests / this.totalSubrequests) * 100).toFixed(2) + '%';
-                    this.statJob.textContent = ((this.jobFailures / this.samples.length) * 100).toFixed(1) + '%';
-                    this.statFano.textContent = fano.toFixed(2) + (fano > 1.8 ? ' (Clustered)' : ' (Indep)');
-                }
-            }
-
-            // ==========================================
-            // SIMULATOR 2: BINOMIAL & COMMON CAUSE
-            // ==========================================
-            class BinomialSimulator {
-                constructor(stage) {
-                    this.canvas = stage.querySelector('.sim-canvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.pInput = stage.querySelector('#p_binomial');
-                    this.pccInput = stage.querySelector('#pcc_binomial');
-                    this.vp = stage.querySelector('#v_p_binomial');
-                    this.vpcc = stage.querySelector('#v_pcc_binomial');
-                    
-                    this.statQ3 = stage.querySelector('.stat-q3');
-                    this.statQ5 = stage.querySelector('.stat-q5');
-                    this.statQ7 = stage.querySelector('.stat-q7');
-                    this.statCeil = stage.querySelector('.stat-ceil');
-                    this.btnReset = stage.querySelector('.btn-reset');
-                    
-                    this.bind();
-                    this.resize();
-                    window.addEventListener('resize', () => this.resize());
-                    canvasToSim.set(this.canvas, this);
-                    this.draw();
-                }
-
-                bind() {
-                    this.pInput.oninput = (e) => { this.vp.textContent = parseFloat(e.target.value).toFixed(2); this.draw(); };
-                    this.pccInput.oninput = (e) => { this.vpcc.textContent = parseFloat(e.target.value).toFixed(3); this.draw(); };
-                    this.btnReset.onclick = () => {
-                        this.pccInput.value = "0.000";
-                        this.vpcc.textContent = "0.000";
-                        this.draw();
-                    };
-                }
-
-                resize() {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = this.canvas.getBoundingClientRect();
-                    this.logicalW = rect.width;
-                    this.logicalH = 220;
-                    this.canvas.width = this.logicalW * dpr;
-                    this.canvas.height = this.logicalH * dpr;
-                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    this.ctx.scale(dpr, dpr);
-                    this.draw();
-                }
-
-                comb(n, k) {
-                    let r = 1;
-                    for (let i = 1; i <= k; i++) { r = r * (n - i + 1) / i; }
-                    return r;
-                }
-
-                calcQuorumLoss(n, p) {
-                    const majority = Math.floor(n / 2) + 1;
-                    const minFailedForLoss = n - majority + 1;
-                    let probLoss = 0;
-                    for (let k = minFailedForLoss; k <= n; k++) {
-                        probLoss += this.comb(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
-                    }
-                    return probLoss;
-                }
-
-                draw() {
-                    const ctx = this.ctx;
-                    const W = this.logicalW;
-                    const H = this.logicalH;
-                    ctx.clearRect(0, 0, W, H);
-
-                    const p = parseFloat(this.pInput.value);
-                    const pcc = parseFloat(this.pccInput.value);
-
-                    const pad = { l: 55, r: 25, t: 20, b: 30 };
-                    const plotW = W - pad.l - pad.r;
-                    const plotH = H - pad.t - pad.b;
-
-                    const light = isLightMode();
-                    const gridColor = light ? '#cbd5e1' : '#2a323e';
-                    const labelColor = light ? '#475569' : '#8b93a3';
-
-                    const minLog = -6;
-                    const maxLog = 0;
-
-                    ctx.strokeStyle = gridColor;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    for (let logY = minLog; logY <= maxLog; logY += 2) {
-                        const y = pad.t + ((0 - logY) / (maxLog - minLog)) * plotH;
-                        ctx.moveTo(pad.l, y);
-                        ctx.lineTo(W - pad.r, y);
-                        ctx.fillStyle = labelColor;
-                        ctx.font = '10px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'right';
-                        ctx.fillText('10^' + logY, pad.l - 6, y + 3);
-                    }
-                    ctx.stroke();
-
-                    const clusterSizes = [3, 5, 7, 9, 11];
-                    const naivePoints = [];
-                    const coupledPoints = [];
-
-                    clusterSizes.forEach((n, idx) => {
-                        const naiveLoss = this.calcQuorumLoss(n, p);
-                        const coupledLoss = pcc + (1 - pcc) * naiveLoss;
-                        const x = pad.l + (idx / (clusterSizes.length - 1)) * plotW;
-
-                        const naiveY = pad.t + ((0 - Math.log10(Math.max(1e-6, naiveLoss))) / (maxLog - minLog)) * plotH;
-                        const coupledY = pad.t + ((0 - Math.log10(Math.max(1e-6, coupledLoss))) / (maxLog - minLog)) * plotH;
-
-                        naivePoints.push({ x, y: naiveY, val: naiveLoss });
-                        coupledPoints.push({ x, y: coupledY, val: coupledLoss });
-                    });
-
-                    // Draw Naive Line
-                    ctx.strokeStyle = getCssVar('--amber');
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    naivePoints.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); });
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    // Draw Coupled Line
-                    ctx.strokeStyle = getCssVar('--bad');
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    coupledPoints.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); });
-                    ctx.stroke();
-
-                    clusterSizes.forEach((n, idx) => {
-                        const np = naivePoints[idx];
-                        const cp = coupledPoints[idx];
-                        
-                        ctx.fillStyle = getCssVar('--amber');
-                        ctx.beginPath(); ctx.arc(np.x, np.y, 4, 0, Math.PI * 2); ctx.fill();
-
-                        ctx.fillStyle = getCssVar('--bad');
-                        ctx.beginPath(); ctx.arc(cp.x, cp.y, 4, 0, Math.PI * 2); ctx.fill();
-
-                        ctx.fillStyle = labelColor;
-                        ctx.font = '10px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('N=' + n, np.x, H - pad.b + 16);
-                    });
-
-                    if (pcc > 0) {
-                        const ceilY = pad.t + ((0 - Math.log10(Math.max(1e-6, pcc))) / (maxLog - minLog)) * plotH;
-                        ctx.strokeStyle = getCssVar('--teal');
-                        ctx.lineWidth = 1;
-                        ctx.setLineDash([2, 2]);
-                        ctx.beginPath();
-                        ctx.moveTo(pad.l, ceilY);
-                        ctx.lineTo(W - pad.r, ceilY);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                        
-                        ctx.fillStyle = getCssVar('--teal');
-                        ctx.font = '10px "IBM Plex Mono", monospace';
-                        ctx.textAlign = 'right';
-                        ctx.fillText('p_cc Ceiling', W - pad.r, ceilY - 5);
-                    }
-
-                    this.statQ3.textContent = (coupledPoints[0].val * 100).toFixed(3) + '%';
-                    this.statQ5.textContent = (coupledPoints[1].val * 100).toFixed(3) + '%';
-                    this.statQ7.textContent = (coupledPoints[2].val * 100).toFixed(3) + '%';
-                    this.statCeil.textContent = pcc > 0 ? (pcc * 100).toFixed(3) + '%' : '0.000%';
-                }
-            }
-
-            // ==========================================
-            // SIMULATOR 3: WEIBULL HAZARD & RESIDUAL LIFE
-            // ==========================================
-            class WeibullSimulator {
-                constructor(stage) {
-                    this.canvas = stage.querySelector('.sim-canvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.kInput = stage.querySelector('#k_weibull');
-                    this.lamInput = stage.querySelector('#lam_weibull');
-                    this.t0Input = stage.querySelector('#t0_weibull');
-                    
-                    this.vk = stage.querySelector('#v_k_weibull');
-                    this.vlam = stage.querySelector('#v_lam_weibull');
-                    this.vt0 = stage.querySelector('#v_t0_weibull');
-                    
-                    this.statCum = stage.querySelector('.stat-cum-fail');
-                    this.statHazard = stage.querySelector('.stat-hazard');
-                    this.statCond = stage.querySelector('.stat-cond-fail');
-                    this.statRegime = stage.querySelector('.stat-regime');
-                    this.btnReset = stage.querySelector('.btn-reset');
-                    
-                    this.bind();
-                    this.resize();
-                    window.addEventListener('resize', () => this.resize());
-                    canvasToSim.set(this.canvas, this);
-                    this.draw();
-                }
-
-                bind() {
-                    this.kInput.oninput = (e) => { this.vk.textContent = parseFloat(e.target.value).toFixed(1); this.draw(); };
-                    this.lamInput.oninput = (e) => { this.vlam.textContent = parseFloat(e.target.value).toFixed(1); this.draw(); };
-                    this.t0Input.oninput = (e) => { this.vt0.textContent = parseFloat(e.target.value).toFixed(1); this.draw(); };
-                    this.btnReset.onclick = () => {
-                        this.kInput.value = "3.0"; this.vk.textContent = "3.0";
-                        this.lamInput.value = "5.0"; this.vlam.textContent = "5.0";
-                        this.t0Input.value = "4.0"; this.vt0.textContent = "4.0";
-                        this.draw();
-                    };
-                }
-
-                resize() {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = this.canvas.getBoundingClientRect();
-                    this.logicalW = rect.width;
-                    this.logicalH = 220;
-                    this.canvas.width = this.logicalW * dpr;
-                    this.canvas.height = this.logicalH * dpr;
-                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    this.ctx.scale(dpr, dpr);
-                    this.draw();
-                }
-
-                hazard(t, k, eta) {
-                    if (t <= 0.05) t = 0.05;
-                    return (k / eta) * Math.pow(t / eta, k - 1);
-                }
-
-                draw() {
-                    const ctx = this.ctx;
-                    const W = this.logicalW;
-                    const H = this.logicalH;
-                    ctx.clearRect(0, 0, W, H);
-
-                    const k = parseFloat(this.kInput.value);
-                    const eta = parseFloat(this.lamInput.value);
-                    const t0 = parseFloat(this.t0Input.value);
-
-                    const pad = { l: 40, r: 20, t: 20, b: 30 };
-                    const plotW = W - pad.l - pad.r;
-                    const plotH = H - pad.t - pad.b;
-
-                    const light = isLightMode();
-                    const gridColor = light ? '#cbd5e1' : '#2a323e';
-                    const labelColor = light ? '#475569' : '#8b93a3';
-
-                    ctx.strokeStyle = gridColor;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(pad.l, pad.t);
-                    ctx.lineTo(pad.l, H - pad.b);
-                    ctx.lineTo(W - pad.r, H - pad.b);
-                    ctx.stroke();
-
-                    const maxT = 8.0;
-                    const maxH = 2.0;
-
-                    const t0X = pad.l + (t0 / maxT) * plotW;
-                    const t1X = pad.l + (Math.min(maxT, t0 + 1.0) / maxT) * plotW;
-                    ctx.fillStyle = light ? 'rgba(217, 119, 87, 0.15)' : 'rgba(217, 119, 87, 0.12)';
-                    ctx.fillRect(t0X, pad.t, t1X - t0X, plotH);
-
-                    ctx.strokeStyle = getCssVar('--teal');
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    for (let xPix = 0; xPix <= plotW; xPix += 3) {
-                        const t = (xPix / plotW) * maxT;
-                        const ht = this.hazard(t, k, eta);
-                        const yPix = H - pad.b - Math.min(plotH, (ht / maxH) * plotH);
-                        if (xPix === 0) ctx.moveTo(pad.l + xPix, yPix);
-                        else ctx.lineTo(pad.l + xPix, yPix);
-                    }
-                    ctx.stroke();
-
-                    const ht0 = this.hazard(t0, k, eta);
-                    const t0Y = H - pad.b - Math.min(plotH, (ht0 / maxH) * plotH);
-
-                    ctx.strokeStyle = getCssVar('--bad');
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(t0X, pad.t);
-                    ctx.lineTo(t0X, H - pad.b);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    ctx.fillStyle = getCssVar('--bad');
-                    ctx.beginPath();
-                    ctx.arc(t0X, t0Y, 5, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    const cumFail = 1 - Math.exp(-Math.pow(t0 / eta, k));
-                    const condFail = 1 - Math.exp(Math.pow(t0 / eta, k) - Math.pow((t0 + 1.0) / eta, k));
-
-                    ctx.fillStyle = labelColor;
-                    ctx.font = '10px "IBM Plex Mono", monospace';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('0', pad.l, H - pad.b + 16);
-                    ctx.fillText('t0=' + t0.toFixed(1) + ' → t0+1', (t0X + t1X) / 2, H - pad.b + 16);
-                    ctx.fillText('8.0', W - pad.r, H - pad.b + 16);
-
-                    this.statCum.textContent = (cumFail * 100).toFixed(1) + '%';
-                    this.statHazard.textContent = ht0.toFixed(2) + ' / yr';
-                    this.statCond.textContent = (condFail * 100).toFixed(1) + '%';
-                    this.statRegime.textContent = k < 0.95 ? 'Infant Mortality' : (k > 1.05 ? 'Aging Cliff' : 'Memoryless');
-                }
-            }
-
-            // ==========================================
-            // SIMULATOR 4: GPU FLEET GOODPUT & YOUNG-DALY
-            // ==========================================
-            class GpuGoodputSimulator {
-                constructor(stage) {
-                    this.canvas = stage.querySelector('.sim-canvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.nInput = stage.querySelector('#n_gpu');
-                    this.deltaInput = stage.querySelector('#delta_gpu');
-                    this.rInput = stage.querySelector('#r_gpu');
-                    
-                    this.vn = stage.querySelector('#v_n_gpu');
-                    this.vdelta = stage.querySelector('#v_delta_gpu');
-                    this.vr = stage.querySelector('#v_r_gpu');
-                    
-                    this.statMtbf = stage.querySelector('.stat-mtbf');
-                    this.statTau = stage.querySelector('.stat-tau');
-                    this.statGoodput = stage.querySelector('.stat-goodput');
-                    this.statCost = stage.querySelector('.stat-cost');
-                    this.btnReset = stage.querySelector('.btn-reset');
-                    
-                    this.bind();
-                    this.resize();
-                    window.addEventListener('resize', () => this.resize());
-                    canvasToSim.set(this.canvas, this);
-                    this.draw();
-                }
-
-                bind() {
-                    this.nInput.oninput = (e) => { this.vn.textContent = e.target.value; this.draw(); };
-                    this.deltaInput.oninput = (e) => { this.vdelta.textContent = parseFloat(e.target.value).toFixed(1); this.draw(); };
-                    this.rInput.oninput = (e) => { this.vr.textContent = parseFloat(e.target.value).toFixed(1); this.draw(); };
-                    this.btnReset.onclick = () => {
-                        this.deltaInput.value = "0.2"; this.vdelta.textContent = "0.2";
-                        this.rInput.value = "4.0"; this.vr.textContent = "4.0";
-                        this.draw();
-                    };
-                }
-
-                resize() {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = this.canvas.getBoundingClientRect();
-                    this.logicalW = rect.width;
-                    this.logicalH = 220;
-                    this.canvas.width = this.logicalW * dpr;
-                    this.canvas.height = this.logicalH * dpr;
-                    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    this.ctx.scale(dpr, dpr);
-                    this.draw();
-                }
-
-                draw() {
-                    const ctx = this.ctx;
-                    const W = this.logicalW;
-                    const H = this.logicalH;
-                    ctx.clearRect(0, 0, W, H);
-
-                    const N = parseInt(this.nInput.value);
-                    const delta = parseFloat(this.deltaInput.value);
-                    const R = parseFloat(this.rInput.value);
-
-                    const lambdaGpu = 1.9733e-5;
-                    const mHours = 1 / (N * lambdaGpu);
-                    const mMin = mHours * 60;
-
-                    const tauOpt = Math.sqrt(2 * delta * mMin);
-                    const minWaste = Math.min(0.99, (delta / tauOpt) + ((tauOpt / 2 + R) / mMin));
-                    const maxGoodput = Math.max(0.01, 1 - minWaste);
-
-                    const totalSpend = N * 1296 * 2.50;
-                    const wastedSpend = totalSpend * minWaste;
-
-                    const pad = { l: 45, r: 20, t: 20, b: 30 };
-                    const plotW = W - pad.l - pad.r;
-                    const plotH = H - pad.t - pad.b;
-
-                    const light = isLightMode();
-                    const gridColor = light ? '#cbd5e1' : '#2a323e';
-                    const labelColor = light ? '#475569' : '#8b93a3';
-
-                    ctx.strokeStyle = gridColor;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(pad.l, pad.t);
-                    ctx.lineTo(pad.l, H - pad.b);
-                    ctx.lineTo(W - pad.r, H - pad.b);
-                    ctx.stroke();
-
-                    const maxTau = 90;
-                    ctx.strokeStyle = getCssVar('--teal');
-                    ctx.lineWidth = 2.5;
-                    ctx.beginPath();
-                    for (let xPix = 0; xPix <= plotW; xPix += 3) {
-                        const tau = 2 + (xPix / plotW) * (maxTau - 2);
-                        const waste = Math.min(1.0, (delta / tau) + ((tau / 2 + R) / mMin));
-                        const goodput = Math.max(0, 1 - waste);
-                        const yPix = H - pad.b - (goodput * plotH);
-                        if (xPix === 0) ctx.moveTo(pad.l + xPix, yPix);
-                        else ctx.lineTo(pad.l + xPix, yPix);
-                    }
-                    ctx.stroke();
-
-                    const optX = pad.l + Math.min(1, Math.max(0, (tauOpt - 2) / (maxTau - 2))) * plotW;
-                    const optY = H - pad.b - (maxGoodput * plotH);
-
-                    ctx.strokeStyle = getCssVar('--amber');
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(optX, optY);
-                    ctx.lineTo(optX, H - pad.b);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    ctx.fillStyle = getCssVar('--amber');
-                    ctx.beginPath();
-                    ctx.arc(optX, optY, 5, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    ctx.fillStyle = labelColor;
-                    ctx.font = '10px "IBM Plex Mono", monospace';
-                    ctx.textAlign = 'right';
-                    ctx.fillText('100%', pad.l - 6, pad.t + 6);
-                    ctx.fillText('50%', pad.l - 6, pad.t + plotH / 2 + 3);
-                    ctx.fillText('0%', pad.l - 6, H - pad.b);
-
-                    ctx.textAlign = 'center';
-                    ctx.fillText('τ=2m', pad.l + 12, H - pad.b + 16);
-                    ctx.fillStyle = getCssVar('--amber');
-                    ctx.fillText('τ*=' + tauOpt.toFixed(1) + 'm', Math.min(W - 50, Math.max(pad.l + 50, optX)), H - pad.b + 16);
-                    ctx.fillStyle = labelColor;
-                    ctx.fillText('τ=90m', W - pad.r - 12, H - pad.b + 16);
-
-                    this.statMtbf.textContent = mHours.toFixed(2) + 'h (' + mMin.toFixed(0) + 'm)';
-                    this.statTau.textContent = tauOpt.toFixed(1) + ' min';
-                    this.statGoodput.textContent = (maxGoodput * 100).toFixed(1) + '%';
-                    this.statCost.textContent = '$' + (wastedSpend / 1e6).toFixed(2) + 'M';
-                }
-            }
-
-            // Initialize all 4 simulators
-            document.querySelectorAll('.stage').forEach(stage => {
-                const type = stage.dataset.simType;
-                if (type === 'bernoulli') new BernoulliSimulator(stage);
-                if (type === 'binomial') new BinomialSimulator(stage);
-                if (type === 'weibull') new WeibullSimulator(stage);
-                if (type === 'gpu') new GpuGoodputSimulator(stage);
-            });
-        });
-    </script>
-</body>
-</html>
+<body><div class="container">
+<header class="site-header"><a href="../../index.html" class="site-title"><span class="site-title__badge">SS</span><span>Saurav Sana | Field Notes</span></a><nav class="site-nav" aria-label="Primary navigation" style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.5rem"><a href="../../index.html">Home</a><a href="../../index.html#blog">Blog</a><a href="../../index.html#tags">Tags</a><a href="../../contact.html">Contact</a><button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme"><svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg><svg class="icon-bulb" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button></nav></header>
+<main>
+<div class="post-meta"><a href="index.html" style="text-decoration:none;color:inherit">← The Shape of Failure Series</a></div>
+<div class="series-heading-row"><h1>Reliability, Redundancy, and the Independence Delusion</h1></div>
+<div class="post-meta">October 18, 2026 · Part 2 of 8 · Approx. 22 min read</div>
+<blockquote class="snarky-quote"><p class="snarky-quote-text">“Everything fails, all the time.”</p><p class="snarky-quote-author">— <strong>Werner Vogels</strong>, often quoted just before someone deploys the same failure mode into three availability zones.</p></blockquote>
+
+<p>There is a familiar scene in an architecture review. Someone draws three database replicas, labels each one “99.9% available”, multiplies three small failure probabilities, and announces that the cluster is practically immortal. The room nods. Nobody asks whether the replicas share a control plane, a kernel update, a certificate issuer, a network fabric, or the same deployment pipeline.</p>
+<p>That is <strong>replication theater</strong>: counting boxes without examining whether their failure modes are independent. Redundancy helps only when the system can lose one component without losing the others—or when the remaining components can still deliver the service users need. Three copies are not three independent chances if one shared event can disable all three.</p>
+<p>This part examines three reliability models—<strong>Bernoulli, Binomial and Weibull</strong>—then applies the same discipline to a large synchronous AI-training job. The aim is not to fit a distribution to every outage. It is to connect a physical mechanism to a model, expose the assumptions, and derive an engineering control that can be tested.</p>
+<div class="tldr-box"><div class="eyebrow">The modelling contract</div><p><strong>A distribution is a model, not an invariant.</strong> Every calculation below is conditional on its stated assumptions. Production telemetry must be used to challenge those assumptions, not merely decorate the equation.</p><p>We will keep three evidence labels distinct: <strong>documented evidence</strong> means a source reports the event or measurement; <strong>illustrative model</strong> means the arithmetic demonstrates a mechanism; <strong>hypothetical stress scenario</strong> means the inputs are chosen to test a design, not claimed as observed facts.</p></div>
+
+<h2>1. Bernoulli reliability: one request, many dependencies, and the retry trap</h2>
+<p>A Bernoulli variable describes one binary trial. Let $X=1$ mean that a request fails and $X=0$ mean that it succeeds. If the failure probability is $q$, then:</p>
+<div class="math-block">$$P(X=x)=q^x(1-q)^{1-x},\quad x\in\{0,1\},\qquad E[X]=q.$$</div>
+<p>This is a deliberately small model. It says nothing by itself about why the request failed, whether the next request will fail, or whether failures arrive in bursts. Those are separate questions about dependence and system state.</p>
+<div class="incident-banner"><div class="incident-head">Documented evidence · AWS S3 service event · 28 February 2017</div><p>A typo in an operational command removed more servers than intended from parts of the S3 subsystem in the US East (N. Virginia) region. AWS described how the resulting capacity loss affected index and placement services and how recovery was complicated. This is a useful example of a shared operational action changing the system state; it is <strong>not evidence that all client retries caused the incident</strong>. <a href="https://aws.amazon.com/message/41926/" target="_blank" rel="noopener noreferrer">Read AWS's explanation</a>.</p></div>
+
+<h3>Composite workflows turn small risks into visible failure rates</h3>
+<p>Suppose a gateway query requires four sequential operations: authenticate the caller, read catalog metadata, obtain a query plan, and fetch a required object. Assume—only for this calculation—that each operation succeeds independently with probability $0.999$ and that all four are mandatory.</p>
+<div class="math-block">$$P(\text{workflow succeeds})=0.999^4\approx0.996006$$</div>
+<div class="math-block">$$P(\text{workflow fails})=1-0.999^4\approx0.003994=0.3994\%.$$</div>
+<p>That is about <strong>399 failed workflows per 100,000</strong>, even though each dependency individually reports 99.9% success. The result is not a contradiction: the user experiences the composition of the required steps, not the health of one dependency in isolation.</p>
+<p>Real workflows are often more complicated. Some calls are parallel, some are optional, some are retried, and failures may share a cause. The four-step example is a simple sequential series system. Do not reuse its multiplication for a fan-out tree or a workflow with graceful degradation without deriving the appropriate model.</p>
+
+<h3>Retries: when another attempt helps—and when it adds load</h3>
+<p>Assume a request has a constant failure probability $q$ on each attempt, and attempts fail independently. With <strong>three total attempts</strong> (the initial attempt plus two retries), the probability that all attempts fail is:</p>
+<div class="math-block">$$P(\text{all 3 attempts fail})=q^3.$$</div>
+<p>For $q=0.001$, that is $10^{-9}$ per operation under the independence assumption. For a workflow with 1,000 mandatory operations, the illustrative probability of at least one operation exhausting all three attempts is:</p>
+<div class="math-block">$$1-(1-10^{-9})^{1000}\approx10^{-6}.$$</div>
+<p>This is the optimistic case—not a universal retry guarantee. A timeout caused by a transient packet loss may be followed by a successful attempt. A timeout caused by an overloaded connection pool, exhausted storage tier, failed DNS resolver, or unavailable control plane may persist across attempts.</p>
+<p>When failures are state-dependent, the useful quantity is not simply $q^3$. It is the conditional probability of another failure given the observed failure and the current system state: $P(F_{i+1}\mid F_i, S_i)$. During saturation that probability can be close to one. Retrying then adds work to the same constrained resource while making little progress.</p>
+<div class="tldr-box warning"><div class="eyebrow">A retry is new work, not free reliability</div><p>Three <em>total attempts</em> means at most two retries. Three <em>retries</em> means up to four attempts. State which convention you use. Also distinguish the probability of exhausting attempts from the expected number of attempts and from the load multiplier under overload.</p></div>
+<h3>How much extra work can bounded retries create?</h3>
+<p>Let $p$ be the probability that one attempt succeeds, independently and with the same probability on every attempt. With at most $A$ attempts, the expected number of attempts is:</p>
+<div class="math-block">$$E[N_A]=\sum_{j=1}^{A}P(N_A\ge j)=\sum_{j=0}^{A-1}(1-p)^j=\frac{1-(1-p)^A}{p}.$$</div>
+<p>For $p=0.9$ and $A=4$ (one initial attempt plus three retries), $E[N_A]=1.111$. That is an 11.1% average attempt increase under the model. Under overload, however, $p$ is not fixed: extra attempts can increase queueing and reduce the probability of success, creating positive feedback.</p>
+<div class="control-panel"><div class="panel-title">Architectural controls derived from the model</div><ul><li><strong>Bound retries and give them a budget.</strong> Use a process- or service-wide retry budget, not an unlimited retry loop in every call site. A token-bucket policy is one implementation: successful traffic replenishes a small budget and retries consume it.</li><li><strong>Use exponential backoff with jitter.</strong> Spread retries over time; do not synchronize clients on the same fixed delay. Respect the end-to-end deadline and stop retrying when there is insufficient time left for a useful attempt.</li><li><strong>Classify failures.</strong> Retry transient transport failures selectively. Do not retry authorization denials, invalid requests, deterministic schema errors, or operations whose side effects are not protected by idempotency.</li><li><strong>Protect the dependency.</strong> Combine retry budgets with admission control, concurrency limits, circuit breaking, load shedding, and cancellation of abandoned work.</li></ul><div class="telemetry"><div class="telemetry-title">Production falsification · burstiness and conditional failure</div><p>Track attempts per logical request, retry success rate, retry traffic as a fraction of total traffic, timeout reason, queue age, and $P(F_{i+1}\mid F_i)$ by dependency and load band. For error counts in equal one-second buckets, the Fano factor $D=\operatorname{Var}(C)/E[C]$ can flag over-dispersion relative to a Poisson count model. $D\gg1$ is evidence of clustering or rate variation—not proof of one particular cause, and $D\approx1$ does not prove request-level independence.</p></div></div>
+
+<div class="stage" data-sim="bernoulli"><div class="sim-header"><span class="sim-title">Interactive lab 1 · Composite workflow failures</span><span class="sim-subtitle">Synthetic trials; change the per-operation failure rate and workflow length</span></div><div class="sim-toolbar"><div class="sim-params"><label class="param">Per-operation failure probability <strong id="bqv">1.0%</strong><input id="bq" type="range" min="0.001" max="0.10" step="0.001" value="0.01"></label><label class="param">Required operations <strong id="bmv">20</strong><input id="bm" type="range" min="1" max="100" step="1" value="20"></label><label class="param">Trials <strong id="bnv">20,000</strong><input id="bn" type="range" min="1000" max="50000" step="1000" value="20000"></label></div><div class="controls"><button class="sim-btn" id="brun">Run simulation</button></div></div><canvas id="bc" height="220" role="img" aria-label="Comparison of theoretical and simulated composite workflow failure rates"></canvas><div class="readout"><div class="readout-item">Theoretical failure<span id="btheory">—</span></div><div class="readout-item">Simulated failure<span id="bsim">—</span></div><div class="readout-item">Failed workflows<span id="bcount">—</span></div><div class="readout-item">Operations tested<span id="bops">—</span></div></div><p class="sim-note">The simulation assumes independent operation outcomes and all operations are mandatory. It does not model retries, correlation, optional dependencies, or load feedback.</p></div>
+
+<h2>2. Binomial reliability: quorum math and the common-cause wall</h2>
+<p>If $n$ components fail independently with the same probability $p$ over a defined observation window, the number of failures $X$ follows a Binomial distribution:</p>
+<div class="math-block">$$P(X=k)=\binom{n}{k}p^k(1-p)^{n-k}.$$</div>
+<p>For a five-voter majority cluster, at least three voters must remain available. Quorum is lost when three or more voters fail. If each voter has independent unavailability $p=0.01$ during the same window:</p>
+<div class="math-block">$$P(\text{quorum loss})=\sum_{k=3}^{5}\binom{5}{k}(0.01)^k(0.99)^{5-k}$$
+$$\approx9.8506\times10^{-6}=0.0009851\%.$$</div>
+<p>The number is small because the model assumes independent failures with identical probability over the same observation window. It is not a general availability prediction for etcd, Raft, or any other consensus implementation. Network partitions, correlated latency, leader-election timing, disk stalls, and membership changes require additional modelling.</p>
+<div class="incident-banner"><div class="incident-head">Documented evidence · CrowdStrike Channel File 291 · 19 July 2024</div><p>CrowdStrike's root-cause analysis describes a content configuration update that triggered an out-of-bounds memory read in the Falcon sensor on affected Windows hosts. The impact crossed organizational and geographic boundaries because many machines consumed the same faulty content. It is a strong illustration of a shared software/configuration failure mode—not a measurement of the common-cause probability in the quorum model below. <a href="https://www.crowdstrike.com/en-us/blog/channel-file-291-rca-available/" target="_blank" rel="noopener noreferrer">Read the root-cause analysis</a>.</p></div>
+
+<h3>Model the shared event explicitly</h3>
+<p>Now add a shared event that disables the whole five-voter group with probability $q_c=0.001$ during the same observation window. Conditional on that event <em>not</em> occurring, retain the independent per-voter failure probability $p=0.01$. This is a simple two-regime common-cause model:</p>
+<div class="math-block">$$P(Q)=q_c+(1-q_c)P_{\mathrm{Binomial}}(X\ge3)$$
+$$=0.001+0.999(9.8506\times10^{-6})$$
+$$\approx0.00100984=0.100984\%.$$</div>
+<p>The common event dominates the result. In this model the marginal unavailability of an individual voter is <strong>not 1%</strong>; it is $q_c+(1-q_c)p=1.099\%$. The 1% value is the conditional independent component risk when the shared event is absent. Keeping those quantities separate avoids quietly changing the meaning of $p$ halfway through the calculation.</p>
+<div class="table-wrap"><table><thead><tr><th>Measure</th><th>Independent-only model</th><th>Shared-event model</th><th>Interpretation</th></tr></thead><tbody><tr><td>Conditional individual risk</td><td>1.0%</td><td>1.0% when no shared event occurs</td><td>Not the same as marginal node unavailability in the coupled model</td></tr><tr><td>Shared event probability</td><td>0</td><td>0.1%</td><td>Illustrative probability over the stated window</td></tr><tr><td>Five-voter quorum-loss probability</td><td>0.000985%</td><td>0.100984%</td><td>About 102.5 times higher in this scenario</td></tr><tr><td>Seven-voter quorum-loss probability</td><td>0.00003417%</td><td>About 0.100034%</td><td>Extra voters reduce independent risk, not the all-voter shared-event term</td></tr></tbody></table></div>
+<p>Adding voters still helps against independent failures. It does not remove a shared event that disables the entire group. The common-cause term is a floor in this particular model, not a universal mathematical ceiling for every failure architecture. A more detailed model may distinguish partial shared events, different failure-domain membership, and conditional per-node risks.</p>
+<p>This simple construction is related in spirit to common-cause and beta-factor approaches, but it should not be presented as the only definition of a classical beta-factor model. In a traditional beta-factor formulation, a fraction of component failure intensity is attributed to common-cause events; parameter definitions and the event structure must be stated before comparing results.</p>
+
+<h3>Independence is an architectural property to test</h3>
+<p>Shared fate can enter through more than the availability zone. Replicas may share an image, kernel, agent, certificate authority, identity provider, DNS resolver, storage control plane, deployment wave, or operator procedure. Conversely, placing replicas in different zones does not automatically make every one of those dependencies independent.</p>
+<div class="control-panel"><div class="panel-title">Architectural controls derived from the model</div><ul><li><strong>Map failure domains, not just locations.</strong> Record the shared dependencies of each voter: power, network, hypervisor, kernel, agent, control plane, credentials, DNS, storage and deployment wave.</li><li><strong>Roll out changes in cells.</strong> Keep enough voters outside each change wave to preserve quorum. Use health gates and bake time, and make rollback independent of the failed control plane where practical.</li><li><strong>Keep the data plane resilient to control-plane loss.</strong> Cache the minimum required authorization material safely, use locally verifiable signed credentials where appropriate, and define which operations can continue during identity or configuration outages.</li><li><strong>Test partial and total failures.</strong> Exercise loss of one zone, a shared resolver, a certificate issuer, a deployment agent and a network partition. Validate actual quorum and client behavior, not just node process uptime.</li></ul><div class="telemetry"><div class="telemetry-title">Production falsification · shared-fate inventory</div><p>Build a machine-readable dependency matrix for each quorum group. Track voter membership by zone, rack, hypervisor pool, kernel/agent version, certificate issuer, resolver, control-plane endpoint and rollout wave. A repeated value is a prompt for failure-domain analysis—not automatic proof of correlation. Validate with fault injection and incident history.</p></div></div>
+
+<div class="stage" data-sim="binomial"><div class="sim-header"><span class="sim-title">Interactive lab 2 · Quorum risk and common-cause floor</span><span class="sim-subtitle">Theoretical probabilities for odd-sized majority clusters</span></div><div class="sim-toolbar"><div class="sim-params"><label class="param">Independent voter unavailability <strong id="ipval">1.0%</strong><input id="ip" type="range" min="0.001" max="0.20" step="0.001" value="0.01"></label><label class="param">All-group shared event probability <strong id="icval">0.10%</strong><input id="ic" type="range" min="0" max="0.02" step="0.0005" value="0.001"></label></div><div class="controls"><button class="sim-btn secondary" id="izero">Set shared event to zero</button></div></div><canvas id="icv" height="220" role="img" aria-label="Quorum loss probability by cluster size with and without common cause"></canvas><div class="readout"><div class="readout-item">3 voters<span id="iq3">—</span></div><div class="readout-item">5 voters<span id="iq5">—</span></div><div class="readout-item">7 voters<span id="iq7">—</span></div><div class="readout-item">Shared-event floor<span id="ifloor">—</span></div></div><p class="sim-note">Assumption: a shared event disables every voter; otherwise individual failures are independent and identically distributed. This is an illustrative two-regime model, not a fitted beta-factor estimate.</p></div>
+
+<h2>3. Weibull reliability: conditional hazard, aging, and censored data</h2>
+<p>Not every component has a constant failure rate. A two-parameter Weibull lifetime model uses shape $\beta$ and scale $\eta$ to describe how the hazard changes with age $t$:</p>
+<div class="math-block">$$S(t)=P(T>t)=e^{-(t/\eta)^\beta},\qquad F(t)=1-S(t)$$
+$$h(t)=\frac{f(t)}{S(t)}=\frac{\beta}{\eta}\left(\frac{t}{\eta}\right)^{\beta-1}.$$</div>
+<ul><li><strong>$\beta&lt;1$:</strong> the model's hazard decreases with age. This can describe an early-life failure population in which weaker units fail sooner, leaving a more robust surviving cohort.</li><li><strong>$\beta=1$:</strong> the Weibull reduces to the exponential model with constant hazard.</li><li><strong>$\beta&gt;1$:</strong> the model's hazard increases with age, consistent with some wear-out mechanisms.</li></ul>
+<p>These are interpretations of a fitted model, not labels to assign from intuition. Hardware can have multiple competing failure mechanisms. Software aging can arise from resource accumulation, fragmentation, leaks, or workload-dependent state—but a deterministic leak is not automatically a Weibull lifetime process.</p>
+<div class="incident-banner"><div class="incident-head">Empirical resource · Backblaze drive data</div><p>Backblaze publishes drive-level reliability data and quarterly drive statistics. Those data are useful for cohort analysis, but a headline annualized failure rate does not by itself establish a Weibull shape parameter. A defensible fit needs drive age, failure times, observation windows, censoring information, cohort definitions and diagnostics. <a href="https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data" target="_blank" rel="noopener noreferrer">Explore the published drive data</a>.</p></div>
+
+<h3>Worked example: the risk in the next interval</h3>
+<p><strong>Illustrative model:</strong> suppose a cohort follows a Weibull lifetime with $\beta=3$ and $\eta=5$ years. The probability of failure by year four is:</p>
+<div class="math-block">$$F(4)=1-e^{-(4/5)^3}=1-e^{-0.512}\approx39.94\%.$$</div>
+<p>That cumulative probability describes the original cohort from age zero to age four. For a node that has already survived to age four, the relevant question is the conditional probability of failure between years four and five:</p>
+<div class="math-block">$$P(4&lt;T\le5\mid T&gt;4)=1-\frac{S(5)}{S(4)}$$
+$$=1-e^{-[(5/5)^3-(4/5)^3]}=1-e^{-0.488}\approx38.63\%.$$</div>
+<p>For a new node, the probability of failure in its first year is:</p>
+<div class="math-block">$$P(0&lt;T\le1)=1-e^{-(1/5)^3}\approx0.80\%.$$</div>
+<p>Under this illustrative increasing-hazard model, a surviving four-year-old unit has a much higher chance of failing in the next year than a new unit. That does <strong>not</strong> mean every long-running server is about to fail. The conclusion depends on the fitted cohort model, its age definition, and whether the observed population is reasonably homogeneous.</p>
+
+<h3>Survival estimation is not the same as Weibull fitting</h3>
+<p>Operational datasets rarely contain a failure time for every unit. Some machines are still running at the end of observation; others are retired, replaced, or removed during maintenance. These are censored observations, not failed units and not missing data to discard.</p>
+<ul><li><strong>Kaplan–Meier</strong> is a non-parametric estimator of the survival function. It can account for right-censored observations under its assumptions; it does not directly estimate Weibull $\beta$ and $\eta$.</li><li><strong>Weibull parameter estimation</strong> can use maximum likelihood methods that include both observed failures and right-censored exposure times. Report uncertainty intervals and check whether the fitted curve is plausible.</li><li><strong>Diagnostics</strong> should compare the fitted survival curve with the empirical Kaplan–Meier curve, inspect probability plots/residuals, examine cohort differences, and test sensitivity to the observation window.</li></ul>
+<p>For software workers, record age in meaningful exposure units—wall-clock uptime, requests processed, bytes scanned, compactions, or another mechanism-linked measure. If RSS grows almost deterministically with requests processed, fix the leak or impose a safe resource bound. Do not hide a deterministic defect behind a stochastic lifetime fit.</p>
+<div class="control-panel"><div class="panel-title">Architectural controls derived from the model</div><ul><li><strong>Use rejuvenation where the mechanism supports it.</strong> Stagger worker recycling, compaction, firmware changes and hardware replacement. Set policy from measured risk and recovery capacity, not an arbitrary age threshold.</li><li><strong>Avoid synchronized cohort aging.</strong> Randomize maintenance windows and rollout cohorts so a shared deployment date does not become a shared operational cliff.</li><li><strong>Preserve censoring information.</strong> Keep start time, last-seen time, failure time, retirement reason, maintenance history and cohort identity. Treat a graceful deployment restart as a competing event or censoring event according to the question being estimated.</li><li><strong>Budget recovery throughput.</strong> A higher failure rate matters most when repair, replica rebuild, or replacement capacity cannot keep up.</li></ul><div class="telemetry"><div class="telemetry-title">Production falsification · survival data</div><p>Publish cohort survival curves with confidence intervals, number at risk, censoring counts, and failure classifications. Compare Kaplan–Meier estimates with the parametric Weibull fit. Monitor age-conditioned failure rates and test whether workload, firmware, host generation or deployment cohort changes the shape.</p></div></div>
+
+<div class="stage" data-sim="weibull"><div class="sim-header"><span class="sim-title">Interactive lab 3 · Weibull hazard explorer</span><span class="sim-subtitle">Explore a model's age-dependent hazard and next-window failure probability</span></div><div class="sim-toolbar"><div class="sim-params"><label class="param">Shape β <strong id="wkval">3.0</strong><input id="wk" type="range" min="0.5" max="4" step="0.1" value="3"></label><label class="param">Scale η (years) <strong id="weval">5.0</strong><input id="we" type="range" min="2" max="8" step="0.5" value="5"></label><label class="param">Current age t₀ <strong id="wtval">4.0</strong><input id="wt" type="range" min="0.2" max="7" step="0.1" value="4"></label></div><div class="controls"><button class="sim-btn secondary" id="wreset">Reset</button></div></div><canvas id="wcv" height="220" role="img" aria-label="Weibull hazard curve with current age marker"></canvas><div class="readout"><div class="readout-item">Failed by current age<span id="wf">—</span></div><div class="readout-item">Hazard at current age<span id="wh">—</span></div><div class="readout-item">Next-year risk<span id="wr">—</span></div><div class="readout-item">Hazard regime<span id="wreg">—</span></div></div><p class="sim-note">The curve is a theoretical Weibull model, not an estimate from a production fleet. Hazard is an instantaneous rate; the next-year risk is a conditional probability. They are not interchangeable.</p></div>
+
+<h2>4. Capstone: reliability economics in a synchronous GPU training fleet</h2>
+<div class="tldr-box warning"><div class="eyebrow">The series-system trap</div><p>In synchronous distributed training, a slow or failed rank can stall progress for the group at a collective or synchronization boundary. More GPUs can increase throughput, but they also increase the number of components and links that can interrupt a job. The right model is a job-level interruption model—not a claim that every GPU is literally an independent series component for every failure mode.</p></div>
+<div class="incident-banner"><div class="incident-head">Documented evidence · Meta Llama 3 training report</div><p>Meta's Llama 3 report describes training its 405B model on a 16,384-GPU cluster and reports 419 unexpected interruptions over a 54-day period in the discussed training run, with a range of hardware and system causes. The report is the source for the fleet size and interruption count below. Those interruptions include more than independent GPU hardware failures, so they must not be relabelled as a per-GPU hardware failure rate. <a href="https://ai.meta.com/research/publications/the-llama-3-herd-of-models/" target="_blank" rel="noopener noreferrer">Read the Llama 3 report</a>.</p></div>
+
+<h3>Step A · Estimate the observed job-interruption intensity</h3>
+<p>Over 54 days there are $54\times24=1,296$ wall-clock hours. If the reported 419 interruptions are treated as events observed over that interval, the empirical event rate for this run is:</p>
+<div class="math-block">$$\hat\Lambda_{\mathrm{job}}=\frac{419}{1,296}\approx0.3233\text{ interruptions/hour}.$$</div>
+<p>The reciprocal is an average interval between reported interruptions of:</p>
+<div class="math-block">$$\widehat{MTBI}=\frac{1}{\hat\Lambda_{\mathrm{job}}}\approx3.09\text{ hours}.$$</div>
+<p>This is an <strong>observed run-level interruption intensity</strong>. It is not an H100 MTBF and does not prove that interruptions form a stationary Poisson process. The calculation assumes the event count and observation window are comparable and treats each recorded interruption as one event. A production forecast should stratify by cause, distinguish job interruption from node failure, and test whether the rate changes with cluster configuration, workload phase, repairs and software rollout.</p>
+<p>If, purely as a first approximation, job interruptions followed a homogeneous Poisson process at this rate, the probability of no interruption during a 24-hour period would be:</p>
+<div class="math-block">$$P(N(24)=0)=e^{-0.3233\times24}\approx0.00042=0.042\%.$$</div>
+<p>That is a stress signal for checkpoint and recovery design—not a claim that the next training run has exactly this probability. The observed rate may include multiple failure mechanisms and changing operating conditions.</p>
+
+<h3>Step B · Checkpoint frequency is an economic decision</h3>
+<p>Let $M$ be the mean time between job interruptions, $\delta$ the blocking time per checkpoint, $R$ the restart overhead after an interruption, and $\tau$ the checkpoint interval. Under the simplified Young–Daly approximation, the fraction of wall-clock time lost is:</p>
+<div class="math-block">$$W(\tau)=\frac{\delta}{\tau}+\frac{\tau/2+R}{M}.$$</div>
+<p>The first term is checkpoint overhead. The second approximates lost work since the last checkpoint (average $\tau/2$ under a uniform interruption time within an interval) plus restart overhead. Differentiating with respect to $\tau$ gives:</p>
+<div class="math-block">$$\frac{dW}{d\tau}=-\frac{\delta}{\tau^2}+\frac{1}{2M}=0$$
+$$\therefore\quad\tau^*=\sqrt{2\delta M}.$$</div>
+<p>This is a simplified model. It assumes a stable interruption rate, fixed checkpoint and restart costs, periodic checkpoints, and a failure process for which the average lost work is approximately $\tau/2$. It does not automatically describe asynchronous checkpoint protocols, incremental checkpoints, correlated failures, or recovery that overlaps with useful work.</p>
+<p><strong>Illustrative planning inputs:</strong> $M=185.4$ minutes (from the run-level event rate above), blocking checkpoint time $\delta=2$ minutes, restart overhead $R=20$ minutes, fleet size 16,384 GPUs, and an assumed blended cost of $2.50 per GPU-hour.</p>
+<div class="math-block">$$\tau^*=\sqrt{2\times2\times185.4}\approx27.2\text{ minutes}.$$</div>
+<p>At this interval, the estimated lost-time fraction is:</p>
+<div class="math-block">$$W(27.2)\approx\frac{2}{27.2}+\frac{13.6+20}{185.4}\approx25.5\%,$$
+$$\text{goodput}\approx74.5\%.$$</div>
+<p>For a 54-day run, the assumed fleet spend is $16,384\times1,296\times\$2.50\approx\$53.08$ million. Applying the simplified waste fraction gives approximately <strong>$13.53 million</strong> of time-equivalent compute cost. This is an illustrative opportunity-cost calculation, not a reported Meta cost or a cash invoice.</p>
+<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>δ</th><th>R</th><th>Checkpoint interval</th><th>Estimated goodput</th><th>54-day time-equivalent waste</th></tr></thead><tbody><tr><td>Hourly checkpoints</td><td>2.0 min</td><td>20 min</td><td>60 min</td><td>69.7%</td><td>About $16.1M</td></tr><tr><td>Young–Daly interval</td><td>2.0 min</td><td>20 min</td><td>27.2 min</td><td>74.5%</td><td>About $13.5M</td></tr><tr><td>Lower blocking time and restart</td><td>0.2 min</td><td>4 min</td><td>8.6 min</td><td>About 93.2%</td><td>About $3.6M</td></tr></tbody></table></div>
+<p>The third row is not “async checkpointing automatically produces 93.2% goodput.” It is the result of changing the model inputs to a 0.2-minute blocking cost and four-minute restart. An asynchronous design must still establish a consistent recovery point, ensure checkpoint durability, manage host-memory/NVMe pressure, and account for background flush contention. If the checkpoint is truly non-blocking, replace $\delta$ with the measured residual pause and model the background resource cost separately.</p>
+
+<h3>Step C · A spare pool is a queueing problem, not just a percentage</h3>
+<p>Suppose—hypothetically—that every interruption corresponds to one repairable node entering a 24-hour repair pipeline. At the observed run-level rate, the expected number of arrivals during 24 hours is:</p>
+<div class="math-block">$$\mu=0.3233\times24\approx7.76.$$</div>
+<p>If repair arrivals were Poisson and independent, then a spare pool of $S=18$ nodes would have:</p>
+<div class="math-block">$$P(X&gt;18\mid\mu=7.76)\approx0.00045=0.045\%.$$</div>
+<p>That is below 0.1% under the stated model. But the calculation is useful only if the assumptions hold: one interruption must map to one spare-consuming repair, repairs must take approximately 24 hours, arrivals must be reasonably Poisson, and failures must not arrive in correlated bursts. The Llama 3 interruption count includes multiple causes, so this is a <strong>hypothetical buffer-sizing example</strong>, not a spare recommendation derived from the report.</p>
+<p>In a real fleet, model the spare pool as an inventory/repair system. Measure repair-time distribution, simultaneous failures, spare compatibility, maintenance backlog, time to detect, time to isolate, and whether a spare can join the same topology without creating a new bottleneck.</p>
+
+<div class="control-panel"><div class="panel-title">Architectural controls derived from the model</div><ul><li><strong>Measure job goodput, not just node uptime.</strong> Define goodput as useful, recoverable training progress committed per unit wall-clock time. Include stalled collectives, checkpoint overhead, replayed work, and recovery time.</li><li><strong>Make checkpoint semantics explicit.</strong> Track checkpoint duration, residual pause, durable completion, bytes written, background flush pressure, and restart-from-checkpoint time. Test corruption and partial checkpoint failures.</li><li><strong>Classify interruptions.</strong> Separate GPU/HBM faults, network and fabric events, host failures, software defects, scheduler actions, and planned maintenance. Each cause has a different control.</li><li><strong>Use spare capacity based on the repair process.</strong> Size by the distribution of concurrent spare demand and repair duration, then validate against burst scenarios—not just the average event rate.</li><li><strong>Isolate degraded ranks quickly.</strong> Correlate collective timeouts with PCIe, NVLink, NIC and switch telemetry. Cordon a suspect node before restarting the whole job onto the same failure.</li></ul><div class="telemetry"><div class="telemetry-title">Production falsification · fleet reliability ledger</div><p>For every interruption, record timestamp, job/rank, component, cause confidence, detection time, isolation time, lost progress, checkpoint age, restart duration, repair duration and whether the event was correlated with another. Plot interruption intensity over time and by failure class; test for burstiness and regime changes before using a stationary Poisson approximation.</p></div></div>
+
+<div class="stage" data-sim="gpu"><div class="sim-header"><span class="sim-title">Interactive lab 4 · Checkpoint economics</span><span class="sim-subtitle">A Young–Daly sensitivity model; all cost inputs are illustrative</span></div><div class="sim-toolbar"><div class="sim-params"><label class="param">Mean time between interruptions M (min) <strong id="gmv">185.4</strong><input id="gm" type="range" min="30" max="600" step="5" value="185.4"></label><label class="param">Blocking checkpoint δ (min) <strong id="gdv">2.0</strong><input id="gd" type="range" min="0.1" max="5" step="0.1" value="2"></label><label class="param">Restart overhead R (min) <strong id="grv">20</strong><input id="gr" type="range" min="0" max="60" step="1" value="20"></label><label class="param">Fleet cost per GPU-hour <strong id="gcv">$2.50</strong><input id="gc" type="range" min="0.5" max="10" step="0.25" value="2.5"></label></div><div class="controls"><button class="sim-btn secondary" id="greset">Reset</button></div></div><canvas id="gcvv" height="220" role="img" aria-label="Estimated goodput against checkpoint interval"></canvas><div class="readout"><div class="readout-item">Optimal interval<span id="gtau">—</span></div><div class="readout-item">Estimated goodput<span id="ggood">—</span></div><div class="readout-item">54-day fleet spend<span id="gspend">—</span></div><div class="readout-item">Time-equivalent waste<span id="gwaste">—</span></div></div><p class="sim-note">Fixed fleet size: 16,384 GPUs. Horizon: 54 days. Waste is calculated from the simplified model above; this is not a vendor quote or measured training result.</p></div>
+
+<h2>5. The principal architect's diagnostic matrix</h2>
+<p>Use this table as a review aid. The important question is not “Which distribution should I use?” It is “What physical process generated this observation, and what evidence would make me reject the model?”</p>
+<div class="table-wrap"><table><thead><tr><th>Mechanism</th><th>Candidate model</th><th>Common modelling mistake</th><th>Evidence to inspect</th><th>Engineering control</th></tr></thead><tbody><tr><td><strong>One request fails</strong></td><td>Bernoulli</td><td>Assuming the next attempt is independent during saturation</td><td>Attempt-level outcomes, conditional retry success, error bursts, queue age</td><td>Bounded retries, backoff, jitter, retry budgets, admission control</td></tr><tr><td><strong>Several required operations</strong></td><td>Series composition of success probabilities</td><td>Multiplying probabilities when dependencies are correlated or optional</td><td>Trace-level dependency graph and per-step outcome</td><td>Reduce mandatory dependencies, degrade gracefully, enforce deadlines</td></tr><tr><td><strong>Replica quorum loss</strong></td><td>Binomial plus explicit common-cause event model</td><td>Assuming more replicas eliminate shared fate</td><td>Failure-domain inventory, rollout history, fault-injection evidence</td><td>Cellular rollout, diverse dependencies, control/data-plane separation</td></tr><tr><td><strong>Age-dependent failure</strong></td><td>Weibull; Kaplan–Meier for empirical survival</td><td>Ignoring censoring or treating every aging symptom as Weibull wear-out</td><td>Age/exposure, failure class, censoring, cohort survival curves</td><td>Mechanism-specific maintenance, staggered rejuvenation, repair capacity</td></tr><tr><td><strong>Synchronous training interruptions</strong></td><td>Observed job interruption process; checkpoint-cost model</td><td>Calling all interruptions independent GPU hardware failures</td><td>Cause-classified interruption ledger, checkpoint age, recovery time</td><td>Checkpoint/recovery engineering, fault isolation, spare/repair planning</td></tr></tbody></table></div>
+
+<h2>What to carry into the next part</h2>
+<p>Reliability models tell us how components and workflows fail. They do not yet tell us what happens when requests arrive faster than a service can complete them. In Part 3, we move from discrete failure events to the physics of <strong>time, traffic and queues</strong>: why utilization, variability and bursty arrivals can turn a seemingly healthy service into a latency problem long before it reports a hard failure.</p>
+<nav class="post-pager" aria-label="Series pagination"><a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a><a href="part-3-physics-of-time-traffic-and-queues.html">Part 3: The Physics of Time, Traffic, and Queues →</a></nav>
+</main>
+<footer class="site-footer"><div>© 2026 Saurav Sana</div><div class="footer-links"><a href="https://github.com/saurav-sana" target="_blank" rel="noopener noreferrer">Github</a><a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a><a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a><a href="../../contact.html">Email</a></div></footer>
+</div>
+<script>
+(function(){
+  const root=document.documentElement,themeBtn=document.querySelector('.theme-toggle');
+  function light(){return root.getAttribute('data-theme')==='light'}
+  if(themeBtn){themeBtn.setAttribute('aria-pressed',String(!light()));themeBtn.addEventListener('click',()=>{const t=light()?'dark':'light';root.setAttribute('data-theme',t);root.classList.remove('light','dark','theme-light','theme-dark');root.classList.add(t,'theme-'+t);themeBtn.setAttribute('aria-pressed',String(t==='dark'));try{localStorage.setItem('theme',t)}catch(e){};[drawBernoulli,drawBinomial,drawWeibull,drawGpu].forEach(f=>f&&f())})}
+  const $=id=>document.getElementById(id),fmtPct=x=>(100*x).toFixed(3)+'%',ctxFor=id=>{const c=$(id);return c?c.getContext('2d'):null};
+  function setupCanvas(id){const c=$(id),ctx=c.getContext('2d');const rect=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;c.width=Math.max(1,Math.round(rect.width*dpr));c.height=220*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);return {c,ctx,W:rect.width,H:220}}
+  function axes(ctx,W,H,pad){ctx.clearRect(0,0,W,H);ctx.strokeStyle=light()?'#cbd5e1':'#303946';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,H-pad.b);ctx.lineTo(W-pad.r,H-pad.b);ctx.stroke()}
+  function bars(ctx,W,H,values,labels){const pad={l:42,r:18,t:18,b:38};axes(ctx,W,H,pad);const max=Math.max(.0001,...values)*1.15,bw=(W-pad.l-pad.r)/values.length;values.forEach((v,i)=>{const h=(v/max)*(H-pad.t-pad.b);ctx.fillStyle=i===0?'#4fb8a6':'#d97757';ctx.fillRect(pad.l+i*bw+8,H-pad.b-h,bw-16,h);ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.font='11px IBM Plex Mono';ctx.textAlign='center';ctx.fillText(labels[i],pad.l+(i+.5)*bw,H-12)});ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.textAlign='left';ctx.fillText('Failure probability',pad.l,12)}
+  function drawBernoulli(){const b=setupCanvas('bc');if(!b.ctx)return;const q=+$('bq').value,m=+$('bm').value,n=+$('bn').value;const theory=1-Math.pow(1-q,m);let fail=0;for(let i=0;i<n;i++){let ok=true;for(let j=0;j<m;j++)if(Math.random()<q){ok=false;break}if(!ok)fail++}const sim=fail/n;bars(b.ctx,b.W,b.H,[theory,sim],['Theory','Simulation']);$('btheory').textContent=fmtPct(theory);$('bsim').textContent=fmtPct(sim);$('bcount').textContent=fail.toLocaleString()+' / '+n.toLocaleString();$('bops').textContent=(n*m).toLocaleString()}
+  ['bq','bm','bn'].forEach(id=>$(id).addEventListener('input',()=>{$('bqv').textContent=fmtPct(+$('bq').value);$('bmv').textContent=$('bm').value;$('bnv').textContent=(+$('bn').value).toLocaleString()}));$('brun').addEventListener('click',drawBernoulli);
+  function comb(n,k){let r=1;for(let i=1;i<=k;i++)r=r*(n-i+1)/i;return r}function qloss(n,p){const need=Math.floor(n/2)+1,first=n-need+1;let s=0;for(let k=first;k<=n;k++)s+=comb(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k);return s}function drawBinomial(){const p=+$('ip').value,qc=+$('ic').value,ns=[3,5,7,9,11],ind=ns.map(n=>qloss(n,p)),coupled=ind.map(v=>qc+(1-qc)*v),b=setupCanvas('icv'),ctx=b.ctx,W=b.W,H=b.H,pad={l:54,r:18,t:20,b:32};axes(ctx,W,H,pad);const min=-7,max=0,y=v=>pad.t+(max-Math.log10(Math.max(1e-7,v)))/(max-min)*(H-pad.t-pad.b),x=i=>pad.l+i*(W-pad.l-pad.r)/(ns.length-1);[0,-2,-4,-6].forEach(v=>{ctx.strokeStyle=light()?'#d5dce4':'#303946';ctx.beginPath();ctx.moveTo(pad.l,y(Math.pow(10,v)));ctx.lineTo(W-pad.r,y(Math.pow(10,v)));ctx.stroke();ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.font='10px IBM Plex Mono';ctx.textAlign='right';ctx.fillText('10^'+v,pad.l-5,y(Math.pow(10,v))+3)});[[ind,'#d4a72c'],[coupled,'#d97757']].forEach(([arr,color])=>{ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.beginPath();arr.forEach((v,i)=>i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v)));ctx.stroke();arr.forEach((v,i)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x(i),y(v),3.5,0,Math.PI*2);ctx.fill()})});ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.font='10px IBM Plex Mono';ctx.textAlign='center';ns.forEach((v,i)=>ctx.fillText('N='+v,x(i),H-10));$('iq3').textContent=fmtPct(coupled[0]);$('iq5').textContent=fmtPct(coupled[1]);$('iq7').textContent=fmtPct(coupled[2]);$('ifloor').textContent=fmtPct(qc)}
+  ['ip','ic'].forEach(id=>$(id).addEventListener('input',()=>{$('ipval').textContent=fmtPct(+$('ip').value);$('icval').textContent=fmtPct(+$('ic').value);drawBinomial()}));$('izero').addEventListener('click',()=>{$('ic').value=0;$('icval').textContent='0.000%';drawBinomial()});
+  function drawWeibull(){const beta=+$('wk').value,eta=+$('we').value,t0=+$('wt').value,b=setupCanvas('wcv'),ctx=b.ctx,W=b.W,H=b.H,pad={l:48,r:18,t:18,b:32},maxT=8,maxH=2.2;axes(ctx,W,H,pad);const X=t=>pad.l+t/maxT*(W-pad.l-pad.r),Y=h=>H-pad.b-Math.min(maxH,h)/maxH*(H-pad.t-pad.b);ctx.strokeStyle='#4fb8a6';ctx.lineWidth=2.5;ctx.beginPath();for(let i=0;i<=160;i++){const t=maxT*i/160,h=beta/eta*Math.pow(Math.max(t,.0001)/eta,beta-1);i?ctx.lineTo(X(t),Y(h)):ctx.moveTo(X(t),Y(h))}ctx.stroke();const h0=beta/eta*Math.pow(t0/eta,beta-1),f=1-Math.exp(-Math.pow(t0/eta,beta)),risk=1-Math.exp(-(Math.pow((t0+1)/eta,beta)-Math.pow(t0/eta,beta)));ctx.strokeStyle='#d97757';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(X(t0),pad.t);ctx.lineTo(X(t0),H-pad.b);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#d97757';ctx.beginPath();ctx.arc(X(t0),Y(h0),4.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.font='10px IBM Plex Mono';ctx.textAlign='center';ctx.fillText('Age (years)',(pad.l+W-pad.r)/2,H-7);$('wf').textContent=fmtPct(f);$('wh').textContent=h0.toFixed(3)+' / year';$('wr').textContent=fmtPct(risk);$('wreg').textContent=beta<.98?'Decreasing hazard':beta>1.02?'Increasing hazard':'Constant hazard'}
+  ['wk','we','wt'].forEach(id=>$(id).addEventListener('input',()=>{$('wkval').textContent=(+$('wk').value).toFixed(1);$('weval').textContent=(+$('we').value).toFixed(1);$('wtval').textContent=(+$('wt').value).toFixed(1);drawWeibull()}));$('wreset').addEventListener('click',()=>{$('wk').value=3;$('we').value=5;$('wt').value=4;['wkval','weval','wtval'].forEach((id,i)=>$(id).textContent=['3.0','5.0','4.0'][i]);drawWeibull()});
+  function drawGpu(){const M=+$('gm').value,d=+$('gd').value,R=+$('gr').value,cost=+$('gc').value,tau=Math.sqrt(2*d*M),w=Math.min(.999,d/tau+(tau/2+R)/M),good=1-w,spend=16384*54*24*cost,waste=spend*w,b=setupCanvas('gcvv'),ctx=b.ctx,W=b.W,H=b.H,pad={l:45,r:18,t:18,b:32};axes(ctx,W,H,pad);const maxTau=120;ctx.strokeStyle='#4fb8a6';ctx.lineWidth=2.5;ctx.beginPath();for(let i=0;i<=160;i++){const t=1+i/160*(maxTau-1),ww=Math.min(1,d/t+(t/2+R)/M),y=H-pad.b-(1-ww)*(H-pad.t-pad.b);i?ctx.lineTo(pad.l+i/160*(W-pad.l-pad.r),y):ctx.moveTo(pad.l,y)}ctx.stroke();const ox=pad.l+Math.min(1,tau/maxTau)*(W-pad.l-pad.r),oy=H-pad.b-good*(H-pad.t-pad.b);ctx.fillStyle='#d4a72c';ctx.beginPath();ctx.arc(ox,oy,5,0,Math.PI*2);ctx.fill();ctx.fillStyle=light()?'#475569':'#aab3c0';ctx.font='10px IBM Plex Mono';ctx.fillText('Goodput',pad.l,12);$('gtau').textContent=tau.toFixed(1)+' min';$('ggood').textContent=(good*100).toFixed(1)+'%';$('gspend').textContent='$'+(spend/1e6).toFixed(2)+'M';$('gwaste').textContent='$'+(waste/1e6).toFixed(2)+'M'}
+  ['gm','gd','gr','gc'].forEach(id=>$(id).addEventListener('input',()=>{$('gmv').textContent=(+$('gm').value).toFixed(1);$('gdv').textContent=(+$('gd').value).toFixed(1);$('grv').textContent=(+$('gr').value).toFixed(0);$('gcv').textContent='$'+(+$('gc').value).toFixed(2);drawGpu()}));$('greset').addEventListener('click',()=>{$('gm').value=185.4;$('gd').value=2;$('gr').value=20;$('gc').value=2.5;$('gmv').textContent='185.4';$('gdv').textContent='2.0';$('grv').textContent='20';$('gcv').textContent='$2.50';drawGpu()});
+  [drawBinomial,drawWeibull,drawGpu].forEach(f=>f());drawBernoulli();let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>[drawBernoulli,drawBinomial,drawWeibull,drawGpu].forEach(f=>f()),120)});
+})();
+</script>
+</body></html>

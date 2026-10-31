@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Google tag (gtag.js) -->
+    <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -13,50 +14,41 @@
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
 
-    <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 1: The Illusion of Determinism | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 1: The Illusion of Determinism | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Why deterministic capacity narratives fail under variable demand—and how probability models, queueing theory, tail latency, and reliability budgets inform better distributed-systems decisions.">
-    <meta name="keywords" content="Distributed Systems, Queueing Theory, Probability, SRE, FinOps, Latency Percentiles, Bimodal Distribution, Capacity Planning, Extreme Value Theory, Kingman Approximation, Common Cause Failure">
+    <meta name="description" content="Why averages and deterministic capacity assumptions fail in distributed systems. Learn to model workload mixtures, validate uncertainty, interpret tail latency, and translate probability into engineering decisions.">
+    <meta name="keywords" content="Distributed Systems, Probability, SRE, FinOps, Latency Percentiles, Mixture Distributions, Capacity Planning, Reliability Engineering, Model Risk">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-1-illusion-of-determinism.html">
 
-    <!-- Open Graph / LinkedIn / Facebook Meta Tags -->
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-1-illusion-of-determinism.html">
     <meta property="og:title" content="Part 1: The Illusion of Determinism | The Shape of Failure">
-    <meta property="og:description" content="A practical guide to modeling uncertainty, validating assumptions, and translating reliability targets into engineering and FinOps decisions.">
+    <meta property="og:description" content="A practical guide to modelling uncertainty and translating probability into engineering decisions.">
     <meta property="og:image" content="https://saurav-sana.github.io/blog/assets/img/shape-of-failure-preview.png">
 
-    <!-- Twitter / X Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-1-illusion-of-determinism.html">
     <meta name="twitter:title" content="Part 1: The Illusion of Determinism | The Shape of Failure">
-    <meta name="twitter:description" content="A practical guide to modeling uncertainty, validating assumptions, and translating reliability targets into engineering and FinOps decisions.">
+    <meta name="twitter:description" content="A practical guide to modelling uncertainty and translating probability into engineering decisions.">
     <meta name="twitter:image" content="https://saurav-sana.github.io/blog/assets/img/shape-of-failure-preview.png">
 
-    <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "TechArticle",
       "headline": "Part 1: The Illusion of Determinism",
-      "description": "A practical guide to modeling uncertainty, validating assumptions, and translating reliability targets into engineering and FinOps decisions.",
+      "description": "A practical guide to modelling uncertainty and translating probability into engineering decisions.",
       "author": {
         "@type": "Person",
         "name": "Saurav Sana",
         "url": "https://saurav-sana.github.io/blog/"
       },
       "datePublished": "2026-10-17",
-      "dateModified": "2026-10-29",
+      "dateModified": "2026-10-31",
       "publisher": {
         "@type": "Organization",
-        "name": "Saurav Sana | Field Notes",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://saurav-sana.github.io/blog/assets/img/logo.png"
-        }
+        "name": "Saurav Sana | Field Notes"
       },
       "mainEntityOfPage": {
         "@type": "WebPage",
@@ -65,15 +57,15 @@
     }
     </script>
 
-    <!-- Early Theme Initialization -->
     <script>
         (function () {
             try {
-                var root = document.documentElement;
                 var saved = localStorage.getItem('theme');
-                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
-                root.setAttribute('data-theme', initialTheme);
+                var light = window.matchMedia &&
+                    window.matchMedia('(prefers-color-scheme: light)').matches;
+                document.documentElement.setAttribute(
+                    'data-theme', saved || (light ? 'light' : 'dark')
+                );
             } catch (e) {}
         })();
     </script>
@@ -82,1537 +74,1790 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
-    <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
-    <!-- Shared design system -->
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
 
     <style>
         .series-heading-row {
-            display: flex;
-            align-items: baseline;
-            flex-wrap: wrap;
-            gap: 0.75rem 1.25rem;
-            margin-bottom: 0.25rem;
+            display:flex; align-items:baseline; flex-wrap:wrap;
+            gap:.75rem 1.25rem; margin-bottom:.25rem;
         }
         .series-heading-row h1 {
-            margin: 0;
-            font-family: 'Libre Franklin', -apple-system, BlinkMacSystemFont, sans-serif;
-            line-height: 1.15;
-            letter-spacing: -0.02em;
+            margin:0; font-family:'Libre Franklin',sans-serif;
+            line-height:1.15; letter-spacing:-.02em;
         }
-
         .snarky-quote {
-            border-left: 3px solid var(--amber);
-            padding: 0.2rem 0 0.2rem 1.25rem;
-            margin: 2.5rem 0 3rem 0;
+            border-left:3px solid var(--amber);
+            padding:.2rem 0 .2rem 1.25rem;
+            margin:2.5rem 0 3rem;
         }
         .snarky-quote-text {
-            font-family: 'IBM Plex Serif', Georgia, serif;
-            font-size: 1.05rem;
-            font-style: italic;
-            color: var(--muted);
-            line-height: 1.6;
-            margin: 0 0 0.6rem 0;
+            font-family:'IBM Plex Serif',Georgia,serif;
+            font-size:1.05rem; font-style:italic;
+            color:var(--muted); line-height:1.6; margin:0 0 .6rem;
         }
         .snarky-quote-author {
-            font-family: 'IBM Plex Serif', Georgia, serif;
-            font-size: 0.95rem;
-            color: var(--muted);
-            margin: 0;
+            font-family:'IBM Plex Serif',Georgia,serif;
+            font-size:.95rem; color:var(--muted); margin:0;
         }
-        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+        .snarky-quote-author strong { color:var(--text); }
 
-        /* ---------- Workflow chains ---------- */
-        .flow { margin: 2rem 0; }
-        .flow-label {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-            margin-bottom: 0.6rem;
-            font-weight: 600;
-        }
-        .flow-label.anti { color: var(--red); }
-        .flow-chain {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.4rem 0.5rem;
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.8rem;
-        }
-        .flow-node {
-            border: 1px solid var(--line);
-            padding: 0.3rem 0.65rem;
-            color: var(--text);
-            font-weight: 500;
-            background: var(--panel);
-        }
-        .flow-arrow { color: var(--muted); font-weight: 600; }
-        .flow-chain.anti .flow-node { border-color: var(--red); }
-        .flow-chain.anti .flow-arrow { color: var(--red); }
-
-        /* ---------- Callouts ---------- */
         .tldr-box {
-            background: rgba(79, 184, 166, 0.07);
-            border-left: 3px solid var(--teal);
-            padding: 1.25rem 1.5rem;
-            margin: 2rem 0;
+            background:rgba(79,184,166,.07);
+            border-left:3px solid var(--teal);
+            padding:1.25rem 1.5rem; margin:2rem 0;
         }
         .tldr-box--amber {
-            background: rgba(232, 163, 61, 0.07);
-            border-left-color: var(--amber);
+            background:rgba(232,163,61,.07);
+            border-left-color:var(--amber);
         }
         .tldr-eyebrow {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            color: var(--teal);
-            font-size: 0.75rem;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            margin-bottom: 0.7rem;
-            font-weight: 600;
+            font-family:'IBM Plex Mono',monospace;
+            color:var(--teal); font-size:.75rem;
+            letter-spacing:.08em; text-transform:uppercase;
+            margin-bottom:.7rem; font-weight:600;
         }
-        .tldr-box--amber .tldr-eyebrow { color: var(--amber); }
-        .tldr-content { font-size: 0.95rem; line-height: 1.6; color: var(--text); }
-        .tldr-content p { margin: 0 0 0.7rem 0; font-size: 0.95rem; }
-        .tldr-content p:last-child { margin-bottom: 0; }
-        .tldr-content ul, .tldr-content ol { margin: 0.4rem 0 0 0; padding-left: 1.25rem; }
-        .tldr-content li { font-size: 0.95rem; margin-bottom: 0.4rem; }
+        .tldr-box--amber .tldr-eyebrow { color:var(--amber); }
+        .tldr-content { font-size:.95rem; line-height:1.6; }
+        .tldr-content p { margin:0 0 .7rem; font-size:.95rem; }
+        .tldr-content p:last-child { margin-bottom:0; }
+        .tldr-content li { font-size:.95rem; margin-bottom:.4rem; }
 
-        /* ---------- Flat Scenarios ---------- */
-        .scenario {
-            border-top: 1px solid var(--line-soft);
-            margin-top: 2.75rem;
-            padding-top: 1.75rem;
+        .flow { margin:2rem 0; }
+        .flow-label {
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.72rem; text-transform:uppercase;
+            letter-spacing:.08em; color:var(--muted);
+            margin-bottom:.6rem; font-weight:600;
         }
-        .scenario h3 { margin-top: 0; }
+        .flow-label.anti { color:var(--red); }
+        .flow-chain {
+            display:flex; align-items:center; flex-wrap:wrap;
+            gap:.4rem .5rem; font-family:'IBM Plex Mono',monospace;
+            font-size:.8rem;
+        }
+        .flow-node {
+            border:1px solid var(--line); padding:.3rem .65rem;
+            color:var(--text); background:var(--panel);
+        }
+        .flow-arrow { color:var(--muted); font-weight:600; }
+        .flow-chain.anti .flow-node { border-color:var(--red); }
+        .flow-chain.anti .flow-arrow { color:var(--red); }
+
+        .scenario {
+            border-top:1px solid var(--line-soft);
+            margin-top:2.75rem; padding-top:1.75rem;
+        }
+        .scenario h3 { margin-top:0; }
         .scenario-kicker {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.76rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--teal);
-            margin: -0.25rem 0 1rem 0;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.76rem; font-weight:600;
+            text-transform:uppercase; letter-spacing:.05em;
+            color:var(--teal); margin:-.25rem 0 1rem;
         }
         .scenario-kicker .evidence {
-            color: var(--muted);
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-            margin-left: 0.5rem;
+            color:var(--muted); font-weight:500;
+            text-transform:none; letter-spacing:0; margin-left:.5rem;
         }
-        .scenario-kicker .evidence::before { content: "· "; }
-        .scenario[data-accent="amber"] .scenario-kicker { color: var(--amber); }
-        .scenario[data-accent="red"]   .scenario-kicker { color: var(--red); }
-        .scenario[data-accent="gray"]  .scenario-kicker { color: var(--muted); }
-
-        .scenario ul { margin: 0.4rem 0 1.25rem 0; }
-        .scenario li { font-size: 0.97rem; }
-
+        .scenario-kicker .evidence::before { content:"· "; }
+        .scenario ul { margin:.4rem 0 1.25rem; }
         .solution {
-            border-left: 3px solid var(--teal);
-            padding-left: 1rem;
-            margin: 1.5rem 0 0 0;
+            border-left:3px solid var(--teal);
+            padding-left:1rem; margin:1.5rem 0 0;
         }
-        .scenario[data-accent="amber"] .solution { border-left-color: var(--amber); }
-        .scenario[data-accent="red"]   .solution { border-left-color: var(--red); }
-        .scenario[data-accent="gray"]  .solution { border-left-color: var(--muted-2); }
         .solution strong {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.78rem; text-transform:uppercase;
+            letter-spacing:.05em;
         }
 
-        /* ---------- Tables ---------- */
-        .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+        .table-wrap { overflow-x:auto; margin:1.5rem 0; }
         .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'IBM Plex Sans', -apple-system, sans-serif;
-            font-size: 0.86rem;
+            width:100%; border-collapse:collapse;
+            font-family:'IBM Plex Sans',sans-serif; font-size:.86rem;
         }
         .data-table th {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text);
-            font-weight: 600;
-            text-align: left;
-            padding: 0.65rem 0.75rem;
-            border-bottom: 2px solid var(--line);
-            vertical-align: bottom;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.72rem; text-transform:uppercase;
+            letter-spacing:.05em; color:var(--text);
+            text-align:left; padding:.65rem .75rem;
+            border-bottom:2px solid var(--line);
+            vertical-align:bottom;
         }
         .data-table td {
-            padding: 0.65rem 0.75rem;
-            color: var(--muted);
-            line-height: 1.5;
-            vertical-align: top;
-            border-bottom: 1px solid var(--line-soft);
+            padding:.65rem .75rem; color:var(--muted);
+            line-height:1.5; vertical-align:top;
+            border-bottom:1px solid var(--line-soft);
         }
-        .data-table td strong { color: var(--text); }
-        .data-table tr:last-child td { border-bottom: none; }
+        .data-table td strong { color:var(--text); }
+        .data-table tr:last-child td { border-bottom:none; }
 
-        /* ---------- Math & Typesetting ---------- */
-        .katex { font-size: 1.04em; }
+        .katex { font-size:1.04em; }
         .katex-display {
-            margin: 1rem 0;
-            overflow-x: auto;
-            overflow-y: hidden;
-            padding: 0.25rem 0;
+            margin:1rem 0; overflow-x:auto;
+            overflow-y:hidden; padding:.25rem 0;
         }
-        .struck { color: var(--red); text-decoration: line-through; opacity: 0.85; }
 
-        /* ---------- Simulators ---------- */
         .stage {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            padding: 1.25rem 1.5rem;
-            margin: 2rem 0;
+            background:var(--panel); border:1px solid var(--line);
+            padding:1.25rem 1.5rem; margin:2rem 0;
         }
         .stage-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.75rem 1rem;
-            margin-bottom: 1rem;
+            display:flex; justify-content:space-between;
+            align-items:center; flex-wrap:wrap;
+            gap:.75rem 1rem; margin-bottom:1rem;
         }
         .stage-title {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.76rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--teal);
-            font-weight: 600;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.76rem; text-transform:uppercase;
+            letter-spacing:.06em; color:var(--teal);
+            font-weight:600;
         }
-        .sim-controls { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; }
+        .sim-controls { display:flex; gap:.5rem; flex-wrap:wrap; }
         button.sim-btn {
-            background: var(--teal);
-            color: #ffffff;
-            border: 1px solid transparent;
-            padding: 0.42rem 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.78rem;
-            transition: filter 0.16s ease, transform 0.16s ease;
+            background:var(--teal); color:#fff;
+            border:1px solid transparent; padding:.42rem .9rem;
+            font-weight:600; cursor:pointer;
+            font-family:'IBM Plex Mono',monospace; font-size:.78rem;
         }
-        button.sim-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        button.sim-btn:hover { filter:brightness(1.1); }
         button.sim-btn.sim-btn--ghost {
-            background: transparent;
-            color: var(--text);
-            border-color: var(--line);
+            background:transparent; color:var(--text);
+            border-color:var(--line);
         }
-        button.sim-btn.sim-btn--ghost:hover { border-color: var(--teal); color: var(--teal); }
-
+        button.sim-btn.sim-btn--ghost:hover {
+            border-color:var(--teal); color:var(--teal);
+        }
         .params {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 0.9rem 1.5rem;
-            margin: 0 0 1rem 0;
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+            gap:.9rem 1.5rem; margin:0 0 1rem;
         }
-        .param { display: flex; flex-direction: column; gap: 0.35rem; }
+        .param { display:flex; flex-direction:column; gap:.35rem; }
         .param-label {
-            display: flex;
-            justify-content: space-between;
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.74rem;
-            color: var(--muted);
+            display:flex; justify-content:space-between;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.74rem; color:var(--muted);
         }
-        .param-label strong { color: var(--teal); }
-
-        .finops-slider { width: 100%; background: transparent; }
-        .finops-slider:focus { outline: none; }
-        .finops-slider::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: var(--line); border-radius: 3px; }
-        .finops-slider::-webkit-slider-thumb {
-            height: 18px; width: 18px; border-radius: 50%; background: var(--teal); cursor: pointer;
-            -webkit-appearance: none; margin-top: -6px; border: 2px solid var(--panel);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        .param-label strong { color:var(--teal); }
+        .finops-slider { width:100%; accent-color:var(--teal); }
+        .slider-row {
+            display:flex; align-items:center; flex-wrap:wrap;
+            gap:.75rem 1rem; margin:0 0 1rem;
         }
-        .finops-slider::-moz-range-track { width: 100%; height: 6px; cursor: pointer; background: var(--line); border-radius: 3px; }
-        .finops-slider::-moz-range-thumb {
-            height: 18px; width: 18px; border-radius: 50%; background: var(--teal); cursor: pointer;
-            border: 2px solid var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-        }
-        .finops-slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--amber); outline-offset: 2px; }
-        .finops-slider:focus-visible::-moz-range-thumb { outline: 2px solid var(--amber); outline-offset: 2px; }
-
-        .slider-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1rem; margin: 0 0 1rem 0; }
-        .slider-row .finops-slider { flex: 1; min-width: 180px; }
+        .slider-row .finops-slider { flex:1; min-width:180px; }
         .slider-label {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.78rem;
-            color: var(--muted);
-            white-space: nowrap;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.78rem; color:var(--muted); white-space:nowrap;
         }
-
         .stage-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem 1.5rem;
-            margin-bottom: 0.75rem;
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.74rem;
-            color: var(--muted);
+            display:flex; flex-wrap:wrap; gap:.5rem 1.5rem;
+            margin-bottom:.75rem;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.74rem; color:var(--muted);
         }
-        .legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
-        .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-
-        .canvas-wrap { width: 100%; }
-        canvas { display: block; background: var(--panel-2); width: 100%; }
-
+        .legend-item { display:inline-flex; align-items:center; gap:.4rem; }
+        .legend-dot { width:10px; height:10px; border-radius:2px; }
+        .canvas-wrap { width:100%; }
+        canvas { display:block; background:var(--panel-2); width:100%; }
         .readout {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem 1.5rem;
-            margin-top: 1rem;
-            padding-top: 0.85rem;
-            border-top: 1px solid var(--line-soft);
-            color: var(--muted);
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.8rem;
+            display:flex; flex-wrap:wrap; gap:.5rem 1.5rem;
+            margin-top:1rem; padding-top:.85rem;
+            border-top:1px solid var(--line-soft);
+            color:var(--muted);
+            font-family:'IBM Plex Mono',monospace; font-size:.8rem;
         }
-        .readout span { color: var(--amber); font-weight: 600; }
-
+        .readout span { color:var(--amber); font-weight:600; }
         .stat-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 1rem 1.5rem;
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--line-soft);
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:1rem 1.5rem; margin-top:1rem;
+            padding-top:1rem; border-top:1px solid var(--line-soft);
         }
         .stat-label {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--muted);
-            margin-bottom: 0.35rem;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.7rem; text-transform:uppercase;
+            letter-spacing:.05em; color:var(--muted);
+            margin-bottom:.35rem;
         }
         .stat-value {
-            font-family: 'IBM Plex Sans', -apple-system, sans-serif;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text);
-            line-height: 1.35;
+            font-family:'IBM Plex Sans',sans-serif;
+            font-size:1.1rem; font-weight:600;
+            color:var(--text); line-height:1.35;
         }
-        .stat-value.small { font-size: 0.88rem; font-weight: 500; }
+        .stat-value.small { font-size:.88rem; font-weight:500; }
+        .sim-note { font-size:.88rem; color:var(--muted); margin-top:.5rem; line-height:1.5; }
 
-        .sim-note { font-size: 0.88rem; color: var(--muted); margin-top: 0.5rem; line-height: 1.5; }
-
-        /* ---------- Academic References & Footer Nav ---------- */
         .academic-references {
-            font-size: 0.85rem;
-            color: var(--muted);
-            border-top: 1px solid var(--line-soft);
-            padding-top: 1.5rem;
-            margin-top: 3.5rem;
-            margin-bottom: 2rem;
+            font-size:.85rem; color:var(--muted);
+            border-top:1px solid var(--line-soft);
+            padding-top:1.5rem; margin:3.5rem 0 2rem;
         }
         .academic-references strong {
-            color: var(--text);
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 1rem;
-            display: block;
+            color:var(--text); font-family:'IBM Plex Mono',monospace;
+            text-transform:uppercase; letter-spacing:.05em;
+            margin-bottom:1rem; display:block;
         }
         .academic-references p {
-            margin-bottom: 0.75rem;
-            line-height: 1.5;
-            padding-left: 1.5rem;
-            text-indent: -1.5rem;
-            font-size: 0.85rem;
+            margin-bottom:.75rem; line-height:1.5;
+            padding-left:1.5rem; text-indent:-1.5rem;
+            font-size:.85rem;
         }
-        .academic-references a { color: var(--teal); text-decoration: none; }
-        .academic-references a:hover { text-decoration: underline; }
+        .academic-references a { color:var(--teal); text-decoration:none; }
+        .academic-references a:hover { text-decoration:underline; }
 
         .post-pager {
-            margin-top: 3.5rem;
-            padding-top: 2rem;
-            border-top: 1px solid var(--line-soft);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem 2rem;
+            margin-top:3.5rem; padding-top:2rem;
+            border-top:1px solid var(--line-soft);
+            display:flex; justify-content:space-between;
+            align-items:center; flex-wrap:wrap; gap:1rem 2rem;
         }
         .post-pager a {
-            font-family: 'IBM Plex Mono', Consolas, monospace;
-            font-size: 0.92rem;
-            font-weight: 600;
-            color: var(--teal);
-            text-decoration: none;
-            transition: opacity 0.16s ease;
+            font-family:'IBM Plex Mono',monospace;
+            font-size:.92rem; font-weight:600;
+            color:var(--teal); text-decoration:none;
         }
-        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+        .post-pager a:hover { text-decoration:underline; }
+        .math-note { font-size:.88rem; color:var(--muted); }
     </style>
 </head>
+
 <body>
-    <div class="container">
+<div class="container">
 
-        <!-- Global Header -->
-        <header class="site-header">
-            <a href="../../index.html" class="site-title">
-                <span class="site-title__badge">SS</span>
-                <span>Saurav Sana | Field Notes</span>
+    <header class="site-header">
+        <a href="../../index.html" class="site-title">
+            <span class="site-title__badge">SS</span>
+            <span>Saurav Sana | Field Notes</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+            <a href="../../index.html">Home</a>
+            <a href="../../index.html#blog">Blog</a>
+            <a href="../../index.html#tags">Tags</a>
+            <a href="../../contact.html">Contact</a>
+            <button class="theme-toggle" aria-label="Toggle light/dark theme"
+                    aria-pressed="false" title="Toggle theme">
+                <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg"
+                     width="17" height="17" viewBox="0 0 24 24"
+                     fill="currentColor" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                </svg>
+                <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg"
+                     width="17" height="17" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"
+                     aria-hidden="true">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            </button>
+        </nav>
+    </header>
+
+    <main class="article">
+
+        <div class="post-meta" style="margin-bottom:.75rem;">
+            <a href="index.html" style="color:inherit;text-decoration:none;">
+                ← The Shape of Failure Series
             </a>
+        </div>
 
-            <nav class="site-nav" aria-label="Primary navigation">
-                <a href="../../index.html">Home</a>
-                <a href="../../index.html#blog">Blog</a>
-                <a href="../../index.html#tags">Tags</a>
-                <a href="../../contact.html">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme">
-                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                    </svg>
-                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="5"/>
-                        <line x1="12" y1="1" x2="12" y2="3"/>
-                        <line x1="12" y1="21" x2="12" y2="23"/>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                        <line x1="1" y1="12" x2="3" y2="12"/>
-                        <line x1="21" y1="12" x2="23" y2="12"/>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                    </svg>
-                </button>
-            </nav>
-        </header>
+        <div class="byline">The Shape of Failure · Part 1 of 8</div>
+        <div class="series-heading-row">
+            <h1>The Illusion of Determinism</h1>
+        </div>
+        <p class="deck">Model uncertainty before turning reliability targets into architecture and FinOps decisions</p>
+        <div class="post-meta" style="margin-bottom:2rem;">
+            October 17, 2026 · Probability, Queues &amp; Distributed Systems
+        </div>
 
-        <main class="article">
-            <div class="post-meta" style="margin-bottom: 0.75rem;">
-                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
+        <div class="snarky-quote">
+            <p class="snarky-quote-text">
+                “If you measure latency using an average, you are measuring the average
+                temperature of the hospital to see if an individual patient is dead.”
+            </p>
+            <p class="snarky-quote-author">
+                — <strong><em>Gil Tene</em></strong>, How NOT to Measure Latency
+            </p>
+        </div>
+
+        <p>Every distributed system is, underneath the YAML, RPC stubs, dashboards,
+        and suspiciously clean architecture diagrams, a machine operating under uncertainty.</p>
+
+        <p>Requests arrive unevenly. Payloads vary by orders of magnitude. Queues
+        accumulate silently between polling intervals. Downstream dependencies stall.
+        Hardware fails unevenly. Retries synchronize into destructive pulses.
+        Tenants exhibit radically different traffic profiles.</p>
+
+        <p>Components assumed to be independent on a whiteboard turn out to share
+        a rack, power domain, top-of-rack switch, hypervisor, control plane, DNS resolver,
+        identity service, or deployment pipeline.</p>
+
+        <p>The difficult problem in distributed systems is not merely failure;
+        it is the <strong>shape of failure</strong>.</p>
+
+        <p>Two systems can exhibit identical average latency, identical average CPU
+        utilization, and identical nominal availability while possessing radically
+        different probabilities of catastrophic collapse. One system has relatively
+        thin tails. The other behaves normally for weeks, then produces an exceedance
+        event large enough to consume an entire quarterly error budget in minutes.</p>
+
+        <p>The averages are identical. The engineering problems are not.</p>
+
+        <div class="tldr-box">
+            <div class="tldr-eyebrow">The recurring architecture</div>
+            <div class="tldr-content">
+                <p>We will use one recurring example throughout this series:
+                a <strong>Multi-Tenant Analytics Gateway</strong>—stateless DuckDB and
+                Apache Arrow query workers reading Apache Iceberg tables over object
+                storage, with Redis metadata caching and multi-AZ routing.</p>
+                <p>It is a useful architecture because it contains several sources
+                of uncertainty: cache hits and misses, tenant skew, variable query
+                sizes, queueing, retries, shared dependencies, and expensive tail events.</p>
+                <p><strong>Evidence discipline:</strong> Published research and
+                production guidance are distinguished from illustrative calculations.
+                An illustrative model is not an industry benchmark, and a plausible
+                equation is not proof that production behaves that way.</p>
             </div>
+        </div>
 
-            <div class="byline">The Shape of Failure · Part 1 of 8</div>
-            <div class="series-heading-row">
-                <h1>The Illusion of Determinism</h1>
+        <h2>1. The intellectual spine: model before prescribing</h2>
+
+        <h3>The central question</h3>
+        <p>Do not ask only: <em>"What is the average?"</em></p>
+        <p>Ask:</p>
+        <p><strong>"What process produced this observation? What random variable
+        am I measuring? What assumptions does my model make? What evidence could
+        falsify those assumptions? And what architectural decision changes if
+        the assumptions are wrong?"</strong></p>
+
+        <div class="flow">
+            <div class="flow-label">The engineering workflow</div>
+            <div class="flow-chain">
+                <span class="flow-node">Observed Telemetry</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Physical Mechanism</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Random Variable</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Assumptions</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Candidate Model</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Validation</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node">Architectural Control</span>
             </div>
-            <p class="deck">Model uncertainty before turning reliability targets into architecture and FinOps decisions</p>
-            <div class="post-meta" style="margin-bottom: 2rem;">October 17, 2026 · Probability, Queues &amp; Distributed Systems</div>
+        </div>
 
-            <!-- Quote -->
-            <div class="snarky-quote">
-                <p class="snarky-quote-text">“If you measure latency using an average, you are measuring the average temperature of the hospital to see if an individual patient is dead.”</p>
-                <p class="snarky-quote-author">— <strong><em>Gil Tene</em></strong>, How NOT to Measure Latency</p>
+        <p>This is the opposite of statistical cargo-culting:</p>
+
+        <div class="flow">
+            <div class="flow-label anti">The anti-pattern</div>
+            <div class="flow-chain anti">
+                <span class="flow-node">Incident</span>
+                <span class="flow-arrow">⇏</span>
+                <span class="flow-node">Textbook Distribution</span>
+                <span class="flow-arrow">⇏</span>
+                <span class="flow-node">Prescribed Architecture</span>
             </div>
+        </div>
+
+        <p>A log-normal distribution is not a timeout policy. A Poisson process
+        is not a capacity plan. A Weibull curve is not a maintenance strategy.
+        Those are models. The engineering decision is a separate step.</p>
+
+        <h3>Five tests for a useful model</h3>
+        <ol>
+            <li><strong>Mechanistically plausible:</strong> Does it reflect the
+            actual execution path and physical constraints?</li>
+            <li><strong>Empirically defensible:</strong> Does it describe the
+            observed distribution, including relevant tail quantiles, on
+            out-of-sample data?</li>
+            <li><strong>Decision-relevant:</strong> Does it estimate the quantity
+            that drives the decision—timeout, queue capacity, headroom, or
+            failure probability?</li>
+            <li><strong>Robust to model error:</strong> Does the system degrade
+            safely when reality deviates from the fitted model?</li>
+            <li><strong>Monitorable:</strong> Can telemetry detect when the
+            workload or operating regime changes?</li>
+        </ol>
+
+        <h3>A distribution is a model, not a fact</h3>
+        <p>A metrics collector records timestamps, counters, and durations.
+        It does not attach labels saying <code>THIS REQUEST = LOG-NORMAL</code>.</p>
+
+        <p>Those labels are hypotheses imposed by engineers. Production systems
+        combine state machines, stochastic traffic, temporal dependence,
+        common-cause failures, nonlinear feedback loops, regime changes, and
+        hard physical limits.</p>
+
+        <p>The useful question is not <em>"Which distribution does this metric
+        follow?"</em> It is <em>"Which model is sufficiently accurate for the
+        decision I need to make?"</em></p>
+
+        <h2>2. A latency histogram can hide two different systems</h2>
+
+        <section class="scenario" id="timeouts-lognormal">
+            <h3>Worked Scenario A: Cache mixtures, tail latency, and timeout decisions</h3>
+            <p class="scenario-kicker">
+                Gateway timeout sizing · Illustrative analytical model
+                <span class="evidence">Reproducible calculation</span>
+            </p>
+
+            <h4>The trap: fitting one curve to two execution paths</h4>
+
+            <p>Consider a query gateway. Some requests are served from a warm
+            cache. Others miss the cache and have to fetch object-store data,
+            inspect Iceberg manifests, or perform additional metadata work.</p>
+
+            <p>Those are not simply fast and slow versions of the same operation.
+            They are different execution paths.</p>
 
-            <p>Every distributed system is, underneath the YAML, RPC stubs, dashboards, and suspiciously clean architecture diagrams, a machine operating under uncertainty.</p>
-
-            <p>Requests arrive unevenly. Payloads vary by orders of magnitude. Queues accumulate silently between polling intervals. Downstream dependencies stall. Hardware fails unevenly. Retries synchronize into destructive pulses. Tenants exhibit radically different traffic profiles. Components assumed to be independent on a whiteboard turn out to share a rack, power domain, top-of-rack switch, hypervisor, control plane, DNS resolver, identity service, or deployment pipeline.</p>
-
-            <p>The difficult problem in distributed systems is not merely failure; it is the <strong>shape of failure</strong>.</p>
-
-            <p>Two systems can exhibit identical average latency, identical average CPU utilization, and identical nominal availability while possessing radically different probabilities of catastrophic collapse. One system exhibits thin, predictable tails. The other behaves nominally for weeks, then produces an exceedance event large enough to deplete an entire quarterly error budget in six minutes. The averages are identical; the engineering problems are not.</p>
-
-            <p>Good distributed-system design makes uncertainty explicit, measures the assumptions behind it, and creates architectural failure boundaries that remain safe when those assumptions fail.</p>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">Recurring Architecture Spine &amp; Epistemic Honesty</div>
-                <div class="tldr-content">
-                    <p>To keep this guide grounded in real systems rather than textbook trivia, we trace one recurring production architecture across every section: a <strong>Multi-Tenant Analytics Gateway</strong> (stateless DuckDB + Apache Arrow query workers reading Apache Iceberg tables over object storage, with Redis metadata caching and multi-AZ routing).</p>
-                    <p><strong>A note on evidence:</strong> Throughout this article, we explicitly distinguish between <em>Documented Industry Evidence</em> (published empirical findings from Google SRE, AWS, and systems literature) and <em>Illustrative Engineering Calculations</em> (reproducible mathematical scenarios showing how to compute parameters, validate hypotheses, and size controls under explicitly stated assumptions).</p>
-                </div>
-            </div>
-
-            <h2>1. The Intellectual Spine &amp; The Modeling Workflow</h2>
-
-            <h3>The Central Thesis</h3>
-            <p>Do not ask only: <em>"What is the average?"</em></p>
-            <p>Ask: <strong>"What stochastic process produced this observation? What exact random variable am I measuring? What assumptions does my model make? What empirical evidence falsifies those assumptions? And what architectural decision changes if those assumptions are wrong?"</strong></p>
-
-            <div class="flow">
-                <div class="flow-label">The Engineering Workflow</div>
-                <div class="flow-chain">
-                    <span class="flow-node">Observed Phenomenon</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Data-Generating Process</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Random Variable</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Assumptions</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Candidate Model</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Validation &amp; Falsification</span>
-                    <span class="flow-arrow">→</span>
-                    <span class="flow-node">Operational Control</span>
-                </div>
-            </div>
-
-            <p>This is the exact opposite of statistical cargo-culting:</p>
-
-            <div class="flow">
-                <div class="flow-label anti">The Anti-Pattern</div>
-                <div class="flow-chain anti">
-                    <span class="flow-node">Incident</span>
-                    <span class="flow-arrow">⇏</span>
-                    <span class="flow-node">Textbook Distribution</span>
-                    <span class="flow-arrow">⇏</span>
-                    <span class="flow-node">Prescribed Architecture</span>
-                </div>
-            </div>
-
-            <p>A candidate distribution can fit historical telemetry within tight error bounds during stable operating regimes, only to collapse under failure conditions because deployment topologies, retry loops, or network routing altered the underlying data-generating mechanism.</p>
-
-            <p>An architect evaluates any model against five operational criteria:</p>
-            <ol>
-                <li><strong>Mechanistically Plausible:</strong> It reflects the physical execution path of the runtime.</li>
-                <li><strong>Empirically Defensible:</strong> Production telemetry does not contradict its core quantiles (\(p95\), \(p99\), \(p99.9\)) on out-of-sample windows.</li>
-                <li><strong>Decision-Relevant:</strong> It estimates the quantity that directly drives an architectural choice (timeout, buffer size, worker concurrency, or replica count).</li>
-                <li><strong>Robust to Model Error:</strong> The system degrades gracefully when reality deviates from the fitted curve.</li>
-                <li><strong>Continuously Monitorable:</strong> Telemetry agents can detect when the workload transitions across statistical regimes.</li>
-            </ol>
-
-            <h3>The First Rule: A Distribution Is a Model, Not a Fact</h3>
-            <p>A production metrics collector records raw timestamps, counters, and durations. It does not record labels stating <code>THIS REQUEST = LOG-NORMAL</code> or <code>THIS FAILURE = POISSON</code>.</p>
-
-            <p>Those labels are hypotheses imposed by engineers. Production systems are mixtures of deterministic state machines, stochastic traffic variation, temporal dependencies, common-cause failure couplings, non-linear feedback loops, workload regime changes, and hard physical limits.</p>
-
-            <p>The operational question is never: <em>"Which distribution does this metric follow?"</em> It is: <em>"Which model is sufficiently accurate for the decision I need to make?"</em></p>
-
-            <h2>2. Four Places Where Textbook Models Collide with Production</h2>
-
-            <p>Below are the four classic scenarios where unvalidated textbook models collide with production physics—paired with reproducible calculations and concrete engineering controls.</p>
-
-            <!-- ============ SCENARIO A ============ -->
-            <section class="scenario" id="timeouts-lognormal">
-                <h3>1. Execution Timeouts vs. Log-Normal &amp; Weibull Distributions</h3>
-                <p class="scenario-kicker">Worked Scenario A · Gateway timeout sizing &amp; censoring <span class="evidence">Illustrative calculation + Google SRE grounding</span></p>
-
-                <h4>The Core Trap: Fitting One Curve to Multiple Realities</h4>
-                <p>When setting a timeout (e.g., how long our query gateway waits before dropping a downstream worker call), engineers often try to fit empirical latency to a single continuous probability curve, like a Log-Normal or Weibull distribution.</p>
-                <p>Neither distribution is inherently invalid for latency within a single regime. The trap is that continuous unimodal curves assume a single smooth decay, whereas real distributed architectures execute across <strong>finite mixtures of distinct paths</strong>. In this scenario's workload profile:</p>
-                <ul>
-                    <li><strong>Path A (85% of traffic):</strong> Hits local Arrow memory or Redis cache and completes in ~18 ms.</li>
-                    <li><strong>Path B (15% of traffic):</strong> Misses the cache, requiring cold object-store reads (S3/Iceberg manifests), metadata locks, or hitting GC pauses, taking 100–300 ms.</li>
-                </ul>
-                <p>When you force a single unimodal curve over both populations, the volume of fast 18 ms cache hits drags the fitted mean and variance down, smoothing over the multimodal "cliff" where cold storage queries execute and yielding an artificially tight, dangerous timeout estimate.</p>
-
-                <h4>Random Variable &amp; Empirical Setup</h4>
-                <p>Let \(X\) be downstream query latency (ms) measured from request dispatch to last response byte. Suppose 1,000,000 representative requests yield these empirical quantiles versus an unsegmented Log-Normal fit:</p>
-
-                <div class="table-wrap">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Metric</th>
-                                <th scope="col">Measured HDR Histogram</th>
-                                <th scope="col">Unsegmented Log-Normal Fit</th>
-                                <th scope="col">Operational Interpretation</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>p50 (median)</strong></td>
-                                <td>18 ms</td>
-                                <td>19 ms</td>
-                                <td>Accurate because the median is dominated by the 85% hot cache-hit population.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>p95</strong></td>
-                                <td>95 ms</td>
-                                <td>68 ms</td>
-                                <td>Unimodal fit underestimates the transition to cold S3 reads.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>p99</strong></td>
-                                <td>180 ms</td>
-                                <td>112 ms</td>
-                                <td>Multi-partition object-store reads + metadata lock contention kick in; curve is blind to it.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>p99.9</strong></td>
-                                <td>280 ms</td>
-                                <td>190 ms</td>
-                                <td>Tail regime; naive fit misses empirical p99.9 by 32%, killing healthy cold queries if used as a timeout.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                $$\text{Exceedances above 280 ms (p99.9)} = 1{,}000{,}000 \times 0.001 = 1{,}000 \text{ requests per million}$$
-
-                <h4>The Timeout Censoring &amp; Late-Completion Trap</h4>
-                <p>Setting a downstream timeout exactly at the p99.9 mark of 280 ms cuts off roughly 1,000 requests per million. However, <strong>exceeding a threshold is not identical to structural failure</strong>. Two severe failure modes follow:</p>
-                <ul>
-                    <li><strong>Statistical Censoring &amp; Obscured Latency:</strong> Terminating those 1,000 requests does not mean they were deadlocked—many were legitimate queries that would have completed successfully at 295 ms. Telemetry merely records them as "280 ms (Timed Out)," permanently censoring the true tail distribution.</li>
-                    <li><strong>Zombie Work &amp; Load Amplification:</strong> If the gateway times out the caller socket without cancelling the backend worker, immediate client retries create up to 1,000 <em>additional</em> concurrent queries while the original 1,000 jobs continue consuming CPU and memory in the background.</li>
-                </ul>
-
-                <h4>Engineering Controls</h4>
-                <ul>
-                    <li><strong>Population separation:</strong> Never lump all traffic into one latency histogram. Segment telemetry by <code>cache_state</code> (hit vs. miss), <code>tenant_tier</code>, and <code>query_class</code> before evaluating tail quantiles.</li>
-                    <li><strong>Deadline &amp; cancellation propagation:</strong> Propagate remaining caller deadlines (<code>grpc-timeout</code> / <code>X-Deadline-Ms</code>) down the stack. Wire socket close events directly to <code>duckdb_interrupt()</code> so abandoned queries immediately abort.</li>
-                    <li><strong>Instrumentation of censored outcomes:</strong> Specifically instrument <code>timeout_censored_requests</code>, socket cancellation acknowledgments, continuing background worker threads, and late successful completions. This allows engineering to determine whether a timeout is protecting capacity or merely hiding unfinished work.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Base operational timeouts on stratified empirical percentiles rather than unimodal curve fits. Pair caller timeouts with end-to-end cancellation propagation and monitor late completions to ensure abandoned work does not consume capacity.</p>
-            </section>
-
-            <!-- ============ SCENARIO B ============ -->
-            <section class="scenario" id="evt-exceedances">
-                <h3>2. Rare Exceedances vs. Extreme Value Theory (EVT)</h3>
-                <p class="scenario-kicker">Worked Scenario B · Sizing burst headroom with the Generalized Pareto <span class="evidence">Illustrative calculation + NIST statistical reference</span></p>
-
-                <h4>The Core Trap: Using Center-Fitted Math to Predict Tail Disasters</h4>
-                <p>A convenient distribution fitted to the center of observed telemetry (such as a Gaussian or standard Poisson model) severely underestimates rare extremes when tail assumptions do not match reality. Gaussian tails decay exponentially fast ($e^{-x^2}$), whereas distributed systems subject to resource contention exhibit heavy power-law tails. Extrapolating a center-fitted model into high-consequence tails creates dangerous blind spots.</p>
-
-                <h4>Assumed Scenario Parameters &amp; Peaks-Over-Threshold (POT) Setup</h4>
-                <p>Suppose our gateway experiences periodic latency spikes during peak reporting windows. We apply a <strong>Peaks-Over-Threshold (POT)</strong> formulation above a high threshold \(u = 500\,\text{ms}\), where empirical telemetry indicates 1% (\(0.01\)) of all requests exceed \(u\):</p>
-                <ul>
-                    <li><strong>Exceedance variable (\(Y\)):</strong> For any request \(X\) exceeding \(u = 500\,\text{ms}\), let \(Y = X - 500\) represent the excess duration.</li>
-                    <li><strong>Assumed fitted GPD parameters:</strong> For this illustrative scenario, we assume a fitted Generalized Pareto Distribution (GPD) with scale parameter \(\beta = 100\,\text{ms}\) and shape parameter \(\xi = 0.2\). Because \(\xi &gt; 0\), the tail exhibits heavy power-law decay. <em>(In production, these parameters must be derived using parameter stability plots and profile likelihood confidence intervals across candidate thresholds.)</em></li>
-                </ul>
-
-                <p>The conditional survival function for exceeding an additional duration \(y\) beyond \(u\) is:</p>
-
-                $$P(Y &gt; y \mid X &gt; u) = \left(1 + \frac{\xi\,y}{\beta}\right)^{-1/\xi}$$
-
-                <p>To calculate the probability of a request exceeding 1 second (\(X &gt; 1000\,\text{ms}\), meaning an excess of \(y = 1000 - 500 = 500\,\text{ms}\)):</p>
-
-                $$\begin{aligned}
-                P(X &gt; 1000 \mid X &gt; 500) &= \left(1 + \frac{0.2 \times 500}{100}\right)^{-1/0.2} = (1 + 1)^{-5} = 2^{-5} = 0.03125 \;(3.125\%) \\[6pt]
-                P(X &gt; 1000) &= P(X &gt; 500) \times P(X &gt; 1000 \mid X &gt; 500) = 0.01 \times 0.03125 = 0.0003125 \;(\approx 313 \text{ per million requests})
-                \end{aligned}$$
-
-                <h4>Engineering Controls</h4>
-                <ul>
-                    <li><strong>De-clustering &amp; threshold stability:</strong> Correlated infrastructure stalls (such as a shared SSD pause or GC pause) cause concurrent queries to spike together. De-cluster temporally correlated bursts into distinct exceedance events, verify parameter stability across \(u \in [400, 650]\,\text{ms}\), and validate predictions against held-out stress windows.</li>
-                    <li><strong>Bulkhead lanes &amp; admission caps:</strong> Use EVT return-level estimates to size <strong>isolated heavy-query bulkhead lanes</strong>, calibrate load-shedding admission controllers, and configure memory admission semaphores so the ~313 monster queries per million cannot exhaust memory pools.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> When modeling rare events far out in the tail, use <strong>Extreme Value Theory (EVT)</strong> rather than center-fitted curves. Verify threshold stability, de-cluster correlated bursts, and account for parameter estimation error before sizing capacity reserves.</p>
-            </section>
-
-            <!-- ============ SCENARIO C ============ -->
-            <section class="scenario" id="queue-collapse">
-                <h3>3. Queue Collapse vs. Modeling Arrivals &amp; Utilization</h3>
-                <p class="scenario-kicker">Worked Scenario C · The utilization cliff in a single-server queue <span class="evidence">Illustrative calculation + queueing physics</span></p>
-
-                <h4>The Core Trap: Confusing Service Time with Total Response Time</h4>
-                <p>When sizing worker pools or commit engines, knowing the isolated service-time distribution (how fast a worker processes a job, \(S\)) is insufficient. Requests arrive stochastically; random bunches form queues. As utilization \(\rho\) approaches 100%, idle gaps vanish, and waiting time explodes nonlinearly.</p>
-
-                <h4>Kingman’s Approximation &amp; Single-Server Nuance</h4>
-                <p>Consider a serialized commit queue where mean service time is \(\mathbb{E}[S] = 10\,\text{ms}\) (maximum capacity \(\mu = 100\,\text{req/s}\)). Assume arrivals are approximately Poisson (squared coefficient of variation \(c_a^2 = 1\)) and service-time variability is \(c_s^2 = 1\). Under Kingman’s GI/G/1 heavy-traffic approximation, the mean queue wait time (\(W_q\)) is:</p>
-
-                $$W_q \approx \left(\frac{c_a^2 + c_s^2}{2}\right) \cdot \left(\frac{\rho}{1-\rho}\right) \cdot \mathbb{E}[S]$$
-
-                <div class="table-wrap">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Utilization \(\rho\)</th>
-                                <th scope="col">Arrival Rate \(\lambda\)</th>
-                                <th scope="col">Multiplier \(\left(\frac{\rho}{1-\rho}\right)\)</th>
-                                <th scope="col">Mean Queue Wait \(W_q\)</th>
-                                <th scope="col">Total Time \(W = W_q + \mathbb{E}[S]\)</th>
-                                <th scope="col">Mean In-Flight Work \(L = \lambda W\)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>50%</strong></td>
-                                <td>50 req/s</td>
-                                <td>\(1\times\)</td>
-                                <td>10 ms</td>
-                                <td>20 ms</td>
-                                <td>1.0 request</td>
-                            </tr>
-                            <tr>
-                                <td><strong>80%</strong></td>
-                                <td>80 req/s</td>
-                                <td>\(4\times\)</td>
-                                <td>40 ms</td>
-                                <td>50 ms</td>
-                                <td>4.0 requests</td>
-                            </tr>
-                            <tr>
-                                <td><strong>90%</strong></td>
-                                <td>90 req/s</td>
-                                <td>\(9\times\)</td>
-                                <td>90 ms</td>
-                                <td>100 ms</td>
-                                <td>9.0 requests</td>
-                            </tr>
-                            <tr>
-                                <td><strong>95%</strong></td>
-                                <td>95 req/s</td>
-                                <td>\(19\times\)</td>
-                                <td><strong>190 ms (\(19 \times \mathbb{E}[S]\))</strong></td>
-                                <td><strong>200 ms</strong></td>
-                                <td><strong>19.0 requests</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <p><strong>Scope &amp; modeling limits:</strong> At 95% utilization, the server executes the query in 10 ms, but the caller waits 200 ms. Note that Kingman's formula approximates <em>mean</em> queue wait in a single-server queue; it does not predict tail quantiles (\(p99\)), nor does it directly model a multi-server worker pool. For production worker pools, validate with multi-server GI/G/c models or trace-driven discrete-event simulation.</p>
-
-                <h4>Engineering Controls</h4>
-                <ul>
-                    <li><strong>Bounded queues &amp; early shedding:</strong> Enforce hard queue length limits. Reject (HTTP 429) or shed load immediately at the gateway when expected queue wait exceeds caller deadline budgets.</li>
-                    <li><strong>Disaggregated instrumentation:</strong> Record <code>queue_wait_ms</code> separately from <code>service_exec_ms</code>. Reconcile concurrency, throughput, and latency using Little’s Law (\(L = \lambda W\)) to detect whether latency degradation is caused by slow execution or queue queuing.</li>
-                    <li><strong>Per-tenant concurrency quotas:</strong> Allocate explicit concurrency tokens per tenant so a single noisy client cannot monopolize shared server capacity.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Model arrival burstiness, service variance, and utilization together. Decouple queue wait from execution telemetry, and bound in-flight work with admission control before utilization reaches the nonlinear cliff.</p>
-            </section>
-
-            <!-- ============ SCENARIO D ============ -->
-            <section class="scenario" id="common-cause">
-                <h3>4. Replica Redundancy vs. Independent Bernoulli Trials</h3>
-                <p class="scenario-kicker">Worked Scenario D · Two-replica API with a shared failure domain <span class="evidence">Illustrative calculation + conditional reliability</span></p>
-
-                <h4>The Core Trap: Assuming Servers Fail Like Independent Coin Flips</h4>
-                <p>A classic reliability error is assuming redundant replicas fail independently. If Replica A has an observed unavailability probability of ~1% over an observation window, naive coin-flip math suggests that running two replicas reduces simultaneous failure probability to \(0.01 \times 0.01 = 0.0001\) (0.01% downtime, or "Four Nines").</p>
-                <p>In production cloud topologies, true independence is rare. Replicas share <strong>Common-Cause Failure (CCF)</strong> domains: top-of-rack switches, power buses, IAM/OIDC identity providers, DNS resolvers, container registries, or shared CI/CD release pipelines.</p>
-
-                <h4>Corrected Shared-Failure vs. Independent Baseline Math</h4>
-                <p>Consider two active-active replicas serving our gateway API over a defined observation window. We define failures using two distinct event probabilities:</p>
-                <ul>
-                    <li><strong>Common-cause failure probability (\(q = 0.002\), or 0.2%):</strong> The probability of a shared dependency outage taking down both replicas simultaneously over the observation window. <em>(Note: \(q\) is an event probability over this window, not an automatic annual calendar floor; downtime depends on outage duration.)</em></li>
-                    <li><strong>Conditional residual failure probability (\(p = 0.01\), or 1%):</strong> The probability that a replica fails independently, given that the common-cause event has <em>not</em> occurred.</li>
-                </ul>
-
-                <p>Each replica's true <strong>marginal unavailability probability</strong> (\(p_m\)) is:</p>
-
-                $$p_m = q + (1 - q)\,p = 0.002 + (0.998 \times 0.01) = 0.01198 \;(1.198\%)$$
-
-                <p>If the two replicas were genuinely independent with this exact same marginal risk, the joint failure probability would be:</p>
-
-                $$P_{\text{indep}}(\text{both fail}) = p_m^2 = (0.01198)^2 \approx 0.00014352 \;(0.01435\%)$$
-
-                <p>Under the common-cause model, joint failure occurs if the shared dependency fails (\(q\)), <strong>or</strong> if it survives and both replicas fail independently (\((1-q)p^2\)):</p>
-
-                $$P_{\text{ccf}}(\text{both fail}) = q + (1 - q)\,p^2 = 0.002 + (0.998 \times 0.0001) = 0.0020998 \;(0.20998\%)$$
-
-                $$\text{Risk Underestimation Factor} = \frac{P_{\text{ccf}}(\text{both fail})}{P_{\text{indep}}(\text{both fail})} = \frac{0.0020998}{0.00014352} \approx \mathbf{14.63\times}$$
-
-                <div class="table-wrap">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Model Configuration</th>
-                                <th scope="col">Joint Failure Probability</th>
-                                <th scope="col">Relative Risk Ratio</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Independent Replicas (Matched Marginal Risk \(p_m = 1.198\%\))</strong></td>
-                                <td>0.01435% (\(1.44 \times 10^{-4}\))</td>
-                                <td>\(1.0\times\) (baseline)</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Replicas with Shared Failure Mode (\(q = 0.2\%\))</strong></td>
-                                <td>0.20998% (\(2.10 \times 10^{-3}\))</td>
-                                <td><strong>14.63× higher risk</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <p><em>(Note on baseline selection: Comparing \(P_{\text{ccf}}\) to \(p^2 = 0.01\%\) yields an apparent 21× ratio, but that comparison artificially drops the shared failure probability from the single-node baseline. Matched marginal risk demonstrates that the true underestimation factor relative to independent nodes is 14.63×.)</em></p>
-
-                <h4>Engineering Controls</h4>
-                <ul>
-                    <li><strong>Static stability:</strong> Decouple data plane runtime execution from control plane availability. Replicas should cache authorization keys, routing maps, and configuration locally so they continue serving traffic during a central IAM, DNS, or orchestrator outage.</li>
-                    <li><strong>Correlated chaos testing:</strong> Run fault-injection experiments that sever shared dependencies (or simulate corrupted config rollouts) rather than testing only single-node terminations.</li>
-                </ul>
-
-                <p class="solution"><strong>The solution.</strong> Define explicit observation windows and model common-cause failures using fault trees or reliability block diagrams. Adding extra replicas yields rapidly diminishing returns unless shared dependency domains are eliminated.</p>
-            </section>
-
-            <h2>3. Retry Amplification: Bridge to Part 2</h2>
-
-            <section class="scenario" id="retry-preview">
-                <h3>Worked Scenario I: Multi-Layer Retry Amplification</h3>
-                <p class="scenario-kicker">Worst-Case Structural Bound <span class="evidence">AWS Builder's Library grounding</span></p>
-
-                <p>While statistical models describe observations, naive operational controls can <strong>change the data-generating process itself</strong> during an incident. The most common feedback mechanism is nested retries.</p>
-
-                <p>Suppose a request traverses a 5-layer service chain (1: Client &rarr; 2: Edge Gateway &rarr; 3: Auth Service &rarr; 4: Query Router &rarr; 5: Storage Worker) calling the Database as the non-retrying terminal dependency. If each of the 5 caller layers independently executes up to \(r = 3\) attempts (original call + 2 retries):</p>
-
-                $$N_{\text{attempts}} = r^{L} = 3^{5} = 243 \text{ terminal calls per top-level request}$$
-
-                <p><strong>Boundary conditions:</strong> The \(3^5 = 243\) multiplier represents a worst-case structural bound under the assumptions that every layer retries the entire downstream call tree, that every attempt fails in a retry-triggering manner, and that all calls reach the terminal dependency. Actual amplification depends on the call topology, retry conditions, cancellation propagation, and deadline expiration. However, as documented in AWS Builder's Library guidance, uncoordinated retries routinely drive systems into <strong>metastable overload</strong>, where the system remains stalled long after the original trigger clears.</p>
-
-                <h4>Engineering Controls</h4>
-                <ul>
-                    <li><strong>Single-layer retry ownership:</strong> Assign retry authority to exactly one layer (typically the edge gateway or end client); intermediate microservices must fail fast and propagate status codes without retrying.</li>
-                    <li><strong>Jitter &amp; retry budgets:</strong> Enforce exponential backoff with full jitter to de-correlate retry waves. Limit retry volume using token-bucket retry budgets (e.g., maximum 10% additional traffic over primary requests).</li>
-                </ul>
-
-                <p class="solution"><strong>The solution (developed fully in Part 2).</strong> Treat retries as dynamic load multipliers. Eliminate nested retry loops, enforce client-side retry budgets, and propagate deadline cancellations down the call stack.</p>
-            </section>
-
-            <h2>4. Taxonomies of Uncertainty and Fault Modalities</h2>
-
-            <h3>Three Taxonomies of Uncertainty</h3>
-            <p>Treating all uncertainty as generic "noise" leads to flawed architecture. Engineers must distinguish what collecting more data can resolve from what it cannot:</p>
-
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Uncertainty Class</th>
-                            <th scope="col">Underlying Mechanism</th>
-                            <th scope="col">Can More Data Fix It?</th>
-                            <th scope="col">Architectural Mitigation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Aleatory</strong></td>
-                            <td>Intrinsic physical or workload randomness (e.g., arrival fluctuations).</td>
-                            <td><strong>No.</strong> Variance is irreducible.</td>
-                            <td>Capacity headroom, statistical multiplexing, and admission shedding.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Epistemic</strong></td>
-                            <td>Incomplete knowledge or sparse data (e.g., a newly deployed dependency).</td>
-                            <td><strong>Yes.</strong> Additional telemetry narrows credible intervals.</td>
-                            <td>Canary deployments, shadow traffic, and progressive rollouts.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Model Risk</strong></td>
-                            <td>Flawed mathematical assumptions (e.g., assuming independent replica failures).</td>
-                            <td><strong>Only if used to falsify</strong> the model's structural assumptions.</td>
-                            <td>Out-of-sample stress testing, chaos auditing, and static fallback paths.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <h3>The Four Modalities of Distributed Faults</h3>
-            <p><strong>Crucial distinction:</strong> Crash, omission, timing, and Byzantine behaviors describe <em>fault semantics</em>—how systems fail—not probability distributions. Never assign a textbook curve to a fault class without validating measurable variables:</p>
             <ul>
-                <li><strong>Crash / Fail-Stop:</strong> Process halts abruptly. <em>Control:</em> Automated restarts combined with lease fencing tokens at storage layers so partitioned nodes cannot corrupt state.</li>
-                <li><strong>Omission:</strong> Silent packet or message drops. <em>Control:</em> Transactional outbox patterns, idempotent mutations, and explicit sequence gap detection.</li>
-                <li><strong>Timing (Performance):</strong> Correct payload delivered after caller deadline. <em>Control:</em> Deadline budget propagation (aborting expired downstream work) and status reconciliation.</li>
-                <li><strong>Byzantine:</strong> Arbitrary, corrupted, or conflicting behavior. <em>Control:</em> End-to-end payload checksums (CRC32C/SHA-256), cryptographic verification, and formally verified protocols (e.g., TLA+ specifications).</li>
+                <li><strong>Cache-hit path:</strong> 85% of requests complete
+                at approximately 18 ms.</li>
+                <li><strong>Cache-miss path:</strong> 15% of requests complete
+                between 100 and 300 ms. For this deliberately simple example,
+                assume a uniform distribution.</li>
             </ul>
 
-            <h2>5. Load Testing, Bimodal Mixtures &amp; Fan-Out Amplification</h2>
+            <p>Let \(X\) be request latency in milliseconds. The illustrative
+            model is a mixture:</p>
 
-            <p>Standard load benchmarks routinely feed systems a sanitized profile: constant arrivals, uniform payloads, and independent requests. Production introduces arrival bursts, skewed payloads, and multitenancy.</p>
+            $$X =
+            \begin{cases}
+            18, & \text{with probability } 0.85\\
+            U(100,300), & \text{with probability } 0.15
+            \end{cases}$$
 
-            <section class="scenario" id="mixture-fanout">
-                <h3>Worked Scenario G: Bimodal Mixture Math &amp; Fan-Out Tail Amplification</h3>
-                <p class="scenario-kicker">Mixture moments + fan-out <span class="evidence">Google "The Tail at Scale" grounding</span></p>
+            <p>The uniform miss distribution is a teaching assumption, not a
+            claim that object-store latency is truly uniform. Its advantage is
+            that every calculation is transparent and reproducible.</p>
 
-                <p><strong>1. Why the mean describes neither execution path.</strong> Suppose a different tenant workload exhibits 80% cache hits (normal with \(\mu_1 = 15\), \(\sigma_1^2 = 16\)) and 20% cache misses (shifted half-normal with \(\mu_2 \approx 94.57\), \(\sigma_2^2 \approx 52.33\)). The exact mixture moments are:</p>
+            <h4>Calculate the mean—and notice what it hides</h4>
 
-                $$\mathbb{E}[X] = 0.80(15) + 0.20(94.57) \approx 30.9\ \text{ms}$$
+            <p>The expected latency is the weighted mean of the two paths:</p>
 
-                $$\mathrm{Var}(X) = \underbrace{0.80(16) + 0.20(52.33)}_{\text{within-path}} + \underbrace{0.80 \cdot 0.20\,(15 - 94.57)^2}_{\text{between-path}} \approx 1036\ \text{ms}^2 \quad (\sigma \approx 32.2\ \text{ms})$$
+            $$\mathbb{E}[X] =
+            0.85(18) + 0.15(200) = 45.3\text{ ms}$$
 
-                <p>The mixture mean of 30.9 ms sits in an empty valley where virtually no queries execute. Between-path variance accounts for over 90% of total variance.</p>
+            <p>Now notice the awkward result: the average is 45.3 ms, but
+            neither execution path normally completes near 45.3 ms.</p>
 
-                <p><strong>2. Distributed fan-out amplification.</strong> When a root query fans out to \(N = 100\) independent downstream shards, each having a \(p = 1\%\) probability of exceeding a deadline:</p>
+            <p>The average describes the combined traffic. It does not describe
+            what an individual request experiences.</p>
 
-                $$\begin{aligned}
-                P(\text{all 100 children meet deadline}) &= (1-p)^{N} = 0.99^{100} \approx 0.366 \\[6pt]
-                P(\text{parent delayed by} \geq 1 \text{ slow child}) &= 1 - 0.99^{100} \approx 0.634 \;(63.4\%)
-                \end{aligned}$$
+            <h4>Calculate the actual percentiles</h4>
 
-                <p>As documented in Google’s <em>The Tail at Scale</em>, tail amplification turns rare child stalls into common parent delays.</p>
+            <p>The cumulative distribution function is:</p>
 
-                <h4>Engineering Controls on Fan-Out</h4>
-                <ul>
-                    <li><strong>Bounded Hedged Requests:</strong> Dispatching a duplicate secondary read after the p95 mark can significantly reduce tail latency. However, <strong>hedged requests create extra work</strong>. Recommend them only for eligible idempotent operations, where spare capacity exists, with delayed execution, cancellation of losing attempts, and a strictly bounded hedge budget (e.g., maximum 2% extra calls).</li>
-                    <li><strong>Partial Results:</strong> Return partial data sets only where the application’s business correctness contract explicitly permits partial aggregation.</li>
-                </ul>
-            </section>
+            $$F_X(x)=
+            \begin{cases}
+            0, & x &lt; 18\\
+            0.85, & 18 \leq x &lt; 100\\
+            0.85+0.15\left(\frac{x-100}{200}\right),
+            & 100 \leq x \leq 300\\
+            1, & x &gt; 300
+            \end{cases}$$
 
-            <p>Below is an interactive simulation demonstrating synthetic bimodal latency and fan-out tail amplification. <em>(Note: This simulator uses synthetic statistical models to illustrate mechanics, not telemetry from a live incident.)</em></p>
+            <p>Because 85% of requests are already at 18 ms, the median is
+            18 ms. But every percentile above 85% falls into the miss population.</p>
 
-            <div class="stage">
-                <div class="stage-bar">
-                    <span class="stage-title">Interactive Simulator · Synthetic Bimodal Latency &amp; Fan-Out Model</span>
-                    <div class="sim-controls">
-                        <button id="btnRun" type="button" class="sim-btn">▶ Run Simulation</button>
-                        <button id="btnStep" type="button" class="sim-btn sim-btn--ghost">Step 50</button>
-                        <button id="btnReset" type="button" class="sim-btn sim-btn--ghost">Reset</button>
-                    </div>
-                </div>
+            <p>For \(p &gt; 0.85\), invert the CDF:</p>
 
-                <div class="params">
-                    <div class="param">
-                        <div class="param-label"><span>Cache-Hit Ratio (w₁)</span><strong id="lblHitRatio">80%</strong></div>
-                        <input type="range" id="sldHitRatio" class="finops-slider" min="50" max="95" step="5" value="80" aria-label="Cache hit ratio percentage">
-                    </div>
-                    <div class="param">
-                        <div class="param-label"><span>Fan-Out Width (N calls)</span><strong id="lblFanout">100</strong></div>
-                        <input type="range" id="sldFanout" class="finops-slider" min="1" max="200" step="1" value="100" aria-label="Downstream fan-out width">
-                    </div>
-                    <div class="param">
-                        <div class="param-label"><span>Child Slow Prob (p)</span><strong id="lblSlowProb">1.0%</strong></div>
-                        <input type="range" id="sldSlowProb" class="finops-slider" min="0.1" max="5.0" step="0.1" value="1.0" aria-label="Child slow call probability">
-                    </div>
-                </div>
-
-                <div class="stage-legend">
-                    <span class="legend-item"><span class="legend-dot" style="background: var(--teal);"></span>Cache Hits (~15ms)</span>
-                    <span class="legend-item"><span class="legend-dot" style="background: var(--amber);"></span>Cache Misses (mode ~85ms)</span>
-                    <span class="legend-item"><span class="legend-dot" style="background: var(--red);"></span>Sample Mean</span>
-                </div>
-
-                <div class="canvas-wrap">
-                    <canvas id="cv" width="800" height="320" role="img" aria-label="Synthetic bimodal latency histogram showing cache hits and misses with sample mean marker."></canvas>
-                </div>
-
-                <div class="readout">
-                    <div>Samples: <span id="statN">0</span></div>
-                    <div>Sample Mean: <span id="statMean">–</span></div>
-                    <div>P50: <span id="statP50">–</span></div>
-                    <div>P95: <span id="statP95">–</span></div>
-                    <div>P99: <span id="statP99">–</span></div>
-                    <div>Theory StdDev: <span id="statTheoryStd">32.2 ms</span></div>
-                    <div>Parent Fan-Out Stall Prob: <span id="statFanoutStall">63.4%</span></div>
-                </div>
-            </div>
-
-            <h2>6. Availability Economics &amp; Production Decision Framework</h2>
-
-            <h3>Availability Targets as Evaluative Questions</h3>
-            <p>A target of "five nines" allows ~5.256 minutes of annual downtime. However, uptime percentages do not prescribe rigid architectural rules. The required engineering controls depend on incident frequency, recovery behavior, and the service's SLI definition:</p>
+            $$Q(p)=100+200\left(\frac{p-0.85}{0.15}\right)$$
 
             <div class="table-wrap">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th scope="col">Availability Target</th>
-                            <th scope="col">Annual Downtime Equivalent (365 Days)</th>
-                            <th scope="col">Architectural Questions to Answer</th>
+                            <th>Metric</th>
+                            <th>Value</th>
+                            <th>Interpretation</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>99% (Two Nines)</strong></td>
-                            <td>3.65 days</td>
-                            <td>Is manual recovery acceptable during an outage?</td>
+                            <td><strong>Mean</strong></td>
+                            <td>45.3 ms</td>
+                            <td>Weighted average across both paths.</td>
                         </tr>
                         <tr>
-                            <td><strong>99.9% (Three Nines)</strong></td>
-                            <td>8.76 hours</td>
-                            <td>What are the dominant outage causes and automated failover recovery times?</td>
+                            <td><strong>p50</strong></td>
+                            <td>18 ms</td>
+                            <td>Median request is a cache hit.</td>
                         </tr>
                         <tr>
-                            <td><strong>99.95% (Three-and-a-Half Nines)</strong></td>
-                            <td>4.38 hours</td>
-                            <td>How much error budget is consumed by regular deployments and dependency stalls?</td>
+                            <td><strong>p95</strong></td>
+                            <td>233.3 ms</td>
+                            <td>Falls inside the cache-miss population.</td>
                         </tr>
                         <tr>
-                            <td><strong>99.99% (Four Nines)</strong></td>
-                            <td>52.56 minutes</td>
-                            <td>Have failover, automated rollback, and cell isolation been empirically tested against the actual SLO?</td>
+                            <td><strong>p99</strong></td>
+                            <td>286.7 ms</td>
+                            <td>Deep inside the miss population.</td>
                         </tr>
                         <tr>
-                            <td><strong>99.999% (Five Nines)</strong></td>
-                            <td>5.256 minutes</td>
-                            <td>Can the architecture tolerate correlated failures, partial brownouts, and control-plane outages within the remaining budget?</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- FINOPS INTERACTIVE SIMULATION -->
-            <div class="stage">
-                <div class="stage-bar">
-                    <span class="stage-title">Interactive Simulator · Illustrative Reliability Cost Index</span>
-                </div>
-
-                <div class="slider-row">
-                    <span class="slider-label">99% (2 Nines)</span>
-                    <input type="range" id="finopsSlider" class="finops-slider" min="2" max="5" step="0.05" value="4" aria-label="Availability target in number of nines" aria-describedby="finopsNote">
-                    <span class="slider-label" style="color: var(--text); font-weight: 600;">99.999% (5 Nines)</span>
-                </div>
-
-                <div class="canvas-wrap">
-                    <canvas id="cvFinops" width="800" height="250" role="img" aria-label="Illustrative normalized cost index curve from two nines to five nines."></canvas>
-                </div>
-
-                <div class="stat-row">
-                    <div>
-                        <div class="stat-label">Allowed Downtime / Yr</div>
-                        <div class="stat-value" id="fDowntime">52.56 mins</div>
-                    </div>
-                    <div>
-                        <div class="stat-label">Design Options to Evaluate</div>
-                        <div class="stat-value small" id="fArch">Evaluate regional failure modes, replication lag, failover time, data-loss objectives, and dependency independence.</div>
-                    </div>
-                    <div>
-                        <div class="stat-label">Illustrative Cost Index</div>
-                        <div class="stat-value" id="fCost">18.5× (illustrative)</div>
-                    </div>
-                </div>
-            </div>
-            <p id="finopsNote" class="sim-note">The curve above is an <strong>illustrative scenario model</strong> (normalized to 1× at 99% and 80× at 99.999%), not an empirical industry law. Use the business-impact calculator below to evaluate specific incident minutes, business loss, and mitigation costs.</p>
-
-            <!-- Scenario H: Business-Impact Model -->
-            <section class="scenario" id="business-roi" data-accent="amber">
-                <h3>Worked Scenario H: Annualized Business-Impact &amp; Mitigation Model</h3>
-                <p class="scenario-kicker">Illustrative decision model <span class="evidence">Deterministic cost-benefit calculation</span></p>
-
-                <p>Suppose an API targeting <strong>99.99%</strong> (52.56 min/yr budget) currently averages <strong>40 minutes/year</strong> of downtime. A proposed multi-region failover upgrade reduces expected downtime to <strong>15 minutes/year</strong> (saving 25 minutes), but introduces additional infrastructure, maintenance, and testing costs. With \(m\) as incident minutes per year, \(\ell\) as business loss per minute, and \(C\) as annualized engineering cost, the net expected value is:</p>
-
-                $$\text{Net EV} = (m_{\text{now}} - m_{\text{after}}) \times \ell - C = 25 \times 5000 - 90{,}000 = +35{,}000 \text{ USD/yr}$$
-
-                <p><em>(Note: This model calculates deterministic cost avoidance for stated inputs. A full actuarial model would incorporate incident frequency distributions, variance in loss rates, and residual risk of failover failure.)</em></p>
-
-                <div class="stage">
-                    <div class="params">
-                        <div class="param">
-                            <div class="param-label"><span>Current Outage (min/yr)</span><strong id="lblCurrMin">40 min</strong></div>
-                            <input type="range" id="sldCurrMin" class="finops-slider" min="5" max="240" step="5" value="40" aria-label="Current outage minutes per year">
-                        </div>
-                        <div class="param">
-                            <div class="param-label"><span>Post-Mitigation (min/yr)</span><strong id="lblNewMin">15 min</strong></div>
-                            <input type="range" id="sldNewMin" class="finops-slider" min="1" max="120" step="1" value="15" aria-label="Outage minutes per year after mitigation">
-                        </div>
-                        <div class="param">
-                            <div class="param-label"><span>Business Loss ($/min)</span><strong id="lblLossRate">$5,000</strong></div>
-                            <input type="range" id="sldLossRate" class="finops-slider" min="500" max="25000" step="500" value="5000" aria-label="Business loss per minute of downtime">
-                        </div>
-                        <div class="param">
-                            <div class="param-label"><span>Annual Mitigation Cost</span><strong id="lblMitCost">$90,000</strong></div>
-                            <input type="range" id="sldMitCost" class="finops-slider" min="10000" max="500000" step="10000" value="90000" aria-label="Annual mitigation cost">
-                        </div>
-                    </div>
-
-                    <div class="readout">
-                        <div>Avoided Downtime: <span id="roiSavedMin">25 min/yr</span></div>
-                        <div>Avoided Business Loss: <span id="roiAvoidedLoss">$125,000/yr</span></div>
-                        <div>Annualized Tech Cost: <span id="roiTechCost">$90,000/yr</span></div>
-                        <div>Net Annualized EV: <span id="roiNetEV" style="color: var(--teal);">+$35,000/yr (Justified)</span></div>
-                    </div>
-                </div>
-            </section>
-
-            <h3>The Production Decision Framework</h3>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Method / Model</th>
-                            <th scope="col">Random Variable</th>
-                            <th scope="col">Core Assumptions</th>
-                            <th scope="col">Equation / Estimator</th>
-                            <th scope="col">Validation &amp; Falsification</th>
-                            <th scope="col">Engineering Control</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Empirical Quantiles &amp; Mixtures</strong></td>
-                            <td>Request latency \(X\) (ms) by path</td>
-                            <td>Stationary regime within window; uncensored observations</td>
-                            <td>\(\mathbb{E}[X] = \sum_i w_i \mu_i\);<br>\(P(X &gt; q_p) = 1 - p\)</td>
-                            <td>Compare fitted vs. HDR p95/p99/p99.9 on held-out windows; segment by cache/tenant</td>
-                            <td>End-to-end deadlines, cancellation propagation, per-class timeouts</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Extreme Value Theory (POT / GPD)</strong></td>
-                            <td>Tail exceedance \(Y = X - u\) above \(u\)</td>
-                            <td>De-clustered independent exceedances; asymptotic tail stability</td>
-                            <td>\(P(Y &gt; y) = \left(1 + \xi y/\beta\right)^{-1/\xi}\)</td>
-                            <td>Threshold stability plots, autocorrelation check, out-of-sample stress testing</td>
-                            <td>Load shedding, heavy-query bulkhead isolation, memory admission caps</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Kingman GI/G/1 + Little's Law</strong></td>
-                            <td>Queue wait \(W_q\) and in-flight count \(L\)</td>
-                            <td>Single-server FCFS stability (\(\rho &lt; 1\)); stationary arrivals/service</td>
-                            <td>\(W_q \approx \frac{c_a^2 + c_s^2}{2} \cdot \frac{\rho}{1-\rho}\,\mathbb{E}[S]\);<br>\(L = \lambda W\)</td>
-                            <td>Separate queue wait vs. service time; use multi-server simulation for worker pools</td>
-                            <td>Bounded queues, per-tenant concurrency limits, group commit batching</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Common-Cause Reliability (CCF)</strong></td>
-                            <td>Joint replica outage in interval \(\Delta t\)</td>
-                            <td>Shared fault \(q\) disables both; residual \(p\) conditionally independent</td>
-                            <td>\(P(\text{both}) = q + (1-q)\,p^2\)</td>
-                            <td>Dependency graph audits; chaos fault injection on shared DNS, IAM, and config pushes</td>
-                            <td>Static stability (local caching), cellular wave deploys, independent failover</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fan-Out &amp; Retry Amplification</strong></td>
-                            <td>Parent latency \(\max_i T_i\); retry load \(N\)</td>
-                            <td>\(N\) independent children; nested retry attempts per layer</td>
-                            <td>\(P(\text{all} \le \tau) = (1-p)^N\);<br>\(N_{\max} = r^L\)</td>
-                            <td>Compare root vs. leaf p99; track retry attempt counters separately from primary calls</td>
-                            <td>Bounded fan-out, hedged requests, single-layer retry ownership, retry budgets</td>
+                            <td><strong>p99.9</strong></td>
+                            <td>298.7 ms</td>
+                            <td>Close to the upper end of the assumed miss range.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="tldr-box tldr-box--amber">
-                <div class="tldr-eyebrow">Reusable Checklist · From Telemetry to an Engineering Decision</div>
+                <div class="tldr-eyebrow">Important correction</div>
                 <div class="tldr-content">
-                    <ol>
-                        <li><strong>Define the Decision &amp; Random Variable:</strong> State the exact parameter you are configuring and the measured boundary (e.g., gateway receipt until last byte delivered).</li>
-                        <li><strong>Collect Stratified Telemetry:</strong> Capture request class, tenant tier, payload size, cache state, queue wait, service time, retries, and late completions.</li>
-                        <li><strong>Select Candidate Models from the Mechanism:</strong> Use empirical quantiles for timeouts, mixture models for distinct paths, queueing models for waiting time, or EVT for rare tail exceedances.</li>
-                        <li><strong>Attempt to Falsify Assumptions:</strong> Check quantile errors on held-out windows, temporal autocorrelation, sample size, and whether past failures were censored by tight timeouts.</li>
-                        <li><strong>Implement Architectural Controls:</strong> Translate validated models into bounded queues, deadline policies, concurrency limits, retry budgets, or decoupled fallback paths.</li>
-                        <li><strong>Monitor Continuously:</strong> Track predicted vs. observed distributions and recalibrate whenever deployments, topologies, or dependencies change.</li>
-                    </ol>
+                    <p>With 85% of requests at 18 ms and all misses between
+                    100 and 300 ms, the p95 cannot be 95 ms. The p95 must be
+                    inside the miss population and is 233.3 ms under this model.</p>
+                    <p>A percentile table must be consistent with its stated
+                    data-generating process. If real telemetry says otherwise,
+                    either the workload assumptions or the model need to change.</p>
                 </div>
             </div>
 
-            <!-- Academic References Block -->
-            <div class="academic-references">
-                <strong>Mathematical &amp; Architectural Grounding</strong>
-                <p>Dean, J., &amp; Barroso, L. A. (2013). <em>The Tail at Scale</em>. Communications of the ACM, 56(2), 74–80. <a href="https://research.google/pubs/the-tail-at-scale/" target="_blank" rel="noopener noreferrer">Google Research</a> — latency tails, bimodal queueing, and fan-out amplification.</p>
-                <p>Google. <em>Site Reliability Engineering: Service Level Objectives</em>. <a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener noreferrer">Google SRE Book</a> — percentiles, SLOs, and error budgets as operational decision tools.</p>
-                <p>AWS Architecture &amp; Builder's Library. <em>Timeouts, Retries, and Backoff with Jitter</em>. <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builder's Library</a> — multi-layer retry amplification, jitter, and operational controls.</p>
-                <p>Kingman, J. F. C. (1961). <em>The single server queue in heavy traffic</em>. Mathematical Proceedings of the Cambridge Philosophical Society, 57(4), 902–904.</p>
-                <p>Little, J. D. C. (1961). <em>A Proof for the Queuing Formula: L = λW</em>. Operations Research, 9(3), 383–387. <a href="https://doi.org/10.1287/opre.9.3.383" target="_blank" rel="noopener noreferrer">doi:10.1287/opre.9.3.383</a></p>
-                <p>Alyahya, A., Tipper, D., &amp; Babay, A. (2024). <em>Availability Analysis of Network-Attack-Resilient Byzantine Fault Tolerant Systems</em>. 2024 43rd International Symposium on Reliable Distributed Systems (SRDS), 23–39. <a href="https://doi.org/10.1109/srds64841.2024.00014" target="_blank" rel="noopener noreferrer">doi:10.1109/srds64841.2024.00014</a></p>
-                <p>Jones, H. (2012). <em>Methods and Costs to Achieve Ultra Reliable Life Support</em>. 42nd International Conference on Environmental Systems. <a href="https://doi.org/10.2514/6.2012-3618" target="_blank" rel="noopener noreferrer">doi:10.2514/6.2012-3618</a></p>
-                <p>NIST/SEMATECH. <em>e-Handbook of Statistical Methods</em>. <a href="https://www.itl.nist.gov/div898/handbook/" target="_blank" rel="noopener noreferrer">NIST statistical methods reference</a> — extreme value distributions, model fitting, and statistical validation.</p>
+            <h4>Variance: the mixture has a cost of its own</h4>
+
+            <p>The variance of a mixture contains two components:</p>
+
+            $$\mathrm{Var}(X)=
+            \underbrace{\sum_i w_i\sigma_i^2}_{\text{within-path variance}}
+            +
+            \underbrace{\sum_i w_i(\mu_i-\mu)^2}_{\text{between-path variance}}$$
+
+            <p>For this example, the hit path has zero variance because it is
+            represented by a fixed 18 ms value. The uniform miss path has:</p>
+
+            $$\mathrm{Var}(U(100,300))=\frac{(300-100)^2}{12}
+            =3333.33\text{ ms}^2$$
+
+            <p>The total variance is:</p>
+
+            $$\begin{aligned}
+            \mathrm{Var}(X)
+            &=0.15(3333.33)
+            +0.85(0.15)(18-200)^2\\
+            &\approx4723.31\text{ ms}^2
+            \end{aligned}$$
+
+            $$\sigma_X \approx68.73\text{ ms}$$
+
+            <p>Most of the variance comes from the difference between execution
+            paths—not merely the variation within each path. That is why
+            segmentation matters.</p>
+
+            <h4>Production case study: the cold-cache rollout</h4>
+
+            <p>Now deploy a new worker fleet. The workers start with cold local
+            caches, so the hit ratio falls from 85% to 30%. Keep the same
+            conditional path latencies for the moment to isolate the effect
+            of changing the mixture weights.</p>
+
+            <p>The new mean is:</p>
+
+            $$\mathbb{E}[X_{\text{cold}}]
+            =0.30(18)+0.70(200)=145.4\text{ ms}$$
+
+            <p>The median now falls inside the miss population:</p>
+
+            $$Q(0.50)=100+200\left(\frac{0.50-0.30}{0.70}\right)
+            \approx157.1\text{ ms}$$
+
+            <p>The resulting comparison is:</p>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Warm cache (85%)</th>
+                            <th>Cold cache (30%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Mean</strong></td><td>45.3 ms</td><td>145.4 ms</td></tr>
+                        <tr><td><strong>p50</strong></td><td>18 ms</td><td>157.1 ms</td></tr>
+                        <tr><td><strong>p95</strong></td><td>233.3 ms</td><td>285.7 ms</td></tr>
+                        <tr><td><strong>p99</strong></td><td>286.7 ms</td><td>297.1 ms</td></tr>
+                        <tr><td><strong>p99.9</strong></td><td>298.7 ms</td><td>299.7 ms</td></tr>
+                    </tbody>
+                </table>
             </div>
 
-            <p><strong>What comes next:</strong> Part 2 moves from uncertainty in measurements to uncertainty in outcomes—how retries, timeouts, failure probability, and retry amplification change the data-generating process itself. The same discipline applies: define the event, state the assumptions, and validate the model against observed behavior.</p>
+            <p>The mean more than triples. The median moves from 18 ms to
+            157.1 ms. Yet the p99 changes by only about 10.5 ms.</p>
 
-            <!-- Next / Previous Page Navigation -->
-            <nav class="post-pager" aria-label="Series pagination">
-                <a href="index.html">← Series Overview</a>
-                <a href="part-2-mathematics-of-reliability-and-retries.html">Part 2: The Mathematics of Reliability and Retries →</a>
-            </nav>
-        </main>
+            <p>Why? The p99 was already deep inside the slow population.
+            Changing the mixture weight moves the median dramatically, but
+            cannot move the conditional miss distribution beyond its own
+            300 ms upper bound.</p>
 
-        <!-- Global Footer -->
-        <footer class="site-footer">
-            <div>© 2026 Saurav Sana</div>
-            <div class="footer-links">
-                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
-                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
-                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a href="../../contact.html">Email</a>
+            <p><strong>Production caveat:</strong> this calculation changes
+            only the mixture weight. In a real rollout, the additional miss
+            traffic may also increase object-store, metadata, network, and
+            worker contention. That changes the conditional miss distribution
+            itself. Measure both the path proportions and each path's latency.</p>
+
+            <h4>What should an architect do?</h4>
+
+            <ul>
+                <li><strong>Segment the telemetry:</strong> record
+                <code>cache_state</code>, <code>tenant_tier</code>,
+                <code>query_class</code>, payload size, and worker version.</li>
+                <li><strong>Warm caches deliberately:</strong> use controlled
+                prewarming or gradual traffic shifting when cold-cache
+                performance threatens the service objective.</li>
+                <li><strong>Use progressive rollouts:</strong> compare
+                cache-hit ratio and conditional miss latency across old
+                and new worker fleets.</li>
+                <li><strong>Keep admission control:</strong> prevent a sudden
+                increase in expensive cache misses from overwhelming the
+                query-worker pool.</li>
+                <li><strong>Preserve the distinction:</strong> a changing
+                mixture weight and a slower miss path are different
+                operational problems.</li>
+            </ul>
+
+            <p class="solution">
+                <strong>The solution.</strong> Model distinct execution paths
+                separately. Use empirical conditional percentiles for each
+                path, monitor mixture weights, and make cache warm-up and
+                rollout policies explicit architectural controls.
+            </p>
+        </section>
+
+        <h2>3. Timeouts do not make unfinished work disappear</h2>
+
+        <section class="scenario" id="timeout-censoring">
+            <h3>Worked Scenario B: Timeout censoring and zombie work</h3>
+            <p class="scenario-kicker">
+                Deadline design · Observability and cancellation
+                <span class="evidence">Illustrative calculation</span>
+            </p>
+
+            <h4>The difference between a slow request and an observed timeout</h4>
+
+            <p>Suppose the gateway configures a downstream timeout at
+            approximately 298.7 ms—the theoretical p99.9 in our warm-cache
+            example.</p>
+
+            <p>Under the model, approximately 0.1% of requests exceed that
+            threshold:</p>
+
+            $$1{,}000{,}000 \times 0.001 = 1{,}000
+            \text{ requests per million}$$
+
+            <p>That does not mean 1,000 requests are necessarily broken.
+            Some may be legitimate queries that would have completed at
+            299 ms or slightly later.</p>
+
+            <p>There is a subtle measurement problem here. If the gateway
+            stops waiting at time \(T\), the measured client-side duration
+            becomes:</p>
+
+            $$Y=\min(X,T)$$
+
+            <p>For a timed-out request, the true completion latency \(X\)
+            is unknown. We know only that it exceeded \(T\), assuming the
+            timeout was triggered by elapsed time rather than another
+            failure condition. This is a <strong>right-censored observation</strong>.</p>
+
+            <p>If a metrics pipeline records every timeout as an ordinary
+            completed observation at exactly \(T\), the resulting histogram
+            does not describe the true completion-time distribution. It
+            describes a mixture of completed requests and observations
+            truncated by the timeout policy.</p>
+
+            <h4>Three events that must not be confused</h4>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>What happened?</th>
+                            <th>What to record</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Client timeout</strong></td>
+                            <td>The caller stopped waiting.</td>
+                            <td>Deadline, timeout reason, elapsed time.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Backend cancellation</strong></td>
+                            <td>The worker acknowledged cancellation and stopped.</td>
+                            <td>Cancellation request and acknowledgement times.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Late completion</strong></td>
+                            <td>The backend continued and eventually completed.</td>
+                            <td>Actual completion time and abandoned-work duration.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-        </footer>
 
-    </div>
+            <h4>The zombie-work problem</h4>
 
-    <!-- KaTeX Delimiters -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            if (typeof renderMathInElement !== 'function') return;
-            renderMathInElement(document.body, {
-                delimiters: [
-                    { left: '$$', right: '$$', display: true },
-                    { left: '\\(', right: '\\)', display: false }
-                ],
-                throwOnError: false
-            });
+            <p>Imagine a gateway times out a query at 300 ms but does not
+            cancel the DuckDB operation. The client retries immediately.
+            The original query and its retry now consume resources at the
+            same time.</p>
+
+            <p>The gateway believes it has rejected the slow request.
+            The worker pool sees two jobs.</p>
+
+            <p>Multiply that behavior across tenants and repeated retries,
+            and a timeout policy intended to protect the system can increase
+            the load on the very dependency that is struggling.</p>
+
+            <h4>Engineering controls</h4>
+
+            <ul>
+                <li><strong>Propagate deadlines:</strong> pass the remaining
+                caller budget to downstream services rather than assigning
+                each hop a fresh timeout.</li>
+                <li><strong>Propagate cancellation:</strong> connect caller
+                cancellation to the query engine's supported interruption
+                mechanism, and verify that the worker actually stops.</li>
+                <li><strong>Measure censored outcomes separately:</strong>
+                do not silently treat timeout duration as actual completion
+                latency.</li>
+                <li><strong>Measure cancellation lag:</strong> record the
+                time between cancellation request and worker acknowledgement.</li>
+                <li><strong>Control retries:</strong> avoid immediate retries
+                for operations whose previous execution may still be running.</li>
+            </ul>
+
+            <p class="solution">
+                <strong>The solution.</strong> A timeout is a caller-side
+                decision, not proof that backend work stopped. Measure
+                completion, cancellation, and abandonment separately.
+                Use deadline propagation and cancellation acknowledgement
+                as first-class operational signals.
+            </p>
+        </section>
+
+        <h2>4. The simulator: watch a workload mixture change</h2>
+
+        <p>The following simulator uses the same simplified model as
+        Scenario A: cache hits at 18 ms and cache misses uniformly
+        distributed from 100 to 300 ms. Change the hit ratio and watch
+        the histogram and percentiles move.</p>
+
+        <div class="stage">
+            <div class="stage-bar">
+                <span class="stage-title">Interactive Simulator · Cache Mixture</span>
+                <div class="sim-controls">
+                    <button id="btnRun" type="button" class="sim-btn">▶ Run Simulation</button>
+                    <button id="btnStep" type="button" class="sim-btn sim-btn--ghost">Step 100</button>
+                    <button id="btnReset" type="button" class="sim-btn sim-btn--ghost">Reset</button>
+                </div>
+            </div>
+
+            <div class="params">
+                <div class="param">
+                    <div class="param-label">
+                        <span>Cache-hit ratio</span>
+                        <strong id="lblHitRatio">85%</strong>
+                    </div>
+                    <input type="range" id="sldHitRatio" class="finops-slider"
+                           min="10" max="95" step="5" value="85"
+                           aria-label="Cache hit ratio percentage">
+                </div>
+            </div>
+
+            <div class="stage-legend">
+                <span class="legend-item">
+                    <span class="legend-dot" style="background:var(--teal);"></span>
+                    Cache hits (18 ms)
+                </span>
+                <span class="legend-item">
+                    <span class="legend-dot" style="background:var(--amber);"></span>
+                    Cache misses (100–300 ms)
+                </span>
+                <span class="legend-item">
+                    <span class="legend-dot" style="background:var(--red);"></span>
+                    Sample mean
+                </span>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="cv" width="800" height="320" role="img"
+                        aria-label="Synthetic histogram of cache-hit and cache-miss latency samples."></canvas>
+            </div>
+
+            <div class="readout">
+                <div>Samples: <span id="statN">0</span></div>
+                <div>Sample Mean: <span id="statMean">–</span></div>
+                <div>Sample p50: <span id="statP50">–</span></div>
+                <div>Sample p95: <span id="statP95">–</span></div>
+                <div>Sample p99: <span id="statP99">–</span></div>
+            </div>
+
+            <div class="stat-row">
+                <div>
+                    <div class="stat-label">Theoretical Mean</div>
+                    <div class="stat-value" id="theoryMean">45.3 ms</div>
+                </div>
+                <div>
+                    <div class="stat-label">Theoretical p50</div>
+                    <div class="stat-value" id="theoryP50">18 ms</div>
+                </div>
+                <div>
+                    <div class="stat-label">Theoretical p95 / p99</div>
+                    <div class="stat-value" id="theoryTail">233.3 / 286.7 ms</div>
+                </div>
+            </div>
+        </div>
+
+        <p class="sim-note">The simulator uses a fixed 18 ms cache-hit value
+        and a uniform cache-miss distribution. It is deliberately simple:
+        it demonstrates mixture mechanics, not a production latency model.
+        Real workloads require measured conditional distributions and
+        temporal dependence analysis.</p>
+
+        <h2>5. Other ways the deterministic story breaks</h2>
+
+        <p>The cache example demonstrates one important lesson: a single
+        average can conceal distinct populations. Distributed systems
+        introduce several other mechanisms that make deterministic
+        capacity narratives unreliable.</p>
+
+        <section class="scenario">
+            <h3>Queueing: utilization is not a linear dial</h3>
+            <p class="scenario-kicker">Preview of Part 3 · Queueing physics</p>
+
+            <p>A worker that takes 10 ms to process a request has a nominal
+            service capacity of 100 requests per second. That does not mean
+            operating it at 99 requests per second is a sensible capacity plan.</p>
+
+            <p>For a single-server GI/G/1 queue, Kingman's approximation
+            estimates mean queue waiting time:</p>
+
+            $$W_q \approx
+            \left(\frac{c_a^2+c_s^2}{2}\right)
+            \left(\frac{\rho}{1-\rho}\right)\mathbb{E}[S]$$
+
+            <p>Assume \(c_a^2=c_s^2=1\) and mean service time
+            \(\mathbb{E}[S]=10\) ms:</p>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Utilization</th>
+                            <th>Mean queue wait</th>
+                            <th>Mean total time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>50%</td><td>10 ms</td><td>20 ms</td></tr>
+                        <tr><td>80%</td><td>40 ms</td><td>50 ms</td></tr>
+                        <tr><td>90%</td><td>90 ms</td><td>100 ms</td></tr>
+                        <tr><td>95%</td><td>190 ms</td><td>200 ms</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>This is a single-server approximation for mean waiting time,
+            not a p99 predictor or a multi-server worker-pool formula.
+            It illustrates why headroom and bounded queues matter.</p>
+
+            <p><strong>Architectural implication:</strong> measure queue wait
+            separately from service execution, apply admission control,
+            and avoid designing around sustained near-100% utilization.</p>
+
+            <p class="solution"><strong>Developed in Part 3.</strong>
+            Arrival variability, service-time variability, Little's Law,
+            and multi-server queue behaviour.</p>
+        </section>
+
+        <section class="scenario">
+            <h3>Redundancy: two replicas are not necessarily two independent risks</h3>
+            <p class="scenario-kicker">Preview of Part 2 · Reliability and common causes</p>
+
+            <p>If each of two replicas has a 1% failure probability and
+            failures are independent, simultaneous failure probability is:</p>
+
+            $$0.01 \times 0.01 = 0.0001 = 0.01\%$$
+
+            <p>But suppose a shared dependency has a 0.2% probability of
+            disabling both replicas. Let each replica also have a 1%
+            conditional residual failure probability when that shared
+            dependency is healthy.</p>
+
+            $$P(\text{both fail}) =
+            q+(1-q)p^2$$
+
+            $$=0.002+(0.998)(0.01)^2=0.0020998$$
+
+            <p>That is approximately 0.21%, substantially higher than
+            the independent baseline of 0.01% using the conditional
+            residual probability.</p>
+
+            <p>The point is not that every deployment has a 0.2% shared
+            failure probability. The point is that replica count alone
+            does not establish independence.</p>
+
+            <p><strong>Architectural implication:</strong> map shared
+            dependencies and failure domains. Test correlated failures,
+            not just individual process termination.</p>
+
+            <p class="solution"><strong>Developed in Part 2.</strong>
+            Reliability models, common-cause failures, redundancy,
+            retry budgets, and recovery behaviour.</p>
+        </section>
+
+        <section class="scenario">
+            <h3>Fan-out: a rare slow child becomes a common parent delay</h3>
+            <p class="scenario-kicker">Preview of Part 4 · Aggregation and extreme tails</p>
+
+            <p>Suppose a query fans out to 100 independent shards. Each
+            shard has a 1% probability of exceeding a deadline. If the
+            parent must wait for every child, the probability that at
+            least one child is slow is:</p>
+
+            $$P(\text{at least one slow child})
+            =1-(1-0.01)^{100}$$
+
+            $$\approx63.4\%$$
+
+            <p>A 1% child-level slow probability becomes a 63.4% chance
+            of at least one slow child in a 100-way fan-out, under the
+            independence assumption.</p>
+
+            <p>Real shards may be correlated, which can make the
+            independence calculation misleading in either direction.</p>
+
+            <p><strong>Architectural implication:</strong> bound fan-out,
+            understand aggregation semantics, and use hedging only for
+            eligible idempotent work when spare capacity exists.</p>
+
+            <p class="solution"><strong>Developed in Part 4.</strong>
+            Order statistics, tail amplification, and extreme-value
+            modelling.</p>
+        </section>
+
+        <h2>6. Uncertainty: know what more data can and cannot solve</h2>
+
+        <p>Not all uncertainty is the same. Treating it all as generic
+        noise leads to flawed architecture.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Underlying mechanism</th>
+                        <th>Can more data help?</th>
+                        <th>Engineering response</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Aleatory</strong></td>
+                        <td>Intrinsic workload or physical randomness.</td>
+                        <td>More data improves estimates, but does not remove the randomness.</td>
+                        <td>Headroom, admission control, isolation, and graceful degradation.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Epistemic</strong></td>
+                        <td>Incomplete knowledge or sparse observations.</td>
+                        <td>Often. Better instrumentation and experiments can reduce it.</td>
+                        <td>Canaries, shadow traffic, controlled experiments, and confidence intervals.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Model risk</strong></td>
+                        <td>Incorrect structural assumptions.</td>
+                        <td>Only if observations and experiments are used to challenge the assumptions.</td>
+                        <td>Out-of-sample validation, stress testing, and alternative models.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Faults are not probability distributions</h3>
+
+        <p>Crash, omission, timing, and Byzantine behaviour describe
+        fault semantics—how systems fail. They are not statistical
+        distributions.</p>
+
+        <ul>
+            <li><strong>Crash:</strong> a process halts. Use health detection,
+            safe restart, and fencing where stale actors could mutate state.</li>
+            <li><strong>Omission:</strong> a message or packet is lost.
+            Use idempotency, sequence tracking, and durable delivery patterns.</li>
+            <li><strong>Timing:</strong> a correct response arrives too late.
+            Use deadlines, cancellation, and explicit status reconciliation.</li>
+            <li><strong>Byzantine:</strong> a participant behaves arbitrarily
+            or inconsistently. Use protocol-specific fault tolerance,
+            integrity checks, and cryptographic verification where appropriate.</li>
+        </ul>
+
+        <p>Do not assign a textbook curve to a fault class without first
+        defining the random variable and validating the mechanism.</p>
+
+        <h2>7. Availability is a business decision, not a badge collection</h2>
+
+        <p>A target of five nines permits approximately 5.256 minutes
+        of downtime in a 365-day year. That is a useful constraint,
+        but it does not automatically prescribe multi-region deployment,
+        active-active replication, or any other architecture.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Availability</th>
+                        <th>Annual downtime budget</th>
+                        <th>Question to investigate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>99%</strong></td><td>3.65 days</td><td>Is manual recovery acceptable?</td></tr>
+                    <tr><td><strong>99.9%</strong></td><td>8.76 hours</td><td>What are the dominant outage causes?</td></tr>
+                    <tr><td><strong>99.95%</strong></td><td>4.38 hours</td><td>How much budget do deployments and dependency stalls consume?</td></tr>
+                    <tr><td><strong>99.99%</strong></td><td>52.56 minutes</td><td>Have failover and rollback been tested against the SLO?</td></tr>
+                    <tr><td><strong>99.999%</strong></td><td>5.256 minutes</td><td>Can correlated failures and control-plane outages fit inside the budget?</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Reliability cost is not a universal exponential law</h3>
+
+        <p>There is no universal industry curve that says five nines costs
+        exactly 80 times as much as two nines. The cost depends on the
+        workload, failure domains, data-loss objectives, recovery
+        requirements, staffing, and business impact.</p>
+
+        <p>The following slider is therefore an <strong>illustrative
+        normalized cost scenario</strong>, not an empirical benchmark.
+        Its purpose is to make the economic trade-off visible—not to
+        predict a vendor bill.</p>
+
+        <div class="stage">
+            <div class="stage-bar">
+                <span class="stage-title">Interactive Simulator · Illustrative Reliability Cost Index</span>
+            </div>
+
+            <div class="slider-row">
+                <span class="slider-label">99% (2 Nines)</span>
+                <input type="range" id="finopsSlider" class="finops-slider"
+                       min="2" max="5" step=".05" value="4"
+                       aria-label="Availability target in number of nines">
+                <span class="slider-label">99.999% (5 Nines)</span>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="cvFinops" width="800" height="250"
+                        role="img" aria-label="Illustrative reliability cost index curve."></canvas>
+            </div>
+
+            <div class="stat-row">
+                <div>
+                    <div class="stat-label">Allowed downtime per year</div>
+                    <div class="stat-value" id="fDowntime">52.56 mins</div>
+                </div>
+                <div>
+                    <div class="stat-label">Design considerations</div>
+                    <div class="stat-value small" id="fArch">
+                        Evaluate regional failure modes, replication lag,
+                        failover time, data-loss objectives, and dependency independence.
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-label">Illustrative cost index</div>
+                    <div class="stat-value" id="fCost">18.5×</div>
+                </div>
+            </div>
+        </div>
+
+        <p class="sim-note">The illustrative curve is normalized to 1× at
+        99% and 80× at 99.999%. It is not a claim about actual industry
+        pricing. Replace it with your own infrastructure, operational,
+        staffing, and expected-loss data when making an investment decision.</p>
+
+        <section class="scenario" id="business-roi">
+            <h3>Worked Scenario: Is a reliability investment worth it?</h3>
+            <p class="scenario-kicker">
+                Business-impact model
+                <span class="evidence">Deterministic cost-avoidance calculation</span>
+            </p>
+
+            <p>Suppose an API targeting 99.99% availability currently
+            experiences 40 minutes of downtime per year. A proposed
+            mitigation reduces that to 15 minutes. The annualized
+            engineering and infrastructure cost is $90,000, and the
+            estimated business impact is $5,000 per minute.</p>
+
+            $$\begin{aligned}
+            \text{Net annual value}
+            &=(40-15)\times \$5{,}000-\$90{,}000\\
+            &=+\$35{,}000
+            \end{aligned}$$
+
+            <p>For these stated inputs, the investment has positive
+            deterministic cost avoidance. This is not yet a full
+            expected-loss model: that would also account for incident
+            frequency, severity distributions, uncertainty in loss
+            rates, and the chance that the mitigation itself fails.</p>
+
+            <div class="stage">
+                <div class="params">
+                    <div class="param">
+                        <div class="param-label">
+                            <span>Current outage (min/year)</span>
+                            <strong id="lblCurrMin">40 min</strong>
+                        </div>
+                        <input type="range" id="sldCurrMin" class="finops-slider"
+                               min="5" max="240" step="5" value="40"
+                               aria-label="Current outage minutes per year">
+                    </div>
+                    <div class="param">
+                        <div class="param-label">
+                            <span>After mitigation (min/year)</span>
+                            <strong id="lblNewMin">15 min</strong>
+                        </div>
+                        <input type="range" id="sldNewMin" class="finops-slider"
+                               min="1" max="120" step="1" value="15"
+                               aria-label="Outage minutes per year after mitigation">
+                    </div>
+                    <div class="param">
+                        <div class="param-label">
+                            <span>Business loss ($/min)</span>
+                            <strong id="lblLossRate">$5,000</strong>
+                        </div>
+                        <input type="range" id="sldLossRate" class="finops-slider"
+                               min="500" max="25000" step="500" value="5000"
+                               aria-label="Business loss per minute">
+                    </div>
+                    <div class="param">
+                        <div class="param-label">
+                            <span>Annual mitigation cost</span>
+                            <strong id="lblMitCost">$90,000</strong>
+                        </div>
+                        <input type="range" id="sldMitCost" class="finops-slider"
+                               min="10000" max="500000" step="10000" value="90000"
+                               aria-label="Annual mitigation cost">
+                    </div>
+                </div>
+
+                <div class="readout">
+                    <div>Avoided downtime: <span id="roiSavedMin">25 min/yr</span></div>
+                    <div>Avoided loss: <span id="roiAvoidedLoss">$125,000/yr</span></div>
+                    <div>Technology cost: <span id="roiTechCost">$90,000/yr</span></div>
+                    <div>Net value: <span id="roiNetEV">+$35,000/yr</span></div>
+                </div>
+            </div>
+        </section>
+
+        <h2>8. The production decision framework</h2>
+
+        <p>The objective is not to collect distributions like trophies.
+        It is to select a model that helps make a specific engineering
+        decision—and to know when that model has stopped being useful.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Method</th>
+                        <th>Random variable</th>
+                        <th>Assumptions</th>
+                        <th>Validation</th>
+                        <th>Engineering control</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Empirical quantiles</strong></td>
+                        <td>Request latency by path</td>
+                        <td>Representative, correctly classified observations.</td>
+                        <td>Compare held-out p50/p95/p99; inspect sample size and censoring.</td>
+                        <td>Per-class deadlines, cancellation, and capacity headroom.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mixture models</strong></td>
+                        <td>Latency across distinct execution paths</td>
+                        <td>Path classification and conditional distributions are meaningful.</td>
+                        <td>Validate path weights and conditional quantiles independently.</td>
+                        <td>Cache warming, routing, workload isolation, and progressive rollout.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Queueing models</strong></td>
+                        <td>Queue wait and in-flight work</td>
+                        <td>Arrival and service assumptions are sufficiently representative.</td>
+                        <td>Compare measured queue wait with the model under controlled load.</td>
+                        <td>Bounded queues, admission control, and concurrency limits.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Extreme Value Theory</strong></td>
+                        <td>Tail exceedances above threshold</td>
+                        <td>Threshold stability and dependence treatment are defensible.</td>
+                        <td>Stability plots, uncertainty intervals, and held-out stress tests.</td>
+                        <td>Tail capacity, bulkheads, and load shedding.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reliability models</strong></td>
+                        <td>Component and joint failure events</td>
+                        <td>Failure domains and dependence are explicitly modelled.</td>
+                        <td>Dependency audits, fault injection, and recovery tests.</td>
+                        <td>Isolation, independent recovery paths, and redundancy.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tldr-box tldr-box--amber">
+            <div class="tldr-eyebrow">Reusable checklist · From telemetry to an engineering decision</div>
+            <div class="tldr-content">
+                <ol>
+                    <li><strong>Define the decision and random variable.</strong>
+                    State exactly what you are configuring and what is being measured.</li>
+                    <li><strong>Collect stratified telemetry.</strong>
+                    Capture tenant, query class, cache state, payload size,
+                    queue wait, service time, retries, and cancellation outcomes.</li>
+                    <li><strong>Select a model from the mechanism.</strong>
+                    Use empirical quantiles, mixture models, queueing models,
+                    or reliability models only when their assumptions fit.</li>
+                    <li><strong>Try to falsify the assumptions.</strong>
+                    Inspect out-of-sample errors, temporal dependence,
+                    sample size, regime changes, and censored observations.</li>
+                    <li><strong>Translate the result into a control.</strong>
+                    Use bounded queues, deadlines, admission limits,
+                    retry budgets, or isolation.</li>
+                    <li><strong>Monitor for model drift.</strong>
+                    Revisit the model when deployments, workload composition,
+                    dependencies, or topology change.</li>
+                </ol>
+            </div>
+        </div>
+
+        <h2>9. The shape of failure is an engineering decision</h2>
+
+        <p>Probability does not replace engineering judgement. It makes
+        the assumptions behind that judgement visible.</p>
+
+        <p>A model can be mathematically elegant and operationally useless.
+        A fitted distribution can describe last month's traffic and fail
+        after a deployment changes the cache-hit ratio. A timeout can
+        protect the caller while leaving expensive work running in the
+        background. A replica count can look reassuring while every
+        replica shares the same failure domain.</p>
+
+        <p>The discipline is to connect the measurement to the mechanism,
+        the mechanism to a model, and the model to a control that remains
+        safe when the model is wrong.</p>
+
+        <p>That is the real purpose of this series: not to turn architects
+        into distribution collectors, but to make uncertainty something
+        they can reason about, test, and design around.</p>
+
+        <p><strong>What comes next:</strong> Part 2 moves from uncertainty
+        in measurements to uncertainty in outcomes. We will examine
+        reliability, failure probability, retries, common-cause failures,
+        and the uncomfortable mathematics of systems that try to recover
+        by doing more work.</p>
+
+        <div class="academic-references">
+            <strong>Mathematical &amp; architectural grounding</strong>
+
+            <p>Dean, J., &amp; Barroso, L. A. (2013).
+            <em>The Tail at Scale</em>. Communications of the ACM, 56(2), 74–80.
+            <a href="https://research.google/pubs/the-tail-at-scale/"
+               target="_blank" rel="noopener noreferrer">Google Research</a>
+            — latency tails, fan-out, and response-time variability.</p>
+
+            <p>Google.
+            <em>Site Reliability Engineering: Service Level Objectives</em>.
+            <a href="https://sre.google/sre-book/service-level-objectives/"
+               target="_blank" rel="noopener noreferrer">Google SRE Book</a>
+            — SLOs, percentiles, and error budgets.</p>
+
+            <p>AWS.
+            <em>Timeouts, retries, and backoff with jitter</em>.
+            <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/"
+               target="_blank" rel="noopener noreferrer">AWS Builder's Library</a>
+            — deadline, retry, and overload considerations.</p>
+
+            <p>Kingman, J. F. C. (1961).
+            <em>The single server queue in heavy traffic</em>.
+            Mathematical Proceedings of the Cambridge Philosophical Society,
+            57(4), 902–904.</p>
+
+            <p>Little, J. D. C. (1961).
+            <em>A Proof for the Queuing Formula: L = λW</em>.
+            Operations Research, 9(3), 383–387.
+            <a href="https://doi.org/10.1287/opre.9.3.383"
+               target="_blank" rel="noopener noreferrer">doi:10.1287/opre.9.3.383</a>.</p>
+
+            <p>NIST/SEMATECH.
+            <em>e-Handbook of Statistical Methods</em>.
+            <a href="https://www.itl.nist.gov/div898/handbook/"
+               target="_blank" rel="noopener noreferrer">NIST</a>
+            — statistical modelling, estimation, and validation.</p>
+        </div>
+
+        <nav class="post-pager" aria-label="Series pagination">
+            <a href="index.html">← Series Overview</a>
+            <a href="part-2-mathematics-of-reliability-and-retries.html">
+                Part 2: The Mathematics of Reliability and Retries →
+            </a>
+        </nav>
+    </main>
+
+    <footer class="site-footer">
+        <div>© 2026 Saurav Sana</div>
+        <div class="footer-links">
+            <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+            <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+            <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a href="../../contact.html">Email</a>
+        </div>
+    </footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof renderMathInElement === 'function') {
+        renderMathInElement(document.body, {
+            delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '\\(', right: '\\)', display: false }
+            ],
+            throwOnError: false
         });
-    </script>
+    }
 
-    <!-- Interactive Simulations -->
-    <script>
-        function getThemeColor(varName, fallback) {
-            const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-            return val || fallback;
+    const themeBtn = document.querySelector('.theme-toggle');
+    if (themeBtn) {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        themeBtn.setAttribute('aria-pressed', current === 'dark');
+
+        themeBtn.addEventListener('click', function () {
+            const root = document.documentElement;
+            const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            root.setAttribute('data-theme', next);
+            themeBtn.setAttribute('aria-pressed', next === 'dark');
+            try { localStorage.setItem('theme', next); } catch (e) {}
+        });
+    }
+});
+</script>
+
+<script>
+function themeColor(name, fallback) {
+    return getComputedStyle(document.documentElement)
+        .getPropertyValue(name).trim() || fallback;
+}
+
+/* -------------------------------------------------------
+   Cache-mixture simulator
+   Hit: fixed 18 ms
+   Miss: Uniform(100, 300) ms
+------------------------------------------------------- */
+(function () {
+    const cv = document.getElementById('cv');
+    if (!cv) return;
+
+    const ctx = cv.getContext('2d');
+    const hitSlider = document.getElementById('sldHitRatio');
+    const runBtn = document.getElementById('btnRun');
+    const stepBtn = document.getElementById('btnStep');
+    const resetBtn = document.getElementById('btnReset');
+
+    let width = 800;
+    const height = 320;
+    let samples = [];
+    let running = false;
+    let timer = null;
+    const maxSamples = 5000;
+    const MAX_X = 320;
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        width = Math.max(280, cv.parentElement.getBoundingClientRect().width);
+        cv.width = width * dpr;
+        cv.height = height * dpr;
+        cv.style.width = width + 'px';
+        cv.style.height = height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw();
+    }
+
+    function generateSample() {
+        const hitRatio = Number(hitSlider.value) / 100;
+        if (Math.random() < hitRatio) {
+            return { value: 18, kind: 'hit' };
+        }
+        return {
+            value: 100 + Math.random() * 200,
+            kind: 'miss'
+        };
+    }
+
+    function quantile(p, hitRatio) {
+        if (p <= hitRatio) return 18;
+        return 100 + 200 * ((p - hitRatio) / (1 - hitRatio));
+    }
+
+    function theory() {
+        const w = Number(hitSlider.value) / 100;
+        const mean = w * 18 + (1 - w) * 200;
+        const variance =
+            (1 - w) * (20000 / 12) +
+            w * (1 - w) * Math.pow(18 - 200, 2);
+
+        document.getElementById('lblHitRatio').textContent =
+            Math.round(w * 100) + '%';
+        document.getElementById('theoryMean').textContent =
+            mean.toFixed(1) + ' ms';
+        document.getElementById('theoryP50').textContent =
+            quantile(.50, w).toFixed(1) + ' ms';
+        document.getElementById('theoryTail').textContent =
+            quantile(.95, w).toFixed(1) + ' / ' +
+            quantile(.99, w).toFixed(1) + ' ms';
+    }
+
+    function percentile(sorted, p) {
+        if (!sorted.length) return 0;
+        const index = Math.max(0, Math.ceil(p * sorted.length) - 1);
+        return sorted[index];
+    }
+
+    function updateStats(values, mean) {
+        const sorted = [...values].sort((a, b) => a - b);
+        document.getElementById('statN').textContent = values.length;
+        document.getElementById('statMean').textContent =
+            mean.toFixed(1) + ' ms';
+        document.getElementById('statP50').textContent =
+            percentile(sorted, .50).toFixed(1) + ' ms';
+        document.getElementById('statP95').textContent =
+            percentile(sorted, .95).toFixed(1) + ' ms';
+        document.getElementById('statP99').textContent =
+            percentile(sorted, .99).toFixed(1) + ' ms';
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        const light = document.documentElement.getAttribute('data-theme') === 'light';
+        const grid = light ? '#c8bfb0' : '#2b3340';
+        const label = light ? '#6b6256' : '#8992a3';
+        const hitColor = themeColor('--teal', '#4fb8a6');
+        const missColor = themeColor('--amber', '#e8a33d');
+        const meanColor = themeColor('--red', '#d9645c');
+
+        const pad = { l: 44, r: 20, t: 30, b: 40 };
+        const plotW = width - pad.l - pad.r;
+        const plotH = height - pad.t - pad.b;
+        const baseY = height - pad.b;
+        const bins = 64;
+        const binW = MAX_X / bins;
+        const hits = new Array(bins).fill(0);
+        const misses = new Array(bins).fill(0);
+
+        ctx.strokeStyle = grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, pad.t);
+        ctx.lineTo(pad.l, baseY);
+        ctx.lineTo(width - pad.r, baseY);
+        ctx.stroke();
+
+        ctx.fillStyle = label;
+        ctx.font = '11px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center';
+
+        for (let x = 0; x <= MAX_X; x += 40) {
+            const px = pad.l + (x / MAX_X) * plotW;
+            ctx.fillText(x + ' ms', px, height - 12);
+            ctx.beginPath();
+            ctx.moveTo(px, baseY);
+            ctx.lineTo(px, baseY + 4);
+            ctx.stroke();
         }
 
-        (function () {
-            const cv = document.getElementById('cv');
-            if (!cv) return;
-            const ctx = cv.getContext('2d');
-            const sldHitRatio = document.getElementById('sldHitRatio');
-            const sldFanout = document.getElementById('sldFanout');
-            const sldSlowProb = document.getElementById('sldSlowProb');
+        if (!samples.length) {
+            ctx.fillStyle = label;
+            ctx.font = '13px "IBM Plex Mono", monospace';
+            ctx.fillText('Run the simulation to generate synthetic requests',
+                width / 2, height / 2);
+            theory();
+            return;
+        }
 
-            let logicalWidth = 800;
-            const logicalHeight = 320;
-            let samples = [];
-            let isRunning = false;
-            let timer = null;
-            const maxSamples = 3000;
+        let sum = 0;
+        const values = [];
 
-            const HIT_MEAN = 15, HIT_SD = 4;
-            const MISS_SHIFT = 85, MISS_SCALE = 12;
-
-            function resizeCanvas() {
-                const dpr = window.devicePixelRatio || 1;
-                const rect = cv.parentElement.getBoundingClientRect();
-                logicalWidth = Math.max(280, rect.width);
-                cv.width = logicalWidth * dpr;
-                cv.height = logicalHeight * dpr;
-                cv.style.width = logicalWidth + 'px';
-                cv.style.height = logicalHeight + 'px';
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.scale(dpr, dpr);
-                draw();
-            }
-
-            function randNormal() {
-                let u = 0, v = 0;
-                while (u === 0) u = Math.random();
-                while (v === 0) v = Math.random();
-                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-            }
-
-            function generateSample() {
-                const hitRatio = Number(sldHitRatio.value) / 100;
-                if (Math.random() < hitRatio) {
-                    return { latency: Math.max(0, HIT_MEAN + HIT_SD * randNormal()), kind: 'hit' };
-                }
-                return { latency: Math.max(0, MISS_SHIFT + MISS_SCALE * Math.abs(randNormal())), kind: 'miss' };
-            }
-
-            function percentile(sorted, p) {
-                if (!sorted.length) return 0;
-                const index = Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1);
-                return sorted[Math.max(0, index)];
-            }
-
-            function updateAnalyticalReadout() {
-                const w1 = Number(sldHitRatio.value) / 100;
-                const w2 = 1 - w1;
-                const N = Number(sldFanout.value);
-                const pSlow = Number(sldSlowProb.value) / 100;
-
-                document.getElementById('lblHitRatio').textContent = Math.round(w1 * 100) + '%';
-                document.getElementById('lblFanout').textContent = N;
-                document.getElementById('lblSlowProb').textContent = (pSlow * 100).toFixed(1) + '%';
-
-                const missMean = MISS_SHIFT + MISS_SCALE * Math.sqrt(2 / Math.PI);
-                const missVar = MISS_SCALE * MISS_SCALE * (1 - 2 / Math.PI);
-                const hitVar = HIT_SD * HIT_SD;
-                const theoryMean = w1 * HIT_MEAN + w2 * missMean;
-                const theoryVar = w1 * hitVar + w2 * missVar + w1 * w2 * Math.pow(HIT_MEAN - missMean, 2);
-                const theoryStd = Math.sqrt(theoryVar);
-                const parentStall = (1 - Math.pow(1 - pSlow, N)) * 100;
-
-                document.getElementById('statTheoryStd').textContent = theoryStd.toFixed(1) + ' ms (E[X]=' + theoryMean.toFixed(1) + ' ms)';
-                document.getElementById('statFanoutStall').textContent = parentStall.toFixed(1) + '%';
-            }
-
-            function updateStats(n, mean, p50, p95, p99) {
-                document.getElementById('statN').textContent = n;
-                document.getElementById('statMean').textContent = n ? mean.toFixed(1) + ' ms' : '–';
-                document.getElementById('statP50').textContent = n ? p50.toFixed(1) + ' ms' : '–';
-                document.getElementById('statP95').textContent = n ? p95.toFixed(1) + ' ms' : '–';
-                document.getElementById('statP99').textContent = n ? p99.toFixed(1) + ' ms' : '–';
-                updateAnalyticalReadout();
-            }
-
-            function draw() {
-                ctx.clearRect(0, 0, logicalWidth, logicalHeight);
-                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-                const gridColor = isLight ? '#c8bfb0' : '#2b3340';
-                const labelColor = isLight ? '#6b6256' : '#8992a3';
-                const hitBarColor = getThemeColor('--teal', '#4fb8a6');
-                const missBarColor = getThemeColor('--amber', '#e8a33d');
-                const meanColor = getThemeColor('--red', '#d9645c');
-                const medColor = hitBarColor;
-
-                const pad = { l: 42, r: 22, t: 28, b: 40 };
-                const plotW = logicalWidth - pad.l - pad.r;
-                const plotH = logicalHeight - pad.t - pad.b;
-
-                ctx.strokeStyle = gridColor;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(pad.l, pad.t);
-                ctx.lineTo(pad.l, logicalHeight - pad.b);
-                ctx.lineTo(logicalWidth - pad.r, logicalHeight - pad.b);
-                ctx.stroke();
-
-                ctx.fillStyle = labelColor;
-                ctx.font = '12px "IBM Plex Mono", Consolas, monospace';
-                ctx.textAlign = 'center';
-                for (let i = 0; i <= 120; i += 30) {
-                    const x = pad.l + (i / 120) * plotW;
-                    ctx.fillText(i + 'ms', x, logicalHeight - pad.b + 22);
-                    ctx.beginPath(); ctx.moveTo(x, logicalHeight - pad.b); ctx.lineTo(x, logicalHeight - pad.b + 5); ctx.stroke();
-                }
-
-                if (!samples.length) {
-                    ctx.fillStyle = labelColor;
-                    ctx.font = '13px "IBM Plex Mono", Consolas, monospace';
-                    ctx.fillText('Click Run Simulation or Step 50 to generate synthetic samples', logicalWidth / 2, logicalHeight / 2);
-                    updateStats(0, 0, 0, 0, 0);
-                    return;
-                }
-
-                const maxVal = 120, bins = 60, binWidth = maxVal / bins;
-                const hits = new Array(bins).fill(0), misses = new Array(bins).fill(0);
-                let sum = 0;
-                const values = samples.map(s => s.latency);
-
-                samples.forEach(s => {
-                    sum += s.latency;
-                    if (s.latency >= maxVal) return;
-                    const idx = Math.max(0, Math.min(bins - 1, Math.floor(s.latency / binWidth)));
-                    if (s.kind === 'hit') hits[idx]++; else misses[idx]++;
-                });
-
-                const mean = sum / samples.length;
-                const sorted = [...values].sort((a, b) => a - b);
-                const p50 = percentile(sorted, 0.50), p95 = percentile(sorted, 0.95), p99 = percentile(sorted, 0.99);
-
-                let maxCount = 1;
-                for (let i = 0; i < bins; i++) maxCount = Math.max(maxCount, hits[i] + misses[i]);
-
-                const barW = plotW / bins;
-                for (let i = 0; i < bins; i++) {
-                    const x = pad.l + i * barW;
-                    const hitH = (hits[i] / maxCount) * plotH * 0.85;
-                    const missH = (misses[i] / maxCount) * plotH * 0.85;
-                    const baseY = logicalHeight - pad.b;
-
-                    ctx.fillStyle = hitBarColor;
-                    ctx.globalAlpha = 0.78;
-                    ctx.fillRect(x + 1, baseY - hitH, Math.max(1, barW - 2), hitH);
-
-                    ctx.fillStyle = missBarColor;
-                    ctx.fillRect(x + 1, baseY - hitH - missH, Math.max(1, barW - 2), missH);
-                    ctx.globalAlpha = 1.0;
-                }
-
-                function marker(value, color, label, dashed) {
-                    if (value < 0 || value > maxVal) return;
-                    const x = pad.l + (value / maxVal) * plotW;
-                    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.8;
-                    ctx.setLineDash(dashed ? [4, 4] : []);
-                    ctx.moveTo(x, pad.t); ctx.lineTo(x, logicalHeight - pad.b); ctx.stroke(); ctx.setLineDash([]);
-                    ctx.fillStyle = color; ctx.font = 'bold 10px "IBM Plex Mono", Consolas, monospace'; ctx.textAlign = 'center';
-                    ctx.fillText(label + ' (' + value.toFixed(0) + 'ms)', Math.max(50, Math.min(logicalWidth - 50, x)), pad.t - 8);
-                }
-
-                marker(mean, meanColor, 'MEAN', false);
-                marker(p50, medColor, 'P50', true);
-                updateStats(samples.length, mean, p50, p95, p99);
-            }
-
-            const runBtn = document.getElementById('btnRun');
-            runBtn.onclick = () => {
-                if (isRunning) {
-                    isRunning = false; clearInterval(timer); runBtn.textContent = '▶ Run Simulation'; return;
-                }
-                isRunning = true; runBtn.textContent = '⏸ Pause';
-                timer = setInterval(() => {
-                    if (samples.length + 30 > maxSamples) samples = [];
-                    for (let i = 0; i < 30; i++) samples.push(generateSample());
-                    draw();
-                }, 50);
-            };
-
-            document.getElementById('btnStep').onclick = () => {
-                if (isRunning) return;
-                if (samples.length + 50 > maxSamples) samples = [];
-                for (let i = 0; i < 50; i++) samples.push(generateSample());
-                draw();
-            };
-
-            document.getElementById('btnReset').onclick = () => {
-                samples = [];
-                if (isRunning) { clearInterval(timer); isRunning = false; runBtn.textContent = '▶ Run Simulation'; }
-                draw();
-            };
-
-            sldHitRatio.addEventListener('input', () => { samples = []; draw(); });
-            sldFanout.addEventListener('input', updateAnalyticalReadout);
-            sldSlowProb.addEventListener('input', updateAnalyticalReadout);
-
-            const observer = new MutationObserver(draw);
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-            window.addEventListener('resize', resizeCanvas);
-            window.addEventListener('load', resizeCanvas);
-        })();
-
-        (function () {
-            const cv = document.getElementById('cvFinops');
-            if (!cv) return;
-            const ctx = cv.getContext('2d');
-            const slider = document.getElementById('finopsSlider');
-            let logicalWidth = 800;
-            const logicalHeight = 250;
-            const MAX_INDEX = 80;
-
-            function costIndex(nines) { return Math.exp(Math.log(MAX_INDEX) * (nines - 2) / 3); }
-            function downtime(nines) {
-                const seconds = 365 * 24 * 60 * 60 * Math.pow(10, -nines);
-                if (seconds >= 86400) return (seconds / 86400).toFixed(2) + ' days';
-                if (seconds >= 3600) return (seconds / 3600).toFixed(2) + ' hours';
-                if (seconds >= 60) return (seconds / 60).toFixed(2) + ' mins';
-                return seconds.toFixed(1) + ' seconds';
-            }
-
-            function designConsiderations(n) {
-                if (n < 3) return 'Evaluate SLO definitions, single points of failure, recovery automation, and incident telemetry.';
-                if (n < 4) return 'Evaluate zone redundancy, dependency blast radius, safe deployment pipelines, and automated failover.';
-                if (n < 4.75) return 'Evaluate regional failure modes, replication lag, failover time, data-loss objectives, and dependency independence.';
-                return 'Evaluate cross-region failure domains, automated recovery, failover capacity headroom, and correlated fault tolerance.';
-            }
-
-            function resizeCanvas() {
-                const dpr = window.devicePixelRatio || 1;
-                const rect = cv.parentElement.getBoundingClientRect();
-                logicalWidth = Math.max(280, rect.width);
-                cv.width = logicalWidth * dpr; cv.height = logicalHeight * dpr;
-                cv.style.width = logicalWidth + 'px'; cv.style.height = logicalHeight + 'px';
-                ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr); draw();
-            }
-
-            function draw() {
-                ctx.clearRect(0, 0, logicalWidth, logicalHeight);
-                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-                const gridColor = isLight ? '#c8bfb0' : '#2b3340';
-                const labelColor = isLight ? '#6b6256' : '#8992a3';
-                const lineColor = getThemeColor('--red', '#d9645c');
-
-                const pad = { l: 44, r: 20, t: 20, b: 30 };
-                const plotW = logicalWidth - pad.l - pad.r;
-                const plotH = logicalHeight - pad.t - pad.b;
-
-                ctx.strokeStyle = gridColor;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(pad.l, pad.t);
-                ctx.lineTo(pad.l, logicalHeight - pad.b);
-                ctx.lineTo(logicalWidth - pad.r, logicalHeight - pad.b);
-                ctx.stroke();
-
-                ctx.fillStyle = labelColor;
-                ctx.font = '11px "IBM Plex Mono", Consolas, monospace';
-                ctx.textAlign = 'center';
-                for (let i = 2; i <= 5; i++) {
-                    const x = pad.l + ((i - 2) / 3) * plotW;
-                    ctx.fillText(i + ' Nines', x, logicalHeight - pad.b + 18);
-                    ctx.beginPath(); ctx.moveTo(x, logicalHeight - pad.b); ctx.lineTo(x, logicalHeight - pad.b + 4); ctx.stroke();
-                }
-
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'middle';
-                for (let c = 0; c <= 80; c += 20) {
-                    const y = logicalHeight - pad.b - (c / 80) * plotH;
-                    ctx.fillText(c + 'x', pad.l - 8, y);
-                }
-
-                ctx.textBaseline = 'alphabetic';
-                ctx.beginPath();
-                ctx.strokeStyle = labelColor;
-                ctx.lineWidth = 2;
-                ctx.setLineDash([4, 4]);
-                for (let n = 2; n <= 5.001; n += 0.025) {
-                    const x = pad.l + ((n - 2) / 3) * plotW;
-                    const y = logicalHeight - pad.b - (costIndex(n) / MAX_INDEX) * plotH;
-                    if (n <= 2.001) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                const nines = Number(slider.value);
-                const cost = costIndex(nines);
-                const ptX = pad.l + ((nines - 2) / 3) * plotW;
-                const ptY = logicalHeight - pad.b - (cost / MAX_INDEX) * plotH;
-
-                ctx.beginPath();
-                ctx.moveTo(ptX, logicalHeight - pad.b);
-                ctx.lineTo(ptX, ptY);
-                ctx.strokeStyle = lineColor;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(ptX, ptY, 6, 0, Math.PI * 2);
-                ctx.fillStyle = lineColor;
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = isLight ? '#ffffff' : '#1e2430';
-                ctx.stroke();
-
-                document.getElementById('fDowntime').textContent = downtime(nines);
-                document.getElementById('fArch').textContent = designConsiderations(nines);
-                document.getElementById('fCost').textContent = cost.toFixed(1) + '× (illustrative)';
-                slider.setAttribute('aria-valuetext', nines.toFixed(2) + ' nines; ' + downtime(nines) + ' annual downtime budget');
-
-                const costEl = document.getElementById('fCost');
-                costEl.style.color = nines >= 4.5 ? 'var(--red)' : nines >= 3.5 ? 'var(--amber)' : 'var(--text)';
-            }
-
-            slider.addEventListener('input', draw);
-            const observer = new MutationObserver(draw);
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-            window.addEventListener('resize', resizeCanvas);
-            window.addEventListener('load', resizeCanvas);
-
-            // Worked Scenario H
-            const sldCurrMin = document.getElementById('sldCurrMin');
-            const sldNewMin = document.getElementById('sldNewMin');
-            const sldLossRate = document.getElementById('sldLossRate');
-            const sldMitCost = document.getElementById('sldMitCost');
-
-            function updateROI() {
-                const currM = Number(sldCurrMin.value);
-                const newM = Number(sldNewMin.value);
-                const lossRate = Number(sldLossRate.value);
-                const mitCost = Number(sldMitCost.value);
-
-                document.getElementById('lblCurrMin').textContent = currM + ' min';
-                document.getElementById('lblNewMin').textContent = newM + ' min';
-                document.getElementById('lblLossRate').textContent = '$' + lossRate.toLocaleString();
-                document.getElementById('lblMitCost').textContent = '$' + mitCost.toLocaleString();
-
-                const savedM = Math.max(0, currM - newM);
-                const avoidedLoss = savedM * lossRate;
-                const netEV = avoidedLoss - mitCost;
-
-                document.getElementById('roiSavedMin').textContent = savedM + ' min/yr';
-                document.getElementById('roiAvoidedLoss').textContent = '$' + avoidedLoss.toLocaleString() + '/yr';
-                document.getElementById('roiTechCost').textContent = '$' + mitCost.toLocaleString() + '/yr';
-
-                const evEl = document.getElementById('roiNetEV');
-                if (netEV >= 0) {
-                    evEl.textContent = '+$' + netEV.toLocaleString() + '/yr (Justified)';
-                    evEl.style.color = 'var(--teal)';
-                } else {
-                    evEl.textContent = '-$' + Math.abs(netEV).toLocaleString() + '/yr (Over-Engineered)';
-                    evEl.style.color = 'var(--red)';
-                }
-            }
-
-            [sldCurrMin, sldNewMin, sldLossRate, sldMitCost].forEach(el => el.addEventListener('input', updateROI));
-            updateROI();
-        })();
-
-        // Theme Toggle Setup
-        document.addEventListener('DOMContentLoaded', () => {
-            const themeBtn = document.querySelector('.theme-toggle');
-            if (themeBtn) {
-                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
-
-                themeBtn.addEventListener('click', () => {
-                    const root = document.documentElement;
-                    const current = root.getAttribute('data-theme') || 'dark';
-                    const newTheme = current === 'light' ? 'dark' : 'light';
-
-                    root.setAttribute('data-theme', newTheme);
-                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
-                });
-            }
+        samples.forEach(sample => {
+            sum += sample.value;
+            values.push(sample.value);
+            const index = Math.min(bins - 1,
+                Math.max(0, Math.floor(sample.value / binW)));
+            if (sample.kind === 'hit') hits[index]++;
+            else misses[index]++;
         });
-    </script>
+
+        let maxCount = 1;
+        for (let i = 0; i < bins; i++) {
+            maxCount = Math.max(maxCount, hits[i] + misses[i]);
+        }
+
+        for (let i = 0; i < bins; i++) {
+            const x = pad.l + i * (plotW / bins);
+            const bw = Math.max(1, plotW / bins - 2);
+            const hitH = hits[i] / maxCount * plotH * .85;
+            const missH = misses[i] / maxCount * plotH * .85;
+
+            ctx.globalAlpha = .82;
+            ctx.fillStyle = hitColor;
+            ctx.fillRect(x + 1, baseY - hitH, bw, hitH);
+            ctx.fillStyle = missColor;
+            ctx.fillRect(x + 1, baseY - hitH - missH, bw, missH);
+            ctx.globalAlpha = 1;
+        }
+
+        const mean = sum / samples.length;
+        const meanX = pad.l + Math.min(MAX_X, mean) / MAX_X * plotW;
+
+        ctx.strokeStyle = meanColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(meanX, pad.t);
+        ctx.lineTo(meanX, baseY);
+        ctx.stroke();
+
+        ctx.fillStyle = meanColor;
+        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('MEAN ' + mean.toFixed(1) + ' ms',
+            Math.max(65, Math.min(width - 65, meanX)), pad.t - 10);
+
+        updateStats(values, mean);
+        theory();
+    }
+
+    function addSamples(count) {
+        if (samples.length + count > maxSamples) samples = [];
+        for (let i = 0; i < count; i++) samples.push(generateSample());
+        draw();
+    }
+
+    runBtn.addEventListener('click', function () {
+        if (running) {
+            running = false;
+            clearInterval(timer);
+            runBtn.textContent = '▶ Run Simulation';
+            return;
+        }
+        running = true;
+        runBtn.textContent = '⏸ Pause';
+        timer = setInterval(() => addSamples(40), 60);
+    });
+
+    stepBtn.addEventListener('click', function () {
+        if (!running) addSamples(100);
+    });
+
+    resetBtn.addEventListener('click', function () {
+        samples = [];
+        if (running) {
+            clearInterval(timer);
+            running = false;
+            runBtn.textContent = '▶ Run Simulation';
+        }
+        draw();
+    });
+
+    hitSlider.addEventListener('input', function () {
+        samples = [];
+        draw();
+    });
+
+    new MutationObserver(draw).observe(document.documentElement, {
+        attributes: true, attributeFilter: ['data-theme']
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+})();
+
+/* -------------------------------------------------------
+   FinOps illustration and business-impact calculator
+------------------------------------------------------- */
+(function () {
+    const cv = document.getElementById('cvFinops');
+    if (!cv) return;
+
+    const ctx = cv.getContext('2d');
+    const slider = document.getElementById('finopsSlider');
+    let width = 800;
+    const height = 250;
+    const maxIndex = 80;
+
+    function costIndex(nines) {
+        return Math.exp(Math.log(maxIndex) * (nines - 2) / 3);
+    }
+
+    function downtime(nines) {
+        const seconds = 365 * 24 * 60 * 60 * Math.pow(10, -nines);
+        if (seconds >= 86400) return (seconds / 86400).toFixed(2) + ' days';
+        if (seconds >= 3600) return (seconds / 3600).toFixed(2) + ' hours';
+        if (seconds >= 60) return (seconds / 60).toFixed(2) + ' mins';
+        return seconds.toFixed(1) + ' seconds';
+    }
+
+    function considerations(n) {
+        if (n < 3) return 'Evaluate recovery automation, single points of failure, and incident telemetry.';
+        if (n < 4) return 'Evaluate zone redundancy, dependency blast radius, and safe deployment.';
+        if (n < 4.75) return 'Evaluate regional failure modes, replication lag, failover time, and data-loss objectives.';
+        return 'Evaluate cross-region failure domains, recovery automation, capacity headroom, and correlated faults.';
+    }
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        width = Math.max(280, cv.parentElement.getBoundingClientRect().width);
+        cv.width = width * dpr;
+        cv.height = height * dpr;
+        cv.style.width = width + 'px';
+        cv.style.height = height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        const light = document.documentElement.getAttribute('data-theme') === 'light';
+        const grid = light ? '#c8bfb0' : '#2b3340';
+        const label = light ? '#6b6256' : '#8992a3';
+        const line = themeColor('--red', '#d9645c');
+
+        const pad = { l: 48, r: 20, t: 20, b: 32 };
+        const plotW = width - pad.l - pad.r;
+        const plotH = height - pad.t - pad.b;
+
+        ctx.strokeStyle = grid;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, pad.t);
+        ctx.lineTo(pad.l, height - pad.b);
+        ctx.lineTo(width - pad.r, height - pad.b);
+        ctx.stroke();
+
+        ctx.fillStyle = label;
+        ctx.font = '11px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center';
+
+        for (let n = 2; n <= 5; n++) {
+            const x = pad.l + ((n - 2) / 3) * plotW;
+            ctx.fillText(n + ' Nines', x, height - 10);
+        }
+
+        ctx.textAlign = 'right';
+        for (let c = 0; c <= 80; c += 20) {
+            const y = height - pad.b - c / 80 * plotH;
+            ctx.fillText(c + '×', pad.l - 8, y + 4);
+        }
+
+        ctx.beginPath();
+        ctx.strokeStyle = label;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+
+        for (let n = 2; n <= 5.001; n += .025) {
+            const x = pad.l + ((n - 2) / 3) * plotW;
+            const y = height - pad.b - costIndex(n) / maxIndex * plotH;
+            if (n <= 2.001) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const nines = Number(slider.value);
+        const cost = costIndex(nines);
+        const px = pad.l + ((nines - 2) / 3) * plotW;
+        const py = height - pad.b - cost / maxIndex * plotH;
+
+        ctx.beginPath();
+        ctx.moveTo(px, height - pad.b);
+        ctx.lineTo(px, py);
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fillStyle = line;
+        ctx.fill();
+
+        document.getElementById('fDowntime').textContent = downtime(nines);
+        document.getElementById('fArch').textContent = considerations(nines);
+        document.getElementById('fCost').textContent = cost.toFixed(1) + '× (illustrative)';
+        slider.setAttribute('aria-valuetext',
+            nines.toFixed(2) + ' nines; ' + downtime(nines) + ' downtime');
+    }
+
+    slider.addEventListener('input', draw);
+    new MutationObserver(draw).observe(document.documentElement, {
+        attributes: true, attributeFilter: ['data-theme']
+    });
+    window.addEventListener('resize', resize);
+    resize();
+
+    const curr = document.getElementById('sldCurrMin');
+    const after = document.getElementById('sldNewMin');
+    const loss = document.getElementById('sldLossRate');
+    const cost = document.getElementById('sldMitCost');
+
+    function updateROI() {
+        const current = Number(curr.value);
+        const mitigated = Number(after.value);
+        const rate = Number(loss.value);
+        const annualCost = Number(cost.value);
+
+        const saved = current - mitigated;
+        const avoided = saved * rate;
+        const net = avoided - annualCost;
+
+        document.getElementById('lblCurrMin').textContent = current + ' min';
+        document.getElementById('lblNewMin').textContent = mitigated + ' min';
+        document.getElementById('lblLossRate').textContent = '$' + rate.toLocaleString();
+        document.getElementById('lblMitCost').textContent = '$' + annualCost.toLocaleString();
+
+        document.getElementById('roiSavedMin').textContent = saved + ' min/yr';
+        document.getElementById('roiAvoidedLoss').textContent =
+            '$' + avoided.toLocaleString() + '/yr';
+        document.getElementById('roiTechCost').textContent =
+            '$' + annualCost.toLocaleString() + '/yr';
+
+        const output = document.getElementById('roiNetEV');
+        output.textContent = (net >= 0 ? '+' : '-') +
+            '$' + Math.abs(net).toLocaleString() + '/yr' +
+            (net >= 0 ? ' (Positive)' : ' (Negative)');
+        output.style.color = net >= 0 ? 'var(--teal)' : 'var(--red)';
+    }
+
+    [curr, after, loss, cost].forEach(el => el.addEventListener('input', updateROI));
+    updateROI();
+})();
+</script>
+
 </body>
 </html>
