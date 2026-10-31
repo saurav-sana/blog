@@ -293,9 +293,9 @@
             <p>For example, with a Poisson mean of 10 arrivals per second, the probability of exactly 30 arrivals in a 1-second interval is approximately $1.51 \times 10^{-7}$ (or $0.0000151\%$). An unusual count in a single interval does not by itself establish overload: the service rate, queue occupancy, and interval boundaries all dictate whether backlog accumulates.</p>
 
             <div class="worked-section">
-                <div class="worked-title">Worked Scenario: The 100ms Micro-Burst &amp; The 5-Slot Buffer</div>
-                <p>Consider a simplified admission model: a service sees an average of <strong>20 requests per second</strong>, and we count arrivals in fixed, non-overlapping <strong>100ms windows</strong>. For this calculation only, assume a window can admit at most five new arrivals and has no carry-over queue or service during the window. A real queue must also account for current occupancy, service completions, and arrivals across window boundaries; the Poisson count alone does not determine whether a real request is rejected.</p>
-                <p>How often do you drop traffic when your server is "only 20% utilized"? Let's do the math for a 100ms ($0.1\text{s}$) window:</p>
+                <div class="worked-title">Worked Scenario: The Analytics Gateway &amp; The 100ms Micro-Burst</div>
+                <p>Consider a simplified admission controller for our Multi-Tenant Analytics Gateway: the service sees an average of <strong>20 queries per second</strong> across all tenants, and we count arrivals in fixed, non-overlapping <strong>100ms windows</strong>. For this discrete calculation only, assume a window can admit at most five new queries and has no carry-over queue or background service draining queries mid-window. (A real continuous queue must also account for current occupancy and async service completions; the Poisson discrete count alone does not determine whether a real request is rejected).</p>
+                <p>How often do you drop traffic when your server is "only 20% utilized" against a theoretical capacity of 100 req/s? Let's do the math for a 100ms ($0.1\text{s}$) window:</p>
                 <div class="worked-steps">
                     Window Rate: $\lambda = 20 \text{ req/s} \times 0.1\text{s} = 2.0$ arrivals per 100ms<br>
                     Base Decay: $e^{-2} \approx 0.13534$<br><br>
@@ -309,7 +309,7 @@
                     Cumulative Safe Probability: $P(X \le 5) = 0.9834$ (98.34%)<br>
                     <strong>Overflow Probability: $P(X \ge 6) = 1 - 0.9834 = 0.0166$ (1.66%)</strong>
                 </div>
-                <p><strong>The Punchline:</strong> Under this Poisson model, <strong>1.66% of 100ms windows contain six or more arrivals</strong>. There are 600 such windows in a minute, so that is about <strong>10 overflow-sized windows per minute on average</strong> under the toy admission rule—not a prediction of exactly ten rejected requests. Actual rejection rates depend on queue occupancy, service completions, and how admission is implemented. A green minute-level CPU average can still hide short bursts.</p>
+                <p><strong>The Punchline:</strong> Under this Poisson model, <strong>1.66% of 100ms windows contain six or more arrivals</strong>. There are 600 such windows in a minute, so that is about <strong>10 overflow-sized micro-bursts per minute on average</strong> under the toy admission rule. A perfectly green minute-level CPU average can easily hide latency spikes driven by sub-second clumping.</p>
             </div>
 
             <div class="editorial-callout editorial-callout--math">
@@ -368,9 +368,10 @@
             <!-- ========================================== -->
             <h2>Finite Queues: When Arrival Rate Exceeds Capacity</h2>
             <p>Probability models describe variability; a capacity balance explains whether backlog can remain bounded. If the sustained arrival rate exceeds the sustained service rate, a finite queue eventually fills. This is a fluid approximation that ignores short-term randomness, but it is useful for first-order overload planning.</p>
+            
             <div class="worked-section">
-                <div class="worked-title">Worked Scenario: A Bounded Queue Fills in Ten Seconds</div>
-                <p>A consumer receives <strong>120 requests/s</strong>, can complete <strong>100 requests/s</strong>, and has <strong>200 waiting slots</strong>. Start with an empty queue and assume constant rates, no drops, and no additional scaling.</p>
+                <div class="worked-title">Worked Scenario: Consumer Lag in the Analytics Gateway</div>
+                <p>An Azure Event Hub consumer pulling trade events into the Analytics Gateway receives <strong>120 requests/s</strong> during a market open burst. The worker pool can process exactly <strong>100 requests/s</strong>. The internal buffer has <strong>200 waiting slots</strong>. Start with an empty queue and assume constant rates, no drops, and no additional scaling.</p>
                 <div class="worked-steps">
                     Net backlog growth = arrival rate − service rate<br>
                     $120 - 100 = 20$ requests/s<br><br>
@@ -411,7 +412,7 @@
 
             <div class="worked-section">
                 <div class="worked-title">Worked Scenario: The 30ms gRPC Deadline Assassination</div>
-                <p>Your team builds a pricing microservice with an average execution time of <strong>10ms</strong> ($\mu = 100\text{ req/s} = 0.1\text{ req/ms}$). During an architecture review, someone proposes setting a strict upstream gRPC timeout of <strong>30ms</strong>, arguing: <em>"30ms is 3x the average latency! Only broken requests take 3x the average!"</em></p>
+                <p>Your team builds a pricing microservice for the Analytics Gateway with an average execution time of <strong>10ms</strong> ($\mu = 100\text{ req/s} = 0.1\text{ req/ms}$). During an architecture review, someone proposes setting a strict upstream gRPC timeout of <strong>30ms</strong>, arguing: <em>"30ms is 3x the average latency! Only broken requests take 3x the average!"</em></p>
                 <p>Assuming exponentially distributed service times, let's see what happens when you deploy that timeout:</p>
                 <div class="worked-steps">
                     Mean Service Time: $E[T] = \frac{1}{\mu} = 10\text{ms}$ ($\mu = 0.1\text{ ms}^{-1}$)<br><br>
@@ -569,54 +570,48 @@
             </div>
 
             <div class="worked-section">
-                <div class="worked-title">Worked Scenario: Little’s Law Without Guessing Connection Counts</div>
-                <p>A service completes <strong>500 requests/s</strong>. Its measured mean time in the defined service boundary—including time waiting in that service’s queue—is <strong>40ms</strong>. Little’s Law estimates the long-run average number of requests inside that boundary:</p>
+                <div class="worked-title">Worked Scenario: Little’s Law and Gateway Concurrency</div>
+                <p>Our Analytics Gateway completes <strong>500 queries/s</strong>. Its measured mean time inside the Gateway's boundary—including time waiting in the router queue and execution time—is <strong>40ms</strong>. Little’s Law estimates the long-run average number of queries active inside that boundary:</p>
                 <div class="worked-steps">
-                    Throughput: $\lambda = 500\text{ requests/s}$<br>
+                    Throughput: $\lambda = 500\text{ queries/s}$<br>
                     Mean time in system: $W = 40\text{ ms} = 0.040\text{ s}$<br><br>
-                    $L = \lambda W = 500 \times 0.040 = \mathbf{20\ requests}$
+                    $L = \lambda W = 500 \times 0.040 = \mathbf{20\ queries}$
                 </div>
-                <p>The result means an average of 20 requests are in that measured boundary. It does not mean 20 threads, database connections, or downstream calls: async I/O, fan-out, pooling, and per-request resource use change those relationships. Keep the throughput, time, and concurrency measurements on the same boundary and use long-run averages for Little’s Law.</p>
+                <p>The result means an average of 20 queries are in flight within that measured boundary. It does not mean 20 threads, database connections, or downstream calls: async I/O, fan-out, connection pooling, and per-request resource use fundamentally alter those relationships. Keep the throughput, time, and concurrency measurements strictly on the same system boundary and use long-run averages.</p>
             </div>
 
             <!-- ========================================== -->
             <!-- 4. KINGMAN'S FORMULA & FLAGSHIP CASE STUDY -->
             <!-- ========================================== -->
             <div class="editorial-callout editorial-callout--warning" style="margin-top: 4rem;">
-                <div class="callout-eyebrow">The Grand Unification: Little’s Law, Kingman’s Approximation &amp; The Utilization Trap</div>
+                <div class="callout-eyebrow">The Grand Unification: Kingman’s Approximation &amp; The Utilization Trap</div>
                 <div class="callout-content">
-                    <p>Consider a <strong>hypothetical single serial processing lane</strong>—for example, one hot partition or one effectively single-server queue in a financial trade-ingestion path. This is intentionally <em>not</em> a prediction for an entire multi-worker Kubernetes deployment. The example shows how variability and high utilization can amplify waiting time when a GI/G/1 approximation is appropriate.</p>
-                    <p>Assume a single-server queue with:</p>
+                    <p>To see how variability and utilization conspire to destroy performance, consider a <strong>single serial processing lane</strong>—such as one hot Kafka partition feeding one single-threaded trade ingestion process in our Gateway. This is a stable GI/G/1 queueing approximation, not a direct prediction for an arbitrary multi-worker Kubernetes deployment.</p>
+                    
                     <ul>
-                        <li>Mean service time: $E[S] = 10\text{ ms}$</li>
-                        <li>Arrival and service coefficients of variation: $c_a = c_s = 1$</li>
-                        <li>Stable utilization: $\rho = 0.90$</li>
+                        <li><strong>1. The Incident:</strong> During peak trading hours, Kafka consumer lag alerts fire aggressively on Partition 7. However, the worker pod consuming Partition 7 shows a seemingly "safe" 90% CPU utilization.</li>
+                        <li><strong>2. Architectural Assumption:</strong> "We have 10% capacity headroom left. The queue shouldn't be building up."</li>
+                        <li><strong>3. Physical Mechanism:</strong> Real traffic isn't uniform. Trade events arrive in bursty clumps (high $c_a$), and the processing time per trade varies wildly depending on the size of the payload and database lock contention (high $c_s$).</li>
+                        <li><strong>4. Mathematical Model:</strong> Kingman’s GI/G/1 approximation connects utilization ($\rho$), mean service time ($E[S]$), and variability (coefficients of variation for arrivals $c_a$ and service $c_s$) to estimate mean waiting time in the queue ($E[W_q]$).</li>
                     </ul>
-                    <p>Kingman’s approximation gives:</p>
+
+                    <p><strong>5. The Calculation:</strong></p>
+                    <p>Assume $E[S] = 10\text{ ms}$, stable utilization $\rho = 0.90$, and both coefficients of variation are 1 ($c_a = c_s = 1$). Kingman’s approximation gives:</p>
                     
                     <div class="math-display">
-                        $$\begin{aligned} E[W_q] &\approx \frac{0.9}{1 - 0.9} \cdot \frac{1^2 + 1^2}{2} \cdot (10\text{ ms}) \\ &= 90\text{ ms} \end{aligned}$$
+                        $$\begin{aligned} E[W_q] &\approx \frac{\rho}{1 - \rho} \cdot \frac{c_a^2 + c_s^2}{2} \cdot E[S] \\ &= \frac{0.9}{1 - 0.9} \cdot \frac{1^2 + 1^2}{2} \cdot (10\text{ ms}) \\ &= 9 \cdot 1 \cdot 10 = \mathbf{90\text{ ms}} \end{aligned}$$
                     </div>
                     
-                    <p>At 95% utilization ($\rho = 0.95$), holding the other assumptions constant:</p>
+                    <p>If a slight traffic bump pushes utilization to 95% ($\rho = 0.95$), holding the other assumptions constant:</p>
                     
                     <div class="math-display">
-                        $$E[W_q] \approx 190\text{ ms}$$
+                        $$E[W_q] \approx \frac{0.95}{0.05} \cdot 1 \cdot 10 = \mathbf{190\text{ ms}}$$
                     </div>
 
-                    <p>The mean service time remains 10 ms, yet the estimated mean queue wait more than doubles.</p>
+                    <p>The actual work still takes 10 ms, yet the estimated mean queue wait more than doubles.</p>
                     
-                    <p><strong>Explicit Scope:</strong> Be explicit that these are illustrative estimates for a stable GI/G/1 queue, not p99 predictions and not estimates for an arbitrary multi-worker Kubernetes deployment. For a real service, measure arrival variability, service variability, and queue wait; then validate the model against observed results.</p>
-
-                    <p><strong>Little’s Law ($L = \lambda W$) &amp; System Boundaries:</strong> Little’s Law connects throughput, mean system residency time, and concurrency. For example, if a service completes $\lambda = 500\text{ requests/s}$ and the mean time in the measured system boundary is $W = 0.040\text{s}$ (40 ms):</p>
-                    
-                    <div class="math-display">
-                        $$L = 500 \times 0.040 = 20$$
-                    </div>
-                    
-                    <p>There are, on average, 20 requests in that system boundary. Clarify that the boundary must be defined consistently: this could mean requests inside a service, including their queue wait, or requests inside an entire end-to-end path. It does not automatically mean 20 threads, 20 database connections, or 20 downstream operations.</p>
-
-                    <p><strong>Engineering controls:</strong> measure arrival rate, completion rate, queue depth and age, service-time distribution, and per-stage latency; keep utilization headroom; enforce bounded queues and deadline-aware admission; apply retry budgets with exponential backoff and jitter; separate hot partitions/tenants; and validate tail latency under representative burst and payload distributions. Treat the model as a hypothesis to test, not as proof of a production incident.</p>
+                    <p><strong>6. The Architectural Decision:</strong> A 90% utilization target is actively hostile to latency if traffic is highly variable. To control this, the architect must reduce variability (smooth arrivals with upstream jitter, enforce payload size limits to cap $c_s$), decrease utilization (add partitions, over-provision workers), or bound the queue (apply load shedding and dead-letter the excess).</p>
+                    <p><strong>7. Production Verification:</strong> Stop looking solely at the CPU gauge. Measure $c_a$ (arrival variance) and $c_s$ (execution variance) directly from telemetry. Monitor the queue depth and wait time directly to validate whether the theoretical exponential curve matches the empirical reality of your overload.</p>
                 </div>
             </div>
 
@@ -634,6 +629,8 @@
                     <p><strong>Decision rule:</strong> prefer the simplest model that is mechanistically plausible, fits representative telemetry—including the tails relevant to the SLO—and changes an engineering decision. Revisit it when workload, topology, or controls change.</p>
                 </div>
             </section>
+            
+            <p>We now have a mathematical model for requests waiting in lines, executing as a mixture, and suffering through sequential pipelines. But modern architectures do not just execute tasks in sequence—they scatter queries across hundreds of database partitions simultaneously and wait for the results to aggregate. Erlang tells us what happens when stages run sequentially. But what if they run in parallel? What if we fan out to 100 partitions and wait for the slowest one? That is the mathematics of the extreme tail, and it requires a completely different toolset—which we will build in Part 4.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-2-mathematics-of-reliability-and-retries.html">← Part 2: The Mathematics of Reliability and Retries</a>

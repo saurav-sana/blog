@@ -216,20 +216,20 @@
                 <div class="matrix-display" id="matrixDisplay" role="tabpanel" aria-live="polite">
                     <div class="matrix-card">
                         <h4>Inference Serving (TTFT &amp; Throughput)</h4>
-                        <span class="distribution">Poisson (Arrivals) + Exponential / Heavy-Tail (Queue Wait)</span>
-                        <p>Uncoordinated prompt arrivals follow a Poisson process (Exponential inter-arrival times). As GPU utilization approaches saturation, variable prompt prefill lengths turn an M/M/c queue into an M/G/c bottleneck.</p>
+                        <span class="distribution">Poisson (Arrivals) + Heavy-Tail (Service Time)</span>
+                        <p>Uncoordinated prompt arrivals approximate a Poisson process. However, highly variable token generation lengths and large context prefills violate M/M/c exponential assumptions, turning the GPU cluster into a heavy-tailed M/G/c queue bottleneck as utilization rises.</p>
                         <p style="margin-top: 1rem;"><strong>Metrics to Watch:</strong></p>
                         <ul>
                             <li>Time to First Token (TTFT) p95 / p99</li>
                             <li>Inter-Token Latency (ITL)</li>
-                            <li>KV-Cache Utilization % &amp; Preemption Rate</li>
+                            <li>KV-Cache Block Utilization &amp; Preemption Rate</li>
                         </ul>
                     </div>
                     <div class="matrix-card matrix-card--trap">
                         <h4 style="color: var(--bad);">The SRE Trap</h4>
                         <p>Sizing your GPU cluster based on average RPS and mean prompt tokens. When a Poisson traffic burst coincides with a long-context prefill, head-of-line blocking causes queue wait times to diverge non-linearly.</p>
                         <h4 style="color: var(--teal); margin-top: 1.5rem;">The Engineering Control</h4>
-                        <p>Continuous batching with chunked prefill (vLLM/TGI) to prevent head-of-line blocking, paired with strict admission control (load shedding) when KV-cache occupancy crosses 85%.</p>
+                        <p>Continuous batching with chunked prefill (vLLM/TGI) to prevent head-of-line blocking, paired with strict admission control (load shedding) when KV-cache block occupancy crosses 85%.</p>
                     </div>
                 </div>
             </div>
@@ -254,44 +254,44 @@
                         <tr>
                             <td><strong>Categorical</strong></td>
                             <td>Next-token sampling over vocabulary logits</td>
-                            <td>Logit entropy / Top-p convergence</td>
-                            <td>Enforce constrained decoding (FSM/CFG schemas) and greedy sampling (<code>temp=0</code>) for structured outputs.</td>
+                            <td>Schema Validation Failure Rate</td>
+                            <td>Enforce constrained decoding (FSM/CFG schemas) at the logit layer to guarantee structural correctness.</td>
                         </tr>
                         <tr>
                             <td><strong>Poisson</strong></td>
-                            <td>Uncoordinated arrival of user prompts</td>
+                            <td>Uncoordinated arrival of independent user prompts</td>
                             <td>Requests per second (RPS) burst variance</td>
-                            <td>Continuous batching, token-bucket rate limiting, and dynamic KV-cache paging (PagedAttention).</td>
+                            <td>Token-bucket rate limiting and dynamic KV-cache paging (PagedAttention) to absorb variance.</td>
                         </tr>
                         <tr>
-                            <td><strong>Exponential</strong></td>
-                            <td>Inter-arrival intervals &amp; baseline service time</td>
+                            <td><strong>Heavy-Tail (Service)</strong></td>
+                            <td>Highly variable generation lengths &amp; context sizes</td>
                             <td>Queue depth &amp; p99 TTFT latency</td>
-                            <td>Chunked prefill, prefix caching, and admission load-shedding before utilization hits the knee of the curve.</td>
+                            <td>Chunked prefill and admission load-shedding before utilization hits the M/G/c saturation knee.</td>
                         </tr>
                         <tr>
                             <td><strong>Log-Normal</strong></td>
                             <td>Right-skewed stage latency across RAG/Agent hops</td>
                             <td>End-to-end p99 / p50 latency ratio</td>
-                            <td>Parallelize independent retrieval calls, enforce per-hop timeouts, and hedge slow vector queries.</td>
+                            <td>Parallelize independent retrieval calls; enforce strict per-hop timeouts to truncate the right tail.</td>
                         </tr>
                         <tr>
                             <td><strong>Zipfian</strong></td>
-                            <td>RAG chunk access skew &amp; prefix reuse</td>
+                            <td>RAG chunk access skew &amp; prompt prefix reuse</td>
                             <td>Semantic &amp; prefix cache hit ratio</td>
-                            <td>Tiered semantic caching (e.g., Redis) and pinning high-frequency system prompts in GPU HBM.</td>
+                            <td>Tiered semantic caching (Redis) and pinning high-frequency system prompts in GPU HBM.</td>
                         </tr>
                         <tr>
                             <td><strong>Geometric</strong></td>
-                            <td>Retry attempts until valid schema/tool execution</td>
-                            <td>Output parse failure &amp; retry amplification rate</td>
-                            <td>Grammar-constrained decoding, strict retry budgets (max 1–2 retries), and circuit breakers.</td>
+                            <td>Retry attempts until valid tool execution</td>
+                            <td>Retry amplification load &amp; downstream rate limits</td>
+                            <td>Strict retry budgets (max 1–2 retries) and circuit breakers to prevent retry storms.</td>
                         </tr>
                         <tr>
                             <td><strong>Binomial</strong></td>
-                            <td>Multi-step autonomous agent completion ($p^N$)</td>
-                            <td>End-to-end workflow completion rate</td>
-                            <td>Collapse sequential LLM hops into deterministic code paths; insert state-machine guardrails between steps.</td>
+                            <td>Multi-step autonomous agent completion</td>
+                            <td>End-to-end workflow success decay ($p^N$)</td>
+                            <td>Collapse sequential LLM hops into deterministic code paths; insert state-machine guardrails between non-independent steps.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -308,9 +308,10 @@
                 <div class="tldr-content">
                     <ol>
                         <li><strong>Observe the Tails:</strong> Discard averages. Inspect p50, p95, and p99 latencies alongside the joint distribution of input prompt tokens and output generation lengths.</li>
-                        <li><strong>Isolate the Boundary:</strong> Pinpoint where the invariant broke—was it in the inference engine (KV-cache thrashing), the retrieval layer (HNSW tail latency), or the orchestration parser (malformed JSON)?</li>
-                        <li><strong>Identify the Physical Mechanism:</strong> Map the symptom to hardware or algorithmic reality. Was it head-of-line blocking from a 100k-token prefill? Compounding error decay across a 12-step agent loop? A retry storm amplifying load?</li>
-                        <li><strong>Apply the Architectural Control:</strong> Enforce the deterministic constraint (chunked prefill, token-based rate limiting, grammar-constrained decoding, or hard circuit breaking) that bounds the failure mode mathematically.</li>
+                        <li><strong>Distinguish Structural from Semantic Failure:</strong> A perfectly formed JSON object (guaranteed by Categorical logit masking) that contains hallucinated facts is a semantic failure, not a structural serving failure. Do not solve semantic issues with infrastructure retries.</li>
+                        <li><strong>Isolate the Boundary:</strong> Pinpoint where the invariant broke—was it in the inference engine (KV-cache thrashing), the retrieval layer (HNSW tail latency), or the orchestration parser?</li>
+                        <li><strong>Identify the Physical Mechanism:</strong> Map the symptom to algorithmic reality. Was it head-of-line blocking from a 100k-token prefill? Compounding state contamination across a 12-step agent loop?</li>
+                        <li><strong>Apply the Architectural Control:</strong> Enforce the deterministic constraint (chunked prefill, token-based rate limiting, grammar-constrained decoding, or circuit breaking) that bounds the failure mode mathematically.</li>
                     </ol>
                 </div>
             </div>
@@ -361,15 +362,15 @@
             const matrixData = {
                 inference: {
                     title: "Inference Serving (TTFT & Throughput)",
-                    dist: "Poisson (Arrivals) + Exponential / Heavy-Tail (Queue Wait)",
-                    math: "Uncoordinated prompt arrivals follow a Poisson process (Exponential inter-arrival times). As GPU utilization approaches saturation, variable prompt prefill lengths turn an M/M/c queue into an M/G/c bottleneck.",
+                    dist: "Poisson (Arrivals) + Heavy-Tail (Service Time)",
+                    math: "Uncoordinated prompt arrivals approximate a Poisson process. However, highly variable token generation lengths and large context prefills violate M/M/c exponential assumptions, turning the GPU cluster into a heavy-tailed M/G/c queue bottleneck as utilization rises.",
                     metrics: [
                         "Time to First Token (TTFT) p95 / p99",
                         "Inter-Token Latency (ITL)",
-                        "KV-Cache Utilization % & Preemption Rate"
+                        "KV-Cache Block Utilization & Preemption Rate"
                     ],
                     trap: "Sizing your GPU cluster based on average RPS and mean prompt tokens. When a Poisson traffic burst coincides with a long-context prefill, head-of-line blocking causes queue wait times to diverge non-linearly.",
-                    control: "Continuous batching with chunked prefill (vLLM/TGI) to prevent head-of-line blocking, paired with strict admission control (load shedding) when KV-cache occupancy crosses 85%."
+                    control: "Continuous batching with chunked prefill (vLLM/TGI) to prevent head-of-line blocking, paired with strict admission control (load shedding) when KV-cache block occupancy crosses 85%."
                 },
                 rag: {
                     title: "RAG Pipelines (Retrieval & Context)",
@@ -385,14 +386,14 @@
                 },
                 agents: {
                     title: "Autonomous Agents (Multi-Step Workflows)",
-                    dist: "Compounding Bernoulli / Binomial (Step Success) + Geometric (Retries)",
-                    math: "Each agent step (plan, tool call, schema parse) is a Bernoulli trial. Requiring N sequential steps to succeed compounds as p^N. When a step fails and triggers a retry loop, total attempts follow a Geometric distribution.",
+                    dist: "Compounding Binomial (Step Success) + Geometric (Retries)",
+                    math: "Each agent step (plan, tool call, schema parse) is a Bernoulli trial. Requiring N sequential steps to succeed decays as p^N (assuming step-to-step independence, which often fails in practice due to compounding state errors). When a step fails, retry attempts follow a Geometric distribution.",
                     metrics: [
                         "End-to-End Workflow Completion Rate",
                         "Step Count Distribution per Task",
                         "Tool-Call Parse & Execution Failure Rate"
                     ],
-                    trap: "Chaining 20 non-deterministic steps together. Even at a 95% per-step success rate, end-to-end reliability drops to 35.8% (0.95^20)—and state contamination across retries makes real-world decay even steeper.",
+                    trap: "Chaining 20 non-deterministic steps together. Even assuming strict mathematical independence at a 95% per-step success rate, end-to-end reliability drops to 35.8% (0.95^20). Real-world state contamination makes this decay even steeper.",
                     control: "Replace autonomous LLM routing with deterministic state machines (LangGraph) where possible, enforce strict max-iteration budgets, and require human-in-the-loop approval for state-mutating tool calls."
                 },
                 sampling: {
@@ -404,8 +405,8 @@
                         "Schema Validation Failure Rate",
                         "Output Length Variance"
                     ],
-                    trap: "Relying on prompt instructions alone (or assuming temperature=0 guarantees bit-wise determinism across dynamic GPU batches) when downstream services expect strict JSON schemas.",
-                    control: "Use grammar-constrained decoding (Outlines, XGrammar, or native Structured Outputs) to mask invalid vocabulary tokens at the logit layer, guaranteeing 100% schema compliance."
+                    trap: "Relying on prompt instructions alone (or assuming temperature=0 guarantees bit-wise determinism across dynamic GPU batches) when downstream services expect strict JSON schemas. Crucially, schema adherence guarantees structural correctness, not semantic correctness.",
+                    control: "Use grammar-constrained decoding (Outlines, XGrammar, or native Structured Outputs) to mask invalid vocabulary tokens at the logit layer, guaranteeing 100% structural schema compliance."
                 }
             };
 
@@ -450,3 +451,21 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

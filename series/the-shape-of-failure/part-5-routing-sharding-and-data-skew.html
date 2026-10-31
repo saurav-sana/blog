@@ -16,7 +16,7 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 5: Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 5: Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Zipf, Pareto, Cauchy, Lévy, and Gumbel in distributed systems. Why aggregate cluster capacity is a vanity metric when heavy-tailed workloads hit rigid shard boundaries.">
+    <meta name="description" content="Zipf, Pareto, Cauchy, and Gumbel in distributed systems. Why aggregate cluster capacity is a vanity metric when heavy-tailed workloads hit rigid shard boundaries.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/part-5-heavy-tails-and-extremes.html">
@@ -236,12 +236,12 @@
 
             <p>In the comforting fantasy of Gaussian land, traffic arrives in polite uniform waves, every tenant consumes an average slice of CPU, and deterministic hash partitioning spreads load across shards like warm butter on toast. Then production happens. The toast lands face-down on the datacenter floor, and one whale tenant, one unindexed partition scan, or one synchronized token refresh turns Shard 7 into molten slag while the other 15 shards operate at roughly 75% of their sustainable throughput. The cluster still has spare aggregate capacity, but that capacity is stranded on the wrong shards.</p>
 
-            <p>A probability distribution does not cause an outage on its own; it is an empirical description of workload geometry. Outages happen when a heavy-tailed workload collides with a rigid boundary—a deterministic hash ring, a shared FIFO worker pool, a row lock, or an unthrottled retry loop.</p>
+            <p>A probability distribution does not cause an outage on its own; it is an empirical description of workload geometry. Outages happen when a heavy-tailed workload collides with a rigid boundary—a deterministic hash ring, a shared FIFO worker pool, or a poorly sized buffer.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">Architectural Thesis</div>
                 <div class="tldr-content">
-                    <p><strong>Systems fail where workload skew meets a rigid partition boundary.</strong> When key popularity, tenant payload cost, or arrival cadence is heavy-tailed, aggregate cluster utilization becomes a vanity metric. You are only as healthy as your hottest shard, your deepest queue, and your widest fan-out tail.</p>
+                    <p><strong>Systems fail where workload skew meets a rigid partition boundary.</strong> When key popularity, tenant payload cost, or arrival cadence is heavy-tailed, aggregate cluster utilization becomes a vanity metric. You are only as healthy as your hottest shard and your deepest queue.</p>
                 </div>
             </div>
 
@@ -263,7 +263,7 @@
                 <tbody>
                     <tr>
                         <td><strong>Zipf</strong><br>(Discrete Power Law)</td>
-                        <td>Key access frequency, cache key popularity, celebrity social graphs, DNS queries.</td>
+                        <td>Key access frequency, Auth cache key popularity, global config records.</td>
                         <td>Finite for finite <var>N</var>, but top 1% of keys routinely drive &gt;50% of load.</td>
                         <td><strong>Shard Pinning &amp; Stampedes:</strong> Deterministic routing maps the #1 rank key to one physical node; TTL expiry triggers simultaneous miss storms.</td>
                         <td><code>singleflight</code> request coalescing, jittered local micro-caches, salted write-sharding (<code>key#0..K</code>).</td>
@@ -279,29 +279,22 @@
                         <td><strong>Pareto</strong><br>(Continuous Power Law)</td>
                         <td>Multi-tenant batch sizes, analytical scan byte-counts, Iceberg/Parquet file skew.</td>
                         <td>Variance is <strong>infinite</strong> for <var>&alpha; &le; 2</var>; Mean is <strong>infinite</strong> for <var>&alpha; &le; 1</var>.</td>
-                        <td><strong>Head-of-Line (HoL) Blocking:</strong> By Pollaczek–Khinchine, infinite service variance (<var>&sigma;<sub>S</sub><sup>2</sup> &rarr; &infin;</var>) drives FIFO queue wait times to infinity even at 35% CPU.</td>
+                        <td><strong>Head-of-Line (HoL) Blocking:</strong> Infinite service variance (<var>&sigma;<sub>S</sub><sup>2</sup> &rarr; &infin;</var>) drives FIFO queue wait times to infinity even at 35% CPU.</td>
                         <td>Admission cost estimation, fast/heavy-lane pool isolation, byte-second tenant quotas, fair scheduling.</td>
                     </tr>
                     <tr>
                         <td><strong>Cauchy Regime</strong><br>(Undefined Averages)</td>
-                        <td>Unstable ratio metrics (success/capacity during brownouts), extreme heavy tails.</td>
+                        <td>Unstable ratio metrics (success/capacity during brownouts).</td>
                         <td>Both Mean (<var>E[X]</var>) and Variance (<var>Var(X)</var>) are <strong>undefined</strong>. Law of Large Numbers fails.</td>
                         <td><strong>Observability Blindness:</strong> Sample averages never converge and jump wildly; <var>&mu; &plusmn; 3&sigma;</var> anomaly alerts lose statistical meaning.</td>
                         <td>Abandon mean/stddev alerts; enforce HDR Histograms, high-res quantiles (<var>p99</var>, <var>p99.9</var>), and Median Absolute Deviation (MAD).</td>
                     </tr>
                     <tr>
-                        <td><strong>Metastability &amp; Lévy Jumps</strong><br>(Closed-Loop Feedback)</td>
-                        <td>Self-amplifying retry storms, metastable lock convoys. (Lévy mathematically models heavy first-passage jumps).</td>
-                        <td>Infinite mean and variance; metastable latch-up pins the system in failure state indefinitely.</td>
-                        <td><strong>Retry Amplification:</strong> Nonlinear feedback (<var>p = p(&Lambda;)</var>) increases offered load as dependency saturation degrades.</td>
-                        <td>Process-wide retry budgets, exponential backoff with full jitter, CoDel shedding, LIFO bounding.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Extreme Value Theory</strong><br>(Gumbel/Fréchet/Weibull)</td>
-                        <td>Maximum daily RPS, worst-case shard queue depth, 100-node fan-out tail latency.</td>
+                        <td><strong>Extreme Value Theory</strong><br>(Gumbel Limit)</td>
+                        <td>Maximum daily queue depth, peak 1-second arrival storms.</td>
                         <td>Distribution of block maxima <var>M<sub>n</sub></var>. Limiting behavior depends on the underlying tail class.</td>
                         <td><strong>Ceiling Breach:</strong> Sizing memory or connection pools for the 99th percentile fails when maxima over millions of windows exceed static buffers.</td>
-                        <td>Block-maxima return-level sizing, bounded hedged requests at <var>p95</var>, hard memory circuit breakers.</td>
+                        <td>Block-maxima return-level sizing, hard memory circuit breakers.</td>
                     </tr>
                 </tbody>
             </table>
@@ -311,7 +304,7 @@
             <!-- ========================================== -->
             <h2>1. Zipf's Law: Hot Keys, Shard Pinning, and Cache Stampedes</h2>
 
-            <p>In an egalitarian universe, all database keys are created equal. In production, a single global configuration row, a viral flash-sale SKU, or a celebrity account mapped through a deterministic partitioning boundary turns a horizontally scaled cluster into a localized smoking crater.</p>
+            <p>In an egalitarian universe, all database keys are created equal. In our Multi-Tenant Analytics Gateway, a single global configuration row or a VIP tenant's auth token mapped through a deterministic partitioning boundary turns a horizontally scaled cluster into a localized smoking crater.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
@@ -324,16 +317,16 @@
                 </div>
             </div>
 
-            <h3>Forensic Case Study: The Celebrity Key vs. The Sharded Database</h3>
+            <h3>Forensic Case Study: The Config Key vs. The Sharded Cache</h3>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
                     <div class="forensic-label">1. Observed Problem</div>
-                    <p>A 16-shard key-value storage cluster is benchmarked and certified for an aggregate sustainable capacity of <strong>24,000 RPS</strong> (1,500 RPS per shard). At 10:15 AM, aggregate cluster traffic reaches only <strong>20,000 RPS</strong> (83% of cluster capacity), yet upstream API gateways begin throwing massive waves of <code>HTTP 503 Service Unavailable</code> and <code>504 Gateway Timeout</code> errors.</p>
+                    <p>The Analytics Gateway relies on a 16-shard Redis cluster for metadata lookups, certified for an aggregate capacity of <strong>24,000 RPS</strong> (1,500 RPS per shard). At 10:15 AM, aggregate cluster traffic reaches only <strong>20,000 RPS</strong> (83% of cluster capacity), yet upstream Gateway nodes begin throwing massive waves of <code>RedisTimeoutExceptions</code>.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">2. Evidence &amp; Telemetry Assumptions</div>
-                    <p>The keyspace contains <var>N = 10,000</var> active logical keys. Top-K sketch telemetry shows key access follows a Zipf distribution with fitted exponent <var>s = 1.0</var>. Routing uses deterministic hash partitioning without hot-key salting. Background traffic is assumed to be uniformly distributed across the remaining keys.</p>
+                    <p>The cache contains <var>N = 10,000</var> active logical keys. Top-K sketch telemetry shows key access follows a Zipf distribution with fitted exponent <var>s = 1.0</var>. Routing uses deterministic hash partitioning. Background traffic is assumed to be uniformly distributed across the remaining keys.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">3. Mathematical Model &amp; Derivation</div>
@@ -361,14 +354,14 @@
                     <div class="math-block">
                         <var>H</var> = <span class="frac"><span class="num">max<sub><var>i</var></sub>(<var>&lambda;</var><sub><var>i</var></sub>)</span><span>(1/<var>M</var>) &sum;<sub><var>i</var></sub> <var>&lambda;</var><sub><var>i</var></sub></span></span> = <span class="frac"><span class="num">3,166</span><span>1,250</span></span> = 2.53
                     </div>
-                    <p>A low cluster-wide CPU metric effortlessly coexists with a completely saturated shard. Shard 7's connection pool saturates, and any multi-key scatter-gather query touching Shard 7 hangs until timeout.</p>
+                    <p>A low cluster-wide CPU metric effortlessly coexists with a completely saturated shard. Shard 7's connection pool saturates, and any multi-key query touching Shard 7 hangs until timeout.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">5. Architectural Controls</div>
                     <ul>
                         <li><strong>In-Flight Request Coalescing (<code>singleflight</code>):</strong> Deduplicate concurrent cache misses for identical key reads at the proxy tier. However, <code>singleflight</code> only coalesces <em>concurrent</em> requests; it does not eliminate sustained demand <em>after</em> the coalescing window completes.</li>
                         <li><strong>Local Micro-Caches with Jittered TTLs:</strong> Cache hot reads in gateway memory for 50–200ms with uniform TTL jitter to prevent synchronized cache stampedes across proxy nodes.</li>
-                        <li><strong>Salted Write Sharding:</strong> Replicating a hot read is relatively straightforward. Distributing hot <em>writes</em> introduces ordering and consistency problems. Append a random suffix <code>key_1#0 .. key_1#7</code> to spread hot writes across 8 shards, accepting an 8-way aggregation penalty on reads.</li>
+                        <li><strong>Salted Write Sharding:</strong> Distributing hot writes introduces ordering problems. Append a random suffix <code>key_1#0 .. key_1#7</code> to spread hot writes across 8 shards, accepting an 8-way aggregation penalty on reads.</li>
                     </ul>
                 </div>
             </div>
@@ -405,20 +398,14 @@
                 </div>
             </div>
 
-            <div class="scenario-card">
-                <div class="scenario-title">Documented Precedent: Scaling Memcache at Facebook <span class="scenario-tag">Cache Stampedes</span></div>
-                <p>When a popular Zipf key expires in a distributed cache, thousands of web servers simultaneously experience a cache miss and hammer the underlying database. Facebook introduced <strong>leases</strong> (a 10-second token granted to the first miss; subsequent misses wait and retry cache) and regional pool replication for hot keys.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener noreferrer">Nishtala et al., "Scaling Memcache at Facebook" (USENIX NSDI '13)</a></div>
-            </div>
-
             <!-- ========================================== -->
             <!-- 2. SYNCHRONIZED TOKEN REFRESH              -->
             <!-- ========================================== -->
-            <h2>2. Synchronized Token Refresh: Temporal &amp; Dependency Skew</h2>
+            <h2>2. Synchronized Token Refresh: Temporal Skew</h2>
 
-            <p>Popularity skew across keys is spatial. Distributed authentication and control-plane systems suffer from a second, equally lethal geometry: <strong>temporal arrival skew</strong>, where hundreds of thousands of otherwise well-behaved clients phase-lock into a synchronized thundering herd.</p>
+            <p>Popularity skew across keys is spatial. Control-plane systems suffer from a second, equally lethal geometry: <strong>temporal arrival skew</strong>, where hundreds of thousands of otherwise well-behaved clients phase-lock into a synchronized thundering herd.</p>
 
-            <div class="architecture-flow">[120,000 Client Schedulers]
+            <div class="architecture-flow">[120,000 Gateway Clients]
        │  Regional network blip heals / Coordinated deployment restart
        ▼
 [Regional API Gateway / Edge]
@@ -433,7 +420,7 @@
             <div class="forensic-grid">
                 <div class="forensic-item">
                     <div class="forensic-label">1. Observed Problem</div>
-                    <p>An enterprise identity control plane serves <var>N = 120,000</var> connected daemon clients. Access tokens have a fixed TTL of <var>T = 900</var> seconds (15 minutes). Following a brief 5-second BGP route flap on a major transit provider, all 120,000 clients reconnect and request token refreshes within a <strong>30-second window</strong>, collapsing the Token Service.</p>
+                    <p>An enterprise identity control plane serves <var>N = 120,000</var> connected daemon clients. Access tokens have a fixed TTL of <var>T = 900</var> seconds (15 minutes). Following a brief 5-second BGP route flap, all 120,000 clients reconnect and request token refreshes within a <strong>30-second window</strong>, collapsing the Token Service.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">2. Mathematical Model: Poisson Illusion vs. Phase-Locked Reality</div>
@@ -454,7 +441,7 @@
                         <li><strong>Admission Rate:</strong> Hard limit of 1,200 requests/second at the edge.</li>
                         <li><strong>Concurrency Limit (Little's Law):</strong> Little's Law (<var>L = &lambda;W</var>) describes <em>average</em> concurrency under stable conditions. If the measured, stable mean time in the system is <var>W = 50</var> ms, a safe concurrency bound is:
                             <div class="math-block"><var>L</var> = 1,200 &times; 0.05 = 60 concurrent requests</div>
-                            This 60-slot concurrency limit is derived from measured service time and downstream capacity, enforced by an independently configured queue and deadline budget.
+                            This 60-slot concurrency limit is derived from measured service time and downstream capacity, enforced by an independently configured queue.
                         </li>
                     </ul>
                 </div>
@@ -467,9 +454,9 @@
             <!-- ========================================== -->
             <!-- 3. PARETO DISTRIBUTION                     -->
             <!-- ========================================== -->
-            <h2>3. Pareto Distribution: Tenant Skew, Pollaczek–Khinchine, and HoL Blocking</h2>
+            <h2>3. Pareto Distribution: Tenant Skew and HoL Blocking</h2>
 
-            <p>The "80/20 rule" is a polite bedtime story we tell product managers. In multi-tenant SaaS, regulatory trade reporting, and cloud data gateways, workload costs follow a <strong>99/1 power law</strong>: 99 tenants submit 50 KB incremental queries, and 1 "Whale" global institution dumps a 40 GB cross-partition reconciliation query into the exact same execution pool.</p>
+            <p>The "80/20 rule" is a polite bedtime story we tell product managers. In the Analytics Gateway, workload costs follow a <strong>99/1 power law</strong>: 99 tenants submit 50 KB incremental queries, and 1 "Whale" global institution dumps a 40 GB cross-partition reconciliation query into the exact same execution pool.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
@@ -486,12 +473,12 @@
                 </div>
             </div>
 
-            <h3>Forensic Case Study: How Infinite Service Variance Destroys a Low-CPU Worker Lane</h3>
+            <h3>Forensic Case Study: How Infinite Service Variance Destroys a Worker Lane</h3>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
                     <div class="forensic-label">1. Observed Problem</div>
-                    <p>A parallel query gateway lane runs at a comfortable <strong>50% average CPU utilization (<var>&rho; = 0.50</var>)</strong>. Mean query execution time is <var>E[S] = 25</var> ms. Yet every afternoon, <strong>mean queue wait times spike above 1,700 ms</strong>, causing widespread client timeouts for small operational lookups.</p>
+                    <p>The Gateway's Parquet worker pool runs at a comfortable <strong>50% average CPU utilization (<var>&rho; = 0.50</var>)</strong>. Mean query execution time is <var>E[S] = 25</var> ms. Yet every afternoon, <strong>mean queue wait times spike above 1,700 ms</strong>, causing widespread client timeouts for small operational lookups.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">2. Mathematical Model: The Pollaczek–Khinchine Trap</div>
@@ -627,62 +614,11 @@
             </div>
 
             <!-- ========================================== -->
-            <!-- 5. LÉVY DISTRIBUTION & RETRY CASCADES      -->
+            <!-- 5. GUMBEL DISTRIBUTION (EVT)               -->
             <!-- ========================================== -->
-            <h2>5. Lévy First-Passage Jumps &amp; Metastable Retry Cascades</h2>
+            <h2>5. Extreme Value Theory &amp; Maximum Daily Queue Depth</h2>
 
-            <p>We must carefully separate a mathematical model from a distributed systems phenomenon. The <strong>Lévy distribution</strong> is a one-sided stable distribution (<var>&alpha; = 0.5</var>) that models extreme positive jumps and <strong>first-passage times</strong> (e.g., how long a random walk takes to hit a barrier). A <strong>Retry Storm</strong>, conversely, is a nonlinear feedback mechanism where a system remains in a degraded state (metastability) after the original trigger disappears.</p>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Mathematical Model: Lévy Jumps</div>
-                <div class="tldr-content">
-                    <p>A Lévy distribution over <var>x &gt; &mu;</var> with scale <var>c &gt; 0</var> has probability density:</p>
-                    <div class="math-block">
-                        <var>f</var>(<var>x</var>; <var>&mu;</var>, <var>c</var>) = <radic><span class="frac"><span class="num"><var>c</var></span><span>2&pi;</span></span></radic> &middot; <span class="frac"><span class="num">exp(&minus;<var>c</var> / [2(<var>x</var> &minus; <var>&mu;</var>)])</span><span>(<var>x</var> &minus; <var>&mu;</var>)<sup>3/2</sup></span></span>
-                    </div>
-                    <p>Because the denominator decays at <var>x<sup>3/2</sup></var>, both its mean and variance are infinite. Depending on the scale parameter, a single Lévy jump can easily exceed the median by orders of magnitude, providing a mathematical vocabulary for heavy-tailed recovery times.</p>
-                </div>
-            </div>
-
-            <h3>Forensic Workout: The Mechanics of Retry Amplification</h3>
-
-            <div class="forensic-grid">
-                <div class="forensic-item">
-                    <div class="forensic-label">1. Closed-Loop Feedback Equation</div>
-                    <p>When a downstream microservice saturates, callers do not passively observe a static probability distribution—they actively increase offered load via retries. Suppose a client is configured with <var>k = 3</var> retries (4 total attempts) and each attempt fails with load-dependent probability <var>p(&Lambda;)</var>.</p>
-                    <p>Under a simplified assumption of a fixed, independent per-attempt failure probability, the expected attempts <var>E[A]</var> per logical request is:</p>
-                    <div class="math-block">
-                        <var>E</var>[<var>A</var>] = 1 + <var>p</var> + <var>p</var><sup>2</sup> + <var>p</var><sup>3</sup>
-                    </div>
-                    <p>At <var>p = 0.5</var>, <var>E[A] = 1.875</var>. But at <var>p = 0.9</var> (severe saturation), <var>E[A] = 3.439</var>. However, the actual architectural danger is a nonlinear fixed-point feedback loop:</p>
-                    <div class="math-block">
-                        <var>&Lambda;</var><sub>attempt</sub> = <var>&Lambda;</var><sub>logical</sub> &middot; <var>E</var>[<var>A</var>(<var>&Lambda;</var><sub>attempt</sub>)]
-                    </div>
-                    <p>More retries increase offered load, which increases failure probability, which generates more retries. Across a 3-tier microservice chain where each tier retries independently (under simplified independence assumptions), the expected amplification under <var>p=0.9</var> explodes to <var>3.439<sup>3</sup> &approx; 40.7&times;</var>.</p>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">2. Breaking the Metastable Latch-Up</div>
-                    <ul>
-                        <li><strong>Process-Wide Retry Token Budgets:</strong> Maintain a local bucket where successes deposit <code>0.1</code> tokens and retries consume <code>1.0</code> tokens. This roughly limits retry overhead to 10% in steady-state, though it requires precise tuning to handle burst thresholds correctly.</li>
-                        <li><strong>Exponential Backoff with Full Jitter:</strong> Break temporal synchronization:
-                            <div class="math-block"><var>t</var><sub>sleep</sub> = <var>U</var>(0, min(<var>T</var><sub>cap</sub>, <var>T</var><sub>base</sub> &middot; 2<sup>attempt</sup>))</div>
-                        </li>
-                    </ul>
-                    <p><strong>LIFO Scheduling and Active Queue Management:</strong></p>
-                    <ul>
-                        <li><strong>CoDel (Controlled Delay):</strong> Controls persistent queueing delay by shedding load when queue sojourn time consistently exceeds a target interval.</li>
-                        <li><strong>Deadline Propagation:</strong> Explicitly cancels execution graphs when the caller's upstream deadline expires, stopping work that can no longer produce a useful response.</li>
-                        <li><strong>LIFO Scheduling:</strong> Switches queues to Last-In, First-Out under extreme overload to prioritize newer work, accepting the trade-off that older requests will starve.</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- 6. GUMBEL DISTRIBUTION (EVT)               -->
-            <!-- ========================================== -->
-            <h2>6. Extreme Value Theory &amp; Fan-Out Maxima</h2>
-
-            <p>The Fisher–Tippett–Gnedenko theorem proves that block maxima <var>M<sub>n</sub></var> converge to one of three Extreme Value distributions based on the underlying tail: Gumbel (light/unbounded tails), Fréchet (heavy/Pareto tails), or Weibull (finite upper endpoints). Here we focus on the Gumbel regime for sizing infrastructure capacity ceilings.</p>
+            <p>The Fisher–Tippett–Gnedenko theorem proves that block maxima <var>M<sub>n</sub></var> converge to one of three Extreme Value distributions based on the underlying tail: Gumbel (light/unbounded tails), Fréchet (heavy/Pareto tails), or Weibull (finite upper endpoints). Here we focus on the Gumbel regime for sizing infrastructure capacity ceilings—such as maximum daily queue depth.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematics of the Worst Case</div>
@@ -698,30 +634,20 @@
                 </div>
             </div>
 
-            <h3>Forensic Workout: Scatter-Gather Tail Amplification</h3>
+            <h3>Forensic Workout: Sizing the 1,000-Day Burst</h3>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
-                    <div class="forensic-label">1. Sizing the 1,000-Day Burst</div>
-                    <p>Assume daily peak 1-second RPS maxima are stationary, independent, and accurately fit a Gumbel model with <var>&mu; = 10,000</var> and <var>&beta; = 2,000</var>. The required capacity for the <strong>1-in-1,000-day</strong> (<var>p = 0.999</var>) storm is:</p>
+                    <div class="forensic-label">1. Sizing the Buffer</div>
+                    <p>Assume daily peak 1-second arrival storms at the Gateway are stationary, independent, and accurately fit a Gumbel model with <var>&mu; = 10,000</var> and <var>&beta; = 2,000</var>. The required admission buffer for the <strong>1-in-1,000-day</strong> (<var>p = 0.999</var>) storm is:</p>
                     <div class="math-block">
                         <var>x</var><sub>0.999</sub> = 10,000 &minus; 2,000 &middot; ln(&minus;ln(0.999)) &approx; 23,815 RPS
                     </div>
-                    <p><em>Caveat: Return periods are not guarantees; parameter uncertainty matters enormously at extreme quantiles.</em></p>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">2. The Mathematics of Fan-Out Latency</div>
-                    <p>When an API gateway fans out a request to <var>K = 50</var> independent shards, the user's response time is <var>M<sub>50</sub> = max(L<sub>1</sub>, &dots;, L<sub>50</sub>)</var>. The exact distribution of the maximum is <var>P(M<sub>K</sub> &le; x) = F<sub>L</sub>(x)<sup>K</sup></var>. To ensure a 99th-percentile (<var>0.99</var>) user experience, each individual shard must operate at extraordinary speed:</p>
-                    <div class="math-block">
-                        <var>F</var><sub><var>L</var></sub>(<var>x</var>) = 0.99<sup>1/50</sup> &approx; 0.999799
-                    </div>
-                    <p>Every single shard must return in SLA <strong>99.98% of the time</strong> to protect the root aggregator.</p>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">3. Hedged Requests: A Dangerous Weapon</div>
-                    <p>To prune this EVT fan-out tail, issue a hedged (backup) request against a replica once a shard crosses a measured latency threshold. <strong>Caution:</strong> Hedging increases offered load. Only hedge after a measured threshold, aggressively cancel losing requests, apply a strict hedge budget, and disable hedging entirely during cluster overload.</p>
+                    <p><em>Caveat: Return periods are not guarantees; parameter uncertainty matters enormously at extreme quantiles. If the buffer fills, you must shed load, not queue indefinitely.</em></p>
                 </div>
             </div>
+            
+            <p>We've modeled how heavy-tailed workloads smash into deterministic routing, and how variance causes Head-of-Line blocking. But these models assume the workload is passively submitted to the system. In reality, distributed systems react to failure. When a tenant hits a timeout, they don't walk away—they retry. And retries change the probability distribution of the workload itself. In Part 6, we will abandon static probability and look at the metastable feedback loops that turn a brief failure into a self-sustaining cascade.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-4-aggregation-and-the-extreme-tail.html">← Part 4: Aggregation and the Extreme Tail</a>
@@ -868,28 +794,6 @@
 
                         inputX0.oninput = (e) => { this.params.x0 = parseFloat(e.target.value); labelX0.textContent = this.params.x0.toFixed(1); this.reset(); };
                         inputG.oninput = (e) => { this.params.g = parseFloat(e.target.value); labelG.textContent = this.params.g.toFixed(1); this.reset(); };
-                    } else if (this.type === 'levy') {
-                        const inputMu = stage.querySelector('#mu_levy');
-                        const labelMu = stage.querySelector('#v_mu_levy');
-                        const inputC = stage.querySelector('#c_levy');
-                        const labelC = stage.querySelector('#v_c_levy');
-
-                        this.params.mu = parseFloat(inputMu.value);
-                        this.params.c = parseFloat(inputC.value);
-
-                        inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
-                        inputC.oninput = (e) => { this.params.c = parseFloat(e.target.value); labelC.textContent = this.params.c.toFixed(1); this.reset(); };
-                    } else if (this.type === 'gumbel') {
-                        const inputMu = stage.querySelector('#mu_gumbel');
-                        const labelMu = stage.querySelector('#v_mu_gumbel');
-                        const inputBeta = stage.querySelector('#beta_gumbel');
-                        const labelBeta = stage.querySelector('#v_beta_gumbel');
-
-                        this.params.mu = parseFloat(inputMu.value);
-                        this.params.beta = parseFloat(inputBeta.value);
-
-                        inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
-                        inputBeta.oninput = (e) => { this.params.beta = parseFloat(e.target.value); labelBeta.textContent = this.params.beta.toFixed(1); this.reset(); };
                     }
                 }
 
@@ -930,11 +834,6 @@
                         return this.params.xm / Math.pow(1 - u, 1 / this.params.a);
                     } else if (this.type === 'cauchy') {
                         return this.params.x0 + this.params.g * Math.tan(Math.PI * (u - 0.5));
-                    } else if (this.type === 'levy') {
-                        let z = randNormal();
-                        return this.params.mu + this.params.c / (z * z + 1e-7);
-                    } else if (this.type === 'gumbel') {
-                        return this.params.mu - this.params.beta * Math.log(-Math.log(Math.max(1e-12, 1 - u)));
                     }
                 }
 
@@ -942,8 +841,6 @@
                     if (this.type === 'zipf') return [1, this.params.kk];
                     if (this.type === 'pareto') return [this.params.xm, this.params.xm * 15];
                     if (this.type === 'cauchy') return [this.params.x0 - 8 * this.params.g, this.params.x0 + 8 * this.params.g];
-                    if (this.type === 'levy') return [this.params.mu, this.params.mu + this.params.c * 25];
-                    if (this.type === 'gumbel') return [this.params.mu - 2.5 * this.params.beta, this.params.mu + 6.5 * this.params.beta];
                 }
 
                 isDiscrete() {
@@ -968,8 +865,7 @@
 
                     let barColor = tealColor;
                     if (this.type === 'pareto') barColor = amberColor;
-                    if (this.type === 'cauchy' || this.type === 'levy') barColor = badColor;
-                    if (this.type === 'gumbel') barColor = goodColor;
+                    if (this.type === 'cauchy') barColor = badColor;
 
                     const pad = { l: 42, r: 24, t: 24, b: 30 };
                     const plotW = W - pad.l - pad.r;
@@ -996,14 +892,12 @@
                         if (this.params.a > 1.0) {
                             theoreticalMean = (this.params.a * this.params.xm) / (this.params.a - 1.0);
                         }
-                    } else if (this.type === 'gumbel') {
-                        theoreticalMean = this.params.mu + this.params.beta * 0.5772156649;
                     }
 
                     if (this.statTheory) {
                         if (this.type === 'cauchy') {
                             this.statTheory.textContent = "Undefined";
-                        } else if (this.type === 'levy' || (this.type === 'pareto' && this.params.a <= 1.0)) {
+                        } else if (this.type === 'pareto' && this.params.a <= 1.0) {
                             this.statTheory.textContent = "Infinite (∞)";
                         } else {
                             this.statTheory.textContent = (theoreticalMean !== null && isFinite(theoreticalMean)) ? theoreticalMean.toFixed(2) : "Undefined";

@@ -44,7 +44,7 @@
 
     <style>
         /* =======================================================================
-            SERIES-ALIGNED STYLES & LAYOUT
+           SERIES-ALIGNED STYLES & LAYOUT
            ======================================================================= */
 
         /* --- Page Adjustments --- */
@@ -227,13 +227,13 @@
                 <p class="snarky-quote-author">— A practical lesson from <strong><em>The Tail at Scale</em></strong></p>
             </blockquote>
 
-            <p>Your homepage asks 100 services for help. Ninety-nine reply quickly. One takes a scenic route through a queue, a cold cache, and possibly a small existential crisis. If the page must wait for all 100, that one request can decide how fast the whole page feels.</p>
+            <p>In Part 3, we examined what happens when a single request has to survive a sequential gauntlet of hops (the Erlang sum). But modern architectures rarely just run sequentially. Your Multi-Tenant Analytics Gateway asks 100 storage partitions for help in parallel. Ninety-nine reply quickly. One partition takes a scenic route through a cold cache, a minor GC pause, and a saturated network switch. If the aggregator must wait for all 100, that single straggler dictates how fast the entire query finishes.</p>
 
-<p>This is the aggregation problem: <strong>a system can look healthy one component at a time and still feel slow end to end.</strong> The math is not a prophecy. It depends on the request deadline, the shape of each latency distribution, the relationship between dependencies, and whether the caller can tolerate partial results.</p>
+<p>This is the aggregation problem: <strong>a system can look perfectly healthy one component at a time, yet systematically breach deadlines end-to-end.</strong> The math is not a prophecy. It depends on the request deadline, the shape of each latency distribution, the correlation between dependencies, and whether the caller can gracefully accept partial results.</p>
 
 <h2>Prologue: The Architecture Review Where Averages Lied</h2>
 
-<p>Every distributed-systems post-mortem eventually arrives at the same awkward slide: the dashboard where every microservice shows a green 99% SLA, next to the incident timeline where the checkout API breached its deadline for forty minutes straight.</p>
+<p>Every distributed-systems post-mortem eventually arrives at the same awkward slide: the dashboard where every underlying storage node shows a green 99% SLA, next to the incident timeline where the top-level Gateway API breached its timeout for forty minutes straight.</p>
 
 <p>When you move from a monolith to a distributed architecture, you stop reasoning about one random variable and start reasoning about aggregation. You sum latencies across sequential proxy hops, take the maximum latency across parallel fan-out calls, and mix fast cache hits with slow database fallbacks.</p>
 
@@ -274,103 +274,55 @@
 
 <h2>1. Order Statistics and the Fan-Out Tax</h2>
 
-<h3>The physical mechanism: waiting for the slowest sibling</h3>
-
 <p>When an API gateway or aggregator fans out a request to <var>n</var> downstream services in parallel and waits for all of them before rendering a response, end-to-end latency is not the average of the downstream services. It is the maximum:</p>
 
 <div class="math-block">\(T_{\text{total}} = \max(T_1, T_2, \dots, T_n)\)</div>
 
 <p>In probability theory, the distribution of the maximum is governed by <strong>order statistics</strong>. Even if every individual service is well behaved, taking the maximum across dozens of concurrent calls systematically pushes the aggregate system into the extreme tail of the individual components.</p>
 
-<h3>Worked walkthrough: the 100-service product dashboard</h3>
+<div class="scenario-card">
+    <div class="scenario-title">The 100-Partition Scatter-Gather Timeout</div>
+    
+    <p><strong>1. The Incident:</strong> The Multi-Tenant Analytics Gateway executes a distributed scatter-gather query across 100 Apache Iceberg storage partitions. The gateway enforces a strict 200 ms timeout to protect user experience. Over 60% of aggregate queries begin failing with timeout exceptions, triggering page alerts.</p>
+    
+    <p><strong>2. Architectural Assumption:</strong> The storage nodes boast a historical p99 latency of 200 ms. The architect assumed, "If the storage tier is 99% reliable at our deadline, the gateway will easily meet its SLA."</p>
+    
+    <p><strong>3. Physical Mechanism:</strong> The gateway issues 100 requests in parallel, but it <em>blocks</em> until the last partition returns its fragment. The query's completion time is dictated strictly by the slowest partition involved.</p>
+    
+    <p><strong>4. Mathematical Model:</strong> Order Statistics of the maximum. Assuming the downstream calls are statistically independent and identically distributed, the probability that the maximum latency is less than a threshold $t$ is the probability that <em>all</em> $n$ partitions finish before $t$. The CDF is $F_{\max}(t) = F(t)^n$.</p>
 
-<p><strong>Evidence label:</strong> Illustrative engineering model plus documented research from Dean and Barroso, <em>The Tail at Scale</em>.</p>
+    <p><strong>5. The Calculation:</strong> We know the individual partition has a 99% chance of beating 200 ms ($F(200\text{ ms}) = 0.99$). What is the probability that all 100 finish in time?</p>
+    
+    <div class="math-block">\(P(\max(T_1, \dots, T_{100}) \le 200\text{ ms}) = 0.99^{100} \approx 0.3660\)</div>
+    
+    <p>The complement is the probability that at least one partition breaches the deadline:</p>
+    
+    <div class="math-block">\(P(\text{at least one slow}) = 1 - 0.3660 \approx \mathbf{0.6340 \ (63.4\%)}\)</div>
 
-<p>Suppose an e-commerce product aggregator calls \(n = 100\) independent microservices in parallel. Each service has a 99% probability of responding within 200 ms:</p>
-
-<div class="math-block">\(F(200\text{ ms}) = 0.99\)</div>
-
-<p>Therefore, each service has a 1% probability of exceeding 200 ms.</p>
-
-<h3>Step 1: probability of exceeding the 200 ms mark</h3>
-
-<p>Assuming downstream calls are statistically independent, the probability that all 100 services finish within 200 ms is:</p>
-
-<div class="math-block">\(P(\max(T_1, \dots, T_{100}) \le 200\text{ ms}) = F(200\text{ ms})^{100} = 0.99^{100} \approx 0.3660\)</div>
-
-<p>The complement is the probability that at least one service is slower:</p>
-
-<div class="math-block">\(P(\text{at least one slow}) = 1 - (1 - 0.01)^{100} = 1 - 0.99^{100} \approx 0.6340\)</div>
-
-<div class="tldr-box tldr-box--warning">
-    <div class="tldr-eyebrow">Crucial engineering distinction</div>
-    <div class="tldr-content">
-        <p>A 63.4% probability of exceeding 200 ms does <strong>not</strong> automatically mean a 63.4% request failure rate. The user-visible result depends on the end-to-end deadline, how far beyond 200 ms the dependency runs, and whether the product supports graceful degradation.</p>
-    </div>
+    <p>To keep the <em>aggregate</em> Gateway query under 200 ms at p99, the individual storage nodes would need to meet a much stricter target: $F(200\text{ ms})^{100} = 0.99 \implies F(200\text{ ms}) = 0.9998995$ (the p99.99).</p>
+    
+    <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow partition does not have to mean a 63.4% failure rate for the user. The architect implements <strong>bounded hedging</strong>: if a partition hasn't responded by the 95th percentile expected time, the Gateway fires a duplicate request to a secondary replica. Concurrently, they enable <strong>partial result semantics</strong>, allowing the Gateway to return 99 partitions of data with a "partial result" flag rather than failing the entire dashboard.</p>
+    
+    <p><strong>7. Production Verification:</strong> The team adds distributed tracing to log individual partition fetch times separately from the aggregate query time. They monitor the duplicate-request rate to ensure hedging is bounded by a token bucket—preventing a retry storm from collapsing an already saturated storage tier.</p>
 </div>
 
-<h3>Step 2: what individual percentile drives the aggregate p99?</h3>
+<h3>The independence caveat</h3>
 
-<p>If the aggregate dashboard p99 must stay below 200 ms, set the CDF of the maximum to 0.99:</p>
-
-<div class="math-block">\(F_{\max}(t) = F(t)^n = 0.99\)</div>
-
-<p>For \(n = 100\):</p>
-
-<div class="math-block">\(F(t) = 0.99^{1/100} \approx 0.9998995\)</div>
-
-<p>That is approximately the individual service <strong>p99.99</strong>. When a request waits for 100 independent dependencies, the aggregate p99 is governed by a much more extreme part of each individual distribution.</p>
-
-<h3>Step 3: the independence caveat</h3>
-
-<p>The equation \(F_{\max}(t) = F(t)^n\) assumes strict independence. Production services often share RDS clusters, Redis shards, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
+<p>The equation \(F_{\max}(t) = F(t)^n\) assumes strict independence. Production services often share RDS clusters, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
 
 <p>Consequently, \(F(t)^n\) is an optimistic baseline for isolated jitter—not a worst-case bound during shared saturation.</p>
-
-<div class="scenario-card">
-    <div class="scenario-title">Documented case study: hedged requests <span class="scenario-tag">The Tail at Scale</span></div>
-    <p>Dean and Barroso describe a Bigtable experiment retrieving 1,000 keys across 100 servers. Hedging reduced reported p99.9 latency from 1,800 ms to 74 ms with approximately 2% additional requests.</p>
-    <p>This is a reported experiment, not a universal promise. Hedging can improve tail latency while worsening overload if duplicate work is uncontrolled.</p>
-</div>
-
-<h3>Production controls</h3>
-
-<table>
-    <caption>Fan-out controls and guardrails</caption>
-    <thead>
-        <tr>
-            <th scope="col">Control</th>
-            <th scope="col">Implementation mechanics and guardrails</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <th scope="row">Critical-path pruning</th>
-            <td>Remove non-essential synchronous calls from the blocking fan-out. Degrade optional recommendations or badges asynchronously.</td>
-        </tr>
-        <tr>
-            <th scope="row">Deadline propagation</th>
-            <td>Pass remaining time budgets downstream through gRPC or HTTP metadata so stragglers stop work after the caller deadline.</td>
-        </tr>
-        <tr>
-            <th scope="row">Bounded hedging</th>
-            <td>Use hedges only for idempotent reads, trigger after a measured percentile such as p95, cap duplicate traffic with a token bucket, cancel the losing leg, and disable hedging when downstream saturation rises.</td>
-        </tr>
-    </tbody>
-</table>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Fan-Out Tax</div>
                 <div class="tldr-content">
                     <p>Assuming independent calls, the probability that all 100 respond within 200 ms is \(0.99^{100}\). So the probability that at least one is slower is:</p>
                     <p style="text-align:center;font-family:'IBM Plex Mono',monospace;font-size:1.1rem;margin:1rem 0;color:var(--amber);">P(at least one slow) = 1 − (0.99)<sup>100</sup> ≈ 63.4%</p>
-                    <p>That is a <strong>63.4% chance of at least one dependency exceeding 200 ms</strong>—not automatically a 63.4% chance that the page fails. The page's actual outcome depends on its deadline, how slow the dependency becomes, and whether a partial result is acceptable.</p>
-                    <p style="font-size:.88rem;opacity:.9"><em>Assumption check:</em> the calculation assumes independence and identical 99% probabilities. Shared databases, DNS, identity services, networks, or overloaded hosts can make slowdowns correlated.</p>
+                    <p>That is a <strong>63.4% chance of at least one dependency exceeding 200 ms</strong>. The gateway's actual outcome depends on its deadline, how slow the straggler becomes, and whether a partial result is semantically acceptable.</p>
                 </div>
             </div>
 
             <h3>Try the fan-out calculator</h3>
-            <p>Change the number of parallel dependencies and the probability that any one dependency is slow. This calculator estimates the chance of at least one slow dependency under the independence assumption.</p>
+            <p>Change the number of parallel dependencies and the probability that any one dependency is slow. This calculator estimates the chance of at least one slow dependency under the strict independence assumption.</p>
             <div class="stage" id="fanout-calculator">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -391,35 +343,20 @@
                 <p class="math-explanation">This is a probability of crossing an individual-call threshold somewhere in the fan-out. It is not the end-to-end timeout probability unless the chosen threshold and request deadline make those equivalent.</p>
             </div>
 
-            <h3>The aggregate percentile is more surprising</h3>
-            <p>If \(F(t)\) is the latency CDF for one dependency and the calls are independent, then the maximum latency across \(n\) dependencies has CDF:</p>
-            <div class="math-block">\(P(\max(T_1, \dots, T_n) \le t) = F(t)^n\)</div>
-            <p>For the aggregate p99 with 100 identical independent dependencies, solve \(F(t)^{100}=0.99\):</p>
-            <div class="math-block">\(F(t) = 0.99^{1/100} \approx 0.9998995\)</div>
-            <p>So the individual dependency percentile to investigate is approximately <strong>p99.99</strong>. This does not mean every real architecture needs every dependency to meet a universal p99.99 target. It means that when a request waits for all 100 calls, the tail of the maximum is governed by a much more extreme part of each dependency's distribution.</p>
-
-            <div class="scenario-card">
-                <div class="scenario-title">Case study: the product dashboard <span class="scenario-tag">Illustrative model</span></div>
-                <p><strong>Setup:</strong> a dashboard fetches inventory, pricing, recommendations, permissions, and many other pieces of data in parallel. Some data are essential; other widgets are optional.</p>
-                <p><strong>Model:</strong> 100 independent calls each have a 1% chance of exceeding 200 ms. The chance of at least one crossing that threshold is 63.4%.</p>
-                <p><strong>Architecture response:</strong> remove nonessential calls from the critical path; set an end-to-end deadline and propagate remaining time; bound concurrency and queue length; return partial results where semantics permit; and trace dependency latency alongside the user-visible request.</p>
-                <div class="scenario-ref">Further reading: <a href="https://research.google/pubs/the-tail-at-scale/" target="_blank" rel="noopener noreferrer">Dean &amp; Barroso, “The Tail at Scale”</a></div>
-            </div>
-
            <h2>2. The Normal Distribution: A Useful Baseline, Not a Villain</h2>
 
 <h3>The physical mechanism: additive noise versus asymmetric reality</h3>
 
-<p>It is fashionable to call the Normal distribution \(\mathcal{N}(\mu,\sigma^2)\) a lie. That is too categorical. The Normal model is appropriate when variation is driven by many small, independent, roughly symmetric perturbations—for example, clock drift, thermal sensor noise, or steady-state instruction jitter on an isolated core.</p>
+<p>It is fashionable to call the Normal distribution \(\mathcal{N}(\mu,\sigma^2)\) a lie in distributed systems. That is too categorical. The Normal model is appropriate when variation is driven by many small, independent, roughly symmetric perturbations—for example, clock drift, thermal sensor noise, or steady-state instruction jitter on an isolated CPU core.</p>
 
-<p>It is usually a poor model for raw end-to-end latency when queueing delays create strong right skew, execution paths are mixed, or rare stalls dominate the SLO.</p>
+<p>It is usually a poor model for raw end-to-end latency when queueing delays create strong right skew, execution paths are mixed, or rare garbage collection stalls dominate the SLO.</p>
 
 <div class="tldr-box tldr-box--math">
     <div class="tldr-eyebrow">Why negative latency is a weak objection</div>
     <div class="tldr-content">
         <p>For \(\mu = 100\text{ ms}\) and \(\sigma = 15\text{ ms}\), zero milliseconds is 6.67 standard deviations below the mean:</p>
         <div class="math-block">\(P(T < 0) \approx 1.3 \times 10^{-11}\)</div>
-        <p>The more important failure is usually the right tail. A Normal tail decays like \(\exp(-x^2/2)\), so it can badly understate queueing stalls and modal execution paths even when its impossible negative mass is negligible.</p>
+        <p>The more important failure is usually the right tail. A Normal tail decays like \(\exp(-x^2/2)\), so it can badly understate real-world queueing stalls and bimodal execution paths even when its impossible negative mass is numerically negligible.</p>
     </div>
 </div>
 
@@ -427,7 +364,7 @@
 
 <p><strong>Evidence label:</strong> Illustrative engineering model based on post-deployment telemetry analysis.</p>
 
-<p>Suppose a checkout validation service historically has:</p>
+<p>Suppose a tenant validation service historically behaves normally:</p>
 
 <div class="math-block">\(T \sim \mathcal{N}(100,15^2)\text{ ms}\)</div>
 
@@ -450,42 +387,15 @@
     </tbody>
 </table>
 
-<p>An overall mean of 103.5 ms can look healthy while p99.9 rises to 800 ms. The large residual is evidence that the system is no longer a single unimodal process with symmetric jitter. In this example, 0.5% of requests from enterprise tenants with legacy tokens enter an unindexed synchronous permission fallback path.</p>
+<p>An overall mean of 103.5 ms can look completely healthy on a Grafana gauge while p99.9 spikes to 800 ms. The massive residual at the far tail is evidence that the system is no longer a single unimodal process with symmetric jitter. In this scenario, 0.5% of requests from legacy tenants are entering a synchronous, unindexed database fallback path.</p>
 
 <h3>Production controls</h3>
 
 <ul>
-    <li><strong>Store mergeable histograms:</strong> use DDSketch, HDRHistogram, or Prometheus native histograms instead of aggregating latency into averages.</li>
+    <li><strong>Store mergeable histograms:</strong> use DDSketch, HDRHistogram, or Prometheus native histograms instead of aggregating latency into averages at the agent level.</li>
     <li><strong>Segment execution paths:</strong> break down telemetry by cache hit, tenant tier, region, deployment, and fallback branch.</li>
     <li><strong>Investigate p99+ residuals:</strong> a large p99.9 residual often indicates an unsegmented mixture rather than an incorrect Normal calculation.</li>
 </ul>
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The intuition: the bell curve</div>
-                <div class="tldr-content">
-                    <p>The Normal distribution is symmetric. Its mean, median, and mode coincide, and about 99.7% of its probability lies within three standard deviations of the mean.</p>
-                    <p>It can be useful for measurement noise and some aggregate effects. It is often a poor model for raw request latency when the data are strongly skewed, contain multiple execution paths, or have rare stalls. Negative latency is a reason to check the model's suitability—not, by itself, proof that the model is useless.</p>
-                </div>
-            </div>
-
-            <h3>The math</h3>
-            <p>A Normal distribution is described by its mean \(\mu\) and standard deviation \(\sigma\):</p>
-            <div class="math-block">\(f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{(x-\mu)^2}{2\sigma^2}}\)</div>
-            <div class="math-explanation">
-                <strong>In plain English:</strong>
-                <ul>
-                    <li><strong>\(\mu\) (mu):</strong> the population mean.</li>
-                    <li><strong>\(\sigma\) (sigma):</strong> the population standard deviation.</li>
-                    <li><strong>\(x\):</strong> a value on the modeled scale.</li>
-                </ul>
-                <p><strong>Worked example:</strong> suppose latency is modeled as \(\mathcal{N}(100, 15^2)\) ms. The approximate p95 is 124.7 ms, p99 is 134.9 ms, and p99.9 is 146.4 ms. These are model predictions, not facts about production. If real p99.9 is 800 ms, the fit misses an important part of the system.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE trap</div>
-                <div class="tldr-content">
-                    <p>Do not reject a Normal model just because latency cannot be negative; check how much probability it assigns to impossible values and, more importantly, whether its predictions match the observed distribution where your SLO lives. Compare empirical quantiles with model quantiles, especially p95, p99, and p99.9.</p>
-                </div>
-            </div>
 
             <h3>Interactive simulation</h3>
             <p>Generate samples and compare the observed mean with the model's expected mean. This histogram is a teaching aid; it is not a goodness-of-fit test and does not show tail quantiles.</p>
@@ -515,20 +425,13 @@
                 </div>
             </div>
 
-            <div class="scenario-card">
-                <div class="scenario-title">Case study: the average dashboard <span class="scenario-tag">Telemetry</span></div>
-                <p>A dashboard reports 45 ms average latency. That number can coexist with a small group of requests timing out. A mean is not a percentile, and neither alone tells you which execution path is slow.</p>
-                <p><strong>Controls:</strong> publish latency histograms and percentiles; break down by endpoint, tenant, cache outcome, deployment, and retry path; and alert on SLO burn and deadline misses rather than averages alone.</p>
-                <div class="scenario-ref">Further reading: <a href="https://www.youtube.com/watch?v=lJ8ydIuPFeU" target="_blank" rel="noopener noreferrer">Gil Tene, “How NOT to Measure Latency”</a></div>
-            </div>
-
             <h2>3. Student's t: uncertainty about the mean</h2>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The intuition: “my load test said it was fine”</div>
                 <div class="tldr-content">
                     <p>You run a short benchmark and measure a mean of 50 ms. How certain are you that the underlying mean is near 50 ms? With a small sample, the answer may be “not very.” Student's t helps quantify uncertainty in a sample mean under suitable assumptions.</p>
-                    <p><strong>Important distinction:</strong> the t-distribution is not automatically a model for individual request latency, and a confidence interval for a mean is not a p99 estimate.</p>
+                    <p><strong>Important distinction:</strong> the t-distribution is not automatically a model for individual request latency, and a confidence interval for a mean is absolutely not a p99 estimate.</p>
                 </div>
             </div>
 
@@ -543,15 +446,8 @@
                     <li><strong>\(t\):</strong> the critical value determined by the confidence level and degrees of freedom.</li>
                 </ul>
                 <p><strong>Worked example:</strong> 10 independent benchmark observations have a mean of 50 ms and sample standard deviation of 20 ms. With 9 degrees of freedom, the 95% critical value is about 2.262:</p>
-                <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx [35.7, 64.3]\) ms</p>
+                <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx 50 \pm 14.3 \approx [35.7, 64.3]\) ms</p>
                 <p>This interval describes uncertainty about the population mean under the assumptions. It does <strong>not</strong> mean 95% of requests fall between 35.7 and 64.3 ms.</p>
-            </div>
-
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The SRE trap</div>
-                <div class="tldr-content">
-                    <p>A thousand requests may be plenty for one question and inadequate for another. Estimating the mean is different from estimating p99.9. If requests are autocorrelated or share the same load-test conditions, treating every request as an independent observation can make uncertainty look smaller than it really is.</p>
-                </div>
             </div>
 
             <h3>Interactive simulation</h3>
@@ -592,7 +488,7 @@
                 <div class="tldr-eyebrow">The intuition: a long right tail</div>
                 <div class="tldr-content">
                     <p>Many latency measurements are positive and right-skewed: most requests are quick, while a smaller group takes much longer. A Log-Normal distribution is one possible model when the logarithm of the measured variable is approximately Normal.</p>
-                    <p>Be precise about the mechanism. <strong>Sequential stage times add.</strong> Multiplicative factors may affect a stage's duration, and products of suitable positive random factors can motivate a Log-Normal model. That does not mean end-to-end elapsed time is generally the product of its stages.</p>
+                    <p>Be precise about the mechanism. <strong>Sequential stage times add</strong> (Erlang model). Multiplicative factors may affect a stage's duration, and products of suitable positive random factors can motivate a Log-Normal model. That does not mean end-to-end elapsed time is generally the product of its stages.</p>
                 </div>
             </div>
 
@@ -607,14 +503,14 @@
                     <li><strong>Mean:</strong> \(e^{\mu+\sigma^2/2}\).</li>
                     <li><strong>Percentile:</strong> \(Q_p = e^{\mu+z_p\sigma}\), where \(z_p\) is the Normal quantile.</li>
                 </ul>
-                <p><strong>Worked example:</strong> for \(\mu=0.3\) and \(\sigma=0.6\), the median is \(e^{0.3} \approx 1.35\), the mean is \(e^{0.3+0.6^2/2} \approx 1.62\), p99 is approximately 5.43, and p99.9 is approximately 8.55 in the variable's units.</p>
-                <p>Here p99.9 is about 6.34 times the median. A ratio of 10× or 100× is possible for other parameters, but it is not a universal property of Log-Normal data.</p>
+                <p><strong>Worked example:</strong> for \(\mu=0.3\) and \(\sigma=0.6\), the median is \(e^{0.3} \approx 1.35\), the mean is \(e^{0.3+0.6^2/2} \approx 1.62\), p99 is approximately \(\mathbf{5.45}\), and p99.9 is approximately \(\mathbf{8.62}\) in the variable's units.</p>
+                <p>Here p99.9 is about 6.38 times the median. A ratio of 10× or 100× is possible for other parameters, but it is not a universal property of Log-Normal data.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE trap</div>
                 <div class="tldr-content">
-                    <p>Do not pick a Log-Normal curve because it looks familiar. Fit it, compare predicted and empirical quantiles, and inspect the execution paths. A mixture of cache hits and misses, for example, may be better understood as two different populations than as one smooth curve.</p>
+                    <p>Do not pick a Log-Normal curve just because it looks familiar and doesn't go below zero. Fit it, compare predicted and empirical quantiles, and inspect the execution paths. A mixture of cache hits and misses, for example, is better understood as two different populations than as one smooth curve.</p>
                 </div>
             </div>
 
@@ -648,36 +544,28 @@
 
             <h2>5. Mixtures: when one curve hides two systems</h2>
 
-            <p>Sometimes the tail is not just “the same thing, but slower.” It is a different execution path: a cache miss, a retry, a cold start, a runtime pause, a lock convoy, or a request routed to a saturated shard. A single average—or a single fitted distribution—can blur the clue.</p>
+            <p>Sometimes the tail is not just “the same thing, but slower.” It is a different execution path entirely: a cache miss, a geometric retry, a container cold start, a runtime pause, a lock convoy, or a request routed to a saturated shard. A single average—or a single fitted distribution—blurs the physical reality.</p>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">A two-path model</div>
                 <div class="tldr-content">
-                    <p>Suppose 99% of requests take 10 ms and 1% take 250 ms:</p>
+                    <p>Suppose 99% of requests hit Redis in 10 ms and 1% hit Cosmos DB in 250 ms:</p>
                     <p style="text-align:center;font-family:'IBM Plex Mono',monospace">\(\mathbb{E}[T] = 0.99 \times 10 + 0.01 \times 250 = 12.4\) ms</p>
-                    <p>The mean looks healthy, while the rare path is 25 times slower. In this simplified two-point distribution, p99 is 10 ms under the usual lower-quantile definition and p99.9 is 250 ms. The exact percentile boundary depends on the mixture weight and quantile convention.</p>
+                    <p>The mean looks incredibly healthy, while the rare path is 25 times slower. In this simplified two-point distribution, p99 is 10 ms (depending on quantile convention) and p99.9 is 250 ms. Attempting to fit a single Log-Normal curve to this data would fail because the physical mechanism is a weighted mixture, not a single process.</p>
                 </div>
             </div>
 
-            <h2>6. Hedged requests: speed has a bill</h2>
+            <h2>6. Dependence and common-cause failures</h2>
 
-            <p>Hedging sends a second request when the first has taken longer than a chosen delay. If either result can satisfy the caller, the system may finish sooner. It can be powerful—but duplicate work is not free, and hedging a saturated dependency can make the incident worse.</p>
+            <p>Independence is convenient. Production architecture is often not. Two regions may share a global identity provider. 100 partitions may share the same top-of-rack switch or Redis cache. A shared failure can take several “independent” components down together, destroying the optimistic math of parallel redundancy. We will cover this failure correlation in depth when we look at the Geometry of Data Skew in Part 5.</p>
 
-            <div class="scenario-card">
-                <div class="scenario-title">Documented research: Bigtable tail latency <span class="scenario-tag">The Tail at Scale</span></div>
-                <p>Dean and Barroso describe a Bigtable experiment retrieving 1,000 keys across 100 servers. In that reported experiment, hedging reduced p99.9 latency from 1,800 ms to 74 ms with about 2% additional requests.</p>
-                <p><strong>Calculation:</strong> \((1800-74)/1800 \approx 95.9\%\) reduction in the reported p99.9, or about a 24.3× improvement.</p>
-            </div>
-
-            <h2>7. Dependence and common-cause failures</h2>
-
-            <p>Independence is convenient. Production architecture is often not. Two regions may share an identity provider. Many services may share a database, DNS resolver, network path, control plane, deployment, or resource pool. A shared failure can take several “independent” components down together.</p>
-
-            <h2>8. Extreme Value Theory: looking beyond the data you have</h2>
+            <h2>7. Extreme Value Theory: looking beyond the data you have</h2>
 
             <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers tools for studying extremes. One approach, the peaks-over-threshold method, models the amount by which observations exceed a chosen threshold using a Generalized Pareto Distribution (GPD).</p>
 
             <div class="math-block">\(P(Y > y \mid T > u) = \left(1 + \frac{\xi y}{\beta}\right)^{-1/\xi}, \quad \xi \neq 0\)</div>
+
+            <p>Fitting a GPD allows you to estimate rare percentiles (return levels). <strong>However, extrapolating far beyond observed data assumes the tail mechanism remains stable.</strong> A model fitted to queueing jitter cannot predict when the server will run out of physical memory and crash.</p>
 
             <h2>Interactive workbench: turn the model into a decision</h2>
             <p>These tools are deliberately split by question. The mixture explorer studies observed latency shape; the canary lab separates uncertainty about a mean from the chance of missing a defect; and the EVT calculator shows how assumptions affect an extreme-tail estimate.</p>
@@ -724,7 +612,7 @@
                 <div class="wb-stats" id="evt-stats" aria-live="polite"></div>
             </div>
 
-            <h2>9. From a distribution to an engineering decision</h2>
+            <h2>8. From a distribution to an engineering decision</h2>
             <p>Here is the workflow I use to keep the math connected to the system. The goal is not to find a distribution that looks clever in a chart. The goal is to make a decision that remains defensible when the workload changes.</p>
              <h2>Principal Engineer’s Production Modeling Checklist</h2>
 
@@ -772,7 +660,7 @@
         <p>A fitted distribution is not a production control. The useful result is the control that follows from the validated model: a deadline, a queue limit, an isolation boundary, a canary sample size, a bounded duplicate-work budget, or a deliberate graceful-degradation policy.</p>
     </div>
 </div>
-           
+            
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-3-physics-of-time-traffic-and-queues.html">← Part 3: The Physics of Time, Traffic, and Queues</a>
                 <a href="part-5-routing-sharding-and-data-skew.html">Part 5: Routing, Sharding, and Data Skew →</a>

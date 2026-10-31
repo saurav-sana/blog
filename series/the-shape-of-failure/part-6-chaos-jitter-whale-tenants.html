@@ -212,7 +212,7 @@
 
             <blockquote class="snarky-quote">
                 <p class="snarky-quote-text">“The definition of insanity is doing the same thing over and over again and expecting different results. In distributed systems, we call this a Default Retry Policy.”</p>
-                <p class="snarky-quote-author">— <strong><em>Every Staff Engineer at 3:14 AM</em></strong> (with apologies to Rita Mae Brown)</p>
+                <p class="snarky-quote-author">— <strong><em>Every Staff Engineer at 3:14 AM</em></strong></p>
             </blockquote>
 
             <p>Up until now in this series, we have indulged in a comforting textbook fiction: that the universe is memoryless, that probabilities are fixed constants handed down from Mount Olympus, and that one failed packet does not conspire with the next. We treated our servers like casino roulette wheels—stateless, stationary, and completely indifferent to how desperately the gambler needs to win.</p>
@@ -237,32 +237,29 @@
             </div>
 
             <h3>The Math & Multi-Tier Work Amplification</h3>
-            <p>Assuming an independent per-attempt success probability <var>p</var>, the probability of requiring <var>k</var> total attempts (<var>k</var>&minus;1 failures followed by 1 success) and the expected work amplification per logical request are:</p>
+            <p>Assuming an independent per-attempt success probability <var>p</var> (a dangerous assumption we will dismantle shortly), the probability of requiring exactly <var>k</var> total attempts (<var>k</var>&minus;1 failures followed by 1 success) is:</p>
             <div class="math-block">
                 <div><var>P</var>(<var>X</var> = <var>k</var>) = (1 &minus; <var>p</var>)<sup><var>k</var>&minus;1</sup> &middot; <var>p</var></div>
                 <span class="math-sep">|</span>
-                <div><var>E</var>[<var>X</var>] = <span class="frac"><span class="num">1</span><span class="den"><var>p</var></span></span></div>
-                <span class="math-sep">|</span>
-                <div><var>A</var><sub>stack</sub> = <span class="frac"><span class="num">1 &minus; (1 &minus; <var>p</var>)<sup><var>M</var>+1</sup></span><span class="den"><var>p</var></span></span><sup><var>L</var></sup></div>
+                <div><var>E</var>[<var>X</var>] = <span class="frac"><span class="num">1 &minus; (1 &minus; <var>p</var>)<sup><var>M</var></sup></span><span class="den"><var>p</var></span></span></div>
             </div>
             
             <div class="math-explanation">
                 <strong>Decoding the architectural blast radius:</strong>
                 <ul>
-                    <li><strong><var>E</var>[<var>X</var>] = 1 / <var>p</var> (The Work Amplification Factor):</strong> If your storage engine is healthy (<var>p</var> = 0.99), each logical user request costs <code>1 / 0.99 = 1.01</code> physical queries. If a noisy neighbor or GC pause drops <var>p</var> to <code>0.20</code>, each user click suddenly demands an average of <code>1 / 0.20 = 5.0</code> physical queries—and the 95th percentile (<var>P</var><sub>95</sub>) stretches to <strong>14 attempts</strong>!</li>
-                    <li><strong><var>A</var><sub>stack</sub> (Multi-Tier Cascading Amplification):</strong> Suppose you cap retries at <var>M</var> = 3 (4 total tries) to be "safe," but you configure that policy across <var>L</var> = 3 layers of your stack (API Gateway &rarr; Order Service &rarr; Inventory Service &rarr; Database). When the database drops to <var>p</var> = 0.10, each layer multiplies the retries of the layer above it: <code>(3.439)<sup>3</sup> = 40.7&times;</code> load amplification at the database tier.</li>
+                    <li><strong><var>E</var>[<var>X</var>] (The Work Amplification Factor):</strong> If your Parquet worker pool is healthy (<var>p</var> = 0.99), each logical query costs <code>1 / 0.99 = 1.01</code> physical attempts (assuming unbounded retries). If a GC pause drops <var>p</var> to <code>0.10</code>, each query demands an average of <code>10.0</code> physical attempts. A system built for 1,000 queries per second is suddenly hit with 10,000 queries per second.</li>
+                    <li><strong><var>A</var><sub>stack</sub> (Multi-Tier Cascading Amplification):</strong> Suppose you configure a bounded retry policy of <var>M</var> = 3 (max 3 total attempts) to be "safe". But you configure that same policy across <var>L</var> = 3 layers of your stack (Gateway &rarr; Orchestrator &rarr; Storage). The expected attempts per layer at <var>p</var> = 0.10 is <code>(1 - 0.9^3)/0.1 = 2.71</code>. When nested across 3 layers, the database experiences <code>2.71<sup>3</sup> &approx; 19.9&times;</code> load amplification!</li>
                 </ul>
-                <p><strong>Worked Example:</strong> Your cluster is provisioned for 10,000 RPS with headroom up to 15,000 RPS. A transient network blip drops downstream success to <var>p</var> = 0.50 for 2 seconds. Naive Geometric retries immediately double the offered load to <code>10,000 &times; (1 / 0.50) = 20,000 RPS</code>, blowing past the 15,000 RPS saturation cliff and driving <var>p</var> &rarr; 0.05.</p>
             </div>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Principal Architect Trap: State-Dependent Decay & Markov Circuit Breakers</div>
                 <div class="tldr-content">
-                    <p>In a real outage, <var>p</var> is not static; it transitions through a <strong>stateful feedback loop</strong> where <var>p</var><sub><var>k</var></sub> = <var>p</var><sub>0</sub> &middot; <var>e</var><sup>&minus;&lambda;<var>L</var>(<var>t</var>)</sup>. Once offered load <var>L</var>(<var>t</var>) crosses saturation, the system enters a <strong>metastable failure state</strong>: even after external traffic returns to normal, the cluster remains pinned at 100% CPU processing its own backlog of retries.</p>
+                    <p>In a real outage, <var>p</var> is not static; it transitions through a <strong>stateful feedback loop</strong> where <var>p</var> decays as a function of the offered load <var>&Lambda;</var>(<var>t</var>). Once offered load crosses the saturation point, the system enters a <strong>metastable failure state</strong>: even after external traffic returns to normal, the cluster remains pinned at 100% CPU processing its own backlog of retries.</p>
                     <p>How do we break the Geometric loop? With two stateful defenses:</p>
                     <ul>
-                        <li><strong>Markov Chain Circuit Breakers (<code>CLOSED &rarr; OPEN &rarr; HALF-OPEN</code>):</strong> Instead of letting clients sample from a Geometric tail when <var>p</var> &rarr; 0, a circuit breaker tracks consecutive or rolling failures. Once a threshold is crossed, the state transitions to <code>OPEN</code>, clamping attempt volume to zero (<var>k</var> = 0, fail-fast) for a cooldown window before transitioning to <code>HALF-OPEN</code> to test the waters with single probe requests.</li>
-                        <li><strong>Client-Side Retry Budgets:</strong> Retry at <em>only one layer</em> of the architecture, and enforce a token-bucket ratio (e.g., Envoy/Google SRE's 10% rule: retries may never exceed 10% of base traffic volume). This mathematically caps your worst-case Work Amplification Factor at <code>1.10&times;</code> instead of <code>1 / p</code>.</li>
+                        <li><strong>Markov Chain Circuit Breakers (<code>CLOSED &rarr; OPEN &rarr; HALF-OPEN</code>):</strong> Instead of letting clients endlessly sample from a Geometric tail when <var>p</var> &rarr; 0, a circuit breaker tracks consecutive failures. Once a threshold is crossed, the state transitions to <code>OPEN</code>, clamping attempt volume to zero (<var>k</var> = 0, fail-fast) for a cooldown window before transitioning to <code>HALF-OPEN</code> to test the waters with single probe requests.</li>
+                        <li><strong>Client-Side Retry Budgets:</strong> Enforce a token-bucket ratio (e.g., Envoy/Google SRE's 10% rule: retries may never exceed 10% of base traffic volume). This mathematically caps your worst-case Work Amplification Factor at <code>1.10&times;</code> instead of <code>1 / p</code>.</li>
                     </ul>
                 </div>
             </div>
@@ -307,16 +304,11 @@
                 <p>During the famous 2015 DynamoDB metadata outage, thousands of storage nodes simultaneously hit lease timeouts and retried against membership servers. Synchronized binary exponential backoff (2<sup><var>k</var></sup>) still collided in phase waves. AWS solved this by combining <strong>Full Jitter</strong> (sleep ~ <var>U</var>(0, <var>T</var><sub>0</sub> &middot; 2<sup><var>k</var></sup>)) with client-side token-bucket retry throttling.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener">Marc Brooker, "Exponential Backoff And Jitter" (AWS Architecture Blog)</a></div>
             </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Adaptive Throttling & Retry Budgets <span class="scenario-tag">Google SRE / Envoy</span></div>
-                <p>To prevent multi-layer Geometric amplification, Google's internal RPC clients track a rolling window of requests and rejections, locally dropping requests with probability max(0, (<var>requests</var> &minus; <var>K</var> &middot; <var>accepts</var>) / (<var>requests</var> + 1)) before they ever touch the wire—shedding overload at the client process boundary.</p>
-                <div class="scenario-ref">Reference: <a href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener">Google SRE Book, Ch. 21: Handling Overload</a></div>
-            </div>
 
             <!-- ========================================== -->
             <!-- 2. NEGATIVE BINOMIAL DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>2. The Negative Binomial Distribution (Overdispersion, Botnets & Poison Pills)</h2>
+            <h2>2. The Negative Binomial Distribution (Overdispersion & Poison Pills)</h2>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Counting the Bodies Before <var>r</var> Victories</div>
@@ -340,10 +332,9 @@
                 <strong>The Superposition Theorem vs. Overdispersed Intensity:</strong>
                 <ul>
                     <li><strong>The Superposition Principle:</strong> Many engineers assume having one "whale tenant" doing 100 RPS and fifty small tenants doing 1 RPS creates a Negative Binomial count. <em>It does not.</em> By the Poisson Superposition Theorem, summing independent Poisson processes with fixed rates &lambda;<sub><var>i</var></sub> yields another pure Poisson process (&sum; Poisson(&lambda;<sub><var>i</var></sub>) = Poisson(&sum; &lambda;<sub><var>i</var></sub>)), which still strictly maintains equidispersion (<var>&sigma;</var><sup>2</sup> = <var>&mu;</var>).</li>
-                    <li><strong>The Gamma-Poisson Mixture (Cox Process):</strong> Overdispersion (<var>&sigma;</var><sup>2</sup> &gt; <var>&mu;</var>) emerges only when the arrival intensity &Lambda;(<var>t</var>) is itself a stochastic variable across time windows (e.g., top-of-the-hour batch cron jobs, market opens, or intermittent crawler bursts). When &Lambda; ~ Gamma(<var>r</var>, &theta;), mixing Poisson(&Lambda;) produces a <strong>Negative Binomial distribution</strong> with Variance-to-Mean Ratio (VMR) = 1 + &theta; = 1/<var>p</var> &gt; 1.</li>
+                    <li><strong>The Gamma-Poisson Mixture (Cox Process):</strong> Overdispersion (<var>&sigma;</var><sup>2</sup> &gt; <var>&mu;</var>) emerges only when the arrival intensity &Lambda;(<var>t</var>) is itself a stochastic variable across time windows (e.g., top-of-the-hour batch cron jobs). When &Lambda; ~ Gamma(<var>r</var>, &theta;), mixing Poisson(&Lambda;) produces a <strong>Negative Binomial distribution</strong> with Variance-to-Mean Ratio (VMR) = 1 + &theta; = 1/<var>p</var> &gt; 1.</li>
                     <li><strong>The Dispersion Parameter (<var>r</var>):</strong> As <var>r</var> &rarr; &infin;, the quadratic overdispersion term <var>&mu;</var><sup>2</sup>/<var>r</var> vanishes, converging to Poisson behavior. As <var>r</var> &rarr; 0, variance explodes into extreme clustering.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> A Dead-Letter Queue averages <var>&mu;</var> = 100 schema validation errors/min. Assuming an equidispersed Poisson stream, <var>&sigma;</var> = &radic;100 = 10, suggesting capacity for 130 errors/min covers &gt;99.8% of intervals. But under scheduled batch uploads with dispersion <var>r</var> = 2, true variance is 100 + 100<sup>2</sup>/2 = 5,100 (<var>&sigma;</var> &approx; 71.4). The 95th percentile spikes past <strong>240 errors/min</strong>, overflowing the buffer.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -393,11 +384,6 @@
                 <div class="scenario-title">Poison-Pill Amplification in Micro-Batches <span class="scenario-tag">Kafka / PySpark</span></div>
                 <p>When a streaming consumer reads micro-batches of 1,000 events and a single tenant injects malformed payloads, naive batch-level retries replay the entire batch repeatedly before committing <var>r</var> healthy offsets. Implementing per-record Dead-Letter Queue (DLQ) routing decouples poison failures (<var>k</var>) from healthy partition progress (<var>r</var>).</p>
                 <div class="scenario-ref">Reference: <a href="https://www.confluent.io/blog/error-handling-patterns-in-kafka/" target="_blank" rel="noopener">Confluent: Error Handling and Dead Letter Queues in Apache Kafka</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Whale Tenant Traffic & Overdispersed Bursts <span class="scenario-tag">Multi-Tenant Gateways</span></div>
-                <p>In enterprise data gateways where top tenants execute scheduled hourly ETL syncs, arrival intensity &Lambda;(<var>t</var>) surges across sampling epochs. Modeling ingress with Negative Binomial distributions accounts for overdispersion (VMR &gt; 50), preventing buffer starvation during top-of-the-hour peaks.</p>
-                <div class="scenario-ref">Reference: <a href="https://en.wikipedia.org/wiki/Negative_binomial_distribution#Poisson%E2%80%93gamma_mixture" target="_blank" rel="noopener">Negative Binomial as a Gamma–Poisson Mixture</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -469,23 +455,6 @@
                 </div>
             </div>
 
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">Bandit-Driven Load Balancing <span class="scenario-tag">Thompson Sampling</span></div>
-                <p>When routing across multi-region API gateways or heterogeneous LLM inference endpoints, static round-robin ignores brownouts while greedy routing causes oscillation. Thompson Sampling over per-endpoint Beta(<var>&alpha;</var>, <var>&beta;</var>) posteriors balances exploration and exploitation without centralized coordination.</p>
-                <div class="scenario-ref">Reference: <a href="https://web.stanford.edu/~bvr/pubs/TS_Tutorial.pdf" target="_blank" rel="noopener">Russo et al., "A Tutorial on Thompson Sampling" (Stanford University)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Automated Canary Gatekeeping <span class="scenario-tag">Netflix Kayenta</span></div>
-                <p>Low-traffic microservices often fail automated canary checks because 1 error out of 12 requests looks like an 8.3% outage, or pass erroneously because 0 errors out of 15 requests looks perfect. Modeling error rates via Beta posteriors forces canary judges to wait until credible intervals stop overlapping.</p>
-                <div class="scenario-ref">Reference: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank" rel="noopener">Netflix TechBlog: Automated Canary Analysis with Kayenta</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Empirical Bayes Alert Ranking <span class="scenario-tag">Observability</span></div>
-                <p>Sorting a tenant table by raw <code>errors / requests</code> causes small tenants with 1 request and 1 failure (100%) to bury enterprise tenants with 4,200 failures out of 5,000 requests (84%). Shrinking every tenant's ratio toward a global Beta(<var>&alpha;</var><sub>0</sub>, <var>&beta;</var><sub>0</sub>) prior ranks alerts by statistical significance.</p>
-                <div class="scenario-ref">Reference: <a href="http://varianceexplained.org/r/empirical_bayes_baseball/" target="_blank" rel="noopener">David Robinson, "Introduction to Empirical Bayes"</a></div>
-            </div>
-
             <!-- ========================================== -->
             <!-- 4. BETA-PERT DISTRIBUTION -->
             <!-- ========================================== -->
@@ -527,7 +496,7 @@
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Principal Architect Takeaway: Stop Giving Point Estimates</div>
                 <div class="tldr-content">
-                    <p>Whether quoting Recovery Time Objectives (RTO), forecasting cloud FinOps spend, or planning migrations, <strong>never provide a single scalar number</strong>. Elicit 3-point bounds (<var>a, m, b</var>), run Monte Carlo simulations across your dependency DAG, and present two figures: <code>P50 (Expected Reality)</code> and <code>P90/P95 (Commitment Threshold)</code>.</p>
+                    <p>Whether quoting Recovery Time Objectives (RTO), forecasting cloud FinOps spend, or planning migrations, <strong>never provide a single scalar number</strong>. Elicit 3-point bounds (<var>a, m, b</var>), run Monte Carlo simulations across your dependency DAG, and present two figures: <code>P50 (Expected Reality)</code> and <code>P90/P95 (Commitment Threshold)</code>. Committing to a sum of modes guarantees schedule failure.</p>
                 </div>
             </div>
 
@@ -562,23 +531,6 @@
                     <div>Expected Mean: <span class="stat-theory">–</span></div>
                     <div>Observed P95 Tail: <span class="stat-tail">–</span></div>
                 </div>
-            </div>
-
-            <h3>Scenarios & Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">Critical Path Merge Bias <span class="scenario-tag">1958 Polaris / DAGs</span></div>
-                <p>Created by the US Navy for the Polaris submarine program, PERT quantified schedule risk across thousands of subcontractors. Early practitioners assumed critical paths could be planned by comparing path means alone, leading to substantial delays until Monte Carlo simulation accounted for merge bias.</p>
-                <div class="scenario-ref">Reference: <a href="https://ops.fhwa.dot.gov/publications/fhwahop08054/sect4.htm" target="_blank" rel="noopener">Malcolm et al., "Application of a Technique for R&D Program Evaluation" (1959)</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Quantitative Risk & Cloud FinOps <span class="scenario-tag">FAIR / Cloud Economics</span></div>
-                <p>Under the FAIR standard and FinOps modeling, architects replace static "High / Med / Low" matrices with calibrated PERT curves over breach frequency, egress spikes, and LLM token usage—generating dollar-denominated Loss Exceedance Curves.</p>
-                <div class="scenario-ref">Reference: <a href="https://www.fairinstitute.org/what-is-fair" target="_blank" rel="noopener">FAIR Institute: Quantitative Risk & Monte Carlo Simulation</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">Realistic MTTR & Cold Failover Bounds <span class="scenario-tag">SRE / Incident Response</span></div>
-                <p>Quoted 15-minute RTOs reflect <var>a</var> (the warm path). During regional outages, DNS TTL caching, cold cache hydration, and control-plane rate limits follow a right-skewed PERT distribution where P95 restoration requires up to 4&times; the advertised RTO.</p>
-                <div class="scenario-ref">Reference: <a href="https://sre.google/sre-book/accelerating-sre-on-call/" target="_blank" rel="noopener">Google SRE: Incident Recovery & Time-to-Restore Distributions</a></div>
             </div>
 
             <!-- ========================================== -->
@@ -626,9 +578,11 @@
                     </tbody>
                 </table>
             </div>
+            
+            <p>This concludes our tour of probability and traffic geometry. In Part 7, we step out of the theoretical realm entirely. We will examine what happens when these statistical models hit the harsh reality of Linux networking, CPU quotas, disk I/O, and missing telemetry—and how to build observability to prove your models right (or wrong) in production.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-5-heavy-tails-and-extremes.html">← Part 5: Heavy Tails and Extremes</a>
+                <a href="part-5-routing-sharding-and-data-skew.html">← Part 5: Routing, Sharding, and Data Skew</a>
                 <a href="part-7-architects-reality-check.html">Part 7: The Architect's Reality Check →</a>
             </nav>
         </main>
@@ -973,7 +927,10 @@
                     }
 
                     if (this.statTheory) {
-                        this.statTheory.textContent = theoreticalMean !== null ? theoreticalMean.toFixed(2) : '–';
+                        let unit = '';
+                        if (this.type === 'geometric') unit = ' attempts';
+                        if (this.type === 'negbinomial') unit = ' failures';
+                        this.statTheory.textContent = theoreticalMean !== null ? theoreticalMean.toFixed(2) + unit : '–';
                     }
 
                     if (this.samples.length === 0) {
@@ -1030,7 +987,7 @@
                     const scaleMin = discrete ? (rmin - 0.5) : rmin;
 
                     // Negative Binomial Poisson Equidispersion Reference Line
-                    if (this.type === 'negbinomial' && theoreticalMean !== null) {
+                    if (this.type === 'negbinomial' && theoreticalMean !== null && theoreticalMean > 0) {
                         const poissonSd = Math.sqrt(theoreticalMean);
                         const poissonRef = theoreticalMean + 1.645 * poissonSd; // 95th percentile Poisson marker
                         if (poissonRef >= scaleMin && poissonRef <= scaleMax) {
@@ -1106,8 +1063,12 @@
                         ctx.fillText('P95', p95X, pad.t - 6);
                     }
 
-                    this.statN.textContent = this.samples.length;
-                    this.statMean.textContent = mean.toFixed(2);
+                    this.statN.textContent = this.samples.length.toLocaleString();
+                    let meanUnit = '';
+                    if (this.type === 'geometric') meanUnit = ' attempts';
+                    if (this.type === 'negbinomial') meanUnit = ' failures';
+                    this.statMean.textContent = mean.toFixed(2) + meanUnit;
+                    
                     if (this.statTail) {
                         this.statTail.textContent = discrete ? p95.toString() : p95.toFixed(2);
                     }
