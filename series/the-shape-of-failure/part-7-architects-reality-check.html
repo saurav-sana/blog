@@ -8,7 +8,7 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
-        function gtag() { window.dataLayer.push(arguments); }
+        function gtag() { dataLayer.push(arguments); }
         gtag('js', new Date());
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
@@ -281,15 +281,22 @@
                     <span>Worked Example: Tail Divergence, Sample Quantiles, and KS vs. AD</span>
                     <span class="scenario-tag">Illustrative Engineering Model</span>
                 </div>
-                <p><strong>1. Production Scenario & Mechanism:</strong> Our Multi-Tenant Analytics Gateway serves \( 99.8\% \) of queries from warm Arrow memory caches following a Lognormal distribution with \( \mu = 4.605 \) (\(\text{median} = 100\text{ ms}\)) and \( \sigma = 0.782 \), which predicts a theoretical \( 99.9\text{th} \) percentile of \( Q_{0.999} = \exp(4.605 + 3.090 \times 0.782) \approx 1,120\text{ ms} \). However, \( 0.2\% \) of queries trigger cold object-storage partition compaction, pushing latencies in that secondary regime into the \( 4,500\text{ ms}–8,000\text{ ms} \) range.</p>
-                <p><strong>2. Order Statistics, Quantile Conventions, and Numerical Calculation (\( n = 1,000 \) traces):</strong></p>
+                <p><strong>1. Production Scenario & Baseline Model:</strong> Our Multi-Tenant Analytics Gateway serves \( 99.8\% \) of queries from warm Arrow memory caches following a baseline Lognormal distribution \( H_0: \ln X \sim \mathcal{N}(\mu = 4.605, \, \sigma = 0.782) \) (\(\text{median} = e^{4.605} \approx 100.0\text{ ms}\)), which predicts a theoretical \( 99.9\text{th} \) percentile of \( Q_{0.999} = \exp(4.605 + 3.0902 \times 0.782) \approx 1,120.8\text{ ms} \). However, \( 0.2\% \) of queries trigger cold object-storage partition compaction, pushing latencies in that secondary regime into the \( 4,500\text{ ms}–8,000\text{ ms} \) range.</p>
+                <p><strong>2. Deterministic Reproducible Sample & Order Statistics (\( n = 1,000 \) traces):</strong></p>
                 <ul>
-                    <li>Suppose we draw a validation sample of \( n = 1,000 \) traces. The top two order statistics fall into the compaction regime: \( X_{(999)} = 4,800\text{ ms} \) and the sample maximum \( X_{(1000)} = 7,900\text{ ms} \), while \( X_{(998)} = 980\text{ ms} \).</li>
+                    <li><strong>Deterministic Sample Construction:</strong> To make the full-sample KS and AD statistics 100% reproducible without external files, define the \( n = 1,000 \) ordered observations \( X_{(1)} \le \dots \le X_{(1000)} \) as follows: for the \( 997 \) bulk observations (\( i = 1, \dots, 997 \)), let \( u_i = \frac{i - 0.5}{1000} \) and set \( X_{(i)} = \exp\left(4.605 + 0.782\,\Phi^{-1}(u_i) + \delta_{\text{bulk}}(u_i)\right) \), where a mild diurnal median shift \( \delta_{\text{bulk}}(u_i) = -0.0556\,\exp\left(-25(u_i - 0.50)^2\right) \) Perturbs the bulk CDF near \( x \approx 100\text{ ms} \) by \( -0.0276 \). The top three order statistics are explicitly specified as \( X_{(998)} = 980.0\text{ ms} \), and the two compaction-regime outliers \( X_{(999)} = 4,800.0\text{ ms} \) and \( X_{(1000)} = 7,900.0\text{ ms} \).</li>
                     <li><strong>Distinguishing Sample \( P_{99.9} \) from the Sample Maximum:</strong> Under the standard <em>nearest-rank quantile convention</em>, the empirical quantile estimator for probability \( q \) is \( \hat{Q}_q = X_{(\lceil q n \rceil)} \). At \( n = 1,000 \) and \( q = 0.999 \):
                         \[ \hat{Q}_{0.999} = X_{(\lceil 0.999 \times 1000 \rceil)} = X_{(999)} = 4,800\text{ ms} \]
-                        (Linear interpolation conventions such as Hyndman-Fan Type 7 yield a nearly identical \( 4,803.1\text{ ms} \).) Thus, the empirical \( P_{99.9} \) is \( 4,800\text{ ms} \) (\( 4.3\times \) the theoretical \( 1,120\text{ ms} \)), whereas \( X_{(1000)} = 7,900\text{ ms} \) (\( 7.1\times \) theoretical \( P_{99.9} \)) is the <strong>sample maximum</strong>, not \( P_{99.9} \).</li>
-                    <li><strong>Why KS Misses the Tail Blowout:</strong> At \( x = 1,120\text{ ms} \), the theoretical CDF is \( F(1120) = 0.9990 \), while the empirical ECDF is \( \hat{F}_{1000}(1120) = \frac{998}{1000} = 0.9980 \). Across the entire region \( x \ge 1,120\text{ ms} \), the vertical CDF gap never exceeds \( |0.9980 - 0.9990| = 0.0010 \). Meanwhile, ordinary sampling fluctuation near the median (\( x \approx 100\text{ ms} \)) produces a vertical difference of \( D_{1000} = 0.028 \). Because \( D_{1000} = 0.028 \) is well below the \( \alpha = 0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx \frac{1.358}{\sqrt{1000}} = 0.0429 \), the KS test fails to reject \( H_0 \)—missing both the \( 4.3\times \) \( P_{99.9} \) exceedance and the \( 7,900\text{ ms} \) maximum.</li>
-                    <li><strong>Why Anderson-Darling Catches It:</strong> In the AD summation, both extreme observations \( X_{(999)} = 4,800\text{ ms} \) and the sample maximum \( X_{(1000)} = 7,900\text{ ms} \) are weighted by \( \ln(1 - F(X_{(n+1-i)})) \). At \( X_{(1000)} = 7,900\text{ ms} \), the standardized score is \( z = \frac{\ln(7900) - 4.605}{0.782} = 5.587 \), giving \( 1 - F(7900) \approx 1.15 \times 10^{-8} \) and \( \ln(1 - F(X_{(1000)})) \approx -18.28 \). Multiplied by \( \frac{2n - 1}{n} = 1.999 \), this single extreme observation contributes \( +36.5 \) to \( A^2 \) (and \( X_{(999)} = 4,800\text{ ms} \) contributes another \( +23.7 \)), driving \( A^2 \) far beyond the \( \alpha = 0.05 \) critical value (\( 2.492 \)).</li>
+                        (Linear interpolation conventions such as Hyndman-Fan Type 7 yield a nearly identical \( 4,803.1\text{ ms} \).) Thus, the empirical \( P_{99.9} \) is \( 4,800\text{ ms} \) (\( 4.3\times \) the theoretical \( 1,120.8\text{ ms} \)), whereas \( X_{(1000)} = 7,900\text{ ms} \) (\( 7.05\times \) theoretical \( P_{99.9} \)) is the <strong>sample maximum</strong>, not \( P_{99.9} \).</li>
+                    <li><strong>Why KS Misses the Tail Blowout:</strong> Let us trace the exact vertical discrepancy \( |\hat{F}_{1000}(x) - F(x)| \) across the extreme tail \( x \ge 1,120.8\text{ ms} \). Because \( X_{(998)} = 980\text{ ms} \) and \( X_{(999)} = 4,800\text{ ms} \), the empirical ECDF remains flat at \( \hat{F}_{1000}(x) = \frac{998}{1000} = 0.9980 \) over the entire interval \( [980\text{ ms}, \, 4,800\text{ ms}) \). At \( x = 1,120.8\text{ ms} \), \( F(1120.8) = 0.9990 \), giving a vertical gap of \( |0.9980 - 0.9990| = 0.0010 \). As \( x \) increases toward the jump at \( X_{(999)} = 4,800\text{ ms} \), the theoretical CDF approaches \( F(4800) \approx 0.99999963 \), so immediately to the left of \( 4,800\text{ ms} \) the vertical discrepancy reaches its tail maximum:
+                        \[ \sup_{x \ge 1,120.8} \left|\hat{F}_{1000}(x) - F(x)\right| = \left|\hat{F}_{1000}(4800^-) - F(4800)\right| = |0.9980 - 0.99999963| \approx 0.0019996 \approx 0.0020 \]
+                        Immediately after the ECDF jumps to \( 0.9990 \) at \( x = 4,800\text{ ms} \), the discrepancy drops back to \( \approx 0.0010 \). A maximum tail discrepancy of \( \approx 0.0020 \) is an order of magnitude smaller than the bulk discrepancy of \( D_{1000} = 0.0281 \) near the median (\( x \approx 97.2\text{ ms} \), where \( \hat{F}_{1000} = 0.5000 \) vs. \( F = 0.4719 \)). Because the full-sample statistic \( D_{1000} = 0.0281 \) is well below the \( \alpha = 0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx \frac{1.358}{\sqrt{1000}} = 0.0429 \), the KS test fails to reject \( H_0 \)—missing both the \( 4.3\times \) \( P_{99.9} \) exceedance and the \( 7,900\text{ ms} \) maximum.</li>
+                    <li><strong>Why Anderson-Darling Catches It:</strong> In the AD summation, both extreme observations \( X_{(999)} = 4,800\text{ ms} \) and \( X_{(1000)} = 7,900\text{ ms} \) are weighted by \( -\frac{2i - 1}{n}\ln(1 - F(X_{(i)})) \):
+                        <ul style="margin-top:0.35rem; margin-bottom:0.35rem;">
+                            <li>For \( X_{(1000)} = 7,900\text{ ms} \) (\( i = 1000 \)): the standardized score is \( z = \frac{\ln(7900) - 4.605}{0.782} \approx 5.5866 \), giving survival probability \( 1 - \Phi(5.5866) \approx 1.158 \times 10^{-8} \) and \( -\ln(1 - F(7900)) \approx 18.274 \). Multiplied by \( \frac{2(1000) - 1}{1000} = 1.999 \), this single observation contributes \( 1.999 \times 18.274 \approx +36.53 \) to \( A^2 \).</li>
+                            <li>For \( X_{(999)} = 4,800\text{ ms} \) (\( i = 999 \)): the standardized score is \( z = \frac{\ln(4800) - 4.605}{0.782} \approx 4.9506 \), giving survival probability \( 1 - \Phi(4.9506) \approx 3.699 \times 10^{-7} \) and \( -\ln(1 - F(4800)) \approx 14.810 \). Multiplied by \( \frac{2(999) - 1}{1000} = 1.997 \) (or \( \frac{1999}{1000} \) if indexed first), this observation contributes \( \approx +29.58 \) (or \( +29.61 \) at weight \( 1.999 \)) to \( A^2 \).</li>
+                        </ul>
+                        Evaluating the complete summation over all \( n = 1,000 \) deterministic observations yields a full-sample Anderson-Darling statistic of \( A^2 = 43.19 \), driving \( A^2 \) far beyond the \( \alpha = 0.05 \) critical value (\( 2.492 \)).</li>
                     <li><strong>Sample Size & Epistemic Uncertainty of Extreme Quantiles:</strong> While \( n = 1,000 \) suffices here for AD to reject the unimodal Lognormal model, <strong>\( n = 1,000 \) is far too small to stably estimate \( P_{99.9} \).</strong> Under i.i.d. sampling, the number of observations exceeding the true \( 99.9\text{th} \) percentile follows \( M \sim \text{Binomial}(n, 0.001) \). At \( n = 1,000 \), the expected number of exceedances is only \( \mathbb{E}[M] = 1000(0.001) = 1.0 \), with a \( P(M = 0) = (0.999)^{1000} \approx 36.8\% \) probability of observing <em>zero</em> requests beyond the true \( P_{99.9} \)! To bound the relative standard error of the exceedance count \(\frac{1}{\sqrt{n(1-q)}}\) to \(\le 15\%–20\%\) at \( P_{99.9} \), you must collect at least \( n = 25,000–50,000 \) independent traces (providing \( 25–50 \) expected tail exceedances).</li>
                 </ul>
                 <p><strong>3. Architectural Decision:</strong> Never use a passing KS test to certify tail-latency SLAs, and never trust an empirical \( P_{99.9} \) estimate computed from a window of only \( 1,000 \) requests. Combine AD statistics with visual <strong>Quantile-Quantile (Q-Q) plots</strong>, enforce minimum sample counts (\( n \ge \frac{25}{1 - q} \)) before evaluating empirical quantile gates, and use stratified mixture modeling (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) to separate fast-path cache hits from slow-path compaction scans.</p>
@@ -409,7 +416,7 @@
                 \[ \begin{aligned} z_t &= \frac{x_t - \mu_0}{\sigma_0} \\ S_t^+ &= \max\left(0, \, S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0, \quad \text{Alert when } S_t^+ > h \end{aligned} \]
             </div>
 
-            <p>Here, \( z_t \), the upper accumulator \( S_t^+ \), the reference slack \( k \), and the decision threshold \( h \) are all <strong>strictly dimensionless numbers</strong> (representing multiples of the baseline standard deviation \( \sigma_0 \)). A symmetric lower accumulator \( S_t^- = \max(0, S_{t-1}^- - z_t - k) \) detects downward drops, such as a falling cache-hit ratio. If you prefer to implement the accumulator directly in raw physical units (e.g., milliseconds), multiply the recurrence by \( \sigma_0 \) to obtain the raw-unit accumulator \( C_t^+ = \sigma_0 S_t^+ \):</p>
+            <p>Here, \( z_t \), the upper accumulator \( S_t^+ \), the reference slack \( k \), and the decision threshold \( h \) are all <strong>strictly dimensionless numbers</strong> (representing multiples of the baseline standard deviation \( \sigma_0 \)). A symmetric lower accumulator \( S_t^- = \max(0, S_{t-1}^- - z_t - k) \) can also be defined when monitoring metrics where downward drops indicate failure (such as cache-hit ratio or throughput); however, <strong>our latency regression gate and Simulator 2 below operate strictly as an upper-only one-sided detector (\( S_t^+ \))</strong>. If you prefer to implement the accumulator directly in raw physical units (e.g., milliseconds), multiply the recurrence by \( \sigma_0 \) to obtain the raw-unit accumulator \( C_t^+ = \sigma_0 S_t^+ \):</p>
 
             <div class="equation-flow">
                 \[ C_t^+ = \max\left(0, \, C_{t-1}^+ + \left(x_t - \mu_0 - K\right)\right), \quad K = k\sigma_0, \quad \text{Alert when } C_t^+ > H = h\sigma_0 \]
@@ -424,26 +431,29 @@
                     <li><strong>Dimensionless Reference Value / Slack (\( k \)):</strong> Derived from the log-likelihood ratio between \( H_0: z_t \sim \mathcal{N}(0, 1) \) and \( H_1: z_t \sim \mathcal{N}(\delta, 1) \), the optimal dimensionless reference value is half the target shift:
                         \[ k = \frac{\delta}{2} = \frac{\Delta\mu}{2\sigma_0} \]
                         When the system is in control (\( \mathbb{E}[z_t] = 0 \)), the expected increment per step is negative (\( \mathbb{E}[z_t - k] = -k < 0 \)), continually pushing \( S_t^+ \) back to the reflecting barrier at \( 0 \). When a shift of size \( \delta \) occurs, the expected increment becomes positive (\( \mathbb{E}[z_t - k] = \delta - k = +\frac{\delta}{2} > 0 \)), causing \( S_t^+ \) to accumulate linearly. (For our \( \Delta\mu = 8\text{ ms}, \sigma_0 = 10\text{ ms} \) example, dimensionless \( k = 0.4 \), while the raw-unit slack is \( K = k\sigma_0 = 4.0\text{ ms} \).)</li>
-                    <li><strong>Dimensionless Decision Threshold (\( h \)) and Reconciled ARL Calculations (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)):</strong> An alert fires when \( S_t^+ > h \) (or in raw units, \( C_t^+ > H = h\sigma_0 \)). Calibrating \( h \) requires balancing two quantities under your verified residual distribution:
+                    <li><strong>Dimensionless Decision Threshold (\( h \)) and Full Siegmund ARL Approximation (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)):</strong> An alert fires when \( S_t^+ > h \) (or in raw units, \( C_t^+ > H = h\sigma_0 \)). To evaluate the expected run length for a one-sided Gaussian CUSUM starting at \( S_0^+ = 0 \) with effective drift \( \Delta = \delta - k \) and boundary overshoot correction \( b = h + 1.166 \), we use <strong>Siegmund's (1985) corrected diffusion approximation</strong> (as documented in the NIST/SEMATECH e-Handbook of Statistical Methods):
+                        \[ \text{ARL}(\Delta) \approx \frac{e^{-2\Delta b} + 2\Delta b - 1}{2\Delta^2}, \quad \text{where } \Delta = \delta - k, \quad b = h + 1.166 \]
+                        (In the limit as \( \Delta \to 0 \), L'Hôpital's rule yields \(\text{ARL}(0) \approx b^2\). Note that Siegmund's formula is a continuous analytical approximation with an asymptotic overshoot correction—not an exact Markov-chain or Fredholm integral-equation solution—and is distinct from the cruder linear drift bound \(\frac{b}{\Delta} = \frac{h + 1.166}{\delta - k}\), which omits the \(-1 + e^{-2\Delta b}\) numerator terms and systematically overstates \(\text{ARL}_1\).)
                         <ul>
-                            <li><strong>In-Control \(\text{ARL}_0\):</strong> The expected number of sampling steps before a <em>false alarm</em> occurs when \( \delta = 0 \).</li>
-                            <li><strong>Out-of-Control \(\text{ARL}_1\):</strong> The expected number of steps required to <em>detect the shift</em> after a true shift \( \delta > k \) occurs. Using Siegmund's corrected diffusion approximation for one-sided Gaussian CUSUM (starting from \( S_0^+ = 0 \)):
-                                \[ \text{ARL}_1 \approx \frac{h + 1.166}{\delta - k} \]
+                            <li><strong>In-Control \(\text{ARL}_0\):</strong> Evaluated at \( \delta = 0 \) (so \( \Delta = -k < 0 \)), measuring the expected number of sampling steps before a <em>false alarm</em> occurs.</li>
+                            <li><strong>Out-of-Control \(\text{ARL}_1\):</strong> Evaluated at the target shift \( \delta > k \) (so \( \Delta = \delta - k > 0 \)), measuring the expected number of steps required to <em>detect the shift</em>.</li>
+                        </ul>
+                        Let us verify the numerical values across three standard one-sided configurations under i.i.d. \(\mathcal{N}(0,1)\) baseline noise:
+                        <ul>
+                            <li><strong>At \( \delta = 1.0, \, k = 0.5, \, h = 4.0 \) (raw \( H = 4.0\sigma_0 \)):</strong> Here \( \Delta = 1.0 - 0.5 = 0.5 \) and \( b = 4.0 + 1.166 = 5.166 \) (so \( 2\Delta b = 5.166 \) and \( 2\Delta^2 = 0.50 \)). One-sided in-control \(\text{ARL}_{0,+} \approx 336\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{e^{-5.166} + 5.166 - 1}{0.50} = \frac{0.00571 + 4.166}{0.50} \approx 8.34\text{ steps} \]
+                            </li>
+                            <li><strong>At \( \delta = 1.0, \, k = 0.5, \, h = 5.0 \) (raw \( H = 5.0\sigma_0 \)):</strong> Here \( \Delta = 0.5 \) and \( b = 5.0 + 1.166 = 6.166 \) (so \( 2\Delta b = 6.166 \) and \( 2\Delta^2 = 0.50 \)). One-sided in-control \(\text{ARL}_{0,+} \approx 930\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{e^{-6.166} + 6.166 - 1}{0.50} = \frac{0.00210 + 5.166}{0.50} \approx 10.34\text{ steps} \]
+                            </li>
+                            <li><strong>At \( \delta = 0.8, \, k = 0.4, \, h = 4.0 \) (Simulator 2 default):</strong> Here \( \Delta = 0.8 - 0.4 = 0.4 \) and \( b = 4.0 + 1.166 = 5.166 \) (so \( 2\Delta b = 4.1328 \) and \( 2\Delta^2 = 0.32 \)). One-sided in-control \(\text{ARL}_{0,+} \approx 168\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{e^{-4.1328} + 4.1328 - 1}{0.32} = \frac{0.01604 + 3.1328}{0.32} \approx 9.84\text{ steps} \]
                             </li>
                         </ul>
-                        Let us verify the exact numbers for a unit-shift design (\( \delta = 1.0, k = 0.5 \)) under i.i.d. \(\mathcal{N}(0,1)\) baseline noise:
-                        <ul>
-                            <li><strong>At \( h = 4.0 \) (raw \( H = 4.0\sigma_0 \)):</strong> In-control \(\text{ARL}_0 \approx 336\) steps, and out-of-control detection delay is:
-                                \[ \text{ARL}_1 \approx \frac{4.0 + 1.166}{1.0 - 0.5} = \frac{5.166}{0.5} = 10.33\text{ steps} \]
-                            </li>
-                            <li><strong>At \( h = 5.0 \) (raw \( H = 5.0\sigma_0 \)):</strong> In-control \(\text{ARL}_0 \approx 930\) steps, and out-of-control detection delay is:
-                                \[ \text{ARL}_1 \approx \frac{5.0 + 1.166}{1.0 - 0.5} = \frac{6.166}{0.5} = 12.33\text{ steps} \]
-                            </li>
-                            <li><strong>At \( \delta = 0.8, k = 0.4, h = 4.0 \) (Simulator 2 default):</strong> In-control \(\text{ARL}_0 \approx 168\) steps, and out-of-control detection delay is:
-                                \[ \text{ARL}_1 \approx \frac{4.0 + 1.166}{0.8 - 0.4} = \frac{5.166}{0.4} = 12.92\text{ steps} \]
-                            </li>
-                        </ul>
-                        <strong>Operational Calibration Rule:</strong> Never copy a fixed \( h \) across systems without stating your sampling interval, residual tail behavior, and false-alarm budget. Under i.i.d. Gaussian noise at a 1-minute scrape interval, \( \text{ARL}_0 = 336 \) (\( k=0.5, h=4.0 \)) produces one false alarm every \( 5.6\text{ hours} \)—suitable for gating a <em>30-minute automated canary deployment</em>, but far too noisy for 24/7 paging across 50 microservices. Always calibrate \( h \) by simulating \(\text{ARL}_0\) on your empirical historical residuals to meet your team's target false-alarm rate.</li>
+                    </li>
+                    <li><strong>One-Sided vs. Two-Sided False-Alarm Rate (\(\text{ARL}_{0,\text{two-sided}}\)) & Operational Calibration:</strong> All \(\text{ARL}_0\) figures above apply to an <strong>upper-only one-sided detector</strong> (\(S_t^+\)), which is the standard choice when gating upward latency regressions. If your monitoring pipeline simultaneously enables both upper (\(S_t^+\)) and lower (\(S_t^-\)) accumulators as a two-sided detector, the combined false-alarm rate doubles (per NIST/SEMATECH Section 6.3.2.3):
+                        \[ \frac{1}{\text{ARL}_{0,\text{two-sided}}} = \frac{1}{\text{ARL}_{0,+}} + \frac{1}{\text{ARL}_{0,-}} \implies \text{ARL}_{0,\text{two-sided}} = \frac{\text{ARL}_{0,+}}{2} \quad (\text{for symmetric } k, h) \]
+                        Thus, a symmetric configuration with one-sided \(\text{ARL}_{0,+} \approx 336\) (\(k=0.5, h=4.0\)) yields a two-sided \(\text{ARL}_{0,\text{two-sided}} \approx 168\) steps. Never copy a fixed \( h \) across systems without stating whether your detector is one-sided or two-sided, your sampling interval, and your false-alarm budget. At a 1-minute scrape interval, one-sided \( \text{ARL}_{0,+} = 336 \) produces one false alarm every \( 5.6\text{ hours} \)—suitable for gating a <em>30-minute automated canary deployment</em>, but far too noisy for 24/7 paging across 50 microservices. Always calibrate \( h \) by simulating \(\text{ARL}_0\) on your empirical historical residuals.</li>
                 </ul>
             </div>
 
@@ -455,7 +465,7 @@
                         <span>Simulator 2: Standardized CUSUM Change-Point Detection</span>
                         <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
                     </div>
-                    <p class="sim-purpose">Observe how dimensionless standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) detects a persistent step shift injected at time step \( t = 50 \). Here \( z_t = (x_t - \mu_0)/\sigma_0 \), the injected shift \( \delta = \Delta\mu / \sigma_0 \), the slack parameter \( k \), and the decision threshold \( h = 4.00 \) are all strictly dimensionless.</p>
+                    <p class="sim-purpose">Observe how an upper-only one-sided dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) detects a persistent step shift injected at time step \( t = 50 \). Here \( z_t = (x_t - \mu_0)/\sigma_0 \), the injected shift \( \delta = \Delta\mu / \sigma_0 \), the slack parameter \( k \), and the decision threshold \( h = 4.00 \) are all strictly dimensionless.</p>
                 </div>
 
                 <div class="sim-toolbar">
@@ -479,7 +489,7 @@
 
                 <div class="readout" aria-live="polite">
                     <div>Steps (\( T \)): <span class="stat-n">100 (Shift @ t=50)</span></div>
-                    <div>Threshold (\( h \)): <span>4.00 (dimensionless)</span></div>
+                    <div>Threshold (\( h \)): <span>4.00 (upper-only)</span></div>
                     <div>Peak \( S_t^+ \): <span class="stat-maxs">–</span></div>
                     <div>Theo Delay (\(\approx \text{ARL}_1\)): <span class="stat-arl1">–</span></div>
                     <div>Sim Detection Delay: <span class="stat-delay">–</span></div>
@@ -487,8 +497,8 @@
                 </div>
 
                 <div class="sim-meta-footer">
-                    <p><strong>Assumptions:</strong> Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (corresponding to raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Dimensionless decision threshold is fixed at \( h = 4.00 \) (raw \( H = h\sigma_0 = 40\text{ ms} \)).</p>
-                    <p><strong>Engineering Interpretation:</strong> At default \( \delta = 0.8 \) and optimal slack \( k = \delta/2 = 0.4 \), Siegmund's formula predicts \(\text{ARL}_1 \approx \frac{4.0 + 1.166}{0.8 - 0.4} = 12.9\text{ steps}\) (or try \(\delta = 1.0, k = 0.5\) to verify \(\text{ARL}_1 \approx 10.3\text{ steps}\)). Individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) reliably crosses \( h = 4.00 \) shortly after \( t = 50 \). Set \( \delta = 0.0 \) and reduce \( k \) to \( 0.1 \) to see how insufficient slack triggers false alarms purely from baseline noise.</p>
+                    <p><strong>Assumptions:</strong> Upper-only one-sided detector (\( S_t^+ \)). Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (corresponding to raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Dimensionless decision threshold is fixed at \( h = 4.00 \) (raw \( H = h\sigma_0 = 40\text{ ms} \)), with theoretical delay computed via the full Siegmund approximation \( \text{ARL}(\Delta) \approx \frac{e^{-2\Delta b} + 2\Delta b - 1}{2\Delta^2} \) where \( \Delta = \delta - k \) and \( b = h + 1.166 \).</p>
+                    <p><strong>Engineering Interpretation:</strong> At default \( \delta = 0.8 \) and optimal slack \( k = \delta/2 = 0.4 \), the full Siegmund approximation predicts \(\text{ARL}_1 \approx 9.84\text{ steps}\) (or try \(\delta = 1.0, k = 0.5\) to verify \(\text{ARL}_1 \approx 8.34\text{ steps}\)). Individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) reliably crosses \( h = 4.00 \) shortly after \( t = 50 \). Set \( \delta = 0.0 \) and reduce \( k \) to \( 0.1 \) to see how insufficient slack shrinks in-control \(\text{ARL}_{0,+}\) and triggers false alarms purely from baseline noise.</p>
                 </div>
             </div>
 
@@ -639,7 +649,7 @@
                         </tr>
                         <tr>
                             <td><strong>Standardized CUSUM (\( S_t^+ \))</strong></td>
-                            <td><strong>Measures:</strong> Dimensionless cumulative deviation above reference slack \(k = \delta/2\).<br><strong>Assumes:</strong> Known baseline \((\mu_0, \sigma_0)\); \(\text{ARL}_0\) calibrated on empirical/dependent residuals.</td>
+                            <td><strong>Measures:</strong> Dimensionless cumulative deviation above reference slack \(k = \delta/2\).<br><strong>Assumes:</strong> Known baseline \((\mu_0, \sigma_0)\); one-sided vs. two-sided \(\text{ARL}_0\) calibrated on empirical/dependent residuals.</td>
                             <td><strong>Detects:</strong> Small, persistent step shifts (\(\delta \sim 0.5–1.5\)) hidden inside \(\pm 3\sigma_0\) bands.<br><strong>Misses:</strong> Single transient spikes (by design) or slow ramp drift absorbed by adaptive pre-whitening.</td>
                             <td>When \(S_t^+ > h\), halt automated canary rollouts, inspect change-point timestamp \(t_0\) where \(S_t^+\) last left zero, and correlate with deploy/tenant logs.</td>
                         </tr>
@@ -709,7 +719,7 @@
                         <tr>
                             <td><strong>5. Standardized CUSUM Drift Gate</strong></td>
                             <td>Catch subtle regressions during rollouts and steady state.</td>
-                            <td>Run dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) with \( k = \delta / 2 \). Calibrate dimensionless threshold \( h \) (or raw \( H = h\sigma_0 \)) against empirical residual \(\text{ARL}_0\) to auto-abort degraded canary deployments.</td>
+                            <td>Run upper-only dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) with \( k = \delta / 2 \). Calibrate dimensionless threshold \( h \) (or raw \( H = h\sigma_0 \)) against empirical residual \(\text{ARL}_{0,+}\) (accounting for two-sided doubling if \(S_t^-\) is also active) to auto-abort degraded canary deployments.</td>
                         </tr>
                         <tr>
                             <td><strong>6. Finite-Fleet Compliance</strong></td>
@@ -1272,12 +1282,17 @@
                     const maxS = Math.max(...this.cusum);
                     this.statMaxS.textContent = maxS.toFixed(2);
 
-                    if (this.driftDelta > this.slackK) {
-                        const theoARL1 = (this.thresholdH + 1.166) / (this.driftDelta - this.slackK);
-                        this.statARL1.textContent = '~' + theoARL1.toFixed(1) + ' steps';
+                    // Full Siegmund corrected diffusion approximation: ARL(Delta) = (exp(-2*Delta*b) + 2*Delta*b - 1) / (2*Delta^2)
+                    const deltaEff = this.driftDelta - this.slackK;
+                    const b = this.thresholdH + 1.166;
+                    let theoARL;
+                    if (Math.abs(deltaEff) < 1e-6) {
+                        theoARL = b * b;
                     } else {
-                        this.statARL1.textContent = '∞ (δ ≤ k)';
+                        const twoDeltaB = 2.0 * deltaEff * b;
+                        theoARL = (Math.exp(-twoDeltaB) + twoDeltaB - 1.0) / (2.0 * deltaEff * deltaEff);
                     }
+                    this.statARL1.textContent = '~' + (theoARL > 9999 ? '>9999' : theoARL.toFixed(2)) + ' steps';
 
                     if (this.alerted) {
                         if (this.firstAlertStep >= this.changePoint) {
