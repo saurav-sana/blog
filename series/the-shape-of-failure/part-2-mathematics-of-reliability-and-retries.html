@@ -16,7 +16,7 @@
   <!-- Primary SEO & AIO Meta Tags -->
   <title>Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana</title>
   <meta name="title" content="Part 2: Reliability, Redundancy, and the Independence Delusion | The Shape of Failure | Saurav Sana">
-  <meta name="description" content="A practical guide to Bernoulli and binomial reliability models, common-cause failures, retries, Weibull aging, and the economics of large synchronous AI training jobs.">
+  <meta name="description" content="A practical guide to component and service reliability, redundancy, quorum, common-cause failures, Weibull survival, repair, and reliability economics in synchronous AI training systems.">
   <meta name="author" content="Saurav Sana">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-2-mathematics-of-reliability-and-retries.html">
@@ -27,7 +27,7 @@
   <!-- KaTeX CSS & JS CDN -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [{left: '\[', right: '\]', display: true}, {left: '\(', right: '\)', display: false}], throwOnError: false });"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [{left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}], throwOnError: false });"></script>
 
   <!-- Early Theme Initialization -->
   <script>
@@ -134,9 +134,11 @@
       button.sim-btn { background: var(--teal); color: #071411; border: 1px solid transparent; border-radius: 4px; padding: 0.45rem 0.85rem; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 0.78rem; cursor: pointer; transition: all 0.15s ease; }
       html[data-theme="light"] button.sim-btn { color: #ffffff; }
       button.sim-btn:hover { filter: brightness(1.1); }
+      button.sim-btn:focus-visible, .theme-toggle:focus-visible, input[type=range]:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
       button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
       
       canvas { display: block; width: 100%; height: 220px; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 5px; }
+      .canvas-description { font-size: 0.88rem; color: var(--muted); margin: 0.5rem 0 0; }
       
       .readout { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; padding: 0.85rem 1rem; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; justify-content: space-between; }
       .readout-item { flex: 1 1 125px; font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; color: var(--muted); }
@@ -203,8 +205,9 @@
 
   <p>There is a familiar scene in an architecture review. Someone draws three database replicas, labels each one “99.9% available”, multiplies three small failure probabilities, and announces that the cluster is practically immortal. The room nods. Nobody asks whether the replicas share a control plane, a kernel update, a certificate issuer, a network fabric, or the same deployment pipeline.</p>
   <p>That is <strong>replication theater</strong>: counting boxes without examining whether their failure modes are independent. Redundancy helps only when the system can lose one component without losing the others—or when the remaining components can still deliver the service users need. Three copies are not three independent chances if one shared event can disable all three.</p>
-  <p>Before evaluating combinations, we must explicitly define component reliability \(R(t) = P(T > t)\), its complement component failure probability \(q = 1 - R\), the failure rate \(\lambda(t)\), the repair rate \(\mu_{\text{repair}}\), and the resulting instantaneous or steady-state service unavailability \(U = \frac{\text{MTTR}}{\text{MTTF} + \text{MTTR}}\).</p>
-  <p>This part examines three reliability models—<strong>Bernoulli, Binomial and Weibull</strong>—then applies the same discipline to a large synchronous AI-training job. The aim is not to fit a distribution to every outage. It is to connect a physical mechanism to a model, expose the assumptions, and derive an engineering control that can be tested.</p>
+  <p>Start by separating quantities that are often collapsed into the word <em>reliability</em>. Component reliability is \(R(t)=P(T>t)\): the probability that a component has not experienced its defined failure by age \(t\). Its complement, \(F(t)=1-R(t)\), is cumulative failure probability by that age. Component unavailability is the fraction of time a repairable component is unable to perform its required function. Service unavailability is the fraction of time the complete service cannot meet its stated contract. Quorum loss is the loss of the minimum voting set; a workflow interruption is a user- or job-visible loss of progress. They are related, but they are not interchangeable.</p>
+  <p>For a lifetime random variable \(T\), the age-conditioned failure hazard (often called the age-dependent failure rate) is \(\lambda(t)=f(t)/S(t)\), where \(S(t)=P(T>t)\). It is an instantaneous conditional rate, not the probability of failure over an arbitrary interval. Only when this hazard is constant does the lifetime model reduce to an exponential, memoryless time-to-failure model. We use \(\mu_{\text{repair}}\) for a repair-completion rate when a rate model is justified; it is not the component failure rate. The long-run unavailability of an alternating up/down repair process is \(U=\text{MTTR}/(\text{MTTF}+\text{MTTR})\), under the renewal assumptions explained below. That expression is not an instantaneous failure probability.</p>
+  <p>This part examines Bernoulli and Binomial reliability, redundancy, common-cause failure, Weibull survival and repair, then applies the same discipline to a large synchronous AI-training job. The aim is to connect a physical mechanism to a model, expose the assumptions, and derive an engineering control that can be tested.</p>
   
   <div class="tldr-box">
       <div class="eyebrow">The modelling contract</div>
@@ -212,7 +215,7 @@
       <p>We will keep three evidence labels distinct: <strong>documented evidence</strong> means a source reports the event or measurement; <strong>illustrative model</strong> means the arithmetic demonstrates a mechanism; <strong>hypothetical stress scenario</strong> means the inputs are chosen to test a design, not claimed as observed facts.</p>
   </div>
 
-  <h2>1. Bernoulli reliability: one request, many dependencies, and the retry trap</h2>
+  <h2>1. Bernoulli reliability: one request and many required dependencies</h2>
   <p>A Bernoulli variable describes one binary trial. Let \(X=1\) mean that a request fails and \(X=0\) mean that it succeeds. If the failure probability is \(q\), then:</p>
   
   <div class="equation-flow">
@@ -227,7 +230,7 @@
   </div>
 
   <h3>Composite workflows turn small risks into visible failure rates</h3>
-  <p>Suppose a gateway query requires four sequential operations: authenticate the caller, read catalog metadata, obtain a query plan, and fetch a required object. Assume—only for this calculation—that each operation succeeds independently with probability \(0.999\) and that all four are mandatory. Never multiply failure probabilities (\(q^N\)) without explicitly stating and challenging the conditional independence assumption \(P(F_1 \cap F_2) = P(F_1)P(F_2)\).</p>
+  <p>Suppose a gateway query requires four sequential operations: authenticate the caller, read catalog metadata, obtain a query plan, and fetch a required object. Assume—only for this calculation—that each operation succeeds independently with probability \(0.999\) and that all four are mandatory. The workflow succeeds only if all four succeed, so multiply the <em>success</em> probabilities and take the complement to obtain workflow failure. Multiplying failure probabilities as \(q^N\) would instead describe the event that all \(N\) operations fail, not the event that at least one mandatory operation fails. The multiplication also depends on independence: for two failure events, \(P(F_1\cap F_2)=P(F_1)P(F_2)\) only when they are independent.</p>
   
   <div class="equation-flow">
       \[ P(\text{workflow succeeds})=0.999^4\approx0.996006 \]
@@ -246,14 +249,14 @@
       \[ P(\text{all 3 attempts fail})=q^3 \]
   </div>
   
-  <p>For \(q=0.001\), that is \(10^{-9}\) per operation under the independence assumption. For a workflow with 1,000 mandatory operations, the illustrative probability of at least one operation exhausting all three attempts is:</p>
+  <p>For \(q=0.001\), that is \(10^{-9}\) per operation under the independence assumption. For a workflow with 1,000 mandatory operations, and assuming the attempt-exhaustion events are also independent across operations, the illustrative probability of at least one operation exhausting all three attempts is:</p>
   
   <div class="equation-flow">
       \[ 1-(1-10^{-9})^{1000}\approx10^{-6} \]
   </div>
   
   <p>This is the optimistic case—not a universal retry guarantee. A timeout caused by a transient packet loss may be followed by a successful attempt. A timeout caused by an overloaded connection pool, exhausted storage tier, failed DNS resolver, or unavailable control plane may persist across attempts.</p>
-  <p>When failures are state-dependent, the useful quantity is not simply \(q^3\). It is the conditional probability of another failure given the observed failure and the current system state: \(P(F_{i+1}\mid F_i, S_i)\). During saturation that probability can be close to one. Retrying then adds work to the same constrained resource while making little progress.</p>
+  <p>When failures are state-dependent, the useful quantity is not simply \(q^3\). It is the conditional probability of another failure given the observed failure and the current system state: \(P(F_{i+1}\mid F_i,S_i)\). During saturation that probability can be close to one. Retrying then adds work to the same constrained resource while making little progress. The detailed retry-feedback treatment belongs to Part 6; here, the point is narrower: the Bernoulli multiplication is valid only when attempt outcomes satisfy the stated independence and constant-probability assumptions.</p>
   
   <div class="tldr-box warning">
       <div class="eyebrow">A retry is new work, not free reliability</div>
@@ -267,7 +270,7 @@
       \[ E[N_A]=\sum_{j=1}^{A}P(N_A\ge j)=\sum_{j=0}^{A-1}(1-p)^j=\frac{1-(1-p)^A}{p} \]
   </div>
   
-  <p>For \(p=0.9\) and \(A=4\) (one initial attempt plus three retries), \(E[N_4]=1.111\). That is an 11.1% average attempt increase under the model. Under overload, however, \(p\) is not fixed: extra attempts can increase queueing and reduce the probability of success, creating positive feedback.</p>
+  <p>For \(p=0.9\) and \(A=4\) (one initial attempt plus three retries), \(E[N_4]=1.111\). That is an 11.1% average attempt increase under the model. Under overload, however, \(p\) is not fixed: extra attempts can increase queueing and reduce the probability of success, creating positive feedback. The expression is a bounded-attempt expectation, not a prediction for a saturated service.</p>
   
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
@@ -301,34 +304,35 @@
               </label>
           </div>
           <div class="controls">
-              <button class="sim-btn" id="brun">▶ Run simulation</button>
-              <button class="sim-btn secondary" id="breset">Reset</button>
+              <button type="button" class="sim-btn" id="brun">▶ Run simulation</button>
+              <button type="button" class="sim-btn secondary" id="breset">Reset</button>
           </div>
       </div>
-      <canvas id="bc" height="220" role="img" aria-label="Comparison of theoretical and simulated composite workflow failure rates"></canvas>
+      <canvas id="bc" height="220" role="img" aria-label="Bar chart comparing theoretical and simulated composite workflow failure probabilities"></canvas>
+      <p class="canvas-description">Theoretical probability is calculated from the independent series-system model; the second bar is the Monte Carlo estimate from the displayed number of synthetic trials.</p>
       <div class="readout">
           <div class="readout-item">Theoretical failure<span id="btheory">—</span></div>
           <div class="readout-item">Simulated failure<span id="bsim">—</span></div>
           <div class="readout-item">Failed workflows<span id="bcount">—</span></div>
           <div class="readout-item">Operations tested<span id="bops">—</span></div>
       </div>
-      <p class="sim-note">The simulation assumes independent operation outcomes and all operations are mandatory. It does not model retries, correlation, optional dependencies, or load feedback.</p>
+      <p class="sim-note">Synthetic Monte Carlo trials; the theoretical reference is \(1-(1-q)^m\). The simulation assumes independent operation outcomes and all operations are mandatory. It does not model retries, correlation, optional dependencies, or load feedback.</p>
   </div>
 
-  <h2>2. Binomial reliability: quorum math and the common-cause wall</h2>
-  <p>If \(n\) components fail independently with the same probability \(p\) over a defined observation window, the number of failures \(X\) follows a Binomial distribution:</p>
+  <h2>2. Redundancy, quorum, and the common-cause wall</h2>
+  <p>If \(n\) components each have the same probability \(p\) of being unavailable at one specified observation instant, and those component states are independent, the number unavailable \(X\) follows a Binomial distribution. A failure-event count over a window can also be Binomial if each component contributes one independent binary event, but that is not automatically the probability of quorum loss at any time during the window:</p>
   
   <div class="equation-flow">
       \[ P(X=k)=\binom{n}{k}p^k(1-p)^{n-k} \]
   </div>
   
-  <p>For a five-voter majority cluster, at least three voters must remain available. Quorum is lost when three or more voters fail. If each voter has independent unavailability \(p=0.01\) during the same window:</p>
+  <p>For a five-voter majority cluster, the quorum rule is \(k=3\): at least three of the five voters must be available for the voting set to exist. Quorum is lost when three or more voters are unavailable. If each voter has independent unavailability \(p=0.01\) at that same observation instant:</p>
   
   <div class="equation-flow">
       \[ P(X \ge 3)=\sum_{k=3}^{5}\binom{5}{k}(0.01)^k(0.99)^{5-k}\approx9.8506\times10^{-6}=0.0009851\% \]
   </div>
   
-  <p>The number is small because the model assumes independent failures with identical probability over the same observation window. It is not a general availability prediction for etcd, Raft, or any other consensus implementation. Network partitions, correlated latency, leader-election timing, disk stalls, and membership changes require additional modelling.</p>
+  <p>The number is small because the model assumes independent voter unavailability with identical probability. It estimates <em>quorum loss</em> under that rule; it does not prove that a service request succeeds. A five-voter group may retain a majority while the service is unavailable because the leader is isolated, the network cannot carry a quorum of messages, storage stalls, or the application cannot reach the cluster. Conversely, a client workflow can fail even while quorum remains. This is not a general availability prediction for etcd, Raft, or another consensus implementation: network partitions, correlated latency, election timing, disk stalls, membership changes and client behavior need additional models.</p>
   
   <div class="incident-banner">
       <div class="incident-head">Documented evidence · CrowdStrike Channel File 291 · 19 July 2024</div>
@@ -336,7 +340,7 @@
   </div>
 
   <h3>Model the shared event explicitly</h3>
-  <p>Now add a shared event that disables the whole five-voter group with probability \(q_c=0.001\) during the same observation window. Conditional on that event <em>not</em> occurring, retain the independent per-voter failure probability \(p=0.01\). This is a simple two-regime common-cause model:</p>
+  <p>Now add a shared event that disables the whole five-voter group with probability \(q_c=0.001\) at that same observation instant. Conditional on that event <em>not</em> occurring, retain the independent per-voter unavailability probability \(p=0.01\). This is a simple two-regime common-cause model:</p>
   
   <div class="equation-flow">
       \[ P(\text{Loss})=q_c+(1-q_c)P_{\mathrm{Binomial}}(X\ge3)=0.001+0.999(9.8506\times10^{-6})\approx0.00100984=0.100984\% \]
@@ -365,7 +369,7 @@
                   <td>Shared event probability</td>
                   <td>0</td>
                   <td>0.1%</td>
-                  <td>Illustrative probability over the stated window</td>
+                  <td>Illustrative probability at the same instant</td>
               </tr>
               <tr>
                   <td>Five-voter quorum-loss probability</td>
@@ -384,7 +388,22 @@
   </div>
   
   <p>Adding voters still helps against independent failures. It does not remove a shared event that disables the entire group. The common-cause term is a floor in this particular model, not a universal mathematical ceiling for every failure architecture. A more detailed model may distinguish partial shared events, different failure-domain membership, and conditional per-node risks.</p>
-  <p>This simple construction is related in spirit to common-cause and beta-factor approaches, but it should not be presented as the only definition of a classical beta-factor model. In a traditional beta-factor formulation, a fraction of component failure intensity is attributed to common-cause events; parameter definitions and the event structure must be stated before comparing results.</p>
+  <p>This simple construction is related in spirit to common-cause and beta-factor approaches, but it is not itself a fitted classical beta-factor model. In a traditional beta-factor formulation, a fraction of component failure intensity is attributed to common-cause events; parameter definitions, component population and event structure must be stated before comparing results.</p>
+
+  <h3>Reliability block diagrams: what redundancy actually buys</h3>
+  <p>A reliability block diagram (RBD) makes the service-success condition explicit. In a <strong>series system</strong>, every block is required. If component reliabilities are \(R_i(t)\) and failures are independent, then:</p>
+  <div class="equation-flow">
+      \[ R_{\text{series}}(t)=\prod_{i=1}^{n}R_i(t) \]
+  </div>
+  <p>In an ideal <strong>parallel redundant system</strong>, the service succeeds if at least one component succeeds. Under independent failures and perfect detection/switchover:</p>
+  <div class="equation-flow">
+      \[ R_{\text{parallel}}(t)=1-\prod_{i=1}^{n}\left(1-R_i(t)\right) \]
+  </div>
+  <p>For identical independent components with availability \(a\), a \(k\)-of-\(n\) service is available when at least \(k\) components are available:</p>
+  <div class="equation-flow">
+      \[ A_{k:n}=\sum_{j=k}^{n}\binom{n}{j}a^j(1-a)^{n-j} \]
+  </div>
+  <p>These are idealized RBD equations. They assume the diagram captures every required path, component outcomes are independent where multiplied, switching works when needed, and no unmodelled shared dependency defeats the redundancy. A component can fail while redundancy masks that failure; component failure is therefore not automatically component unavailability at the service boundary. A standby replica that cannot be promoted, a shared load balancer that fails, or a quorum that cannot communicate is not represented by simply adding another parallel block. The five-voter example above uses the equivalent failure-count rule: service-level quorum is lost at three or more unavailable voters, but actual consensus service availability also depends on communication and protocol state.</p>
 
   <h3>Independence is an architectural property to test</h3>
   <p>Shared fate can enter through more than the availability zone. Replicas may share an image, kernel, agent, certificate authority, identity provider, DNS resolver, storage control plane, deployment wave, or operator procedure. Conversely, placing replicas in different zones does not automatically make every one of those dependencies independent.</p>
@@ -418,27 +437,29 @@
               </label>
           </div>
           <div class="controls">
-              <button class="sim-btn secondary" id="izero">Set shared event to zero</button>
+              <button type="button" class="sim-btn secondary" id="izero">Set shared event to zero</button>
+              <button type="button" class="sim-btn secondary" id="ireset">Reset</button>
           </div>
       </div>
-      <canvas id="icv" height="220" role="img" aria-label="Quorum loss probability by cluster size with and without common cause"></canvas>
+      <canvas id="icv" height="220" role="img" aria-label="Log-scale quorum loss probability by odd cluster size, comparing independent and shared-event models"></canvas>
+      <p class="canvas-description">Analytical calculation, not a random simulation. The amber line is the independent-only Binomial result; the red line adds the all-voter shared-event probability. The vertical scale is logarithmic.</p>
       <div class="readout">
           <div class="readout-item">3 voters<span id="iq3">—</span></div>
           <div class="readout-item">5 voters<span id="iq5">—</span></div>
           <div class="readout-item">7 voters<span id="iq7">—</span></div>
           <div class="readout-item">Shared-event floor<span id="ifloor">—</span></div>
       </div>
-      <p class="sim-note">Assumption: a shared event disables every voter; otherwise individual failures are independent and identically distributed. This is an illustrative two-regime model, not a fitted beta-factor estimate.</p>
+      <p class="sim-note">Analytical outputs are recalculated on input change; there is no random sample size. Assumption: a shared event disables every voter; otherwise individual failures are independent and identically distributed. This is an illustrative two-regime model, not a fitted beta-factor estimate.</p>
   </div>
 
   <h2>3. Weibull reliability: conditional hazard, aging, and censored data</h2>
-  <p>Not every component has a constant failure rate. A two-parameter Weibull lifetime model uses shape \(\beta\) and scale \(\eta\) to describe how the hazard changes with age \(t\):</p>
+  <p>Not every component has a constant failure hazard. For a non-repairable lifetime measured from a defined origin, and a reasonably homogeneous cohort whose units share the same lifetime mechanism and parameters, a two-parameter Weibull model uses dimensionless shape \(\beta\) and scale \(\eta\) (in the same time or exposure units as \(t\)) to describe survival and age-conditioned hazard. At \(t=\eta\), cumulative failure probability is \(1-e^{-1}\approx63.2\%\): this is a scale parameter, not the mean lifetime.</p>
   
   <div class="equation-flow">
       \[ S(t)=P(T>t)=e^{-(t/\eta)^\beta},\qquad F(t)=1-S(t) \]
   </div>
   <div class="equation-flow">
-      \[ h(t)=\frac{f(t)}{S(t)}=\frac{\beta}{\eta}\left(\frac{t}{\eta}\right)^{\beta-1} \]
+      \[ h(t)=\lambda(t)=\frac{f(t)}{S(t)}=\frac{\beta}{\eta}\left(\frac{t}{\eta}\right)^{\beta-1} \]
   </div>
   
   <ul>
@@ -446,7 +467,7 @@
       <li><strong>\(\beta=1\):</strong> the Weibull reduces to the exponential model with constant hazard.</li>
       <li><strong>\(\beta>1\):</strong> the model's hazard increases with age, consistent with some wear-out mechanisms.</li>
   </ul>
-  <p>These are interpretations of a fitted model, not labels to assign from intuition. Hardware can have multiple competing failure mechanisms. Software aging can arise from resource accumulation, fragmentation, leaks, or workload-dependent state—but a deterministic leak is not automatically a Weibull lifetime process. Do not apply wear-out (\(\beta>1\)) to stateless software bugs without a state-accumulation mechanism.</p>
+  <p>These are interpretations of a fitted model, not labels to assign from intuition. For \(\beta<1\), the fitted hazard decreases; for \(\beta=1\), it is constant; for \(\beta>1\), it increases. Hardware can have multiple competing failure mechanisms. Software aging can arise from resource accumulation, fragmentation, leaks, or workload-dependent state—but a deterministic leak is not automatically a Weibull lifetime process. Do not infer physical wear-out merely because a fitted curve has \(\beta>1\); identify a plausible degradation mechanism and test whether age, exposure and cohort effects support it.</p>
   
   <div class="incident-banner">
       <div class="incident-head">Empirical resource · Backblaze drive data</div>
@@ -460,7 +481,7 @@
       \[ F(4)=1-e^{-(4/5)^3}=1-e^{-0.512}\approx40.07\% \]
   </div>
   
-  <p>That cumulative probability describes the original cohort from age zero to age four. For a node that has already survived to age four, the relevant question is the conditional probability of failure between years four and five:</p>
+  <p>That cumulative probability describes the original cohort from age zero to age four. It is not the probability that a unit already aged four will fail next year. For a node that has survived to age four, the relevant age-conditioned probability of failure between years four and five is:</p>
   
   <div class="equation-flow">
       \[ P(4<T\le5\mid T>4)=1-\frac{S(5)}{S(4)}=1-e^{-[(5/5)^3-(4/5)^3]}=1-e^{-0.488}\approx38.61\% \]
@@ -475,18 +496,21 @@
   <p>Under this illustrative increasing-hazard model, a surviving four-year-old unit has a much higher chance of failing in the next year than a new unit. That does <strong>not</strong> mean every long-running server is about to fail. The conclusion depends on the fitted cohort model, its age definition, and whether the observed population is reasonably homogeneous.</p>
 
   <h3>Survival estimation is not the same as Weibull fitting</h3>
-  <p>Operational datasets rarely contain a failure time for every unit. Some machines are still running at the end of observation; others are retired, replaced, or removed during maintenance. These are censored observations, not failed units and not missing data to discard.</p>
+  <p>Operational datasets rarely contain a failure time for every unit. A unit still operating at the end of observation contributes a <strong>right-censored</strong> lifetime: we know it survived at least until its last observation, but we do not know its eventual failure time. A machine removed during maintenance or retired for another reason is not automatically a failure. It may be right-censored if removal is independent of the latent failure time under the analysis assumptions; if retirement is related to condition or is itself an outcome of interest, it should be handled as informative censoring or a competing event rather than silently treated as an ordinary survivor.</p>
   <ul>
-      <li><strong>Kaplan–Meier</strong> is a non-parametric estimator of the survival function. It can account for right-censored observations under its assumptions; it does not directly estimate Weibull \(\beta\) and \(\eta\).</li>
-      <li><strong>Weibull parameter estimation</strong> can use maximum likelihood methods that include both observed failures and right-censored exposure times. The parametric right-censored log-likelihood is given by:
+      <li><strong>Kaplan–Meier</strong> estimates the survival function non-parametrically from observed failure times and right-censored units. Under independent (non-informative) censoring, a unit still operating at its last observation remains in the risk set until that time; it is not counted as a failure. Kaplan–Meier does not estimate Weibull \(\beta\) and \(\eta\).</li>
+      <li><strong>Parametric Weibull estimation</strong> can use maximum likelihood with both observed failures and right-censored exposure times. Let \(\delta_i=1\) for an observed failure and \(\delta_i=0\) for a right-censored unit. The likelihood and log-likelihood are:
       <div class="equation-flow">
-          \[ \mathcal{L}(\beta, \eta) = \prod_{i=1}^{n} f(t_i; \beta, \eta)^{\delta_i} S(t_i; \beta, \eta)^{1-\delta_i} \]
+          \[ \begin{aligned}
+          L(\beta,\eta)&=\prod_{i=1}^{n} f(t_i;\beta,\eta)^{\delta_i}S(t_i;\beta,\eta)^{1-\delta_i}\\
+          \ell(\beta,\eta)&=\sum_{i=1}^{n}\left[\delta_i\log f(t_i;\beta,\eta)+(1-\delta_i)\log S(t_i;\beta,\eta)\right]
+          \end{aligned} \]
       </div>
-      where \(\delta_i = 1\) for observed failures and \(\delta_i = 0\) for right-censored units. Report uncertainty intervals and check whether the fitted curve is plausible.</li>
+      The product is the likelihood; its logarithm is the log-likelihood. Report parameter uncertainty intervals and check whether the fitted curve is plausible.</li>
       <li><strong>Diagnostics</strong> should compare the fitted parametric survival curve with the empirical Kaplan–Meier curve, inspect probability plots/residuals, examine cohort differences, and test sensitivity to the observation window.</li>
   </ul>
   
-  <p>For software workers, record age in meaningful exposure units—wall-clock uptime, requests processed, bytes scanned, compactions, or another mechanism-linked measure. If RSS grows almost deterministically with requests processed, fix the leak or impose a safe resource bound. Do not hide a deterministic defect behind a stochastic lifetime fit.</p>
+  <p>For software workers, record age in meaningful exposure units—wall-clock uptime, requests processed, bytes scanned, compactions, or another mechanism-linked measure. If RSS grows almost deterministically with requests processed, fix the leak or impose a safe resource bound. Do not hide a deterministic defect behind a stochastic lifetime fit. The Kaplan–Meier curve is the empirical, non-parametric survival estimate; the Weibull curve is a parametric model fitted to the censored observations. Compare them rather than treating one as a substitute for the other. Confidence intervals, the number still at risk, cohort stratification and sensitivity to the observation window matter, especially in the tail.</p>
   
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
@@ -494,7 +518,7 @@
           <li><strong>Use rejuvenation where the mechanism supports it.</strong> Stagger worker recycling, compaction, firmware changes and hardware replacement. Set policy from measured risk and recovery capacity, not an arbitrary age threshold.</li>
           <li><strong>Avoid synchronized cohort aging.</strong> Randomize maintenance windows and rollout cohorts so a shared deployment date does not become a shared operational cliff.</li>
           <li><strong>Preserve censoring information.</strong> Keep start time, last-seen time, failure time, retirement reason, maintenance history and cohort identity. Treat a graceful deployment restart as a competing event or censoring event according to the question being estimated.</li>
-          <li><strong>Budget recovery throughput.</strong> Connect MTBF and MTTR (\(U = \frac{\text{MTTR}}{\text{MTTF} + \text{MTTR}}\)) to show why cutting recovery time (fast crash-only restart, shard failover) often beats adding replicas. A higher failure rate matters most when repair, replica rebuild, or replacement capacity cannot keep up.</li>
+          <li><strong>Budget recovery throughput.</strong> For a repairable component alternating between up and down states, the long-run unavailability is \(U=E[D]/(E[Uptime]+E[D])=\text{MTTR}/(\text{MTTF}+\text{MTTR})\), assuming regenerative cycles with finite mean up- and down-times. If up- and down-times are exponential, \(\lambda\) is the constant failure rate, \(\mu_{\text{repair}}\) is the constant repair-completion rate, MTTF is \(1/\lambda\), MTTR is \(1/\mu_{\text{repair}}\), and \(U=\lambda/(\lambda+\mu_{\text{repair}})\). The renewal expression itself does not require exponential durations. It is a long-run fraction, not the probability that a component of a given age fails in the next minute. Reducing repair time can improve availability, but only if detection, isolation, spare capacity and safe restoration keep pace.</li>
       </ul>
       <div class="telemetry">
           <div class="telemetry-title">Production falsification · survival data</div>
@@ -502,10 +526,19 @@
       </div>
   </div>
 
+  <h3>Failure and repair are different clocks</h3>
+  <p>The failure hazard \(\lambda(t)\) describes the instantaneous rate of first failure conditional on surviving to age \(t\). The repair process starts after a failure and has its own duration distribution. If repair completion is exponential with constant rate \(\mu_{\text{repair}}\), its mean duration is \(1/\mu_{\text{repair}}\). A constant repair rate does <strong>not</strong> make the failure process memoryless: the failure hazard may still increase or decrease with component age, as in a Weibull model.</p>
+  <p>Here \(\text{MTTF}=E[Uptime]\) is the mean operating duration from restoration to the next failure, and \(\text{MTTR}=E[D]\) is the mean down/repair duration from the chosen failure-detection boundary to restored service. Define those measurement boundaries consistently; MTTR may include diagnosis, waiting for a spare, repair, validation and reintegration. For an exponential up/down continuous-time Markov model—with constant failure rate \(\lambda\) and constant repair rate \(\mu_{\text{repair}}\)—\(\text{MTTF}=1/\lambda\) and \(\text{MTTR}=1/\mu_{\text{repair}}\), and the steady-state unavailability is:</p>
+  <div class="equation-flow">
+      \[ U_{\infty}=\frac{\lambda}{\lambda+\mu_{\text{repair}}},\qquad A_{\infty}=\frac{\mu_{\text{repair}}}{\lambda+\mu_{\text{repair}}} \]
+  </div>
+  <p>More generally, for an alternating renewal process with finite mean up- and down-times, the long-run unavailability is \(U_{\infty}=E[D]/(E[Uptime]+E[D])\), whether or not those durations are exponential. The familiar MTTR/(MTTF+MTTR) expression is this long-run reward fraction. It does not give the age-conditioned probability of failure in the next interval; for a lifetime model that probability is \(P(t<T\le t+\Delta\mid T>t)=1-S(t+\Delta)/S(t)\).</p>
+  <p>In a real service, service unavailability also depends on redundancy, detection, failover, network reachability and repair/rebuild capacity. A component's steady-state availability cannot simply be copied into the service-level SLO.</p>
+
   <div class="stage" data-sim="weibull">
       <div class="sim-header">
           <span class="sim-title">Interactive lab 3 · Weibull hazard explorer</span>
-          <span class="sim-subtitle">Explore a model's age-dependent hazard and next-window failure probability</span>
+          <span class="sim-subtitle">Explore the model's age-dependent hazard and next-year conditional failure probability; outputs update as inputs change</span>
       </div>
       <div class="sim-toolbar">
           <div class="sim-params">
@@ -520,17 +553,18 @@
               </label>
           </div>
           <div class="controls">
-              <button class="sim-btn secondary" id="wreset">Reset</button>
+              <button type="button" class="sim-btn secondary" id="wreset">Reset</button>
           </div>
       </div>
-      <canvas id="wcv" height="220" role="img" aria-label="Weibull hazard curve with current age marker"></canvas>
+      <canvas id="wcv" height="220" role="img" aria-label="Theoretical Weibull hazard curve with current age marker"></canvas>
+      <p class="canvas-description">The curve is the theoretical hazard \(h(t)\) in inverse years. The vertical axis is capped for display; the marker shows the selected age.</p>
       <div class="readout">
           <div class="readout-item">Failed by current age<span id="wf">—</span></div>
           <div class="readout-item">Hazard at current age<span id="wh">—</span></div>
           <div class="readout-item">Next-year risk<span id="wr">—</span></div>
           <div class="readout-item">Hazard regime<span id="wreg">—</span></div>
       </div>
-      <p class="sim-note">The curve is a theoretical Weibull model, not an estimate from a production fleet. Hazard is an instantaneous rate; the next-year risk is a conditional probability. They are not interchangeable.</p>
+      <p class="sim-note">The curve is a theoretical Weibull model, not an estimate from a production fleet; no sample is drawn. Hazard is an instantaneous rate; the next-year risk is a conditional probability conditional on survival to the selected age. They are not interchangeable.</p>
   </div>
 
   <h2>4. Capstone: reliability economics in a synchronous GPU training fleet</h2>
@@ -541,24 +575,24 @@
   
   <div class="incident-banner">
       <div class="incident-head">Documented evidence · Meta Llama 3 training report</div>
-      <p>Meta's Llama 3 report describes training its 405B model on a 16,384-GPU cluster and reports 419 unexpected interruptions over a 54-day period in the discussed training run, with a range of hardware and system causes. The report is the source for the fleet size and interruption count below. Those interruptions include more than independent GPU hardware failures, so they must not be relabelled as a per-GPU hardware failure rate. <a href="https://ai.meta.com/research/publications/the-llama-3-herd-of-models/" target="_blank" rel="noopener noreferrer">Read the Llama 3 report</a>.</p>
+      <p>Meta's Llama 3 report describes a 24K-GPU RoCE cluster, with up to 16,384 GPUs used for Llama 3 pre-training. In a 54-day snapshot, it reports 466 job interruptions: 47 planned and 419 unexpected, spanning GPU, host, network, software and maintenance-related causes. The paper also reports more than 90% effective training time. The 16,384-GPU configuration and 419 unexpected events are the inputs used for the illustrative calculations below; they are not a fleet-wide GPU failure rate. <a href="https://ai.meta.com/research/publications/the-llama-3-herd-of-models/" target="_blank" rel="noopener noreferrer">Read the Llama 3 report</a>.</p>
   </div>
 
   <h3>Step A · Estimate the observed job-interruption intensity</h3>
-  <p>Over 54 days there are \(54\times24=1,296\) wall-clock hours. If the reported 419 interruptions are treated as events observed over that interval, the empirical event rate for this run is:</p>
+  <p>Over 54 days there are \(54\times24=1,296\) wall-clock hours. Using the 419 <em>unexpected</em> interruptions (excluding 47 planned interruptions), the empirical unexpected-event intensity for this run is:</p>
   
   <div class="equation-flow">
       \[ \hat\Lambda_{\mathrm{job}}=\frac{419}{1,296}\approx0.3233\text{ interruptions/hour} \]
   </div>
   
-  <p>The reciprocal is an average interval between reported interruptions of:</p>
+  <p>The reciprocal is an average interval between reported unexpected interruptions of:</p>
   
   <div class="equation-flow">
       \[ \widehat{MTBI}=\frac{1}{\hat\Lambda_{\mathrm{job}}}\approx3.09\text{ hours} \]
   </div>
   
-  <p>This is an <strong>observed run-level interruption intensity</strong>. It is not an H100 MTBF and does not prove that interruptions form a stationary Poisson process. The calculation assumes the event count and observation window are comparable and treats each recorded interruption as one event. A production forecast should stratify by cause, distinguish job interruption from node failure, and test whether the rate changes with cluster configuration, workload phase, repairs and software rollout.</p>
-  <p>If, purely as a first approximation, job interruptions followed a homogeneous Poisson process at this rate, the probability of no interruption during a 24-hour period would be:</p>
+  <p>This is an <strong>observed run-level unexpected-interruption intensity</strong>. It is not an H100 MTBF, GPU lifetime, node lifetime, rack lifetime, or fleet replacement rate. It excludes the 47 planned interruptions and does not prove that unexpected events form a stationary Poisson process. The calculation treats each reported unexpected interruption as one event over the stated exposure window. A production forecast should stratify by cause, distinguish job interruption from node failure, include planned stoppages in the checkpoint schedule, and test whether the rate changes with cluster configuration, workload phase, repairs and software rollout.</p>
+  <p>If, purely as a first approximation, unexpected job interruptions followed a homogeneous Poisson process at this rate, the probability of no unexpected interruption during a 24-hour period would be:</p>
   
   <div class="equation-flow">
       \[ P(N(24)=0)=e^{-0.3233\times24}\approx0.00042=0.042\% \]
@@ -567,7 +601,7 @@
   <p>That is a stress signal for checkpoint and recovery design—not a claim that the next training run has exactly this probability. The observed rate may include multiple failure mechanisms and changing operating conditions.</p>
 
   <h3>Step B · Checkpoint frequency is an economic decision</h3>
-  <p>Let \(M\) be the mean time between job interruptions, \(\delta\) the blocking time per checkpoint, \(R\) the restart overhead after an interruption, and \(\tau\) the checkpoint interval. Under the simplified Young–Daly approximation, the fraction of wall-clock time lost is:</p>
+  <p>Let \(M\) be the mean interval implied by the unexpected-interruption intensity used in this illustrative scenario, \(\delta\) the blocking time per checkpoint, \(R\) the restart overhead after an interruption, and \(\tau\) the checkpoint interval. Planned maintenance interruptions are excluded from this value of \(M\) and would need to be represented in a full schedule-aware model. Under the simplified Young–Daly approximation, the fraction of wall-clock time lost is:</p>
   
   <div class="equation-flow">
       \[ W(\tau)=\frac{\delta}{\tau}+\frac{\tau/2+R}{M} \]
@@ -579,20 +613,20 @@
       \[ \frac{dW}{d\tau}=-\frac{\delta}{\tau^2}+\frac{1}{2M}=0 \quad \therefore\quad\tau^*=\sqrt{2\delta M} \]
   </div>
   
-  <p>This is a simplified model. It assumes a stable interruption rate, fixed checkpoint and restart costs, periodic checkpoints, and a failure process for which the average lost work is approximately \(\tau/2\). It does not automatically describe asynchronous checkpoint protocols, incremental checkpoints, correlated failures, or recovery that overlaps with useful work.</p>
-  <p><strong>Illustrative planning inputs:</strong> \(M=185.4\) minutes (from the run-level event rate above), blocking checkpoint time \(\delta=2\) minutes, restart overhead \(R=20\) minutes, fleet size 16,384 GPUs, and an assumed blended cost of $2.50 per GPU-hour.</p>
+  <p>This is a simplified model. It assumes a stable interruption hazard, fixed checkpoint and restart costs, periodic checkpoints, and an interruption time that is approximately uniform within a checkpoint interval, so average lost work is \(\tau/2\). It is most defensible as a first-order approximation when interruptions are not strongly clustered and the rate is stable over the planning horizon. It does not automatically describe asynchronous checkpoint protocols, incremental checkpoints, correlated failures, age-dependent job hazards, or recovery that overlaps with useful work.</p>
+  <p><strong>Hypothetical planning inputs, not Meta cost data:</strong> \(M=185.6\) minutes (the reciprocal of the observed unexpected-interruption intensity above), blocking checkpoint time \(\delta=2\) minutes, restart overhead \(R=20\) minutes, modeled job allocation of 16,384 GPUs, and an assumed blended cost of $2.50 per GPU-hour.</p>
   
   <div class="equation-flow">
-      \[ \tau^*=\sqrt{2\times2\times185.4}\approx27.2\text{ minutes} \]
+      \[ \tau^*=\sqrt{2\times2\times185.6}\approx27.2\text{ minutes} \]
   </div>
   
   <p>At this interval, the estimated lost-time fraction is:</p>
   
   <div class="equation-flow">
-      \[ W(27.2)\approx\frac{2}{27.2}+\frac{13.6+20}{185.4}\approx25.5\%, \qquad \text{goodput}\approx74.5\% \]
+      \[ W(27.2)\approx\frac{2}{27.2}+\frac{13.6+20}{185.6}\approx25.5\%, \qquad \text{goodput}\approx74.5\% \]
   </div>
   
-  <p>For a 54-day run, the assumed fleet spend is \(16,384 \times 1,296 \times \$2.50 \approx \$53.08\) million. Applying the simplified waste fraction gives approximately <strong>$13.53 million</strong> of time-equivalent compute cost. This is an illustrative opportunity-cost calculation, not a reported Meta cost or a cash invoice.</p>
+  <p>For a 54-day run, the modeled job allocation's assumed compute spend is \(16,384 \times 1,296 \times \$2.50 \approx \$53.08\) million. Applying the simplified waste fraction gives approximately <strong>$13.51 million</strong> of time-equivalent compute cost. This is an illustrative opportunity-cost calculation, not a reported Meta cost or a cash invoice. The modelled 74.5% goodput is not an estimate of Meta's reported effective training time (above 90%): the checkpoint pause, restart duration and GPU-hour price are hypothetical, the model uses the unexpected-event rate only, and the simple approximation omits the production system's detailed recovery and scheduling behavior.</p>
   
   <div class="table-wrap">
       <table>
@@ -638,20 +672,35 @@
   <p>The third row is not “async checkpointing automatically produces 93.2% goodput.” It is the result of changing the model inputs to a 0.2-minute blocking cost and four-minute restart. An asynchronous design must still establish a consistent recovery point, ensure checkpoint durability, manage host-memory/NVMe pressure, and account for background flush contention. If the checkpoint is truly non-blocking, replace \(\delta\) with the measured residual pause and model the background resource cost separately.</p>
 
   <h3>Step C · A spare pool is a queueing problem, not just a percentage</h3>
-  <p>Suppose—hypothetically—that every interruption corresponds to one repairable node entering a 24-hour repair pipeline. At the observed run-level rate, the expected number of arrivals during 24 hours is:</p>
+  <p>Suppose—hypothetically—that every interruption corresponds to one repairable node entering a 24-hour repair pipeline. At the observed unexpected-interruption rate, the expected number of events during 24 hours is:</p>
   
   <div class="equation-flow">
-      \[ \mu=0.3233\times24\approx7.76 \]
+      \[ \Lambda_{24}=0.3233\times24\approx7.76 \]
   </div>
   
-  <p>If repair arrivals were Poisson and independent, then a spare pool of \(S=18\) nodes would have:</p>
+  <p>If repair arrivals were Poisson and independent, with expected 24-hour count \(\Lambda_{24}=7.76\), then a spare pool of \(S=18\) nodes would have:</p>
   
   <div class="equation-flow">
-      \[ P(X>18\mid\mu=7.76)\approx0.00045=0.045\% \]
+      \[ P(X>18\mid\Lambda_{24}=7.76)\approx0.000455=0.0455\% \]
   </div>
   
-  <p>That is below 0.1% under the stated model. But the calculation is useful only if the assumptions hold: one interruption must map to one spare-consuming repair, repairs must take approximately 24 hours, arrivals must be reasonably Poisson, and failures must not arrive in correlated bursts. The Llama 3 interruption count includes multiple causes, so this is a <strong>hypothetical buffer-sizing example</strong>, not a spare recommendation derived from the report.</p>
+  <p>That is below 0.1% under the stated model. But the calculation is useful only if the assumptions hold: one unexpected interruption must map to one spare-consuming repair, repairs must take approximately 24 hours, arrivals must be reasonably Poisson, and failures must not arrive in correlated bursts. The Llama 3 interruption count includes multiple causes, so this is a <strong>hypothetical buffer-sizing example</strong>, not a spare recommendation derived from the report.</p>
   <p>In a real fleet, model the spare pool as an inventory/repair system. Measure repair-time distribution, simultaneous failures, spare compatibility, maintenance backlog, time to detect, time to isolate, and whether a spare can join the same topology without creating a new bottleneck.</p>
+
+  <h3>Do not turn a GPU interruption rate into a rack replacement policy</h3>
+  <p>There are at least four different asset populations in a large accelerator fleet, and each has a different failure process:</p>
+  <ul>
+      <li><strong>GPU lifetime:</strong> time or exposure until a GPU-specific fault makes that accelerator unfit for service. HBM, package, board and firmware faults may have different mechanisms.</li>
+      <li><strong>Node lifetime:</strong> time until the server as an integrated unit cannot meet its role. A node can fail because of its GPU, CPU, memory, NIC, power supply, cooling or motherboard; the GPU's lifetime is not the node's lifetime.</li>
+      <li><strong>Rack lifetime:</strong> time until a rack-level assembly or shared subsystem—power distribution, cooling, top-of-rack networking, cabling or structural infrastructure—requires intervention or replacement. Rack failures can be common-cause events for many nodes.</li>
+      <li><strong>Fleet replacement policy:</strong> a portfolio decision shaped by age cohorts, capacity demand, maintenance windows, spare inventory, supply lead time, compatibility, energy efficiency and planned refresh cycles. It is not obtained by multiplying one GPU's failure probability by the fleet size.</li>
+  </ul>
+  <p>An age-based replacement policy can be evaluated for a clearly defined, homogeneous asset. Let \(T\) be its lifetime, \(S(t)\) its survival function, and \(a\) the planned replacement age. Under a renewal model in which a replacement starts a new cycle, the expected operating time per cycle is \(E[\min(T,a)]=\int_0^a S(t)\,dt\). A simplified long-run cost rate per unit of operating time is:</p>
+  <div class="equation-flow">
+      \[ g(a)=\frac{S(a)C_P+\int_0^a f(t)C_F(t)\,dt}{\int_0^a S(t)\,dt} \]
+  </div>
+  <p>Here \(C_P\) is the net planned-replacement cost at age \(a\), and \(C_F(t)\) is the failure-path cost if failure occurs at age \(t\). The failure-path cost should explicitly include corrective replacement, repair, downtime, lead-time exposure and any lost production; planned and failed removals should account for residual value where recoverable. This renewal-reward expression assumes a failure ends the asset cycle and a replacement restores an as-good-as-new unit, with comparable cycles in a stationary population. If the same unit is repaired and retains its accumulated age, use an imperfect-repair or virtual-age model instead. It reports cost per unit of operating time; if the decision metric is cost per calendar hour, repair and procurement lead-time downtime must also be represented in the cycle duration. It is a decision framework, not a universal formula for rack economics.</p>
+  <p>Run sensitivity analysis over the fitted failure hazard, repair duration, replacement and repair costs, downtime valuation, spare compatibility, procurement lead time and residual value. Estimate separate survival curves and cost models for GPU, node and rack populations. Then aggregate them into a fleet policy that staggers cohorts and preserves enough compatible spare capacity. The Llama 3 interruption count supplies none of those asset-level lifetime or cost parameters, so no actual hyperscaler replacement optimum can be inferred from it.</p>
 
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
@@ -675,8 +724,8 @@
       </div>
       <div class="sim-toolbar">
           <div class="sim-params">
-              <label class="param">Mean time between interruptions M (min) <strong id="gmv">185.4</strong>
-                  <input id="gm" type="range" min="30" max="600" step="5" value="185.4">
+              <label class="param">Mean time between unexpected interruptions M (min) <strong id="gmv">185.6</strong>
+                  <input id="gm" type="range" min="30" max="600" step="0.1" value="185.6">
               </label>
               <label class="param">Blocking checkpoint δ (min) <strong id="gdv">2.0</strong>
                   <input id="gd" type="range" min="0.1" max="5" step="0.1" value="2">
@@ -684,22 +733,23 @@
               <label class="param">Restart overhead R (min) <strong id="grv">20</strong>
                   <input id="gr" type="range" min="0" max="60" step="1" value="20">
               </label>
-              <label class="param">Fleet cost per GPU-hour <strong id="gcv">$2.50</strong>
+              <label class="param">Assumed cost per GPU-hour <strong id="gcv">$2.50</strong>
                   <input id="gc" type="range" min="0.5" max="10" step="0.25" value="2.5">
               </label>
           </div>
           <div class="controls">
-              <button class="sim-btn secondary" id="greset">Reset</button>
+              <button type="button" class="sim-btn secondary" id="greset">Reset</button>
           </div>
       </div>
-      <canvas id="gcvv" height="220" role="img" aria-label="Estimated goodput against checkpoint interval"></canvas>
+      <canvas id="gcvv" height="220" role="img" aria-label="Theoretical estimated goodput against checkpoint interval"></canvas>
+      <p class="canvas-description">Analytical sensitivity curve from the simplified Young–Daly loss approximation. The selected interval is marked; settings that imply at least 100% lost time are flagged as outside the model\’s valid range.</p>
       <div class="readout">
           <div class="readout-item">Optimal interval<span id="gtau">—</span></div>
           <div class="readout-item">Estimated goodput<span id="ggood">—</span></div>
-          <div class="readout-item">54-day fleet spend<span id="gspend">—</span></div>
+          <div class="readout-item">Modeled 54-day spend<span id="gspend">—</span></div>
           <div class="readout-item">Time-equivalent waste<span id="gwaste">—</span></div>
       </div>
-      <p class="sim-note">Fixed fleet size: 16,384 GPUs. Horizon: 54 days. Waste is calculated from the simplified model above; this is not a vendor quote or measured training result.</p>
+      <p class="sim-note">Analytical sensitivity model; no sample is drawn. Modeled job allocation: 16,384 GPUs. Horizon: 54 days. Waste is calculated from the simplified model above; this is not a vendor quote or measured training result. If the approximation yields at least 100% lost time, the simulator flags the result instead of presenting a negative goodput or a misleading capped estimate.</p>
   </div>
 
   <h2>5. The principal architect's diagnostic matrix</h2>
@@ -757,7 +807,7 @@
   </div>
 
   <h2>What to carry into the next part</h2>
-  <p>Reliability models tell us how components and workflows fail. They do not yet tell us what happens when requests arrive faster than a service can complete them. In Part 3, we move from discrete failure events to the physics of <strong>time, traffic and queues</strong>: why utilization, variability and bursty arrivals can turn a seemingly healthy service into a latency problem long before it reports a hard failure.</p>
+  <p>Reliability models tell us how components, redundant groups and workflows fail—and why repair capacity and shared dependencies matter as much as the count of replicas. They do not yet tell us what happens when requests arrive faster than a service can complete them. In Part 3, we move from discrete failure events to the physics of <strong>time, traffic and queues</strong>: why utilization, variability and bursty arrivals can turn a seemingly healthy service into a latency problem long before it reports a hard failure.</p>
   
   <nav class="post-pager" aria-label="Series pagination">
       <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
@@ -813,13 +863,49 @@
   function qloss(n, p) { const need = Math.floor(n / 2) + 1, first = n - need + 1; let s = 0; for(let k = first; k <= n; k++) s += comb(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k); return s; } 
   
   function drawBinomial() { const p = +$('ip').value, qc = +$('ic').value, ns = [3, 5, 7, 9, 11], ind = ns.map(n => qloss(n, p)), coupled = ind.map(v => qc + (1 - qc) * v), b = setupCanvas('icv'), ctx = b.ctx, W = b.W, H = b.H, pad = { l: 54, r: 18, t: 20, b: 32 }; axes(ctx, W, H, pad); const min = -7, max = 0, y = v => pad.t + (max - Math.log10(Math.max(1e-7, v))) / (max - min) * (H - pad.t - pad.b), x = i => pad.l + i * (W - pad.l - pad.r) / (ns.length - 1); [0, -2, -4, -6].forEach(v => { ctx.strokeStyle = light() ? '#d5dce4' : '#303946'; ctx.beginPath(); ctx.moveTo(pad.l, y(Math.pow(10, v))); ctx.lineTo(W - pad.r, y(Math.pow(10, v))); ctx.stroke(); ctx.fillStyle = light() ? '#475569' : '#aab3c0'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'right'; ctx.fillText('10^' + v, pad.l - 5, y(Math.pow(10, v)) + 3) }); [[ind, getCssVar('--amber')], [coupled, getCssVar('--bad')]].forEach(([arr, color]) => { ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.beginPath(); arr.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))); ctx.stroke(); arr.forEach((v, i) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x(i), y(v), 3.5, 0, Math.PI * 2); ctx.fill() }) }); ctx.fillStyle = light() ? '#475569' : '#aab3c0'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center'; ns.forEach((v, i) => ctx.fillText('N=' + v, x(i), H - 10)); $('iq3').textContent = fmtPct(coupled[0]); $('iq5').textContent = fmtPct(coupled[1]); $('iq7').textContent = fmtPct(coupled[2]); $('ifloor').textContent = fmtPct(qc); }
-  ['ip', 'ic'].forEach(id => $(id).addEventListener('input', () => { $('ipval').textContent = fmtPct(+$('ip').value); $('icval').textContent = fmtPct(+$('ic').value); drawBinomial(); })); $('izero').addEventListener('click', () => { $('ic').value = 0; $('icval').textContent = '0.000%'; drawBinomial(); });
+  ['ip', 'ic'].forEach(id => $(id).addEventListener('input', () => { $('ipval').textContent = fmtPct(+$('ip').value); $('icval').textContent = fmtPct(+$('ic').value); drawBinomial(); })); $('izero').addEventListener('click', () => { $('ic').value = 0; $('icval').textContent = '0.000%'; drawBinomial(); }); $('ireset').addEventListener('click', () => { $('ip').value = 0.01; $('ic').value = 0.001; $('ipval').textContent = '1.000%'; $('icval').textContent = '0.100%'; drawBinomial(); });
   
-  function drawWeibull() { const beta = +$('wk').value, eta = +$('we').value, t0 = +$('wt').value, b = setupCanvas('wcv'), ctx = b.ctx, W = b.W, H = b.H, pad = { l: 48, r: 18, t: 18, b: 32 }, maxT = 8, maxH = 2.2; axes(ctx, W, H, pad); const X = t => pad.l + t / maxT * (W - pad.l - pad.r), Y = h => H - pad.b - Math.min(maxH, h) / maxH * (H - pad.t - pad.b); ctx.strokeStyle = getCssVar('--teal'); ctx.lineWidth = 2.5; ctx.beginPath(); for(let i = 0; i <= 160; i++) { const t = maxT * i / 160, h = beta / eta * Math.pow(Math.max(t, .0001) / eta, beta - 1); i ? ctx.lineTo(X(t), Y(h)) : ctx.moveTo(X(t), Y(h)) } ctx.stroke(); const h0 = beta / eta * Math.pow(t0 / eta, beta - 1), f = 1 - Math.exp(-Math.pow(t0 / eta, beta)), risk = 1 - Math.exp(-(Math.pow((t0 + 1) / eta, beta) - Math.pow(t0 / eta, beta))); ctx.strokeStyle = getCssVar('--bad'); ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(X(t0), pad.t); ctx.lineTo(X(t0), H - pad.b); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = getCssVar('--bad'); ctx.beginPath(); ctx.arc(X(t0), Y(h0), 4.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = light() ? '#475569' : '#aab3c0'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center'; ctx.fillText('Age (years)', (pad.l + W - pad.r) / 2, H - 7); $('wf').textContent = fmtPct(f); $('wh').textContent = h0.toFixed(3) + ' / year'; $('wr').textContent = fmtPct(risk); $('wreg').textContent = beta < .98 ? 'Decreasing hazard' : beta > 1.02 ? 'Increasing hazard' : 'Constant hazard'; }
+  function drawWeibull() { const beta = +$('wk').value, eta = +$('we').value, t0 = +$('wt').value, b = setupCanvas('wcv'), ctx = b.ctx, W = b.W, H = b.H, pad = { l: 48, r: 18, t: 18, b: 32 }, maxT = 8, maxH = 2.2; axes(ctx, W, H, pad); const X = t => pad.l + t / maxT * (W - pad.l - pad.r), Y = h => H - pad.b - Math.min(maxH, h) / maxH * (H - pad.t - pad.b); ctx.strokeStyle = getCssVar('--teal'); ctx.lineWidth = 2.5; ctx.beginPath(); for(let i = 0; i <= 160; i++) { const t = maxT * i / 160, h = beta / eta * Math.pow(Math.max(t, .0001) / eta, beta - 1); i ? ctx.lineTo(X(t), Y(h)) : ctx.moveTo(X(t), Y(h)) } ctx.stroke(); const h0 = beta / eta * Math.pow(t0 / eta, beta - 1), f = 1 - Math.exp(-Math.pow(t0 / eta, beta)), risk = 1 - Math.exp(-(Math.pow((t0 + 1) / eta, beta) - Math.pow(t0 / eta, beta))); ctx.strokeStyle = getCssVar('--bad'); ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(X(t0), pad.t); ctx.lineTo(X(t0), H - pad.b); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = getCssVar('--bad'); ctx.beginPath(); ctx.arc(X(t0), Y(h0), 4.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = light() ? '#475569' : '#aab3c0'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center'; ctx.fillText('Age (years)', (pad.l + W - pad.r) / 2, H - 7); ctx.textAlign = 'left'; ctx.fillText('Hazard (1/year)', pad.l, 12); $('wf').textContent = fmtPct(f); $('wh').textContent = h0.toFixed(3) + ' / year'; $('wr').textContent = fmtPct(risk); $('wreg').textContent = beta < .98 ? 'Decreasing hazard' : beta > 1.02 ? 'Increasing hazard' : 'Constant hazard'; }
   ['wk', 'we', 'wt'].forEach(id => $(id).addEventListener('input', () => { $('wkval').textContent = (+$('wk').value).toFixed(1); $('weval').textContent = (+$('we').value).toFixed(1); $('wtval').textContent = (+$('wt').value).toFixed(1); drawWeibull(); })); $('wreset').addEventListener('click', () => { $('wk').value = 3; $('we').value = 5; $('wt').value = 4; ['wkval', 'weval', 'wtval'].forEach((id, i) => $(id).textContent = ['3.0', '5.0', '4.0'][i]); drawWeibull(); });
   
-  function drawGpu() { const M = +$('gm').value, d = +$('gd').value, R = +$('gr').value, cost = +$('gc').value, tau = Math.sqrt(2 * d * M), w = Math.min(.999, d / tau + (tau / 2 + R) / M), good = 1 - w, spend = 16384 * 54 * 24 * cost, waste = spend * w, b = setupCanvas('gcvv'), ctx = b.ctx, W = b.W, H = b.H, pad = { l: 45, r: 18, t: 18, b: 32 }; axes(ctx, W, H, pad); const maxTau = 120; ctx.strokeStyle = getCssVar('--teal'); ctx.lineWidth = 2.5; ctx.beginPath(); for(let i = 0; i <= 160; i++) { const t = 1 + i / 160 * (maxTau - 1), ww = Math.min(1, d / t + (t / 2 + R) / M), y = H - pad.b - (1 - ww) * (H - pad.t - pad.b); i ? ctx.lineTo(pad.l + i / 160 * (W - pad.l - pad.r), y) : ctx.moveTo(pad.l, y) } ctx.stroke(); const ox = pad.l + Math.min(1, tau / maxTau) * (W - pad.l - pad.r), oy = H - pad.b - good * (H - pad.t - pad.b); ctx.fillStyle = getCssVar('--amber'); ctx.beginPath(); ctx.arc(ox, oy, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = light() ? '#475569' : '#aab3c0'; ctx.font = '10px IBM Plex Mono'; ctx.fillText('Goodput', pad.l, 12); $('gtau').textContent = tau.toFixed(1) + ' min'; $('ggood').textContent = (good * 100).toFixed(1) + '%'; $('gspend').textContent = '$' + (spend / 1e6).toFixed(2) + 'M'; $('gwaste').textContent = '$' + (waste / 1e6).toFixed(2) + 'M'; }
-  ['gm', 'gd', 'gr', 'gc'].forEach(id => $(id).addEventListener('input', () => { $('gmv').textContent = (+$('gm').value).toFixed(1); $('gdv').textContent = (+$('gd').value).toFixed(1); $('grv').textContent = (+$('gr').value).toFixed(0); $('gcv').textContent = '$' + (+$('gc').value).toFixed(2); drawGpu(); })); $('greset').addEventListener('click', () => { $('gm').value = 185.4; $('gd').value = 2; $('gr').value = 20; $('gc').value = 2.5; $('gmv').textContent = '185.4'; $('gdv').textContent = '2.0'; $('grv').textContent = '20'; $('gcv').textContent = '$2.50'; drawGpu(); });
+  function drawGpu() {
+      const M = +$('gm').value, d = +$('gd').value, R = +$('gr').value, cost = +$('gc').value;
+      const tau = Math.sqrt(2 * d * M);
+      const rawLoss = d / tau + (tau / 2 + R) / M;
+      const valid = rawLoss < 1;
+      const plottedLoss = Math.min(1, Math.max(0, rawLoss));
+      const good = 1 - plottedLoss;
+      const spend = 16384 * 54 * 24 * cost;
+      const waste = spend * plottedLoss;
+      const b = setupCanvas('gcvv'), ctx = b.ctx, W = b.W, H = b.H;
+      const pad = { l: 45, r: 18, t: 18, b: 38 };
+      axes(ctx, W, H, pad);
+      const maxTau = 120;
+      ctx.strokeStyle = getCssVar('--teal');
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = 0; i <= 160; i++) {
+          const t = 1 + i / 160 * (maxTau - 1);
+          const loss = d / t + (t / 2 + R) / M;
+          const y = H - pad.b - Math.max(0, 1 - Math.min(1, loss)) * (H - pad.t - pad.b);
+          i ? ctx.lineTo(pad.l + i / 160 * (W - pad.l - pad.r), y) : ctx.moveTo(pad.l + i / 160 * (W - pad.l - pad.r), y);
+      }
+      ctx.stroke();
+      const ox = pad.l + Math.min(1, tau / maxTau) * (W - pad.l - pad.r);
+      const oy = H - pad.b - good * (H - pad.t - pad.b);
+      ctx.fillStyle = getCssVar('--amber');
+      ctx.beginPath(); ctx.arc(ox, oy, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = light() ? '#475569' : '#aab3c0';
+      ctx.font = '10px IBM Plex Mono';
+      ctx.fillText('Goodput (%)', pad.l, 12);
+      ctx.textAlign = 'center';
+      ctx.fillText('Checkpoint interval (min)', (pad.l + W - pad.r) / 2, H - 7);
+      $('gtau').textContent = tau.toFixed(1) + ' min';
+      $('ggood').textContent = valid ? (good * 100).toFixed(1) + '%' : 'Model invalid';
+      $('gspend').textContent = '$' + (spend / 1e6).toFixed(2) + 'M';
+      $('gwaste').textContent = valid ? '$' + (waste / 1e6).toFixed(2) + 'M' : 'Not meaningful (>100% loss)';
+  }
+  ['gm', 'gd', 'gr', 'gc'].forEach(id => $(id).addEventListener('input', () => { $('gmv').textContent = (+$('gm').value).toFixed(1); $('gdv').textContent = (+$('gd').value).toFixed(1); $('grv').textContent = (+$('gr').value).toFixed(0); $('gcv').textContent = '$' + (+$('gc').value).toFixed(2); drawGpu(); })); $('greset').addEventListener('click', () => { $('gm').value = 185.6; $('gd').value = 2; $('gr').value = 20; $('gc').value = 2.5; $('gmv').textContent = '185.6'; $('gdv').textContent = '2.0'; $('grv').textContent = '20'; $('gcv').textContent = '$2.50'; drawGpu(); });
   
   [drawBinomial, drawWeibull, drawGpu].forEach(f => f()); drawBernoulli(); 
   

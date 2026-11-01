@@ -16,7 +16,7 @@
     <!-- Primary SEO, OpenGraph & Canonical Tags -->
     <title>Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Geometric retry amplification, Markov circuit breakers, Negative Binomial overdispersion, Bayesian Beta canary bounds, and the PERT simulation fallacy.">
+    <meta name="description" content="Bounded retries, state-dependent failure probabilities, retry budgets, Negative Binomial overdispersion, Bayesian Beta inference, and Beta-PERT simulation.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-6-state-empiricism-and-simulation.html">
@@ -24,7 +24,7 @@
     <!-- OpenGraph Metadata -->
     <meta property="og:type" content="article">
     <meta property="og:title" content="Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure">
-    <meta property="og:description" content="Geometric retry amplification, Markov circuit breakers, Negative Binomial overdispersion, Bayesian Beta canary bounds, and the PERT simulation fallacy.">
+    <meta property="og:description" content="Bounded retries, state-dependent failure probabilities, retry budgets, Negative Binomial overdispersion, Bayesian Beta inference, and Beta-PERT simulation.">
     <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-6-state-empiricism-and-simulation.html">
     <meta property="article:published_time" content="2026-11-14T00:00:00Z">
     <meta property="article:author" content="Saurav Sana">
@@ -125,6 +125,8 @@
         .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
         .readout span { color: var(--amber); font-weight: 600; }
         .readout span.stat-tail { color: #a371f7; }
+        .sim-note { color: var(--muted); font-size: 0.82rem; margin: 0.75rem 0 0; }
+        button.sim-btn:focus-visible, .param-group input:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
 
         /* --- Scenario Cards --- */
         .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
@@ -214,140 +216,182 @@
                 <p class="snarky-quote-author">— <strong><em>Every Staff Engineer at 3:14 AM</em></strong></p>
             </blockquote>
 
-            <p>Up until now in this series, we have indulged in a comforting textbook fiction: that the universe is memoryless, that probabilities are fixed constants handed down from Mount Olympus, and that one failed packet does not conspire with the next. We treated our servers like casino roulette wheels—stateless, stationary, and completely indifferent to how desperately the gambler needs to win.</p>
+            <p>Several models in earlier chapters begin with a useful simplifying assumption: a probability or arrival rate is stable over the interval being studied. That is a baseline, not a law of production. In a live system, one failed request can change the conditions faced by the next request.</p>
 
-            <p>Production infrastructure does not behave like a roulette wheel. When a primary database begins timing out on lock contention, your upstream microservices do not shrug and walk away; they enter a retry loop. And exponential backoff is usually just politely waiting 200 milliseconds before aggressively contributing to a distributed denial-of-service attack on your own infrastructure.</p>
+            <p>When a primary database begins timing out on lock contention, upstream services may retry. Those retries consume connections, CPU, queue slots, and network capacity. Exponential backoff can spread attempts over time, but without jitter, deadlines, and a retry budget it can still synchronize clients and extend the overload.</p>
 
-            <p>Even worse, we rarely know the true parameters of our systems when making high-stakes decisions. We promote canary deployments after 50 requests because the dashboard says <code>0.0% errors</code>. We size Kafka Dead-Letter Queues assuming tenant failures arrive smoothly rather than in correlated poison batches. And we promise executives delivery dates by summing up "most likely" Jira estimates—a mathematical felony known as the <strong>Simulation Fallacy</strong>.</p>
+            <p>We also rarely know the true parameters of a system when making high-stakes decisions. A canary may show <code>0.0% errors</code> after 50 requests without establishing that its production failure probability is near zero. A queue may receive bursts rather than smooth arrivals. And a project estimate assembled by summing the “most likely” duration of every task ignores both skew and dependency structure. A Monte Carlo simulation does not repair those assumptions; it only propagates them.</p>
 
-            <p>In Part 6, we abandon static, known probabilities and confront <strong>stateful feedback loops</strong>, <strong>multi-tenant overdispersion</strong>, and <strong>epistemic uncertainty</strong>.</p>
+            <p>Part 6 focuses on <strong>retry feedback</strong>, <strong>state-dependent probabilities</strong>, <strong>overdispersed counts</strong>, and <strong>uncertainty in the parameters we use for planning</strong>. The recurring rule is simple: a distribution describes a model under assumptions; it does not make those assumptions true.</p>
 
             <!-- ========================================== -->
             <!-- 1. GEOMETRIC DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>1. The Geometric Distribution (The Stateful Retry Storm)</h2>
+            <h2>1. The Geometric Distribution (The Retry Baseline)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Flipping a Coin That Gets Heavier Every Time You Miss</div>
+                <div class="tldr-eyebrow">The Intuition: Repeated Attempts Under a Fixed Probability</div>
                 <div class="tldr-content">
-                    <p>Picture trying to connect to a congested conference Wi-Fi network. You click <em>Connect</em>. Timeout. You click again. Timeout. You click a third time, and the DHCP handshake finally completes. The <strong>Geometric distribution</strong> models the exact number of attempts (\( k \)) required to achieve your <em>very first success</em>.</p>
-                    <p>In distributed architecture, this is the mathematical skeleton of every retry loop. Every time an HTTP client receives a <code>503 Service Unavailable</code>, it flips a coin with success probability \( p \). The catch? In a textbook, coin flips are independent. In production, retries consume thread pools, sockets, and CPU cycles—meaning every failed attempt actively degrades \( p \) for the next attempt.</p>
+                    <p>Picture reconnecting to a congested service. The first attempt times out; a later attempt may succeed. The <strong>geometric distribution</strong> is the baseline model for the number of Bernoulli attempts up to the first success when each attempt has the same success probability and attempts are independent.</p>
+                    <p>For a retrying client, this is a useful starting point—not a complete production model. If retries consume connections, CPU, or queue capacity, the system state changes and the next attempt may face a different success probability. We will model that feedback separately rather than pretending a constant-probability formula captures it.</p>
                 </div>
             </div>
 
             <h3>The Math & Multi-Tier Work Amplification</h3>
-            <p>Assuming an independent per-attempt success probability \( p \in (0, 1) \) and a failure probability \( q = 1 - p \), the probability of requiring exactly \( k \) total attempts (where \( k < M \)) before achieving success is bounded by an attempt cap \( M \):</p>
+            <p>Let \( M \) be the maximum number of <strong>total attempts</strong>, including the original request. Under the constant-probability baseline, each attempt succeeds independently with probability \( p \), and fails with probability \( q=1-p \). The probability that the first success occurs on attempt \( k \), for \( k=1,\ldots,M \), and the probability of exhausting the cap are:</p>
             
             <div class="equation-flow">
-                \[ P(N_M = k) = q^{k-1}p \quad \text{and} \quad P(\text{fail after } M) = q^{M-1} \]
+                \[ P(N_M=k)=q^{k-1}p,\quad k=1,\ldots,M;\qquad P(\text{failure after }M)=q^M \]
             </div>
             <div class="equation-flow">
-                \[ \mathbb{E}[N_M] = \sum_{k=1}^{M-1} k \cdot q^{k-1}p + M \cdot q^{M-1} = \frac{1 - q^M}{1 - q} = \frac{1 - (1-p)^M}{p} \]
+                \[\begin{aligned}
+\mathbb{E}[N_M]
+&=\sum_{k=1}^{M} kq^{k-1}p + Mq^M\\
+&=\sum_{j=0}^{M-1}q^j
+=\frac{1-q^M}{1-q}
+=\frac{1-(1-p)^M}{p},\quad p>0.
+\end{aligned}\]
             </div>
-            
+            <p>At the boundaries, use the limits directly: if \(p=0\), all \(M\) attempts are consumed and \(\mathbb{E}[N_M]=M\); if \(p=1\), the first attempt succeeds and \(\mathbb{E}[N_M]=1\). The success probabilities across attempts sum to \(1-q^M\); the remaining probability mass \(q^M\) is the terminal failure event. This convention keeps “maximum attempts” distinct from “maximum retries”: \(M=3\) means one initial attempt plus at most two retries.</p>
+
+            <h3>When the probability changes with system state</h3>
+            <p>The geometric model assumes the same \(p\) on every attempt. A feedback system needs conditional probabilities \(p_k=P(\text{success on attempt }k\mid\text{all earlier attempts failed, current state})\), with \(q_k=1-p_k\). Then:</p>
+            <div class="equation-flow">
+                \[P(\text{first success on }k)=\left(\prod_{j=1}^{k-1}q_j\right)p_k,\quad P(\text{failure after }M)=\prod_{j=1}^{M}q_j\]
+            </div>
+            <div class="equation-flow">
+                \[\mathbb{E}[N_M]=\sum_{i=0}^{M-1}\prod_{j=1}^{i}q_j,\quad\text{where the empty product is }1.\]
+            </div>
+            <p><strong>Illustrative three-attempt example.</strong> Suppose success probabilities deteriorate after each failure: \(p_1=0.40\), \(p_2=0.25\), and \(p_3=0.10\). The probabilities of success on attempts 1, 2, and 3 are \(0.400\), \(0.150\), and \(0.045\); final failure is \(0.405\). Expected attempts are \(1+0.60+(0.60)(0.75)=2.05\). If we incorrectly hold the first-attempt probability fixed at \(p=0.40\), the geometric baseline predicts final failure \(0.60^3=0.216\) and expected attempts \(1+0.60+0.60^2=1.96\). The constant-\(p\) model materially understates the chance of exhausting the retry cap in this example.</p>
+            <p>This conditional model is still a compact description. In a real service, \(p_k\) may depend on queue depth, concurrency, tenant mix, timeout budget, breaker state, and recovery progress. A queueing or state-transition model is needed when those variables feed back materially.</p>
+
             <div class="math-explanation">
                 <strong>Decoding the architectural blast radius:</strong>
                 <ul>
-                    <li><strong>\( \mathbb{E}[N_M] \) (The Work Amplification Factor):</strong> If your Parquet worker pool is healthy (\( p = 0.99 \)), each logical query costs \( 1 / 0.99 = 1.01 \) physical attempts (assuming unbounded retries). If a GC pause drops \( p \) to \( 0.10 \), each query demands an average of \( 10.0 \) physical attempts. A system built for 1,000 queries per second is suddenly hit with 10,000 queries per second.</li>
-                    <li><strong>\( A_{\text{stack}} \) (Multi-Tier Cascading Amplification):</strong> Suppose you configure a bounded retry policy of \( M = 3 \) (max 3 total attempts) to be "safe". But you configure that same policy across \( L = 3 \) layers of your stack (Gateway &rarr; Orchestrator &rarr; Storage). The expected attempts per layer at \( p = 0.10 \) is \( (1 - 0.9^3)/0.1 = 2.71 \). When nested across 3 layers, the database experiences \( 2.71^3 \approx 19.9\times \) load amplification!</li>
-                    <li><strong>State-Dependent Feedback (The Metastable Trap):</strong> During congestion, \( p \) is not static; it decays as a function of utilization \( \rho \). Retries inject extra arrival load \( \lambda_{\text{eff}} = \lambda_0 \cdot \mathbb{E}[N_M(\rho)] \). As \( \rho \to 1 \), the conditional success probability \( p_i = P(\text{success} \mid \text{previous failures}, \rho(t_i)) \) collapses to 0. Even after external traffic drops, the system remains pinned at 100% CPU processing its own backlog.</li>
+                    <li><strong>\( \mathbb{E}[N_M] \) (The Work Amplification Factor):</strong> With unbounded, independent retries, a stable \(p=0.99\) gives \(1/p\approx1.01\) expected attempts per logical request. If success probability falls to \(p=0.10\), the unbounded expectation becomes 10 attempts; 1,000 logical requests/s would imply 10,000 attempts/s under that model. This is a baseline calculation, not a production forecast: deadlines, attempt caps, queueing, and changing state alter realised load.</li>
+                    <li><strong>\( A_{\text{stack}} \) (Multi-Tier Cascading Amplification):</strong> Suppose three nested layers (Gateway → Orchestrator → Storage) each permit at most \(M=3\) total attempts and each attempt has the same independent \(p=0.10\). Each layer has \(E[N_3]=(1-0.9^3)/0.1=2.71\) and final-failure probability \(0.9^3=0.729\). Under the simplified assumption that every upper-layer attempt invokes the next layer and the retry policies are independent, expected storage attempts per original request multiply to \(2.71^3\approx19.9\). This is illustrative, not universal: short-circuiting, shared deadlines, non-retryable errors, and attempt budgets change it.</li>
+                    <li><strong>State-Dependent Feedback (The Metastable Trap):</strong> During congestion, conditional success probability can fall as queue depth and utilization rise. The accounting identity \(\lambda_{\text{attempt}}=\lambda_0 E[N_M]\) is useful only when the retry process is stationary enough for that expectation to be meaningful. In feedback, use the state-dependent \(p_k\) model or a queueing/state-transition model. Retries can keep queues and worker pools busy after original traffic falls; this is a possible metastable failure mode, not an inevitable consequence of \(\rho\to1\).</li>
                 </ul>
             </div>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Principal Architect Trap: Attempt Caps vs. Retry Budgets</div>
                 <div class="tldr-content">
-                    <p>It is a fatal error to confuse a per-request attempt cap (\( M \)) with an aggregate retry token-bucket budget. An attempt cap bounds a single call to \( M \) tries. A retry budget caps the total percentage of traffic dedicated to retries (e.g., maximum 10% of base volume).</p>
-                    <p><strong>The Numerical Reality Check:</strong> Let base traffic \( \lambda_0 = 1,000 \) RPS, \( M = 4 \), and a retry budget of 10% (100 retry tokens/sec).</p>
+                    <p>It is a fatal error to confuse a per-request attempt cap (\( M \)) with an aggregate retry token-bucket budget. An attempt cap bounds a single call to \( M \) tries. A retry budget caps aggregate retry attempts over a defined interval (for example, a token bucket replenished at 10% of the original request rate). It is separate from a per-request cap and should specify both refill rate and burst capacity.</p>
+                    <p><strong>The Numerical Reality Check:</strong> Let original traffic be \(\lambda_0=1{,}000\) requests/s, let \(M=4\) total attempts per request, and configure a retry token bucket with a refill rate of 100 retry attempts/s and a burst capacity of 100 tokens.</p>
                     <ul>
                         <li><strong>Scenario A (1% Transient Flake):</strong> 10 requests fail. They retry, consuming 10 tokens. The budget holds. Load = 1,010 RPS.</li>
-                        <li><strong>Scenario B (50% Downstream Outage):</strong> 500 requests fail. The first 100 exhaust the token bucket. The remaining 400 requests fail-fast immediately (circuit breached). <strong>Peak load is strictly clamped to 1,100 RPS</strong> (\( 1.10\times \) amplification) rather than the 2,500 RPS (\( 2.5\times \)) that the attempt cap alone would have blindly permitted.</li>
+                        <li><strong>Scenario B (50% Downstream Outage):</strong> 500 requests fail. At most 100 additional attempts are admitted during that second, and the other 400 first-attempt failures are not retried. The admitted attempt rate is therefore about 1,100 attempts/s over that interval, or 1.10× the original attempt rate. This is a rate/burst-budget illustration, not a strict instantaneous peak bound unless the bucket capacity is also enforced at 100 and traffic is measured over the same interval. With the same 50% failure scenario, an attempt cap alone could permit 2,500 attempts/s if all 500 failed requests exhaust four total attempts. Across all 1,000 requests, the absolute cap is 4,000 attempts/s if every request exhausts all four attempts.</li>
                     </ul>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Watch the Tail Explode</h3>
-            <p>Slide <strong>Success Prob (\( p \))</strong> down from <code>0.50</code> to <code>0.15</code> and adjust <strong>Max Attempts (\( M \))</strong> to see how bounding retry policies clamps the dangerous geometric tail.</p>
+            <p>This is a <strong>constant-\(p\) baseline</strong>: each trial uses the same success probability, independent of previous failures. \(M\) counts total attempts, including the original call. The chart is a synthetic Monte Carlo sample; compare its observed mean and failure rate with the theoretical values shown below. Try the edge cases \(p=0\), \(p=1\), and \(M=1\).</p>
             <div class="stage" data-sim-type="geometric">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Success Prob (p): <span id="v_p_geometric">0.40</span></div>
-                            <input type="range" id="p_geometric" aria-label="Geometric success probability p" min="0.05" max="0.90" step="0.01" value="0.40">
+                            <div>Success probability (p): <span id="v_p_geometric">0.40</span></div>
+                            <input type="range" id="p_geometric" aria-label="Per-attempt success probability p" min="0" max="1" step="0.01" value="0.40">
                         </div>
                         <div class="param-group">
-                            <div>Max Attempts (M): <span id="v_m_geometric">&infin;</span></div>
-                            <input type="range" id="m_geometric" aria-label="Maximum retry attempts M" min="1" max="20" step="1" value="20">
+                            <div>Maximum total attempts (M): <span id="v_m_geometric">3</span></div>
+                            <input type="range" id="m_geometric" aria-label="Maximum total attempts M, including the initial request" min="1" max="20" step="1" value="3">
                         </div>
                     </div>
                     <div class="controls">
                         <button class="sim-btn btn-run">▶ Run</button>
                         <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button class="sim-btn secondary btn-reset">Reset samples</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Geometric distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated bounded retry attempts"></canvas>
+                <p class="sim-note">The bar at attempt \(M\) combines requests that succeed on the final allowed attempt with requests that exhaust the cap; the observed and theoretical final-failure rates are reported separately.</p>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
-                    <div>Observed P95 Attempts: <span class="stat-tail">–</span></div>
+                    <div>p / q: <span class="stat-pq">0.40 / 0.60</span></div>
+                    <div>Expected attempts: <span class="stat-theory">–</span></div>
+                    <div>Observed mean attempts: <span class="stat-mean">–</span></div>
+                    <div>Total simulated attempts: <span class="stat-total-attempts">0</span></div>
+                    <div>Theoretical final failure: <span class="stat-final-failure">–</span></div>
+                    <div>Simulated final failure: <span class="stat-failure-observed">–</span></div>
+                    <div>Observed P95 attempts: <span class="stat-tail">–</span></div>
                 </div>
             </div>
 
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The 1,000x Congestion Collapse <span class="scenario-tag">1986 ARPANET</span></div>
-                <p>In October 1986, the link between LBL and UC Berkeley dropped from 32 Kbps to 40 bps—a 1,000&times; collapse. Early TCP endpoints treated dropped packets as memoryless Geometric trials and immediately retransmitted full windows, filling router queues with duplicate zombie packets until Van Jacobson introduced TCP Slow Start and multiplicative backoff.</p>
+                <div class="scenario-title">The 1986 Congestion Collapse <span class="scenario-tag">Documented history</span></div>
+                <p>In October 1986, throughput on the LBL–UC Berkeley path collapsed from roughly 32 Kbps to 40 bps. The episode helped motivate TCP congestion avoidance: retransmissions and growing offered load could worsen congestion rather than restore throughput. It is not evidence that TCP endpoints literally implemented a geometric retry model; the geometric distribution here is an explanatory baseline for repeated attempts, while congestion control addresses the feedback mechanism.</p>
                 <div class="scenario-ref">Reference: <a href="https://dl.acm.org/doi/10.1145/52324.52356" target="_blank" rel="noopener">Jacobson, "Congestion Avoidance and Control" (SIGCOMM 1988)</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">Metastable Retry Storms & Full Jitter <span class="scenario-tag">AWS DynamoDB / S3</span></div>
-                <p>During the famous 2015 DynamoDB metadata outage, thousands of storage nodes simultaneously hit lease timeouts and retried against membership servers. Synchronized binary exponential backoff (2<sup>\( k \)</sup>) still collided in phase waves. AWS solved this by combining <strong>Full Jitter</strong> (sleep ~ \( U(0, T_0 \cdot 2^k) \)) with client-side token-bucket retry throttling.</p>
+                <div class="scenario-title">Why Backoff Needs Jitter <span class="scenario-tag">Engineering pattern</span></div>
+                <p>If many clients time out together, deterministic exponential backoff can preserve their synchronization: they all wait, then retry together. Full jitter chooses a random delay \(D_k\sim U(0,\min(D_{\max},D_0 2^{k-1}))\). Jitter spreads the retry wave; it does not by itself cap total work or guarantee recovery. Pair it with a retry budget, a deadline, and admission control.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener">Marc Brooker, "Exponential Backoff And Jitter" (AWS Architecture Blog)</a></div>
             </div>
+
+            <h3>Architectural controls: stop retries from becoming the workload</h3>
+            <p>The controls below address different parts of the feedback loop. None is a replacement for the others:</p>
+            <ul>
+                <li><strong>Exponential backoff:</strong> increase the delay after each failed attempt, for example with a capped schedule \(d_k=\min(d_{\max},d_0 2^{k-1})\). This reduces immediate pressure but does not reduce the number of attempts by itself.</li>
+                <li><strong>Jitter:</strong> randomize each delay, such as full jitter \(D_k\sim U(0,d_k)\), so clients do not retry in synchronized waves. Verify the retry-arrival histogram, not just the configured delay.</li>
+                <li><strong>Retry budgets:</strong> limit aggregate retry work with a token bucket. This bounds amplification at the service boundary; the refill rate and burst capacity must be explicit.</li>
+                <li><strong>Circuit breakers:</strong> move through closed, open, and half-open states using a defined failure/latency window. In half-open, admit only a small number of probes; do not release the entire waiting population when one probe succeeds.</li>
+                <li><strong>Admission control and load shedding:</strong> reject or defer work before queues and worker pools saturate. Shed low-priority or expired work before it consumes scarce downstream capacity.</li>
+                <li><strong>Backpressure:</strong> make upstream producers slow down when downstream queues or workers approach their safe limits. Verify that the signal propagates across asynchronous boundaries instead of merely moving the unbounded queue elsewhere.</li>
+                <li><strong>Error classification:</strong> retry only failures plausibly transient and safe to retry. Validation, authorization, and deterministic contract errors should fail without consuming retry capacity.</li>
+                <li><strong>Deadline propagation:</strong> pass the caller's remaining deadline downstream. Do not start another attempt when the remaining budget cannot cover a useful attempt and its response path.</li>
+                <li><strong>Nested retry prevention:</strong> designate one layer to own retries, or propagate a shared attempt/deadline budget. Otherwise independent retry policies multiply work across tiers.</li>
+                <li><strong>Idempotency:</strong> use idempotency keys or deduplication for operations with side effects. A timeout does not prove the server failed before committing the operation; a blind retry can duplicate a payment, write, or job.</li>
+            </ul>
+            <p><strong>Why a recovering system can become less stable:</strong> a timeout creates a retry; the retry adds queueing and contention; the longer queue causes more timeouts; and those timeouts create more retries. Backoff changes timing, jitter changes synchronization, and a breaker changes admission. The combination must be bounded by deadlines and retry budgets. Measure original requests, retry attempts, queue depth, in-flight work, deadline expiry, breaker state, and idempotency conflicts separately.</p>
 
             <!-- ========================================== -->
             <!-- 2. NEGATIVE BINOMIAL DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>2. The Negative Binomial Distribution (Overdispersion & Poison Pills)</h2>
+            <h2>2. The Negative Binomial Distribution (Overdispersion & Bursty Counts)</h2>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Counting the Bodies Before \( r \) Victories</div>
                 <div class="tldr-content">
                     <p>If the Geometric distribution asks, <em>"How many tries until my first success?"</em>, the <strong>Negative Binomial distribution</strong> asks the broader operational question: <em>"How many failures (\( k \)) will I accumulate before I finally collect \( r \) successes?"</em></p>
-                    <p>In systems engineering, this distribution models two critical phenomena: <strong>credential stuffing / card testing</strong> (where automated bots cycle thousands of declines to extract valid approvals) and <strong>correlated micro-batch failures</strong>. Most importantly, it governs queues when arrival intensity fluctuates across observation windows.</p>
+                    <p>In systems engineering, the failures-before-\(r\)-successes form is a candidate model for repeated comparable trials, such as an illustrative sequence of authorization declines before a fixed number of approvals. For counts across time windows with a fluctuating event rate, the Gamma–Poisson mixture gives a related Negative Binomial model. Neither formulation automatically explains correlated poison batches; the physical mechanism must match the model's assumptions.</p>
                 </div>
             </div>
 
             <h3>The Math & The Multi-Tenant Superposition Trap</h3>
-            <p>The probability of observing exactly \( k \) failures before achieving your \( r \)-th success, along with its mean and variance, is governed by the binomial coefficient:</p>
+            <p>Here \(X\) counts <strong>failures before the \(r\)-th success</strong>, with independent Bernoulli trials and a constant success probability \(p\). This is one common Negative Binomial convention. If instead \(T=X+r\) counts total attempts up to and including the \(r\)-th success, its mean increases by \(r\) while its variance is unchanged:</p>
             
             <div class="equation-flow">
                 \[ P(X = k) = \binom{k + r - 1}{k} (1-p)^k p^r \]
             </div>
             <div class="equation-flow">
-                \[ \mathbb{E}[X] = \frac{r(1-p)}{p} \quad \text{and} \quad \text{Var}(X) = \frac{r(1-p)}{p^2} \]
+                \[\begin{aligned}
+E[X]&=\frac{r(1-p)}{p}, & \operatorname{Var}(X)&=\frac{r(1-p)}{p^2},\\
+E[T]&=\frac{r}{p}, & \operatorname{Var}(T)&=\frac{r(1-p)}{p^2}.
+\end{aligned}\]
             </div>
             
             <div class="math-explanation">
-                <strong>The Superposition Theorem vs. Overdispersed Intensity:</strong>
+                <strong>Fixed-rate superposition vs. random intensity:</strong>
                 <ul>
-                    <li><strong>The Superposition Principle:</strong> Many engineers assume having one "whale tenant" doing 100 RPS and fifty small tenants doing 1 RPS creates a Negative Binomial count. <em>It does not.</em> By the Poisson Superposition Theorem, summing independent Poisson processes with fixed rates \( \lambda_i \) yields another pure Poisson process (\( \sum \text{Poisson}(\lambda_i) = \text{Poisson}(\sum \lambda_i) \)), which still strictly maintains equidispersion (\( \sigma^2 = \mu \)).</li>
-                    <li><strong>The Gamma-Poisson Mixture (Cox Process):</strong> Overdispersion emerges only when the arrival intensity \( \Lambda(t) \) is itself a stochastic variable across time windows (e.g., top-of-the-hour batch cron jobs). When \( \Lambda \sim \text{Gamma}(r, \theta) \), mixing \( \text{Poisson}(\Lambda) \) produces a <strong>Negative Binomial distribution</strong>. Because \( p < 1 \), the Variance-to-Mean Ratio (VMR) evaluates strictly to \( \frac{\text{Var}(X)}{\mathbb{E}[X]} = \frac{1}{p} > 1 \).</li>
-                    <li><strong>The Dispersion Parameter (\( r \)):</strong> As \( r \to \infty \), the quadratic overdispersion term vanishes, converging to Poisson behavior. As \( r \to 0 \), variance explodes into extreme clustering. Do not blindly assume a good Negative Binomial fit implies a specific physical mechanism without validating temporal clustering in your telemetry.</li>
+                    <li><strong>The Superposition Principle:</strong> A whale tenant plus many small tenants does not, by itself, create a Negative Binomial count. If each tenant generates an independent Poisson process with a fixed rate \(\lambda_i\), their superposition is still Poisson with rate \(\sum_i\lambda_i\), and its count variance equals its mean. Overdispersion requires something additional, such as random or time-varying intensity, dependence, or an unmodelled mixture.</li>
+                    <li><strong>The Gamma-Poisson Mixture (Cox Process):</strong> Overdispersion emerges only when the arrival intensity \( \Lambda(t) \) is itself a stochastic variable across time windows (e.g., top-of-the-hour batch cron jobs). When \(\Lambda\sim\operatorname{Gamma}(r,\theta)\) with shape \(r\) and <strong>scale</strong> \(\theta\), mixing \(\operatorname{Poisson}(\Lambda)\) produces a Negative Binomial count with mean \(\mu=r\theta\) and variance \(\mu+\mu^2/r\). Under the failures-before-successes parameterization above, \(p=1/(1+\theta)\), so the variance-to-mean ratio is \(1/p>1\).</li>
+                    <li><strong>The Dispersion Parameter (\( r \)):</strong> In the mean–dispersion parameterization \(\operatorname{Var}(X)=\mu+\mu^2/r\), taking \(r\to\infty\) while holding \(\mu\) fixed approaches the Poisson limit. Taking \(r\) small at fixed \(\mu\) produces strong overdispersion. Do not infer the physical cause from a fitted distribution alone; changing intensity, mixtures, and dependence can all produce extra-Poisson variation.</li>
                 </ul>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">The SRE Trap: Request-Level vs. Tenant-Level Velocity</div>
                 <div class="tldr-content">
-                    <p>When defending against credential stuffing or card testing, engineers often rate-limit individual client IPs. Botnets bypass this effortlessly by rotating through 50,000 residential proxy IPs—keeping per-IP velocity minuscule. However, the attacker cannot alter the underlying success probability \( p \) of their stolen credential dump (typically \( p < 0.01 \)). By tracking the Negative Binomial ratio of failures (\( k \)) to successes (\( r \)) aggregated at the <strong>Target Tenant / ASN / Device Fingerprint</strong> level, bot attacks trigger detection immediately.</p>
+                    <p>When defending against credential stuffing or card testing, engineers often rate-limit individual client IPs. Distributed botnets can spread attempts across proxy networks, making per-IP velocity limits insufficient on their own. The approval probability is not a universal constant: it depends on the credential population, merchant controls, and attacker targeting. An illustrative detector can model declines before a chosen number of approvals, aggregated across signals such as account, device, network, or merchant. That model is useful only if trials are sufficiently comparable; adaptive attackers and changing controls make \(p\) state-dependent. A Negative Binomial score is not a guaranteed immediate detector and should be combined with velocity limits and risk signals.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Overdispersion & The Poisson Reference Marker</h3>
-            <p>Set <strong>Target Successes (\( r \))</strong> to <code>5</code> and drag <strong>Success Prob (\( p \))</strong> to <code>0.20</code>. Notice the live <strong>VMR (1/p)</strong> readout and observe how the data stretches far to the right of the dashed cyan Poisson reference line (\( \sigma^2 = \mu \)).</p>
+            <p>This sampler returns the number of <strong>failures before the \(r\)-th success</strong>. Set \(r=5\) and \(p=0.20\): the theoretical mean is 20 failures, the variance is 100, and the variance-to-mean ratio is 5. The dashed Poisson P95 marker is a normal-approximation reference, not an exact quantile.</p>
             <div class="stage" data-sim-type="negbinomial">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -378,13 +422,13 @@
 
             <h3>Scenarios & Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">Distributed Card-Testing Detection <span class="scenario-tag">Stripe Radar</span></div>
-                <p>Carding botnets validate stolen credit cards by submitting $1.00 authorization checks across distributed proxy networks. By evaluating the Negative Binomial likelihood of observing \( k \) declines before \( r \) approvals across a merchant's checkout flow, fraud engines automatically trigger CAPTCHAs or step-up 3DS authentication before the botnet finds working cards.</p>
-                <div class="scenario-ref">Reference: <a href="https://docs.stripe.com/disputes/prevention/card-testing" target="_blank" rel="noopener">Stripe Engineering: Preventing Card Testing Attacks</a></div>
+                <div class="scenario-title">Distributed Card-Testing Detection <span class="scenario-tag">Illustrative model</span></div>
+                <p>Card-testing attacks use repeated low-value authorization attempts across accounts and network identities. A merchant could evaluate a candidate count model for declines before a chosen number of approvals and combine it with device, network, and account signals to trigger step-up verification or throttling. This is an illustrative application of the distribution, not a claim that a named fraud product uses this exact model.</p>
+                <div class="scenario-ref">Context: <a href="https://docs.stripe.com/disputes/prevention/card-testing" target="_blank" rel="noopener">Stripe documentation on card-testing prevention</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">Poison-Pill Amplification in Micro-Batches <span class="scenario-tag">Kafka / PySpark</span></div>
-                <p>When a streaming consumer reads micro-batches of 1,000 events and a single tenant injects malformed payloads, naive batch-level retries replay the entire batch repeatedly before committing \( r \) healthy offsets. Implementing per-record Dead-Letter Queue (DLQ) routing decouples poison failures (\( k \)) from healthy partition progress (\( r \)).</p>
+                <p>When a streaming consumer reads micro-batches of 1,000 events and one payload is malformed, naive batch-level retries can replay the entire batch. Per-record Dead-Letter Queue (DLQ) routing can isolate the poison record and let valid records progress. This is a batch-processing failure pattern, not automatically a Negative Binomial process; the distribution applies only if the chosen count variable and trial assumptions fit.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.confluent.io/blog/error-handling-patterns-in-kafka/" target="_blank" rel="noopener">Confluent: Error Handling and Dead Letter Queues in Apache Kafka</a></div>
             </div>
 
@@ -397,48 +441,49 @@
                 <div class="tldr-eyebrow">The Intuition: Modeling the Probability of a Probability</div>
                 <div class="tldr-content">
                     <p>Imagine choosing between two restaurants online. Restaurant A has a <strong>5.0-star rating</strong> (from 2 reviews). Restaurant B has a <strong>4.8-star rating</strong> (from 1,800 reviews). You pick Restaurant B every time, because your brain instinctively performs Bayesian inference: 2 out of 2 could easily be the owner's immediate family.</p>
-                    <p>Yet in production, teams deploy a canary pod, watch it serve 50 requests with 0 errors, see <code>Success Rate: 100%</code>, and promote the build globally. The <strong>Beta distribution</strong> is the cure for small-sample arrogance: it models epistemic uncertainty over an unknown Bernoulli parameter.</p>
+                    <p>Yet in production, teams deploy a canary pod, watch it serve 50 requests with 0 errors, see <code>Success Rate: 100%</code>, and promote the build globally. A <strong>Beta distribution</strong> can represent epistemic uncertainty about an unknown Bernoulli success or failure probability. It does not make a small sample representative, and it does not remove the need to check whether requests are comparable.</p>
                 </div>
             </div>
 
             <h3>The Math: Bayesian Credible Bounds vs. Frequentist Rule of Three</h3>
-            <p>Governed by shape parameters \( \alpha \) (prior + observed successes) and \( \beta \) (prior + observed failures) over \( [0, 1] \):</p>
+            <p>The Beta distribution has support \([0,1]\) and positive shape parameters \(\alpha,\beta\). For Bernoulli observations with a stable unknown success probability, a \(\operatorname{Beta}(\alpha_0,\beta_0)\) prior updates after \(s\) successes and \(f\) failures to \(\operatorname{Beta}(\alpha_0+s,\beta_0+f)\). When the parameter of interest is the <em>failure probability</em>, count observed errors in the first shape parameter: the posterior is \(\operatorname{Beta}(\alpha_0+f,\beta_0+s)\).</p>
             
             <div class="equation-flow">
                 \[ f(x; \alpha, \beta) = \frac{x^{\alpha-1}(1-x)^{\beta-1}}{\text{B}(\alpha, \beta)} \quad \text{and} \quad \text{Var}(X) = \frac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)} \]
             </div>
             <div class="equation-flow">
-                \[ \mathbb{E}[X] = \frac{\alpha}{\alpha + \beta} \quad \text{and} \quad P_{95, \text{err}} (k=0) \approx \frac{3}{n} \]
+                \[ \mathbb{E}[X] = \frac{\alpha}{\alpha + \beta} \quad \text{and} \quad p_{\text{upper},95\%}(f=0) \approx \frac{3}{n} \]
             </div>
             
             <div class="math-explanation">
                 <strong>Zero Failures in \( n = 50 \) Canary Trials (\( k = 0 \)): Three Perspectives</strong>
                 <ul>
-                    <li><strong>Bayesian Credible Upper Bound (Uniform Prior \( \text{Beta}(1, 1) \)):</strong> Conjugate updating sets \( \alpha' = \alpha_0 + s \) and \( \beta' = \beta_0 + f \). Observing 0 failures out of 50 shifts the posterior to \( \text{Beta}(1, 51) \). Solving the CDF \( F(p) = 1 - (1-p)^{51} = 0.95 \) gives \( p_{95} = 1 - (0.05)^{1/51} = \) <strong>5.70%</strong>.</li>
+                    <li><strong>Bayesian Credible Upper Bound (uniform prior on failure probability, \(\text{Beta}(1,1)\)):</strong> For the error probability, conjugate updating gives \(\alpha'=\alpha_0+f\) and \(\beta'=\beta_0+s\). Observing 0 failures and 50 successes shifts the posterior to \(\text{Beta}(1,51)\). Solving the CDF \( F(p) = 1 - (1-p)^{51} = 0.95 \) gives \( p_{95} = 1 - (0.05)^{1/51} = \) <strong>5.70%</strong>.</li>
                     <li><strong>Frequentist Exact One-Sided 95% Clopper-Pearson:</strong> Inverting Binomial tail probabilities \( P(X = 0 \mid p) = (1-p)^{50} \ge 0.05 \) yields \( 1 - (0.05)^{1/50} = \) <strong>5.82%</strong>.</li>
-                    <li><strong>The Rule of Three (Asymptotic Approximation):</strong> Taylor expansion of \( -\ln(0.05)/n \approx 2.996/n \) yields <code>3 / 50 = <strong>6.00%</strong></code>.</li>
+                    <li><strong>The Rule of Three (approximation):</strong> for zero observed failures, the one-sided 95% upper bound is approximately \(-\ln(0.05)/n\approx2.996/n\), or about <code>3 / 50 = <strong>6.00%</strong></code>.</li>
                 </ul>
-                <p><strong>Worked Example:</strong> If your production SLA requires an error budget below <code>0.1%</code> (Three Nines), observing zero errors in 50 trials establishes only that your failure rate is under ~5.8%. To prove failure probability \( \le 0.001 \) with 95% confidence requires at least <code>3 / 0.001 = 3,000</code> independent canary requests without a single failure.</p>
+                <p><strong>Worked Example:</strong> If the target failure probability is at most <code>0.1%</code>, zero failures in 50 independent trials is nowhere near enough: the exact one-sided 95% upper bound is about 5.82%. The exact zero-failure sample-size condition is \((1-p_0)^n\le0.05\); for \(p_0=0.001\), this requires \(n\ge\ln(0.05)/\ln(0.999)\), or 2,995 independent, representative requests. The Rule-of-Three approximation gives 3,000.</p>
+                <p><strong>Assumptions matter:</strong> the simple update treats outcomes as conditionally independent Bernoulli trials sharing one stable probability. Correlated requests from the same tenant, repeated requests to one hot key, time-varying load, or a deployment that changes during the sample violate that simple interpretation. The posterior then overstates the information in the data. Stratify by relevant state, model dependence or time variation, and avoid treating 50 correlated requests as 50 independent experiments.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">Architectural Application: Solving the "Half-Open" Thundering Herd</div>
                 <div class="tldr-content">
-                    <p>When an unhealthy node recovers, routing based on empirical ratios causes instantaneous flooding because 1 probe / 1 success equals 100%. Maintaining a decaying \( \text{Beta}(\alpha_i, \beta_i) \) score and applying <strong>Thompson Sampling</strong>—drawing a random variate per request and selecting the maximum—naturally allocates small exploratory traffic to newly recovered instances until variance contracts.</p>
+                    <p>When a node recovers, one successful probe is weak evidence: it does not establish that the node can safely absorb full traffic. A Beta posterior can express uncertainty about its success probability, but routing policy must separately cap exploration. Use a small, bounded half-open probe allowance, ramp traffic gradually, and close the circuit again on defined failure or latency signals. Thompson Sampling is an exploration policy, not a substitute for a safety limit or a circuit breaker.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Small-Sample Hubris vs. Posterior Certainty</h3>
-            <p>Compare the default setting <code>α = 2.0, β = 4.0</code> against <code>α = 20.0, β = 40.0</code>. Both share the exact same expected mean (0.33), but observe how the <strong>Posterior P95 Bound</strong> contracts as sample volume increases.</p>
+            <p>This panel samples from two Beta distributions: <code>Beta(2, 4)</code> and <code>Beta(20, 40)</code>. Both have mean 1/3, but the second is more concentrated. These are shape parameters, not raw observed counts; the panel visualizes the distribution and does not perform a Bernoulli posterior update.</p>
             <div class="stage" data-sim-type="beta">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Successes (α): <span id="v_a_beta">2.0</span></div>
+                            <div>Alpha shape (α): <span id="v_a_beta">2.0</span></div>
                             <input type="range" id="a_beta" aria-label="Beta distribution alpha parameter" min="0.5" max="30.0" step="0.5" value="2.0">
                         </div>
                         <div class="param-group">
-                            <div>Failures (β): <span id="v_b_beta">4.0</span></div>
+                            <div>Beta shape (β): <span id="v_b_beta">4.0</span></div>
                             <input type="range" id="b_beta" aria-label="Beta distribution beta parameter" min="0.5" max="30.0" step="0.5" value="4.0">
                         </div>
                     </div>
@@ -453,7 +498,7 @@
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean: <span class="stat-theory">–</span></div>
-                    <div>Posterior P95 Bound: <span class="stat-tail">–</span></div>
+                    <div>Simulated P95 quantile: <span class="stat-tail">–</span></div>
                 </div>
             </div>
 
@@ -463,15 +508,15 @@
             <h2>4. The Beta-PERT Distribution (The Simulation Fallacy & Jensen's Inequality)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Why Adding Up "Most Likely" Estimates Guarantees Failure</div>
+                <div class="tldr-eyebrow">The Intuition: Why Summing Most-Likely Estimates Can Mislead</div>
                 <div class="tldr-content">
                     <p>Ask a Staff Engineer how long decommissioning a legacy database will take. They provide three points: <em>"Optimistically, <strong>1 day</strong> (\( a \)). Most likely, <strong>2.5 days</strong> (\( m \)). Pessimistically, if schemas contain undocumented stored procedures, <strong>9 days</strong> (\( b \))."</em></p>
-                    <p>Leadership often takes the "Most Likely" mode (\( m = 2.5 \) days), sums 10 tasks to get 25 days, and commits to a deadline. The <strong>Beta-PERT distribution</strong> exposes why this is mathematically flawed: in right-skewed engineering tasks, <strong>the Mean is strictly higher than the Mode</strong>, and parallel merge points compound delays non-linearly.</p>
+                    <p>For a serial chain of 10 tasks, leadership may take the "Most Likely" mode (\(m=2.5\) days), sum the modes to get 25 days, and commit to that deadline. A <strong>Beta-PERT model</strong> exposes why the mode is not an expected duration: in this right-skewed example, the mean exceeds the mode. Parallel merge points can push completion times further into the tail.</p>
                 </div>
             </div>
 
             <h3>The Math, Exact Variance & Parallel Merge Penalties</h3>
-            <p>Beta-PERT maps three-point estimates onto a smooth Beta curve over \( [a, b] \), weighting the mode by 4:</p>
+            <p>The ordinary Beta distribution is a probability distribution on \([0,1]\), often used for uncertainty about a Bernoulli parameter. <strong>Beta-PERT is different:</strong> it scales a Beta-shaped distribution onto a duration or cost interval \([a,b]\), using optimistic, most-likely, and pessimistic estimates. In the common PERT convention shown here, the mode receives weight 4:</p>
             
             <div class="equation-flow">
                 \[ \alpha = 1 + \frac{4(m - a)}{b - a} \quad \text{and} \quad \beta = 1 + \frac{4(b - m)}{b - a} \]
@@ -486,21 +531,23 @@
             <div class="math-explanation">
                 <strong>Rigorous Calculations: Single-Task P95 vs. 5-Way Parallel Merge</strong>
                 <ul>
-                    <li><strong>Single-Task Exact P95 (\( a=1, m=2.5, b=9 \)):</strong> Yields \( \alpha = 1.75, \beta = 4.25 \). Note that the Expected Value (Mean) is \( \mathbb{E}[T] = 3.33 \) days, which is strictly worse than the most-likely mode of \( 2.5 \) days. Evaluating the inverse-CDF gives \( P_{95} = \) <strong>5.90 days</strong> (not 5.6 days).</li>
+                    <li><strong>Single-Task Exact P95 (\( a=1, m=2.5, b=9 \)):</strong> Yields \(\alpha=1.75,\beta=4.25\). The expected duration is \(E[T]=3.33\) days, above the most-likely mode of 2.5 days. Evaluating the inverse-CDF gives \( P_{95} = \) <strong>5.90 days</strong> (not 5.6 days).</li>
                     <li><strong>Exact Variance vs. Historical Approximation:</strong> The 1958 slide-rule heuristic posits \( \sigma \approx (b-a)/6 \). For \( a=2, m=4, b=12 \) (\( \alpha=1.8, \beta=4.2 \)), the heuristic yields \( \sigma \approx 1.667 \) (\( \text{Var} \approx 2.78 \)), whereas exact Beta variance is <code>100 &times; (7.56) / (36 &times; 7) = <strong>3.000 days<sup>2</sup></strong> (\( \sigma = \) <strong>1.732 days</strong>)</code>.</li>
-                    <li><strong>Jensen's Inequality and the Parallel Merge:</strong> For a scatter-gather query or 5 parallel microservice migrations (\( a=2, m=4, b=12 \)), the merge node completes at \( T_{\text{total}} = \max(T_1, \dots, T_5) \). Because the max function is convex, <strong>Jensen's Inequality</strong> dictates \( \mathbb{E}[\max(T_1, \dots, T_n)] > \max(\mathbb{E}[T_1], \dots, \mathbb{E}[T_n]) \).
+                    <li><strong>Jensen's Inequality and the Parallel Merge:</strong> For a scatter-gather query or 5 parallel microservice migrations (\( a=2, m=4, b=12 \)), the merge node completes at \( T_{\text{total}} = \max(T_1, \dots, T_5) \). Because the max function is convex, <strong>Jensen's Inequality</strong> gives \( \mathbb{E}[\max(T_1, \dots, T_n)] > \max(\mathbb{E}[T_1], \dots, \mathbb{E}[T_n]) \).
                         <ul>
-                            <li>At \( T = 4 \) days, a single branch has a 33% chance of being done. The probability all 5 are done by Day 4 is \( (0.3316)^5 \approx \) <strong>0.40%</strong>.</li>
-                            <li>The true expected completion time jumps to <strong>7.17 days</strong>. Parallelizing tasks strictly pulls your completion times deep into the worst-case tail.</li>
+                            <li>At \(T=4\) days, one branch has probability about 0.3316 of completion. If the five task durations are independent and identically distributed, the probability all five are done by Day 4 is \((0.3316)^5\approx\)<strong>0.40%</strong>. Correlated task risks change this product.</li>
+                            <li>For independent, identically distributed branches with CDF \(F_T(t)\), the join CDF is \(P(T_{\max}\le t)=F_T(t)^5\), and \(E[T_{\max}]=\int_a^b[1-F_T(t)^5]dt\). Evaluating this for the stated Beta-PERT inputs gives <strong>7.17 days</strong>. Parallel execution is still faster than running all five tasks serially, but the join waits for the slowest branch; one long task can dominate its tail.</li>
                         </ul>
                     </li>
                 </ul>
             </div>
 
+            <p>Beta-PERT is an elicitation model, not a fitted guarantee. Its three inputs are judgments or planning bounds; the smooth curve between them is an assumption. Monte Carlo draws can quantify the consequences of those inputs, but cannot validate that the inputs, task network, or dependence structure are correct. If two tasks share a vendor, deployment window, team, or unknown dependency, model their common risk rather than sampling them as independent.</p>
+
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Principal Architect Takeaway: Stop Giving Point Estimates</div>
                 <div class="tldr-content">
-                    <p>Whether quoting Recovery Time Objectives (RTO), forecasting cloud FinOps spend, or planning migrations, <strong>never provide a single scalar number</strong>. Elicit 3-point bounds (\( a, m, b \)), run Monte Carlo simulations across your dependency DAG, and present two figures: <code>P50 (Expected Reality)</code> and <code>P90/P95 (Commitment Threshold)</code>. Committing to a sum of modes guarantees schedule failure.</p>
+                    <p>For RTO scenarios, cloud FinOps forecasts, or migrations, do not present a single point estimate as if it were certain. Elicit three-point estimates \((a,m,b)\), model the dependency graph and relevant correlations, and report at least the <strong>mean (expected duration)</strong> and <strong>P50 (median)</strong>, plus a decision-relevant P90 or P95. A percentile is not automatically a commitment guarantee; it is conditional on the model and inputs. Summing modes is generally not an estimate of the expected total duration.</p>
                 </div>
             </div>
 
@@ -556,34 +603,34 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>Geometric</strong><br><code>1 / p</code></td>
-                            <td>Retries are independent coin flips that improve availability for free.</td>
-                            <td>Retries amplify load by 1/\( p \) per tier, triggering metastable collapse.</td>
-                            <td><strong>Retry Budgets (max 10%)</strong>, Full Jitter, retry at 1 layer only, Markov Circuit Breakers.</td>
+                            <td><strong>Bounded geometric</strong><br><code>(1 − q^M) / p</code></td>
+                            <td>Every retry sees the same probability and costs nothing.</td>
+                            <td>Under constant \(p\), expected attempts are bounded by \(M\); state-dependent failure can make the baseline optimistic.</td>
+                            <td><strong>Retry budgets</strong>, exponential backoff with jitter, one retry-owning layer, deadlines, circuit breakers, admission control, and idempotency.</td>
                         </tr>
                         <tr>
-                            <td><strong>Negative Binomial</strong><br><code>\sigma^2 = \mu + \mu^2/r</code></td>
-                            <td>Arrival counts maintain equidispersion (\( \sigma^2 = \mu \)).</td>
-                            <td>Bursting intensities and scheduled batches generate severe overdispersion (\( \sigma^2 \gg \mu \)).</td>
-                            <td><strong>Per-record DLQs</strong>, tenant velocity controls, Gamma-Poisson queue headroom sizing.</td>
+                            <td><strong>Negative Binomial</strong><br><code>Var(X) = μ + μ²/r</code></td>
+                            <td>Counts are Poisson with one fixed intensity.</td>
+                            <td>Random intensity across windows can produce overdispersion; fixed-rate Poisson superposition alone does not.</td>
+                            <td><strong>Per-record DLQs</strong>, tenant velocity controls, and queue headroom based on measured burst behaviour.</td>
                         </tr>
                         <tr>
-                            <td><strong>Beta</strong><br><code>\alpha / (\alpha + \beta)</code></td>
-                            <td>Zero errors in 50 canary requests indicates a 0% production defect rate.</td>
-                            <td>Small samples mask true failure ceilings (<code>3 / n</code> &approx; 6% at 95% confidence).</td>
-                            <td><strong>Rule of Three gatekeeping</strong> (\( n \ge 3/\text{SLA} \)), Thompson Sampling for canary discovery.</td>
+                            <td><strong>Beta posterior</strong><br><code>α / (α + β)</code></td>
+                            <td>Zero observed failures means the true failure probability is zero.</td>
+                            <td>With 50 independent zero-failure trials, the one-sided 95% upper bound is still about 5.8%.</td>
+                            <td><strong>Bayesian bounds</strong> or exact binomial bounds, representative sampling, bounded canary probes, and state-aware interpretation.</td>
                         </tr>
                         <tr>
                             <td><strong>Beta-PERT</strong><br><code>(a + 4m + b) / 6</code></td>
-                            <td>Summing most-likely (\( m \)) values accurately projects project or task milestones.</td>
-                            <td>Right skew (\( \mu > m \)) and Jensen's Inequality at DAG merges delay final delivery.</td>
-                            <td><strong>3-point estimation</strong> + Monte Carlo DAG simulation; commit to P90, never the Mode.</td>
+                            <td>The most-likely duration is the expected duration.</td>
+                            <td>Skew and dependency-graph merge points change the distribution of completion time.</td>
+                            <td><strong>Three-point estimates</strong> and Monte Carlo with explicit dependency and correlation assumptions; choose a percentile based on risk tolerance.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             
-            <p>This concludes our tour of probability and traffic geometry. In Part 7, we step out of the theoretical realm entirely. We will examine what happens when these statistical models hit the harsh reality of Linux networking, CPU quotas, disk I/O, and missing telemetry—and how to build observability to prove your models right (or wrong) in production.</p>
+            <p>The lesson is not to abandon probability models; it is to stop confusing a tractable baseline with a faithful description of a live system. Part 7 moves from model construction to empirical validation: telemetry quality, stationarity, drift, and diagnostics that test whether a model still describes production behaviour.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-5-routing-sharding-and-data-skew.html">← Part 5: Routing, Sharding, and Data Skew</a>
@@ -693,6 +740,10 @@
                     this.statTheory = stageElement.querySelector('.stat-theory');
                     this.statTail = stageElement.querySelector('.stat-tail');
                     this.statVmr = stageElement.querySelector('#stat-vmr');
+                    this.statPq = stageElement.querySelector('.stat-pq');
+                    this.statTotalAttempts = stageElement.querySelector('.stat-total-attempts');
+                    this.statFinalFailure = stageElement.querySelector('.stat-final-failure');
+                    this.statFailureObserved = stageElement.querySelector('.stat-failure-observed');
                     this.btnRun = stageElement.querySelector('.btn-run');
                     this.btnStep = stageElement.querySelector('.btn-step');
                     this.btnReset = stageElement.querySelector('.btn-reset');
@@ -728,7 +779,7 @@
                         };
                         inputM.oninput = (e) => {
                             this.params.m = parseInt(e.target.value, 10);
-                            labelM.innerHTML = this.params.m === 20 ? '&infin;' : this.params.m;
+                            labelM.textContent = this.params.m;
                             this.reset();
                         };
                     } else if (this.type === 'negbinomial') {
@@ -818,12 +869,12 @@
                 resize() {
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = Math.max(280, rect.width - 48);
+                    const logicalW = Math.max(180, Math.floor(rect.width - 48));
                     const logicalH = 220;
 
                     this.canvas.width = logicalW * dpr;
                     this.canvas.height = logicalH * dpr;
-                    this.canvas.style.width = logicalW + 'px';
+                    this.canvas.style.width = '100%';
                     this.canvas.style.height = logicalH + 'px';
 
                     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -836,12 +887,18 @@
 
                 generateSample() {
                     if (this.type === 'geometric') {
-                        let k = 1;
-                        const maxAttempts = this.params.m < 20 ? this.params.m : Infinity;
-                        while (safeRand() >= this.params.p && k < maxAttempts) {
-                            k++;
+                        const M = this.params.m;
+                        const p = this.params.p;
+                        let attempts = 0;
+                        let succeeded = false;
+                        while (attempts < M) {
+                            attempts++;
+                            if (Math.random() < p) {
+                                succeeded = true;
+                                break;
+                            }
                         }
-                        return k;
+                        return { value: attempts, failed: !succeeded };
                     } else if (this.type === 'negbinomial') {
                         let s = 0, f = 0;
                         while (s < this.params.r) {
@@ -864,8 +921,7 @@
 
                 getRange() {
                     if (this.type === 'geometric') {
-                        const maxBound = this.params.m < 20 ? this.params.m : Math.max(10, Math.ceil(4.5 / this.params.p));
-                        return [1, maxBound];
+                        return [1, this.params.m];
                     }
                     if (this.type === 'negbinomial') {
                         const mean = this.params.r * (1 - this.params.p) / this.params.p;
@@ -912,14 +968,15 @@
 
                     // Theoretical Calculations
                     let theoreticalMean = null;
+                    let theoreticalFailure = null;
                     if (this.type === 'geometric') {
-                        if (this.params.m < 20) {
-                            const p = this.params.p;
-                            const M = this.params.m;
-                            theoreticalMean = (1 - Math.pow(1 - p, M)) / p;
-                        } else {
-                            theoreticalMean = 1 / this.params.p;
-                        }
+                        const p = this.params.p;
+                        const q = 1 - p;
+                        const M = this.params.m;
+                        theoreticalFailure = Math.pow(q, M);
+                        theoreticalMean = p === 0 ? M : (1 - Math.pow(q, M)) / p;
+                        if (this.statPq) this.statPq.textContent = p.toFixed(2) + ' / ' + q.toFixed(2);
+                        if (this.statFinalFailure) this.statFinalFailure.textContent = (100 * theoreticalFailure).toFixed(2) + '%';
                     } else if (this.type === 'negbinomial') {
                         theoreticalMean = this.params.r * (1 - this.params.p) / this.params.p;
                         if (this.statVmr) {
@@ -946,6 +1003,8 @@
                         this.statN.textContent = '0';
                         this.statMean.textContent = '–';
                         if (this.statTail) this.statTail.textContent = '–';
+                        if (this.statTotalAttempts) this.statTotalAttempts.textContent = '0';
+                        if (this.statFailureObserved) this.statFailureObserved.textContent = '–';
                         return;
                     }
 
@@ -955,9 +1014,12 @@
                     const bins = discrete ? Math.min(80, span) : 50;
                     const binWidth = span / bins;
                     const counts = new Array(bins).fill(0);
+                    const values = this.samples.map(sample =>
+                        (sample && typeof sample === 'object') ? sample.value : sample
+                    );
                     let sum = 0;
 
-                    this.samples.forEach(v => {
+                    values.forEach(v => {
                         sum += v;
                         if (v >= rmin && v <= rmax) {
                             let idx = Math.floor((v - rmin) / binWidth);
@@ -966,8 +1028,8 @@
                         }
                     });
 
-                    const mean = sum / this.samples.length;
-                    const sorted = [...this.samples].sort((a, b) => a - b);
+                    const mean = sum / values.length;
+                    const sorted = [...values].sort((a, b) => a - b);
                     const p95Idx = Math.max(0, Math.ceil(0.95 * sorted.length) - 1);
                     const p95 = sorted[p95Idx];
 
@@ -1073,6 +1135,14 @@
                     if (this.type === 'geometric') meanUnit = ' attempts';
                     if (this.type === 'negbinomial') meanUnit = ' failures';
                     this.statMean.textContent = mean.toFixed(2) + meanUnit;
+
+                    if (this.type === 'geometric') {
+                        const totalAttempts = values.reduce((a, b) => a + b, 0);
+                        const failures = this.samples.filter(sample => sample && typeof sample === 'object' && sample.failed).length;
+                        if (this.statTotalAttempts) this.statTotalAttempts.textContent = totalAttempts.toLocaleString();
+                        if (this.statFailureObserved) this.statFailureObserved.textContent =
+                            (100 * failures / this.samples.length).toFixed(2) + '%';
+                    }
                     
                     if (this.statTail) {
                         this.statTail.textContent = discrete ? p95.toString() : p95.toFixed(2);

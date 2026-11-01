@@ -44,7 +44,7 @@
         "url": "https://saurav-sana.github.io/blog/"
       },
       "datePublished": "2026-10-17",
-      "dateModified": "2026-10-31",
+      "dateModified": "2026-11-01",
       "publisher": {
         "@type": "Organization",
         "name": "Saurav Sana | Field Notes"
@@ -517,7 +517,7 @@
         <h3>The Workload-Mixture Taxonomy</h3>
         <p>Before optimizing, classify the uncertainty. Distributed workloads generally fall into one of four mathematical regimes:</p>
         <ul>
-            <li><strong>Unimodal homogeneous:</strong> A single process where all requests follow the same distribution \(f(x)\).</li>
+            <li><strong>Single-population:</strong> Requests are treated as one homogeneous population with distribution \(f(x)\). That distribution need not be unimodal; one population can still have a multimodal shape.</li>
             <li><strong>Static finite mixture:</strong> Traffic consists of \(K\) distinct execution paths. The overall distribution is \(f(x) = \sum_{k=1}^{K} w_k f_k(x)\) where weights \(\sum w_k = 1\) are constant.</li>
             <li><strong>Non-stationary mixture:</strong> The execution paths remain physically stable (\(f_k(x)\) is constant), but the mixture weights drift over time \(w_k(t)\) due to tenant behavior or cache state.</li>
             <li><strong>State-dependent degradation:</strong> The path performance itself degrades \(f_k(x; \rho)\) due to downstream resource contention, lock saturation, or queuing.</li>
@@ -593,7 +593,10 @@
             </div>
 
             <p>Because 85% of requests are already at 18 ms, the median is
-            18 ms. But every percentile above 85% falls into the miss population.</p>
+            18 ms. But every percentile above 85% falls into the miss population.
+            A mixture percentile is not the weighted average of the component
+            percentiles: first locate the percentile in the combined CDF, then
+            invert the conditional distribution for the population that contains it.</p>
 
             <p>For \(p > 0.85\), invert the CDF:</p>
 
@@ -746,22 +749,59 @@
             worker contention. That changes the conditional miss distribution
             itself. Measure both the path proportions and each path's latency.</p>
 
-            <h4>Capacity Forecasting & FinOps Implications</h4>
-            
-            <p>A shift in average latency is not merely an observability artifact; it directly impacts required concurrency and capacity planning.</p>
-            
-            <p>Using Little's Law (\(N = \lambda W\)), required concurrency \(N\) is the product of arrival rate \(\lambda\) and mean service time \(\mathbb{E}[S]\).</p>
-            
-            <p>Assume a steady arrival rate \(\lambda = 500\text{ req/s}\):</p>
-            
-            <ul>
-                <li><strong>Warm Cache Regime:</strong> \(N_{\text{warm}} = 500 \times 0.0453\text{ s} \approx 22.7\) concurrent workers.</li>
-                <li><strong>Cold Cache Regime:</strong> \(N_{\text{cold}} = 500 \times 0.1454\text{ s} \approx 72.7\) concurrent workers.</li>
-            </ul>
-            
-            <p>If FinOps provisions exactly 25 workers based on the "average" 45.3 ms latency, the system functions normally. But if a deployment invalidates the cache, the required concurrency jumps to 72.7. The arrival rate \(\lambda\) has not changed, but the system immediately enters catastrophic queueing (utilization \(\rho = 72.7 / 25 = 290.8\%\)).</p>
-            
-            <p>Capacity plans based solely on aggregate point estimates are structurally fragile to mixture shifts.</p>
+            <p>The distinction matters for forecasting. A change in the hit
+            ratio changes the mixture even if each path remains unchanged;
+            contention can then change the conditional distributions as well.
+            Treat these as separate sources of uncertainty rather than folding
+            them into one unexplained average.</p>
+
+            <h4>Capacity forecasting: convert the mixture into offered work</h4>
+
+            <p>For a stable workload, Little's Law relates average in-flight
+            work to throughput and average time in the system:
+            \(N = \lambda W\). For this simplified capacity estimate, assume
+            that the measured latency is also the worker-occupancy time, that
+            requests arrive at a steady 500 requests/s, and that each worker
+            can execute one request at a time.</p>
+
+            <p>The quantity \(\lambda \mathbb{E}[S]\) is the offered concurrent
+            work, measured in Erlangs. It is not automatically a worker count.
+            With the warm-cache mixture:</p>
+
+            <div class="equation-flow">
+                \[ a_{\text{warm}} = 500\ \text{requests/s}
+                \times 0.0453\ \text{s} = 22.65\ \text{Erlangs} \]
+            </div>
+
+            <p>After the hit ratio falls to 30%:</p>
+
+            <div class="equation-flow">
+                \[ a_{\text{cold}} = 500\ \text{requests/s}
+                \times 0.1454\ \text{s} = 72.7\ \text{Erlangs} \]
+            </div>
+
+            <p>If 25 workers each provide one concurrent execution slot,
+            the warm workload represents about \(22.65/25 = 90.6\%\) offered
+            utilization. That is already a high operating point, not evidence
+            of comfortable headroom. The cold workload represents
+            \(72.7/25 = 290.8\%\) offered load. A 25-slot pool cannot sustain
+            500 requests/s at that mean service time: if arrivals continue
+            without admission control or scaling, backlog grows. The 290.8%
+            figure is an offered-load ratio, not a physically achievable
+            steady-state utilization.</p>
+
+            <p>The forecast is also sensitive to uncertainty in the hit ratio.
+            At 500 requests/s, an 80% hit ratio implies a 54.4 ms mean and
+            27.2 Erlangs; a 90% hit ratio implies 36.2 ms and 18.1 Erlangs.
+            This is a scenario sensitivity range, not a confidence interval.
+            It shows why capacity plans should carry explicit workload
+            assumptions and headroom rather than treating one observed
+            average as a fixed property.</p>
+
+            <p>These calculations estimate offered work from mean occupancy
+            time. They do not predict queue-wait percentiles or a safe worker
+            count by themselves; those require an arrival/service model and
+            operational headroom analysis, developed in Part 3.</p>
 
             <h4>What should an architect do?</h4>
 
@@ -812,22 +852,31 @@
             
             <p>That does not mean 1,000 requests are necessarily broken. Some may be legitimate queries that would have completed at 299 ms or slightly later.</p>
             
-            <p>Let \(L\) be the true completion latency random variable. If the gateway stops waiting at timeout threshold \(T_{\max}\), the metrics pipeline captures a right-censored observation:</p>
+            <p>Let \(L\) be the backend time to complete the work if it is
+            allowed to run to completion. If client-side telemetry stops
+            observing at timeout threshold \(T_{\max}\) and no later backend
+            completion event is available, that completion time is
+            right-censored:</p>
             
             <div class="equation-flow">
                 \[ Y = \min(L, T_{\max}) \]
             </div>
             
-            <p>This means your dashboard histogram is actually displaying a mixture of two distinct states:</p>
-            
-            <ol>
-                <li><strong>Observed Completions:</strong> \(L \mid L \le T_{\max}\)</li>
-                <li><strong>Censored Mass (Timeouts):</strong> The probability mass \(\mathbb{P}(L > T_{\max})\) stacked exactly at \(T_{\max}\).</li>
-            </ol>
-            
-            <p>If a metrics pipeline records every timeout as an ordinary completed observation at exactly \(T_{\max}\), the resulting histogram does not describe the true completion-time distribution.</p>
+            <p>For a client-side observation that records elapsed waiting time,
+            \(Y = \min(L,T_{\max})\) is a useful representation. But the
+            dashboard does not automatically contain a literal point mass at
+            \(T_{\max}\): that happens only if the instrumentation records
+            timed-out requests as duration values at the deadline. If the
+            backend later reports its terminal event, the actual completion
+            duration can be recorded separately.</p>
 
-            <h4>Three events that must not be confused</h4>
+            <p>Cancellation adds another distinction. If a worker is stopped
+            before its natural completion, the unobserved completion time is
+            not ordinary independent right-censoring; cancellation is a
+            competing terminal outcome and may be informative because the
+            slowest or most expensive work is more likely to be cancelled.</p>
+
+            <h4>Four events that must not be confused</h4>
 
             <div class="table-wrap">
                 <table class="data-table">
@@ -841,18 +890,23 @@
                     <tbody>
                         <tr>
                             <td><strong>Client timeout</strong></td>
-                            <td>The caller stopped waiting.</td>
-                            <td>Deadline, timeout reason, elapsed time.</td>
+                            <td>The caller stopped waiting at its deadline. This says nothing by itself about whether backend work stopped.</td>
+                            <td>Deadline, timeout reason, caller-observed duration, and request/trace identity.</td>
                         </tr>
                         <tr>
                             <td><strong>Backend cancellation</strong></td>
-                            <td>The worker acknowledged cancellation and stopped.</td>
-                            <td>Cancellation request and acknowledgement times.</td>
+                            <td>A cancellation request is sent; record separately whether and when the worker acknowledges it and stops.</td>
+                            <td>Cancellation-request time, acknowledgement time, terminal status, and cancellation lag.</td>
                         </tr>
                         <tr>
-                            <td><strong>Late completion</strong></td>
-                            <td>The backend continued and eventually completed.</td>
-                            <td>Actual completion time and abandoned-work duration.</td>
+                            <td><strong>Actual worker completion</strong></td>
+                            <td>The backend finishes its computation, whether before or after the caller's deadline. If cancellation is acknowledged instead, record cancellation as its own terminal status, not as successful completion.</td>
+                            <td>Worker start/end timestamps, terminal status, execution duration, and resource usage.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Late response</strong></td>
+                            <td>A response is emitted or arrives after the caller has timed out; the caller may discard it even though backend execution completed.</td>
+                            <td>Response-emission time, delivery/discard status, and correlation to the original request.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -860,10 +914,12 @@
 
             <h4>The zombie-work problem</h4>
 
-            <p>Imagine a gateway times out a query at 300 ms but does not
-            cancel the DuckDB operation. The client retries immediately.
-            The original query and its retry now consume resources at the
-            same time.</p>
+            <p>Imagine a gateway times out a query at 300 ms but the
+            cancellation request is not propagated, is unsupported, or is
+            not acknowledged. The client retries immediately. The original
+            query may still be running when its retry starts, so both consume
+            resources at the same time. If the original query later finishes,
+            its response may arrive after the caller has already abandoned it.</p>
 
             <p>The gateway believes it has rejected the slow request.
             The worker pool sees two jobs.</p>
@@ -881,9 +937,10 @@
                 <li><strong>Propagate cancellation:</strong> connect caller
                 cancellation to the query engine's supported interruption
                 mechanism, and verify that the worker actually stops.</li>
-                <li><strong>Measure censored outcomes separately:</strong>
-                do not silently treat timeout duration as actual completion
-                latency.</li>
+                <li><strong>Measure caller and worker outcomes separately:</strong>
+                retain the caller timeout as its own event and use backend
+                terminal telemetry to determine whether work completed,
+                was cancelled, or remained unresolved.</li>
                 <li><strong>Measure cancellation lag:</strong> record the
                 time between cancellation request and worker acknowledgement.</li>
                 <li><strong>Control retries:</strong> avoid immediate retries
@@ -1205,6 +1262,23 @@
         Its purpose is to make the economic trade-off visible—not to
         predict a vendor bill.</p>
 
+        <p>Let \(n\) be the number of nines, from 2 through 5. The simulator
+        uses a log-linear interpolation between the two chosen endpoints:</p>
+
+        <div class="equation-flow">
+            \[ C(n) = 80^{(n-2)/3}, \qquad 2 \leq n \leq 5 \]
+        </div>
+
+        <p>This construction gives \(C(2)=1\) and \(C(5)=80\). At four
+        nines, \(C(4)=80^{2/3}\approx18.57\), which rounds to
+        <strong>18.6×</strong> at one decimal place. Each additional nine
+        multiplies the index by \(80^{1/3}\approx4.31\). The previous
+        static readout of 18.5× was a coarse approximation; the function
+        and the JavaScript's one-decimal rounding produce 18.6×. The
+        interpolation is a deliberately selected shape between assumed
+        endpoints, not an observed industry law or a forecast of actual
+        infrastructure cost.</p>
+
         <div class="stage">
             <div class="stage-bar">
                 <span class="stage-title">Interactive Simulator · Illustrative Reliability Cost Index</span>
@@ -1237,15 +1311,16 @@
                 </div>
                 <div>
                     <div class="stat-label">Illustrative cost index</div>
-                    <div class="stat-value" id="fCost">18.5×</div>
+                    <div class="stat-value" id="fCost">18.6× (illustrative)</div>
                 </div>
             </div>
         </div>
 
         <p class="sim-note">The illustrative curve is normalized to 1× at
-        99% and 80× at 99.999%. It is not a claim about actual industry
-        pricing. Replace it with your own infrastructure, operational,
-        staffing, and expected-loss data when making an investment decision.</p>
+        99% and 80× at 99.999%, with geometric interpolation between them.
+        It is not a claim about actual industry pricing. Replace the assumed
+        curve with your own infrastructure, operational, staffing, recovery,
+        and expected-loss data when making an investment decision.</p>
 
         <section class="scenario" id="business-roi">
             <h3>Worked Scenario: Is a reliability investment worth it?</h3>
@@ -1314,8 +1389,8 @@
                 </div>
 
                 <div class="readout">
-                    <div>Avoided downtime: <span id="roiSavedMin">25 min/yr</span></div>
-                    <div>Avoided loss: <span id="roiAvoidedLoss">$125,000/yr</span></div>
+                    <div>Downtime reduction: <span id="roiSavedMin">25 min/yr</span></div>
+                    <div>Estimated loss avoided: <span id="roiAvoidedLoss">$125,000/yr</span></div>
                     <div>Technology cost: <span id="roiTechCost">$90,000/yr</span></div>
                     <div>Net value: <span id="roiNetEV">+$35,000/yr</span></div>
                 </div>
@@ -1407,7 +1482,10 @@
         <h2>9. The shape of failure is an engineering decision</h2>
 
         <p>Probability does not replace engineering judgement. It makes
-        the assumptions behind that judgement visible.</p>
+        the assumptions behind that judgement visible. In this chapter,
+        the most important assumption was often the one hidden inside an
+        aggregate metric: which execution paths produced the observed
+        workload, and how frequently did each path occur?</p>
 
         <p>A model can be mathematically elegant and operationally useless.
         A fitted distribution can describe last month's traffic and fail
@@ -1493,7 +1571,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof renderMathInElement === 'function') {
         renderMathInElement(document.body, {
             delimiters: [
-                { left: '$$', right: '$$', display: true },
+                { left: '\\[', right: '\\]', display: true },
                 { left: '\\(', right: '\\)', display: false }
             ],
             throwOnError: false
@@ -1578,7 +1656,7 @@ function themeColor(name, fallback) {
         const w = Number(hitSlider.value) / 100;
         const mean = w * 18 + (1 - w) * 200;
         const variance =
-            (1 - w) * (20000 / 12) +
+            (1 - w) * (40000 / 12) +
             w * (1 - w) * Math.pow(18 - 200, 2);
 
         document.getElementById('lblHitRatio').textContent =
@@ -1898,9 +1976,9 @@ function themeColor(name, fallback) {
         document.getElementById('lblLossRate').textContent = '$' + rate.toLocaleString();
         document.getElementById('lblMitCost').textContent = '$' + annualCost.toLocaleString();
 
-        document.getElementById('roiSavedMin').textContent = saved + ' min/yr';
+        document.getElementById('roiSavedMin').textContent = (saved >= 0 ? '' : '−') + Math.abs(saved) + ' min/yr';
         document.getElementById('roiAvoidedLoss').textContent =
-            '$' + avoided.toLocaleString() + '/yr';
+            (avoided < 0 ? '−' : '') + '$' + Math.abs(avoided).toLocaleString() + '/yr';
         document.getElementById('roiTechCost').textContent =
             '$' + annualCost.toLocaleString() + '/yr';
 
