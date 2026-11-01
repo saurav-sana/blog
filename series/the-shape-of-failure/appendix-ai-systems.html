@@ -13,32 +13,32 @@
         gtag('config', 'G-MM2SH8Z0L6');
     </script>
 
-    <!-- Primary SEO & AIO Meta Tags -->
     <title>Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="A distribution-by-distribution translation guide for AI inference, agents, and RAG. Mapping stochastic models to LLM variables, telemetry metrics, and architectural controls.">
+    <meta name="description" content="A practical engineering reference mapping AI infrastructure mechanisms to stochastic models, assumptions, telemetry, and architectural controls.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/appendix-ai-systems.html">
 
-    <!-- OpenGraph / Social Sharing Meta Tags -->
     <meta property="og:type" content="article">
     <meta property="og:title" content="Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure">
-    <meta property="og:description" content="A distribution-by-distribution translation guide for AI inference, autonomous agents, and RAG pipelines.">
+    <meta property="og:description" content="A practical reference for stochastic modelling of AI inference, retrieval, agent workflows, and evaluation.">
     <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/appendix-ai-systems.html">
     <meta property="og:site_name" content="Saurav Sana | Field Notes">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure">
-    <meta name="twitter:description" content="Mapping probability distributions to observable LLM telemetry, tail latencies, and SRE architectural controls.">
+    <meta name="twitter:title" content="Appendix: Mapping Failure to LLM Infrastructure">
+    <meta name="twitter:description" content="Map AI infrastructure mechanisms to candidate models, telemetry, and operational controls.">
 
-    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <!-- Early theme initialization -->
     <script>
         (function () {
             try {
                 var root = document.documentElement;
                 var saved = localStorage.getItem('theme');
-                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var prefersLight = window.matchMedia &&
+                    window.matchMedia('(prefers-color-scheme: light)').matches;
                 var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                if (initialTheme !== 'light' && initialTheme !== 'dark') initialTheme = 'dark';
                 root.setAttribute('data-theme', initialTheme);
                 root.classList.add(initialTheme, 'theme-' + initialTheme);
             } catch (e) {}
@@ -49,469 +49,499 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
-    <!-- KaTeX for mathematical rendering -->
+    <!-- KaTeX: display math uses transparent, unboxed equation-flow containers -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
     <link rel="stylesheet" href="../../assets/css/blog-theme.css">
 
     <style>
-        /* =======================================================================
-           SERIES-ALIGNED STYLES & LAYOUT
-           ======================================================================= */
-
-        /* --- Page Adjustments --- */
         .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
         main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
-
-        /* --- Navigation --- */
-        .site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; }
-        .site-nav a { color: var(--muted); font-family: 'IBM Plex Sans', sans-serif; font-size: 0.875rem; text-decoration: none; transition: color 0.2s ease; }
+        .site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; }
+        .site-nav a { color: var(--muted); font-family: 'IBM Plex Sans', sans-serif; font-size: .875rem; text-decoration: none; transition: color .2s ease; }
         .site-nav a:hover { color: var(--text); }
-
-        /* --- Typography & Elements --- */
-        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
-        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: .85rem; }
         p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
         p { margin-bottom: 1.35rem; }
-        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
-
-        /* --- Quote Styling --- */
-        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
-        .snarky-quote-text { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        code { background: var(--panel-2); padding: .15rem .4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: .85em; color: var(--teal); border: 1px solid var(--line); }
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: .1rem 0 .1rem 1.25rem; margin: 2.5rem 0 3.5rem; background: transparent; }
+        .snarky-quote-text { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 .6rem; }
         .snarky-quote-author { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
         .snarky-quote-author strong { font-weight: 600; font-style: italic; color: var(--text); }
-
-        /* --- Series Heading Row --- */
-        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
-
-        /* --- TL;DR / Callout Boxes --- */
-        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
-        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: .75rem 1.25rem; margin-bottom: .25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2rem; font-family: 'Libre Franklin', sans-serif; }
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.5rem; margin: 1.5rem 0 2.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217,119,87,.08); border-left-color: var(--bad, #d97757); }
         .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber, #D4A72C); }
-        
-        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 1rem; font-weight: 600; }
         .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
         .tldr-box--math .tldr-eyebrow { color: var(--amber); }
-        
-        .tldr-content { font-family: 'IBM Plex Sans', sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
-        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content { font-family: 'IBM Plex Sans', sans-serif; color: var(--muted); font-size: .95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem; color: var(--text); font-size: .95rem; }
         .tldr-content p:last-child { margin-bottom: 0; }
-        .tldr-content ul, .tldr-content ol { margin: 0.5rem 0 0 0; padding-left: 1.25rem; color: var(--text); }
-        .tldr-content li { margin-bottom: 0.5rem; font-size: 0.95rem; }
+        .tldr-content ul, .tldr-content ol { margin: .5rem 0 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: .5rem; font-size: .95rem; }
         .tldr-content li:last-child { margin-bottom: 0; }
-
-        /* --- Equations --- */
-        .equation-flow {
-            background: transparent;
-            border: none;
-            overflow-x: auto;
-            margin: 1.25rem 0;
-            padding: 0.25rem 0;
-        }
-
-        /* --- Interactive Translation Matrix --- */
+        .equation-flow { background: transparent; border: 0; overflow-x: auto; margin: 1.25rem 0; padding: .25rem 0; }
+        .equation-flow .katex-display { margin: .75rem 0; }
         .matrix-container { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; margin: 2rem 0; }
-        .matrix-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 1rem; flex-wrap: wrap; }
-        .matrix-tab { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; transition: all 0.2s ease; }
+        .matrix-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 1rem; flex-wrap: wrap; }
+        .matrix-tab { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: .5rem 1rem; border-radius: 6px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: .8rem; transition: all .2s ease; }
         .matrix-tab:hover { background: var(--panel-2); color: var(--text); }
         .matrix-tab:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
         .matrix-tab.active { background: var(--teal); color: #0d1117; border-color: var(--teal); font-weight: 600; }
-        
         .matrix-display { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
         @media (max-width: 650px) { .matrix-display { grid-template-columns: 1fr; } }
-        
-        .matrix-card { background: var(--panel-2); border: 1px solid var(--line-soft); padding: 1.25rem; border-radius: 6px; }
+        .matrix-card { background: var(--panel-2); border: 1px solid var(--line-soft); padding: 1.25rem; border-radius: 6px; min-width: 0; }
         .matrix-card--trap { border-left: 3px solid var(--bad); }
-        .matrix-card h4 { margin: 0 0 0.5rem 0; font-family: 'Libre Franklin', sans-serif; color: var(--text); font-size: 1.1rem; }
-        .matrix-card .distribution { font-family: 'IBM Plex Mono', monospace; color: var(--amber); font-size: 0.9rem; font-weight: 600; display: block; margin-bottom: 0.75rem; }
-        .matrix-card p { font-size: 0.9rem; color: var(--muted); margin-bottom: 0; line-height: 1.5; }
-        .matrix-card ul { margin: 0.5rem 0 0 0; padding-left: 1.25rem; }
-        .matrix-card li { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
+        .matrix-card h4 { margin: 0 0 .5rem; font-family: 'Libre Franklin', sans-serif; color: var(--text); font-size: 1.1rem; }
+        .matrix-card .distribution { font-family: 'IBM Plex Mono', monospace; color: var(--amber); font-size: .9rem; font-weight: 600; display: block; margin-bottom: .75rem; }
+        .matrix-card p { font-size: .9rem; color: var(--muted); margin-bottom: .75rem; line-height: 1.55; }
+        .matrix-card ul { margin: .5rem 0 0; padding-left: 1.25rem; }
+        .matrix-card li { font-size: .9rem; color: var(--muted); margin-bottom: .25rem; }
         .matrix-card li strong { color: var(--text); }
-
-        /* --- Reference Table --- */
         .table-scroll { width: 100%; overflow-x: auto; margin: 1.5rem 0; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
-        .ref-table { width: 100%; min-width: 1000px; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.85rem; }
-        .ref-table th { text-align: left; padding: 0.85rem; border-bottom: 2px solid var(--line); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; background: var(--panel-2); }
-        .ref-table td { padding: 0.85rem; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; line-height: 1.5; }
+        .ref-table { width: 100%; min-width: 1120px; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: .84rem; }
+        .ref-table th { text-align: left; padding: .85rem; border-bottom: 2px solid var(--line); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; background: var(--panel-2); }
+        .ref-table td { padding: .85rem; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; line-height: 1.55; min-width: 160px; }
+        .ref-table td:first-child { min-width: 150px; }
         .ref-table td strong { color: var(--text); }
-        .ref-table tr:last-child td { border-bottom: none; }
-        .ref-table td:nth-child(2), .ref-table td:nth-child(3), .ref-table td:nth-child(4) { min-width: 180px; }
-
-        /* --- Post Pager --- */
+        .ref-table tr:last-child td { border-bottom: 0; }
         .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
-        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
-
-        /* --- Theme Toggle Icon Visibility --- */
-        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: .92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: .8; text-decoration: underline; }
+        .theme-toggle { background: transparent; border: 0; color: var(--muted); cursor: pointer; padding: .4rem; display: flex; align-items: center; }
         .theme-toggle:hover { color: var(--teal); }
         .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
         html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
         html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+        .note { color: var(--muted); font-size: .92rem; }
+        .small-heading { font-family: 'IBM Plex Mono', monospace; color: var(--teal); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+        .post-meta { overflow-wrap: anywhere; }
     </style>
 </head>
 <body>
-    <div class="container">
+<div class="container">
+    <header class="site-header">
+        <a href="../../index.html" class="site-title">
+            <span class="site-title__badge">SS</span>
+            <span>Saurav Sana | Field Notes</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+            <a href="../../index.html">Home</a>
+            <a href="../../index.html#blog">Blog</a>
+            <a href="../../index.html#tags">Tags</a>
+            <a href="../../contact.html">Contact</a>
+            <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" type="button">
+                <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+                <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            </button>
+        </nav>
+    </header>
 
-        <header class="site-header">
-            <a href="../../index.html" class="site-title">
-                <span class="site-title__badge">SS</span>
-                <span>Saurav Sana | Field Notes</span>
-            </a>
+    <main>
+        <div class="post-meta" style="margin-bottom:.5rem;">
+            <a href="index.html" style="color:inherit;text-decoration:none;">← The Shape of Failure Series</a>
+        </div>
+        <div class="series-heading-row">
+            <h1>Mapping the Shape of Failure to LLM Infrastructure</h1>
+        </div>
+        <div class="post-meta" style="margin-bottom:1.25rem;">December 5, 2026 · Appendix · AI/LLM Frontier</div>
 
-            <nav class="site-nav" aria-label="Primary navigation">
-                <a href="../../index.html">Home</a>
-                <a href="../../index.html#blog">Blog</a>
-                <a href="../../index.html#tags">Tags</a>
-                <a href="../../contact.html">Contact</a>
-                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
-                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                    </svg>
-                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="5"/>
-                        <line x1="12" y1="1" x2="12" y2="3"/>
-                        <line x1="12" y1="21" x2="12" y2="23"/>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                        <line x1="1" y1="12" x2="3" y2="12"/>
-                        <line x1="21" y1="12" x2="23" y2="12"/>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                    </svg>
-                </button>
-            </nav>
-        </header>
+        <blockquote class="snarky-quote">
+            <p class="snarky-quote-text">“All models are wrong, but some are useful.”</p>
+            <p class="snarky-quote-author">— <strong>George E. P. Box</strong>, Statistician</p>
+        </blockquote>
 
-        <main>
-            <div class="post-meta" style="margin-bottom: 0.5rem;">
-                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
+        <p>This appendix is an engineering reference, not a catalogue that assigns a probability distribution to every component in an AI stack. A model is useful only when its assumed data-generating mechanism is plausible, its parameters can be estimated from telemetry, and the resulting decision improves an operational outcome.</p>
+
+        <p>AI infrastructure combines several distinct sources of variability: externally generated arrivals, variable input and output lengths, shared GPU scheduling, retrieval fan-out, stateful orchestration, tool dependencies, and imperfect evaluation. These mechanisms should be modelled separately before they are composed.</p>
+
+        <p>The distinction from conventional query processing also needs precision. A database or query engine can provide deterministic <em>logical semantics</em>: for a fixed query and fixed data snapshot, the result is defined by the query's semantics. That does not imply an identical physical execution path, latency, task schedule, memory footprint, or byte-for-byte output in every environment. Parallel aggregation order, floating-point arithmetic, adaptive plans, caches, concurrency, and engine versions can affect physical behaviour. AI generation adds another source of variability: token selection and model behaviour may depend on decoding configuration, runtime kernels, batching, and implementation details. Neither category should be described as universally deterministic or non-deterministic without specifying the boundary.</p>
+
+        <div class="tldr-box tldr-box--math">
+            <div class="tldr-eyebrow">The operating rule</div>
+            <div class="tldr-content">
+                <p>Start with the physical mechanism, define the random variable and its unit, test whether a candidate model fits the observations, and then choose a control. Do not infer a distribution from a component name.</p>
             </div>
+        </div>
 
-            <div class="series-heading-row">
-                <h1>Mapping the Shape of Failure to LLM Infrastructure</h1>
+        <h2 id="capacity-equations">Core infrastructure calculations</h2>
+
+        <h3>1. KV-cache memory: a per-token estimate is not a capacity plan</h3>
+        <p>For a conventional decoder-only transformer, a useful first-order estimate of KV-cache bytes per token across all layers is:</p>
+        <div class="equation-flow">
+            \[
+            M_{\text{token}} =
+            2 L_{\text{layers}} H_{\text{kv}} d_h b_{\text{bytes}}
+            \]
+        </div>
+        <p>The factor of two accounts for keys and values. \(L_{\text{layers}}\) is the number of transformer layers, \(H_{\text{kv}}\) is the number of KV heads, \(d_h\) is the head dimension, and \(b_{\text{bytes}}\) is the stored bytes per element. This is a theoretical tensor-size estimate. It can change with multi-head versus grouped-query or multi-query attention, cache quantization, architecture-specific layouts, and implementation choices.</p>
+        <p><strong>Do not calculate production token capacity as total GPU memory divided by this expression.</strong> Total device memory is not all available to KV cache. The runtime also needs model weights, activations and workspaces, CUDA/runtime allocations, communication buffers, graph-capture pools, metadata, allocator overhead, and operational headroom. Paged/block-based engines allocate cache in blocks; internal fragmentation, block rounding, sequence-length variation, prefix sharing, eviction, and preemption all affect usable capacity. Tensor/pipeline parallelism and engine-specific placement further change the per-device budget.</p>
+        <div class="tldr-box">
+            <div class="tldr-eyebrow">Production admission control</div>
+            <div class="tldr-content">
+                <p>Use the serving engine's own memory accounting and allocation model. Derive safe admission limits from allocatable KV blocks, reserved memory, model/runtime footprint, expected sequence-length distributions, batching policy, and measured preemption behaviour. Reconcile estimates with engine metrics and load tests under realistic prompt/output mixes.</p>
             </div>
-            <div class="post-meta" style="margin-bottom: 1.25rem;">December 5, 2026 · Appendix · AI/LLM Frontier</div>
+        </div>
 
-            <blockquote class="snarky-quote">
-                <p class="snarky-quote-text">“All models are wrong, but some are useful.”</p>
-                <p class="snarky-quote-author">— <strong>George E. P. Box</strong>, Statistician</p>
-            </blockquote>
+        <h3>2. HBM and KV-cache thresholds are operational policies, not constants</h3>
+        <p>An 85% occupancy threshold can be a useful starting point for an experiment or an illustrative load-shedding policy. It is not a universal safe limit for HBM or KV-cache occupancy. The usable margin depends on the engine's allocator, memory fragmentation, batch composition, transient activation/workspace demand, graph capture, preemption policy, cache-block granularity, and whether memory can be reclaimed promptly.</p>
+        <p>Monitor more than a single percentage: allocated and free HBM, engine-reported KV-cache block utilization, allocation failures, preemption and recomputation counts, queue depth, batch composition, TTFT, inter-token latency, and out-of-memory events. Set thresholds from observed failure boundaries and a defined recovery margin. Revisit them after model, engine, hardware, or workload changes.</p>
 
-            <p>Welcome to the appendix. This is not a lookup table that prescribes a probability distribution merely because a system invokes an LLM. That is statistical cargo-culting.</p>
-            
-            <p>Traditional deterministic query engines guarantee <em>reproducible execution paths</em> given identical state (though they can still fail via stale Iceberg snapshots, schema drift, or broken SQL logic). Contrast this with AI systems, where both the <strong>execution runtime</strong> (stochastic queueing, dynamic continuous batching, KV-cache eviction) and the <strong>output generation mechanism itself</strong> (autoregressive token sampling, semantic grounding) are non-deterministic.</p>
+        <h3>3. Correcting an imperfect semantic judge</h3>
+        <p>Suppose an evaluator labels outputs as positive (for example, “incorrect”). Let \(p_{\text{obs}}\) be the observed positive fraction, \(\alpha_{\text{fp}}\) the judge's false-positive rate, and \(\beta_{\text{fn}}\) its false-negative rate, measured against a trusted reference set. The Rogan–Gladen adjustment is:</p>
+        <div class="equation-flow">
+            \[
+            \hat p_{\text{true}} =
+            \frac{p_{\text{obs}}-\alpha_{\text{fp}}}
+            {1-\alpha_{\text{fp}}-\beta_{\text{fn}}}
+            \]
+        </div>
+        <p>The adjustment assumes that sensitivity \(1-\beta_{\text{fn}}\) and specificity \(1-\alpha_{\text{fp}}\) are applicable to the population being evaluated, and that their sum exceeds one. The result estimates the underlying positive prevalence. Sampling noise can produce an estimate outside \([0,1]\); that is a warning about sampling variation or calibration, not a value to silently accept as a probability.</p>
+        <p><strong>Do not apply an ordinary Wilson interval directly to \(\hat p_{\text{true}}\).</strong> Wilson's binomial interval applies to a binomial proportion such as the observed positive rate. It does not, by itself, account for uncertainty in the judge's sensitivity and specificity.</p>
 
-            <p>This is a translation guide. It maps the abstract mathematics of the previous eight parts to the observable, empirical realities of AI infrastructure. Use it as an architectural decision aid: a way to verify capacity models, interrogate assumptions, and enforce system invariants when the underlying model is a stochastic black box.</p>
+        <h3>Two defensible uncertainty treatments</h3>
+        <p><strong>Option A — fixed judge characteristics.</strong> If sensitivity and specificity are treated as known constants from a sufficiently large, representative, independently labelled calibration set, first calculate a Wilson interval \([L_{\text{obs}},U_{\text{obs}}]\) for the observed positive rate, then transform both endpoints:</p>
+        <div class="equation-flow">
+            \[
+            L_{\text{true}} =
+            \frac{L_{\text{obs}}-\alpha_{\text{fp}}}
+            {1-\alpha_{\text{fp}}-\beta_{\text{fn}}},
+            \qquad
+            U_{\text{true}} =
+            \frac{U_{\text{obs}}-\alpha_{\text{fp}}}
+            {1-\alpha_{\text{fp}}-\beta_{\text{fn}}}
+            \]
+        </div>
+        <p>Because the denominator is positive when the judge is better than chance, this monotone transformation preserves endpoint order. Intersecting the result with \([0,1]\) may be useful for display, but retain the untruncated interval in diagnostics because out-of-range endpoints reveal weak information or incompatible assumptions. This interval captures uncertainty in the observed evaluation sample only; it treats the judge error rates as fixed.</p>
+        <p><strong>Option B — propagate calibration uncertainty.</strong> When sensitivity and specificity are estimated from finite calibration samples, model them as uncertain too. One practical Bayesian approach assigns beta priors to sensitivity and specificity, updates them using independently adjudicated calibration examples, and samples jointly with a prevalence parameter. For each posterior draw, generate the implied observed-positive probability and evaluate the likelihood of the observed evaluation count; the resulting posterior for prevalence propagates uncertainty from all three quantities. A frequentist alternative is a stratified bootstrap that resamples the calibration and evaluation datasets separately and recomputes the adjustment for each replicate.</p>
+        <p>Either approach requires a representative reference standard, clear positive-class definitions, and attention to class-conditional judge performance. If judge error rates vary by tenant, task type, language, or difficulty, stratify or use a hierarchical model rather than assuming one global sensitivity and specificity. The calibration set should not be reused as though it were independent evaluation data.</p>
 
-            <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The Golden Rule of AI SRE</div>
-                <div class="tldr-content">
-                    <p>When an AI system fails, the first question is never "Which distribution does this follow?" It is: <strong>"What physical process generated this observation, and what architectural control prevents it from taking down the system next time?"</strong></p>
+        <h2 id="interactive-matrix">Interactive subsystem guide</h2>
+        <p>Select a subsystem to see a compact interpretation of its mechanism, candidate model, evidence to collect, and controls. These are hypotheses to validate, not universal distribution assignments.</p>
+
+        <div class="matrix-container">
+            <div class="matrix-tabs" role="tablist" aria-label="AI subsystem guide">
+                <button class="matrix-tab active" id="tab-inference" role="tab" aria-selected="true" aria-controls="matrixDisplay" data-target="inference" type="button">Inference</button>
+                <button class="matrix-tab" id="tab-retrieval" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="retrieval" type="button">Retrieval</button>
+                <button class="matrix-tab" id="tab-agents" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="agents" type="button">Agents &amp; tools</button>
+                <button class="matrix-tab" id="tab-evaluation" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="evaluation" type="button">Evaluation</button>
+            </div>
+            <div class="matrix-display" id="matrixDisplay" role="tabpanel" aria-live="polite" aria-labelledby="tab-inference">
+                <div class="matrix-card">
+                    <h4>Inference serving</h4>
+                    <span class="distribution">Arrival process + conditional service-time model</span>
+                    <p>Prompt arrivals may be approximately Poisson over a stable, low-level interval, while bursty or time-varying traffic may require an MMPP, empirical trace replay, or another non-stationary model. Service time depends on input length, output length, batch composition, cache state, and engine scheduling.</p>
+                    <p><strong>Telemetry:</strong> arrival timestamps, input/output tokens, queue wait, TTFT, inter-token latency, batch size, KV blocks, preemptions, and GPU utilization.</p>
+                </div>
+                <div class="matrix-card matrix-card--trap">
+                    <h4>The operational trap</h4>
+                    <p>Planning from mean requests per second ignores burstiness and the joint distribution of prompt and completion lengths.</p>
+                    <h4 style="color:var(--teal);margin-top:1.25rem;">Control</h4>
+                    <p>Use tenant-aware request and token budgets, queue deadlines, engine-aware admission control, chunked prefill where supported, and load shedding tied to measured resource pressure.</p>
                 </div>
             </div>
+        </div>
 
-            <!-- ========================================== -->
-            <!-- CORE EQUATIONS SECTION -->
-            <!-- ========================================== -->
-            <h2 id="core-equations">Core AI Infrastructure Equations</h2>
-            <p>To safely provision, admission-control, and evaluate AI workloads, architects must explicitly bind abstract stochastic boundaries to physical constraints.</p>
+        <h2 id="reference-matrix">Engineering reference matrix</h2>
+        <p>The table links each mechanism to a random variable, candidate model, assumptions, telemetry, and an architectural control. Candidate models should be fitted and validated against the actual workload before being used for capacity or reliability decisions.</p>
 
-            <h3>1. KV-Cache Memory Allocation &amp; Preemption</h3>
-            <p>Continuous batching queues operate on physical HBM. The per-token memory footprint for Key-Value caching dictates how many active tokens the GPU can support before triggering catastrophic sequence preemption.</p>
-            <div class="equation-flow">
-                \[ M_{\text{token}} = 2 \cdot L_{\text{layers}} \cdot H_{\text{kv}} \cdot d_h \cdot b_{\text{bytes}} \]
+        <div class="table-scroll" role="region" aria-label="Scrollable AI infrastructure reference matrix" tabindex="0">
+            <table class="ref-table">
+                <thead>
+                    <tr>
+                        <th>Mechanism</th>
+                        <th>Random variable</th>
+                        <th>Candidate model</th>
+                        <th>Assumptions and limits</th>
+                        <th>Telemetry</th>
+                        <th>Architectural control</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Prompt arrivals</strong></td>
+                        <td>Inter-arrival time; requests per interval; tokens arriving per interval</td>
+                        <td>Poisson for approximately independent stationary arrivals; MMPP or empirical trace model for regime changes and bursts</td>
+                        <td>Poisson requires approximate stationarity and independent increments. Synchronized clients, scheduled jobs, retries, and fan-out violate those assumptions.</td>
+                        <td>Arrival timestamps, windowed rate and variance, dispersion index, tenant, request class, retry origin</td>
+                        <td>Token-bucket limits, per-tenant concurrency budgets, queue deadlines, jittered client retries, and burst-aware capacity tests</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Inference service time</strong></td>
+                        <td>Prefill time, decode time, TTFT, TPOT/ITL, total service time</td>
+                        <td>Empirical conditional distributions; log-normal or gamma candidates for positive skew; queueing model such as M/G/c only when its assumptions are defensible</td>
+                        <td>Service time is conditional on input/output length, batch composition, hardware, cache state, and scheduler policy. A single stationary service distribution can conceal mixtures.</td>
+                        <td>TTFT/TPOT percentiles, input and output tokens, queue wait, batch size, GPU/HBM use, preemption, per-model and per-class histograms</td>
+                        <td>Separate prefill/decode budgets, workload classes, queue limits, chunked prefill, dynamic batching, and SLO-aware admission control</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Token generation</strong></td>
+                        <td>Output length; per-step token latency; selected token conditional on prefix</td>
+                        <td>Empirical conditional distribution for length and latency; categorical distribution for next-token selection; survival model for completion length when censoring matters</td>
+                        <td>Token choices are conditional on the generated prefix and decoding policy, not independent draws from one fixed categorical distribution. Temperature zero does not guarantee bitwise reproducibility across all runtimes.</td>
+                        <td>Output-token count, stop reason, per-token latency, decoding parameters, finish/cancel events, model and engine version</td>
+                        <td>Max-token and deadline limits, stop sequences, constrained decoding for structure, versioned inference configuration, and output-length-aware quotas</td>
+                    </tr>
+                    <tr>
+                        <td><strong>KV-cache occupancy</strong></td>
+                        <td>Allocated cache blocks per sequence and per worker; block allocation failures; preemptions</td>
+                        <td>Empirical occupancy and sequence-length distributions; queueing/resource model driven by the serving engine's block allocator</td>
+                        <td>Occupancy depends on block size, prefix sharing, sequence lengths, parallelism, fragmentation, allocator policy, and runtime reservations. The per-token equation is only a first-order estimate.</td>
+                        <td>Engine-reported KV block use, free/allocated HBM, block allocation failures, preemptions, recomputation, sequence lengths, batch composition</td>
+                        <td>Engine-aware admission control, reserved headroom, per-request token budgets, bounded concurrency, and measured preemption thresholds</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Retrieval and reranking</strong></td>
+                        <td>Per-stage latency; result count; recall; fan-out completion time</td>
+                        <td>Empirical per-stage latency; log-normal/gamma candidates for positive skew; extreme-value analysis for high fan-out maxima</td>
+                        <td>Independent stage assumptions often fail under shared network, storage, hot partitions, or index contention. End-to-end latency is a composition, not necessarily a log-normal variable.</td>
+                        <td>Embedding, ANN, reranker and fetch latency; p50/p95/p99; recall@k; fan-out width; timeout and partial-result rates</td>
+                        <td>Per-hop deadlines, bounded fan-out, concurrency limits, cache/index partitioning, graceful partial results, and tested lexical fallback</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Retrieval/cache popularity</strong></td>
+                        <td>Query, document, chunk, or prefix request frequency</td>
+                        <td>Zipf/power-law candidate, popularity classes, or empirical rank-frequency curve</td>
+                        <td>Heavy skew is workload- and tenant-dependent. Popularity skew does not imply semantic cacheability or correctness of approximate matches.</td>
+                        <td>Rank-frequency curve, per-tenant hit rate, cache age, semantic similarity score, false-hit rate, recall and freshness</td>
+                        <td>Tenant-scoped caches, freshness/version keys, empirically calibrated similarity thresholds, negative tests, and safe cache bypass</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Agent workflow length and success</strong></td>
+                        <td>Steps per task; conditional stage outcome; end-to-end task completion</td>
+                        <td>Empirical task-length distribution; conditional chain model or Markov/state-transition model; binomial only for comparable independent trials</td>
+                        <td>Steps are state-dependent. Earlier errors can alter later prompts, tool choices, and success probabilities. Multiplying a single per-step probability is valid only under strong assumptions.</td>
+                        <td>Trace/span per step, state transitions, task class, step count, handoffs, terminal outcome, cost and elapsed time</td>
+                        <td>Explicit workflow state machines, bounded loops, checkpoints, typed state, validation gates, compensating actions, and human approval for high-impact changes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tool execution</strong></td>
+                        <td>Tool latency, timeout, error class, side-effect outcome, retry count</td>
+                        <td>Empirical conditional latency and failure rates; competing-risk or survival model for timeout/cancel/failure; Markov model for stateful workflows</td>
+                        <td>Tool outcomes depend on downstream service health, rate limits, request shape, and whether a timed-out operation actually committed. Retry outcomes are not necessarily independent.</td>
+                        <td>Tool name/version, request ID, latency, status, timeout, idempotency key, side-effect confirmation, downstream saturation</td>
+                        <td>Deadlines, circuit breakers, idempotency keys, deduplication, bounded concurrency, explicit unknown-outcome handling, and compensating transactions</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Structured-output failures</strong></td>
+                        <td>Schema-invalid outputs per request; parser/validator failure category</td>
+                        <td>Binomial proportion for comparable independent requests; beta-binomial or stratified rates for heterogeneous prompts/models</td>
+                        <td>Requests may be correlated by prompt template, model version, decoding mode, or schema. Grammar constraints reduce syntax errors but do not establish semantic validity.</td>
+                        <td>Schema version, validation outcome, failure path, model/runtime version, constrained-decoding mode, repair attempts</td>
+                        <td>Constrained decoding, strict schema validation, versioned contracts, bounded repair, and separate structural versus semantic error budgets</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Retries and repair loops</strong></td>
+                        <td>Attempts until success; retry amplification; cumulative tokens and cost</td>
+                        <td>Geometric or truncated geometric only for constant independent success probability; otherwise empirical conditional attempt model</td>
+                        <td>Success probability often changes with attempt number, context growth, repeated identical faults, and shared downstream outages. Retries can amplify load and cost.</td>
+                        <td>Attempt number, failure class, tokens per attempt, retry reason, elapsed time, success after retry, downstream load</td>
+                        <td>Small retry caps, exponential backoff with jitter, retry budgets, idempotency, failure classification, and no retries for non-retryable semantic errors</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Semantic evaluation and task success</strong></td>
+                        <td>Incorrect-answer prevalence; judge positive rate; task success by class</td>
+                        <td>Binomial/Wilson for observed rates; Rogan–Gladen adjustment with fixed judge characteristics; joint Bayesian or bootstrap propagation when judge calibration is uncertain</td>
+                        <td>Judge sensitivity/specificity must transfer to the evaluated population. Dataset shift, class imbalance, dependence, and ambiguous ground truth can invalidate a single global correction.</td>
+                        <td>Blinded human labels, judge confusion matrix, calibration sample size, stratified error rates, task-level outcomes, confidence intervals</td>
+                        <td>Independent adjudication, representative stratified calibration, uncertainty propagation, holdout evaluation, drift monitoring, and human review for consequential decisions</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="worked-models">Three practical modelling examples</h2>
+
+        <h3>1. Arrival bursts and inference queueing</h3>
+        <p>Suppose a gateway receives interactive prompts and scheduled summarization jobs. A single average arrival rate may conceal two traffic regimes. Plot inter-arrival times and count variance across several window sizes, segmented by tenant and workload class. If the rate changes between identifiable states, an MMPP may be a useful candidate; if the arrival trace is dominated by synchronized batch starts, replaying the empirical trace may be more defensible.</p>
+        <p>Feed the observed arrival trace and measured conditional service times into a queue simulation. Preserve the joint relationship between prompt length, completion length, and service time rather than independently sampling each marginal. Compare queue wait and TTFT percentiles under alternative concurrency limits, token budgets, and admission policies. Validate the simulation against a held-out production interval before using it to justify capacity.</p>
+
+        <h3>2. A tool timeout is not proof that the operation failed</h3>
+        <p>An agent calls a payment, provisioning, or ticketing API. The client times out, but the downstream service may have committed the side effect before the response was lost. Treating the timeout as a definite failure and blindly retrying can create duplicate operations. Model the outcome as at least three states: confirmed success, confirmed failure, and unknown outcome. The unknown state needs reconciliation, not an automatic repeat.</p>
+        <p>Use a stable idempotency key tied to the logical operation, persist the operation identifier, and expose a status/reconciliation path. Measure timeout rates and confirmed side effects separately. A geometric retry model is inappropriate if retries hit the same outage or if the first attempt may already have succeeded.</p>
+
+        <h3>3. Semantic quality measurement with an imperfect judge</h3>
+        <p>For an evaluation sample, first report the raw judge-positive rate and a Wilson interval for that observed rate. Separately report the judge's sensitivity and specificity with their calibration sample sizes and uncertainty. If these characteristics are treated as fixed, transform the observed interval through the Rogan–Gladen equation. If they are estimated, propagate their uncertainty with a joint model or stratified bootstrap. Report both raw and adjusted results so readers can see how much the correction depends on the judge.</p>
+        <p>Repeat calibration by task class, language, and difficulty when those factors plausibly alter judge error. A narrow interval around a biased judge's raw score is not evidence of accurate measurement.</p>
+
+        <h2 id="verification-workflow">A verification workflow for production systems</h2>
+        <div class="tldr-box">
+            <div class="tldr-eyebrow">The post-mortem protocol</div>
+            <div class="tldr-content">
+                <ol>
+                    <li><strong>Define the outcome.</strong> Separate availability, latency, resource exhaustion, structural validity, semantic correctness, and task completion. A single “success” metric hides distinct failure mechanisms.</li>
+                    <li><strong>Locate the boundary.</strong> Trace gateway, queue, prefill, decode, retrieval, orchestration, tool, validation, and final task outcome with correlated request and operation IDs.</li>
+                    <li><strong>Specify the random variable.</strong> State its unit, population, conditioning variables, observation window, and censoring rules.</li>
+                    <li><strong>Propose a mechanism-based model.</strong> Start with empirical distributions. Test stationarity, independence, tail fit, mixture effects, and common-cause dependencies before choosing a parametric family.</li>
+                    <li><strong>Validate out of sample.</strong> Compare predicted and observed percentiles, tail exceedances, queue lengths, and failure rates. Refit when workload, model, engine, or hardware changes.</li>
+                    <li><strong>Choose a control that bounds the failure.</strong> Examples include admission limits, deadlines, idempotency, constrained decoding, independent evaluation, or human approval. State the invariant the control is intended to preserve.</li>
+                    <li><strong>Monitor model risk.</strong> Track drift, calibration error, unmodelled cohorts, and the gap between predicted and observed operational outcomes.</li>
+                </ol>
             </div>
-            <ul>
-                <li>\(2\): Accounts for both Key and Value tensors.</li>
-                <li>\(L_{\text{layers}}\): Transformer layer depth.</li>
-                <li>\(H_{\text{kv}}\): Number of KV heads (reflecting GQA/MQA efficiency).</li>
-                <li>\(d_h\): Head dimension.</li>
-                <li>\(b_{\text{bytes}}\): Precision byte-width (e.g., \(2\) for FP16, \(1\) for FP8).</li>
-            </ul>
-            <p><strong>Architectural Application:</strong> Do not use fixed request-concurrency limits. Calculate the absolute token capacity \(M_{\text{max}} / M_{\text{token}}\) and enforce token-budget admission control (e.g., illustrative load-shedding at 85% HBM occupancy).</p>
+        </div>
 
-            <h3>2. Semantic Evaluation &amp; LLM-as-a-Judge Noise</h3>
-            <p>When using an LLM to evaluate semantic correctness, the judge itself is an imperfect stochastic classifier. Raw dashboard pass rates (\(p_{\text{obs}}\)) must be adjusted for the judge's False Positive rate (\(\alpha_{\text{fp}}\)) and False Negative rate (\(\beta_{\text{fn}}\)) using the Rogan-Gladen prevalence adjustment:</p>
-            <div class="equation-flow">
-                \[ \hat{p}_{\text{true}} = \frac{p_{\text{obs}} - \alpha_{\text{fp}}}{1 - \alpha_{\text{fp}} - \beta_{\text{fn}}} \]
+        <div class="tldr-box tldr-box--warning">
+            <div class="tldr-eyebrow">Important boundary</div>
+            <div class="tldr-content">
+                <p>Constrained decoding can enforce a grammar or schema, but it cannot guarantee that the values are true, authorized, current, or safe. A successful HTTP response, valid JSON document, and completed agent workflow are not equivalent to a correct task outcome. Keep structural, semantic, policy, and business validation as separate controls.</p>
             </div>
-            <p>For small sample evaluation sets, report the Wilson Score Interval rather than naked point estimates to capture epistemic uncertainty:</p>
-            <div class="equation-flow">
-                \[ \text{Interval} = \frac{\hat{p} + \frac{z^2}{2n} \pm z\sqrt{\frac{\hat{p}(1-\hat{p})}{n} + \frac{z^2}{4n^2}}}{1 + \frac{z^2}{n}} \]
-            </div>
+        </div>
 
-            <!-- ========================================== -->
-            <!-- INTERACTIVE TRANSLATION MATRIX -->
-            <!-- ========================================== -->
-            <h2>Interactive Translation Matrix</h2>
-            <p>Select an LLM subsystem below to inspect the underlying stochastic process, the telemetry metrics that actually matter, the SRE trap to avoid, and the control mechanism required to maintain system invariants.</p>
+        <p>The practical objective is not to make AI infrastructure deterministic. It is to make its failure modes observable, its resource consumption bounded, its side effects controlled, and its quality claims statistically defensible. Use distributions as testable models of physical processes—not as labels attached to fashionable components.</p>
 
-            <div class="matrix-container">
-                <div class="matrix-tabs" role="tablist" aria-label="LLM Subsystem Matrix">
-                    <button class="matrix-tab active" role="tab" aria-selected="true" aria-controls="matrixDisplay" data-target="inference">Inference (Serving)</button>
-                    <button class="matrix-tab" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="rag">RAG (Retrieval)</button>
-                    <button class="matrix-tab" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="agents">Agents (Workflows)</button>
-                    <button class="matrix-tab" role="tab" aria-selected="false" aria-controls="matrixDisplay" data-target="sampling">Token Sampling</button>
-                </div>
+        <nav class="post-pager" aria-label="Series pagination">
+            <a href="part-8-stochastic-shape-of-ai-systems.html">← Part 8: The Stochastic Shape of AI Systems</a>
+            <a href="index.html">Back to Series Overview →</a>
+        </nav>
+    </main>
 
-                <div class="matrix-display" id="matrixDisplay" role="tabpanel" aria-live="polite">
-                    <!-- Populated via JS -->
-                </div>
-            </div>
+    <footer class="site-footer">
+        <div>© 2026 Saurav Sana</div>
+        <div class="footer-links">
+            <a href="https://github.com/saurav-sana" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+            <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a href="../../contact.html">Email</a>
+        </div>
+    </footer>
+</div>
 
-            <!-- ========================================== -->
-            <!-- THE REFERENCE MATRIX -->
-            <!-- ========================================== -->
-            <h2>The Engineering Reference Matrix</h2>
-            <p>If you need a rapid lookup during an incident post-mortem or an architecture review, use the table below. It enforces the mandatory six-column discipline linking stochastic variables to concrete architectural levers.</p>
-
-            <div class="table-scroll">
-                <table class="ref-table">
-                    <thead>
-                        <tr>
-                            <th>Random Variable &amp; Units</th>
-                            <th>Candidate Model</th>
-                            <th>Physical Mechanism</th>
-                            <th>Assumptions &amp; Breakdown Boundaries</th>
-                            <th>Validation Signal</th>
-                            <th>Architectural Control</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Selected Token Index</strong><br>\(w_t \in \{1..|V|\}\) per step</td>
-                            <td><strong>Categorical</strong><br>(Softmax Logit Projection)</td>
-                            <td>Autoregressive logit projection scaled by Temperature \(T\).</td>
-                            <td>Assumes prefix is clean. Breaks when a factually wrong token dominates the logit distribution (hallucination) despite low entropy.</td>
-                            <td>Schema Validation Failure Rate / AST parser errors.</td>
-                            <td>Enforce constrained decoding (FSM/CFG templates) to guarantee structure; set \(T=0\) for tool args.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Prompt Arrival Rate</strong><br>\(\lambda\) (req/s)</td>
-                            <td><strong>Poisson / MMPP</strong><br>(Markov-Modulated Poisson)</td>
-                            <td>Independent uncoordinated human chat sessions vs. batch RAG ingestion.</td>
-                            <td>Assumes independent inter-arrival times. Breaks during synchronized retry storms or map-reduce agent fan-out.</td>
-                            <td>RPS burst variance / Dispersion Index over 5min windows.</td>
-                            <td>Token-bucket rate limiting at the Gateway edge; explicit concurrency budgets per tenant.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Service Latency (TTFT/TPOT)</strong><br>\(S\) (ms)</td>
-                            <td><strong>Heavy-Tail M/G/c</strong><br>(Service Time)</td>
-                            <td>Decomposed into compute-bound parallel prefill and memory-bound autoregressive decoding.</td>
-                            <td>Breaks catastrophically if active sequence limits exhaust physical HBM, triggering KV-cache block preemption and recomputation thrashing.</td>
-                            <td>Queue depth, \(vllm:num\_preemptions\_total\), and p99 TTFT.</td>
-                            <td>Chunked prefill (e.g., 1,024 token chunks); admission load-shedding at an illustrative ~85% KV-cache limit.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>RAG Stage Latency</strong><br>\(L_i\) (ms)</td>
-                            <td><strong>Log-Normal</strong><br>(Skewed Processing)</td>
-                            <td>ANN graph traversal (HNSW), cross-encoder reranking, and network IO retrieval.</td>
-                            <td>Assumes independent stage latencies. Breaks when hot-key vector index saturation creates highly correlated tail latency across partitions.</td>
-                            <td>End-to-end p99 / p50 latency ratio by pipeline stage.</td>
-                            <td>Parallelize retrieval; enforce strict per-hop deadlines to truncate the long right tail; fallback to BM25 if ANN times out.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>RAG Chunk Popularity</strong><br>Cache Hit / Recall Freq</td>
-                            <td><strong>Zipfian</strong><br>(Power-Law Access)</td>
-                            <td>High skew in tenant data access; systemic prefixes reused heavily.</td>
-                            <td><strong>Critical Trap:</strong> Zipfian query popularity \(\neq\) Semantic Cache hit rate. \(\tau_{\text{sim}}\) (cosine similarity threshold) yields false positives if too low, and near-zero hits on paraphrased intent if too high.</td>
-                            <td>Semantic cache hit ratio plotted against recall threshold \(\tau_{\text{sim}}\).</td>
-                            <td>Tune \(\tau_{\text{sim}}\) empirically; pin common system prompt prefixes directly in GPU HBM (RadixAttention).</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Repair Invocations</strong><br>\(K_m\) until success</td>
-                            <td><strong>Truncated Geometric</strong><br>(Bounded Trials)</td>
-                            <td>LLM orchestrator loop injecting JSON/AST validation tracebacks into subsequent repair prompts.</td>
-                            <td>Assumes stationary \(p\). Breaks heavily in practice: repair context super-linearly inflates token cost \(C_k\) and often drops conditional success \(p_k\) due to context poisoning.</td>
-                            <td>Retry amplification multiplier (total tokens / primary tokens).</td>
-                            <td>Strict retry limits (max 1–2); 10% global retry token budget; deterministic schema cache refreshes on miss.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Successful Stages</strong><br>\(X\) in workflow</td>
-                            <td><strong>Binomial</strong><br>(Chain Rule Compounding)</td>
-                            <td>Sequential DAG execution of autonomous LLM reasoning and tool-calling hops.</td>
-                            <td>Assumes stage independence. Breaks entirely because multi-step agents are state-dependent chains. Context poisoning means \(P(S_i|S_{i-1}=0) \to 0\).</td>
-                            <td>End-to-end task completion rate (\(E_{\text{task}}\)) vs. isolated step accuracy.</td>
-                            <td>Replace LLM routing with deterministic code (LangGraph DAGs); enforce idempotency keys; require human escalation for irreversible state mutations.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- THE VERIFICATION WORKFLOW -->
-            <!-- ========================================== -->
-            <h2>The Verification Workflow</h2>
-            <p>You cannot fix what you cannot measure, and you cannot measure what you cannot explain. When an AI system degrades in production, follow this deterministic diagnostic sequence:</p>
-
-            <div class="tldr-box">
-                <div class="tldr-eyebrow">The Post-Mortem Protocol</div>
-                <div class="tldr-content">
-                    <ol>
-                        <li><strong>Observe the Tails:</strong> Discard averages. Inspect p50, p95, and p99 latencies alongside the joint distribution of input prompt tokens and output generation lengths.</li>
-                        <li><strong>Distinguish Structural from Semantic Failure:</strong> A perfectly formed JSON object (guaranteed by Categorical logit masking) that contains hallucinated facts is a semantic failure, not a structural serving failure. Do not solve semantic issues with infrastructure retries.</li>
-                        <li><strong>Isolate the Boundary:</strong> Pinpoint where the invariant broke—was it in the inference engine (KV-cache thrashing), the retrieval layer (HNSW tail latency), or the orchestration parser?</li>
-                        <li><strong>Identify the Physical Mechanism:</strong> Map the symptom to algorithmic reality. Was it head-of-line blocking from a 100k-token prefill? Compounding state contamination across a 12-step agent loop?</li>
-                        <li><strong>Apply the Architectural Control:</strong> Enforce the deterministic constraint (chunked prefill, token-based rate limiting, grammar-constrained decoding, or circuit breaking) that bounds the failure mode mathematically.</li>
-                    </ol>
-                </div>
-            </div>
-
-            <p>The frontier of AI infrastructure demands more systems rigor than traditional distributed architectures, not less. A relational database either commits the transaction or aborts it. An LLM will happily return a syntactically valid payload that is semantically hallucinated—after burning 4,000 GPU milliseconds. Use the math. Trust the telemetry. And always build the circuit breaker.</p>
-
-            <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-8-stochastic-shape-of-ai-systems.html">← Part 8: The Stochastic Shape of AI Systems</a>
-                <a href="index.html">Back to Series Overview →</a>
-            </nav>
-        </main>
-
-        <footer class="site-footer">
-            <div>© 2026 Saurav Sana</div>
-            <div class="footer-links">
-                <a href="https://github.com/saurav-sana" target="_blank" rel="noopener noreferrer">GitHub</a>
-                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
-                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a href="../../contact.html">Email</a>
-            </div>
-        </footer>
-
-    </div>
-
-    <!-- Translation Matrix & Theme Engine -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // --- Theme Toggle Logic ---
-            const themeBtn = document.querySelector('.theme-toggle');
-            if (themeBtn) {
-                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-                themeBtn.setAttribute('aria-pressed', String(currentTheme === 'dark'));
-
-                themeBtn.addEventListener('click', () => {
-                    const root = document.documentElement;
-                    const current = root.getAttribute('data-theme') || 'dark';
-                    const newTheme = current === 'light' ? 'dark' : 'light';
-                    
-                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
-                    root.setAttribute('data-theme', newTheme);
-                    root.classList.add(newTheme, 'theme-' + newTheme);
-                    themeBtn.setAttribute('aria-pressed', String(newTheme === 'dark'));
-                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
-                });
-            }
-
-            // --- Translation Matrix Data ---
-            const matrixData = {
-                inference: {
-                    title: "Inference Serving (TTFT & Throughput)",
-                    dist: "Poisson (Arrivals) + Heavy-Tail (Service Time)",
-                    math: "Uncoordinated prompt arrivals approximate a Poisson process. However, service time \\( S \\) is highly variable, decomposing into compute-bound prefill and memory-bound decode: <div class=\"equation-flow\">\\[ S = T_{\\text{prefill}}(L_{\\text{in}}) + \\sum_{j=1}^{L_{\\text{out}}} T_{\\text{step}}(B_j) \\]</div> Continuous batching, speculative decoding acceptance (\\( \\alpha_{\\text{spec}} \\)), and prefix-caching make this a heavy-tailed M/G/c queue.",
-                    metrics: [
-                        "Time to First Token (TTFT) p95 / p99",
-                        "Inter-Token Latency (ITL)",
-                        "KV-Cache Block Utilization & Preemption Rate"
-                    ],
-                    trap: "Sizing your GPU cluster based on average RPS and mean prompt tokens. When a Poisson traffic burst coincides with a long-context prefill, head-of-line blocking causes queue wait times to diverge non-linearly.",
-                    control: "Continuous batching with chunked prefill (vLLM/TGI) to prevent head-of-line blocking, paired with strict admission control (load shedding) when KV-cache block occupancy crosses an illustrative 85% threshold."
-                },
-                rag: {
-                    title: "RAG Pipelines (Retrieval & Context)",
-                    dist: "Zipfian (Access Skew) + Log-Normal (Stage Latency)",
-                    math: "Query and chunk popularity follow a power law (Zipfian). Meanwhile, individual stages (embedding, HNSW graph traversal, reranking, generation) exhibit right-skewed Log-Normal latencies whose sequential sum amplifies the p99 tail.",
-                    metrics: [
-                        "Semantic & Prefix Cache Hit Ratio",
-                        "Vector DB p99 Latency vs. HNSW efSearch",
-                        "Retrieval-to-Generation Latency Ratio"
-                    ],
-                    trap: "Assuming Zipfian query popularity guarantees high semantic-cache hit rates. Semantic caching relies on a cosine-similarity threshold \\( \\tau_{\\text{sim}} \\). Set it too low, and you serve false-positive semantic collisions. Set it too high, and near-zero cache hits occur on paraphrased queries.",
-                    control: "Tune \\( \\tau_{\\text{sim}} \\) empirically, parallelize independent retrieval calls, enforce strict per-stage timeouts, and pin high-frequency system prompts in GPU HBM via Prefix Caching."
-                },
-                agents: {
-                    title: "Autonomous Agents (Multi-Step Workflows)",
-                    dist: "Compounding Binomial (Step Success) + Geometric (Retries)",
-                    math: "Do not blindly multiply independent probabilities \\( p^N \\). Multi-step agents are state-dependent Markov chains. End-to-end success follows the conditional chain rule: <div class=\"equation-flow\">\\[ P(S_1 \\cap \\dots \\cap S_m) = P(S_1)\\prod_{i=2}^m P(S_i \\mid S_1 \\dots S_{i-1}) \\]</div> Upstream hallucinations poison the context window, causing downstream conditional success to approach zero.",
-                    metrics: [
-                        "End-to-End Workflow Completion Rate (\\( E_{\\text{task}} \\))",
-                        "Step Count Distribution per Task",
-                        "Tool-Call Parse & Execution Failure Rate"
-                    ],
-                    trap: "Chaining 20 non-deterministic steps together. Even assuming strict mathematical independence at a 95% per-step success rate, end-to-end reliability drops to 35.8% (0.95^20). Real-world state contamination makes this decay even steeper.",
-                    control: "Replace autonomous LLM routing with deterministic state machines (LangGraph DAGs) where possible, enforce strict max-iteration budgets, and require human-in-the-loop approval for state-mutating tool calls."
-                },
-                sampling: {
-                    title: "Token Sampling (Structured Generation)",
-                    dist: "Categorical (Softmax Logit Projection)",
-                    math: "At each decoding step, the model projects hidden states onto vocabulary logits and samples the next token from a discrete Categorical distribution shaped by temperature (\\( T \\)), top-p, and top-k.",
-                    metrics: [
-                        "Token Logit Entropy (Confidence)",
-                        "Schema Validation Failure Rate",
-                        "Output Length Variance"
-                    ],
-                    trap: "Relying on prompt instructions alone (or assuming \\( T=0 \\) guarantees bit-wise determinism across dynamic GPU batches) when downstream services expect strict JSON schemas. Crucially, schema adherence guarantees structural correctness, not semantic correctness.",
-                    control: "Use grammar-constrained decoding (Outlines, XGrammar, or native Structured Outputs) to mask invalid vocabulary tokens at the logit layer, guaranteeing 100% structural schema compliance."
-                }
-            };
-
-            const display = document.getElementById('matrixDisplay');
-            const tabs = document.querySelectorAll('.matrix-tab');
-
-            function renderMatrix(key) {
-                const data = matrixData[key];
-                if (!data || !display) return;
-
-                const metricsHtml = data.metrics.map(m => `<li>${m}</li>`).join('');
-
-                display.innerHTML = `
-                    <div class="matrix-card">
-                        <h4>${data.title}</h4>
-                        <span class="distribution">${data.dist}</span>
-                        <p>${data.math}</p>
-                        <p style="margin-top: 1rem;"><strong>Metrics to Watch:</strong></p>
-                        <ul>${metricsHtml}</ul>
-                    </div>
-                    <div class="matrix-card matrix-card--trap">
-                        <h4 style="color: var(--bad);">The SRE Trap</h4>
-                        <p>${data.trap}</p>
-                        <h4 style="color: var(--teal); margin-top: 1.5rem;">The Engineering Control</h4>
-                        <p>${data.control}</p>
-                    </div>
-                `;
-
-                // Re-render KaTeX inside the dynamically injected HTML
-                if (typeof renderMathInElement === 'function') {
-                    renderMathInElement(display, {
-                        delimiters: [
-                            { left: '$$', right: '$$', display: true },
-                            { left: '\\[', right: '\\]', display: true },
-                            { left: '\\(', right: '\\)', display: false }
-                        ],
-                        throwOnError: false
-                    });
-                }
-            }
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    tabs.forEach(t => {
-                        t.classList.remove('active');
-                        t.setAttribute('aria-selected', 'false');
-                    });
-                    tab.classList.add('active');
-                    tab.setAttribute('aria-selected', 'true');
-                    renderMatrix(tab.dataset.target);
-                });
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Theme toggle
+        var themeBtn = document.querySelector('.theme-toggle');
+        if (themeBtn) {
+            var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            themeBtn.setAttribute('aria-pressed', String(currentTheme === 'dark'));
+            themeBtn.addEventListener('click', function () {
+                var root = document.documentElement;
+                var nextTheme = (root.getAttribute('data-theme') || 'dark') === 'light' ? 'dark' : 'light';
+                root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                root.setAttribute('data-theme', nextTheme);
+                root.classList.add(nextTheme, 'theme-' + nextTheme);
+                themeBtn.setAttribute('aria-pressed', String(nextTheme === 'dark'));
+                try { localStorage.setItem('theme', nextTheme); } catch (e) {}
             });
+        }
 
-            // Initialize default tab (inference)
-            const defaultTab = document.querySelector('.matrix-tab.active');
-            if (defaultTab) {
-                renderMatrix(defaultTab.dataset.target);
+        var matrixData = {
+            inference: {
+                title: 'Inference serving',
+                model: 'Arrival process + conditional service-time model',
+                mechanism: 'Requests arrive at the gateway; each request consumes prefill and decode resources. Arrival behaviour and service time are separate random processes.',
+                assumptions: 'Poisson arrivals require approximate stationarity and independent increments. Service time must be conditioned on input/output length, batch composition, cache state, hardware, and scheduler policy.',
+                telemetry: ['Arrival timestamps and burst variance', 'Input/output tokens, queue wait, TTFT and TPOT', 'Batch size, KV blocks, preemptions and HBM pressure'],
+                control: 'Use per-tenant token and concurrency budgets, deadlines, engine-aware admission control, chunked prefill where supported, and measured load shedding.'
+            },
+            retrieval: {
+                title: 'Retrieval and RAG',
+                model: 'Empirical stage latency; skew model for popularity where validated',
+                mechanism: 'Embedding, ANN search, metadata fetch, reranking, and context assembly form a multi-stage pipeline with possible fan-out.',
+                assumptions: 'Log-normal or gamma latency may fit a stage but should be tested. Shared network, hot shards, and index contention correlate stage tails. Zipf popularity does not imply semantic cacheability.',
+                telemetry: ['Per-stage p50/p95/p99 and timeout rate', 'Recall@k, fan-out width and partial-result rate', 'Tenant-scoped cache hit and false-hit rates'],
+                control: 'Bound fan-out, enforce per-hop deadlines, partition hot workloads, validate cache similarity thresholds, preserve freshness/version keys, and provide safe fallback.'
+            },
+            agents: {
+                title: 'Agents and tool execution',
+                model: 'Conditional state-transition model; empirical tool outcomes',
+                mechanism: 'A workflow moves through model decisions, tool calls, validation, and state mutations. Earlier outcomes alter later context and available actions.',
+                assumptions: 'Independent Bernoulli steps and geometric retries are usually simplifications. A timeout may leave a side effect in an unknown state; repeated attempts can share the same failure cause.',
+                telemetry: ['Step-level traces and task terminal state', 'Tool latency, timeout, idempotency key and side-effect confirmation', 'Attempt count, token amplification and workflow duration'],
+                control: 'Use explicit state machines, bounded loops, deadlines, idempotency, deduplication, reconciliation for unknown outcomes, and human approval for irreversible actions.'
+            },
+            evaluation: {
+                title: 'Structured output and semantic evaluation',
+                model: 'Binomial/Wilson for observed rates; joint uncertainty model for judge correction',
+                mechanism: 'Validators detect structural violations; human or model judges estimate semantic correctness and task success.',
+                assumptions: 'Comparable independent trials are needed for simple binomial intervals. Judge sensitivity and specificity must transfer to the evaluated population; calibration uncertainty and dataset shift matter.',
+                telemetry: ['Schema failure by model and schema version', 'Judge confusion matrix and calibration sample size', 'Human-adjudicated task outcome by cohort'],
+                control: 'Constrained decoding plus independent validation; representative blinded calibration; transform intervals only under fixed judge rates or propagate all uncertainty jointly.'
             }
+        };
+
+        var display = document.getElementById('matrixDisplay');
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('.matrix-tab'));
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, function (ch) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+            });
+        }
+
+        function renderMatrix(key) {
+            var data = matrixData[key];
+            if (!data || !display) return;
+            var metrics = data.telemetry.map(function (item) {
+                return '<li>' + escapeHtml(item) + '</li>';
+            }).join('');
+            display.innerHTML =
+                '<section class="matrix-card">' +
+                    '<h4>' + escapeHtml(data.title) + '</h4>' +
+                    '<span class="distribution">' + escapeHtml(data.model) + '</span>' +
+                    '<p><strong>Physical mechanism:</strong> ' + escapeHtml(data.mechanism) + '</p>' +
+                    '<p><strong>Assumptions and limits:</strong> ' + escapeHtml(data.assumptions) + '</p>' +
+                    '<p><strong>Telemetry:</strong></p><ul>' + metrics + '</ul>' +
+                '</section>' +
+                '<section class="matrix-card matrix-card--trap">' +
+                    '<h4 style="color:var(--teal)">Architectural control</h4>' +
+                    '<p>' + escapeHtml(data.control) + '</p>' +
+                '</section>';
+            display.setAttribute('aria-labelledby', 'tab-' + key);
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                tabs.forEach(function (item) {
+                    item.classList.remove('active');
+                    item.setAttribute('aria-selected', 'false');
+                    item.setAttribute('tabindex', '-1');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+                tab.setAttribute('tabindex', '0');
+                renderMatrix(tab.dataset.target);
+            });
         });
-    </script>
+
+        tabs.forEach(function (tab, index) {
+            tab.setAttribute('tabindex', index === 0 ? '0' : '-1');
+            tab.addEventListener('keydown', function (event) {
+                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+                event.preventDefault();
+                var delta = event.key === 'ArrowRight' ? 1 : -1;
+                var next = (index + delta + tabs.length) % tabs.length;
+                tabs[next].focus();
+                tabs[next].click();
+            });
+        });
+
+        var activeTab = document.querySelector('.matrix-tab.active');
+        if (activeTab) renderMatrix(activeTab.dataset.target);
+
+        // Render static and dynamically injected mathematical notation.
+        function renderMath(root) {
+            if (typeof renderMathInElement !== 'function') return;
+            renderMathInElement(root, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '\\[', right: '\\]', display: true},
+                    {left: '\\(', right: '\\)', display: false}
+                ],
+                throwOnError: false
+            });
+        }
+        renderMath(document.body);
+    });
+</script>
 </body>
 </html>
