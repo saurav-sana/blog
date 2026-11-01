@@ -16,7 +16,7 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 7: The Architect's Reality Check | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Empirical validation, Goodness-of-Fit (KS vs AD), Page's CUSUM for drift detection, Hypergeometric finite-fleet auditing, and telemetry right-censoring.">
+    <meta name="description" content="Empirical model validation in distributed systems: Goodness-of-Fit (KS vs. Anderson-Darling), parametric bootstrap, standardized Page's CUSUM for drift detection, Hypergeometric finite-fleet auditing, telemetry right-censoring, and DDSketch vs. HDRHistogram aggregation.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
@@ -25,13 +25,13 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
     <meta property="og:title" content="Part 7: The Architect's Reality Check | The Shape of Failure">
-    <meta property="og:description" content="Empirical validation, Goodness-of-Fit, CUSUM drift detection, Hypergeometric fleet auditing, and telemetry right-censoring.">
+    <meta property="og:description" content="Empirical model validation, Goodness-of-Fit (KS vs. AD), standardized CUSUM drift detection, Hypergeometric fleet auditing, and telemetry right-censoring.">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-7-architects-reality-check.html">
     <meta property="twitter:title" content="Part 7: The Architect's Reality Check | The Shape of Failure">
-    <meta property="twitter:description" content="Empirical validation, Goodness-of-Fit, CUSUM drift detection, Hypergeometric fleet auditing, and telemetry right-censoring.">
+    <meta property="twitter:description" content="Empirical model validation, Goodness-of-Fit (KS vs. AD), standardized CUSUM drift detection, Hypergeometric fleet auditing, and telemetry right-censoring.">
 
     <!-- Early Theme Initialization -->
     <script>
@@ -82,11 +82,9 @@
 
         .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
         .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
-        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
         
         .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
         .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
-        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
         
         .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
         .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
@@ -94,18 +92,25 @@
         .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
         .tldr-content li { margin-bottom: 0.4rem; font-size: 0.95rem; }
 
-        /* KaTeX semantic equation flow wrappers */
+        /* KaTeX semantic equation flow wrappers - strictly transparent per visual design contract */
         .equation-flow { background: transparent; border: none; overflow-x: auto; margin: 1.5rem 0; padding: 0.5rem; text-align: center; }
         
-        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
+        .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1.25rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
+        .math-explanation p { font-size: 0.95rem; margin-bottom: 0.75rem; }
+        .math-explanation ul { margin: 0.5rem 0 0.75rem 0; padding-left: 1.25rem; }
+        .math-explanation li { font-size: 0.95rem; margin-bottom: 0.4rem; }
 
-        .reality-table { width: 100%; border-collapse: collapse; margin: 1.75rem 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.92rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+        .arch-table-wrap { width: 100%; overflow-x: auto; margin: 1.75rem 0; }
+        .reality-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.92rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
         .reality-table th { background: var(--panel-2); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); }
         .reality-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--line-soft); color: var(--text); vertical-align: top; line-height: 1.5; }
         .reality-table tr:last-child td { border-bottom: none; }
 
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
+        .sim-header { margin-bottom: 1rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 0.75rem; }
+        .sim-title { font-family: 'Libre Franklin', sans-serif; font-weight: 700; font-size: 1.05rem; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+        .sim-purpose { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; color: var(--muted); margin: 0; line-height: 1.5; }
         
         .sim-toolbar { 
             display: flex; 
@@ -116,29 +121,41 @@
             flex-wrap: wrap; 
         }
         
-        .sim-params { display: flex; gap: 1.5rem; flex-wrap: wrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); }
-        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); width: 150px; }
+        .sim-params { display: flex; gap: 1.25rem; flex-wrap: wrap; background: var(--panel-2); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--line-soft); flex: 1; }
+        .param-group { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); min-width: 155px; flex: 1; }
         .param-group input[type=range] { margin-top: 0.4rem; accent-color: var(--teal); cursor: pointer; }
         .param-group select { margin-top: 0.4rem; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; }
         .param-group span { font-weight: 600; color: var(--text); float: right; }
         
         .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
-        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.42rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
+        button.sim-btn { background: var(--teal); color: #0d1117; border: 1px solid transparent; padding: 0.45rem 0.9rem; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; transition: all 0.16s ease; white-space: nowrap; }
         [data-theme="light"] button.sim-btn { color: #ffffff; }
         button.sim-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        button.sim-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
         button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
         
         canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; display: block; }
-        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; background: var(--panel-2); padding: 0.75rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem 1rem; margin-top: 1rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; background: var(--panel-2); padding: 0.85rem 1.15rem; border-radius: 6px; border: 1px solid var(--line); }
         .readout span { color: var(--amber); font-weight: 600; }
         .readout span.stat-alert { color: var(--bad); }
+        .readout span.stat-ok { color: var(--teal); }
 
-        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.92rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.6; }
+        .sim-meta-footer { margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--line-soft); font-family: 'IBM Plex Sans', sans-serif; font-size: 0.84rem; color: var(--muted); line-height: 1.55; }
+        .sim-meta-footer p { font-size: 0.84rem; color: var(--muted); margin: 0 0 0.4rem 0; line-height: 1.55; }
+        .sim-meta-footer p:last-child { margin-bottom: 0; }
+        .sim-meta-footer strong { color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; }
+
+        .scenario-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.4rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .scenario-tag--warn { color: var(--amber); border-color: var(--amber); }
+        .scenario-card p { font-size: 0.94rem; color: var(--muted); margin: 0 0 0.65rem 0; line-height: 1.6; }
+        .scenario-card p:last-child { margin-bottom: 0; }
         .scenario-card p strong { color: var(--text); }
-        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; }
+        .scenario-card ul { margin: 0.4rem 0 0.65rem 0; padding-left: 1.25rem; }
+        .scenario-card li { font-size: 0.92rem; color: var(--muted); margin-bottom: 0.35rem; line-height: 1.55; }
+        .scenario-card li strong { color: var(--text); }
+        .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted-2); border-top: 1px dashed var(--line-soft); padding-top: 0.5rem; margin-top: 0.5rem; }
         .scenario-ref a { color: var(--teal); text-decoration: none; }
         .scenario-ref a:hover { text-decoration: underline; }
 
@@ -157,7 +174,6 @@
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
-            table { display: block; overflow-x: auto; }
         }
     </style>
 </head>
@@ -209,257 +225,478 @@
                 <p class="snarky-quote-author">— <strong><em>Jan L. A. van de Snepscheut</em></strong>, Computer Scientist</p>
             </blockquote>
 
-            <p>Over the first six parts of this series, we treated distributed systems as continuous stochastic processes. We modeled Poisson arrivals, Pareto heavy tails, queueing saturation, and geometric retries. We constructed elegant mathematical castles in the sky.</p>
+            <p>Over the first six parts of this series, we treated distributed systems as stochastic processes driven by physical mechanisms. We modeled workload mixtures (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>), correlated survival hazards (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>), queueing saturation (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>), fan-out order statistics (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>), Zipfian tenant skew (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>), and state-dependent retry amplification (<a href="part-6-state-empiricism-and-simulation.html" style="color:var(--teal);">Part 6</a>).</p>
 
-            <p>But how do we actually know our mathematical models aren't lying to us in production? How do we prove that a Multi-Tenant Analytics Gateway actually exhibits the Pareto distribution we architected it for? When a subtle memory leak silently degrades request latency by 8% over two weeks, why do our static \( P_{99} \) alerts remain completely silent?</p>
+            <p>Every one of those mathematical models rests on a foundational premise: <strong>a distribution is a model, not an invariant.</strong> Even if our Multi-Tenant Analytics Gateway genuinely followed a Lognormal latency profile with scale parameter \( \sigma = 0.8 \) last month, a minor kernel upgrade, a shifted tenant query mix, or a subtle memory leak in the Arrow buffer pool can invalidate that model overnight.</p>
 
-            <p>In Part 7, we abandon the whiteboard and enter the empirical reality of the SRE. We will establish the core validation pipeline: <strong>Telemetry Hygiene, Empirical Goodness-of-Fit, Residual Diagnostics, Drift Detection, and Runtime Conformance.</strong></p>
+            <p>How do we determine whether a mathematical model still represents production reality? Why can a distribution test report a "good fit" while \( P_{99.9} \) breaches the SLA by \( 4\times \)? Why do static \( P_{99} \) threshold alerts remain silent for weeks while cache degradation slowly boils the cluster? And how can our observability pipeline itself falsify the data through timeout censoring and percentile averaging?</p>
+
+            <p>In Part 7, we establish the empirical validation pipeline that bridges probability theory and production engineering: <strong>Empirical Goodness-of-Fit, Quantile Diagnostics, Residual Autocorrelation, Standardized Drift Detection, Finite-Fleet Auditing, Telemetry Hygiene, and Runtime Conformance.</strong></p>
 
             <!-- ========================================== -->
             <!-- 1. GOODNESS OF FIT -->
             <!-- ========================================== -->
-            <h2>1. Goodness-of-Fit: The KS vs. AD Illusion</h2>
+            <h2>1. Empirical Goodness-of-Fit: KS vs. Anderson-Darling and Q-Q Diagnostics</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Why Averages Hide the Assassin</div>
+                <div class="tldr-eyebrow">The Intuition: Vertical Probability vs. Horizontal Latency</div>
                 <div class="tldr-content">
-                    <p>To validate a theoretical latency model (like a Lognormal or Gamma distribution) against raw production telemetry, statisticians use Goodness-of-Fit tests by comparing the proposed CDF against the Empirical CDF (ECDF).</p>
-                    <p>The standard industry default is the Kolmogorov-Smirnov (KS) test. <strong>In performance engineering, using the KS test is architectural malpractice.</strong> KS evaluates the maximum vertical distance between the curves, which almost always occurs near the median. It completely ignores the extreme tail—the exact place where distributed systems actually fail.</p>
+                    <p>When validating a candidate latency distribution (such as Lognormal, Gamma, or Weibull) against production traces, engineers often run a Kolmogorov-Smirnov (KS) test using default statistical libraries. While the KS test is mathematically sound for detecting shifts in the central body of a distribution, relying on it to validate tail-latency models is dangerous.</p>
+                    <p>The KS test measures the maximum <em>vertical</em> difference in cumulative probability \( |\hat{F}_n(x) - F(x)| \) with equal weight across all \( x \). At \( P_{99.9} \), cumulative probability is already \( 0.999 \)—the remaining vertical room to \( 1.000 \) is at most \( 0.001 \). Even if your empirical \( P_{99.9} \) blows out from \( 2,000\text{ ms} \) to \( 8,000\text{ ms} \) horizontally, the vertical CDF discrepancy in the extreme tail cannot exceed a few thousandths, which is easily masked by sampling noise near the median.</p>
                 </div>
             </div>
 
-            <p>Let \( \hat{F}_n(x) \) be the Empirical Cumulative Distribution Function step-function computed directly from \( n \) observed latency traces:</p>
+            <p>Suppose we collect an independent and identically distributed (i.i.d.) sample of \( n \) uncensored request latencies \( X_1, X_2, \dots, X_n \) (in milliseconds) from the Multi-Tenant Analytics Gateway and sort them into order statistics \( X_{(1)} \le X_{(2)} \le \dots \le X_{(n)} \). The non-parametric <strong>Empirical Cumulative Distribution Function (ECDF)</strong> is the step function:</p>
 
             <div class="equation-flow">
                 \[ \hat{F}_n(x) = \frac{1}{n}\sum_{i=1}^{n} \mathbb{I}(X_i \le x) \]
             </div>
 
-            <p>The <strong>Kolmogorov-Smirnov (KS) statistic</strong> measures the supremum (maximum absolute distance) between the empirical and theoretical CDFs:</p>
+            <p>where \( \mathbb{I}(X_i \le x) \) is the indicator function equal to \( 1 \) if \( X_i \le x \) and \( 0 \) otherwise. To test the null hypothesis \( H_0: X \sim F(x; \theta_0) \), Empirical Distribution Function (EDF) statistics quantify the discrepancy between \( \hat{F}_n(x) \) and the candidate continuous CDF \( F(x; \theta_0) \).</p>
+
+            <p>The <strong>Kolmogorov-Smirnov (KS) statistic</strong> \( D_n \) takes the unweighted supremum (maximum absolute vertical distance) over the entire domain \( x \in \mathbb{R} \):</p>
 
             <div class="equation-flow">
-                \[ D_n = \sup_x |\hat{F}_n(x) - F(x; \hat{\theta})| \]
+                \[ D_n = \sup_{x \in \mathbb{R}} \left|\hat{F}_n(x) - F(x; \theta_0)\right| = \max_{1 \le i \le n} \left\{ \max\left( \left|\frac{i}{n} - F(X_{(i)}; \theta_0)\right|, \, \left|\frac{i-1}{n} - F(X_{(i)}; \theta_0)\right| \right) \right\} \]
             </div>
 
-            <p>In contrast, the <strong>Anderson-Darling (AD) statistic</strong> integrates the squared difference across the entire domain, applying a critical penalty weighting function \( [F(x)(1-F(x))]^{-1} \) that aggressively magnifies discrepancies in the extreme tails (as \( F(x) \to 1 \) and \( F(x) \to 0 \)):</p>
+            <p>Why is \( D_n \) relatively insensitive to tail discrepancies? For any fixed \( x \), the random variable \( n\hat{F}_n(x) \) follows a Binomial distribution \( \text{Binomial}(n, F(x; \theta_0)) \). Consequently, the point-wise variance of the ECDF is:</p>
 
             <div class="equation-flow">
-                \[ A^2 = -n - \frac{1}{n}\sum_{i=1}^{n} (2i - 1)\left[\ln F(X_{(i)}) + \ln\left(1 - F(X_{(n+1-i)})\right)\right] \]
+                \[ \text{Var}\left(\hat{F}_n(x)\right) = \frac{F(x; \theta_0)\left(1 - F(x; \theta_0)\right)}{n} \]
+            </div>
+
+            <p>This variance reaches its maximum of \( \frac{0.25}{n} \) at the median (\( F(x) = 0.5 \)) and approaches \( 0 \) as \( F(x) \to 0 \) or \( F(x) \to 1 \). Because \( D_n \) applies a uniform weight of \( 1 \) across all quantiles, random vertical fluctuations of magnitude \( \sim \frac{0.5}{\sqrt{n}} \) near the median dominate the test statistic.</p>
+
+            <p>In contrast, the <strong>Anderson-Darling (AD) statistic</strong> \( A^2 \) belongs to the Cramér-von Mises quadratic family and weights the squared vertical discrepancy by the inverse of the local variance factor \( [F(x)(1 - F(x))]^{-1} \):</p>
+
+            <div class="equation-flow">
+                \[ \begin{aligned} A^2 &= n \int_{-\infty}^{\infty} \frac{\left(\hat{F}_n(x) - F(x; \theta_0)\right)^2}{F(x; \theta_0)\left(1 - F(x; \theta_0)\right)} \, dF(x; \theta_0) \\ &= -n - \frac{1}{n}\sum_{i=1}^{n} (2i - 1)\left[\ln F\left(X_{(i)}; \theta_0\right) + \ln\left(1 - F\left(X_{(n+1-i)}; \theta_0\right)\right)\right] \end{aligned} \]
+            </div>
+
+            <p>Because \( \ln(1 - F(X_{(n+1-i)}; \theta_0)) \) diverges toward \( -\infty \) as \( F(X_{(n)}; \theta_0) \to 1 \), the Anderson-Darling test gives substantially greater weight to observations in the upper and lower tails than the KS test. However, <strong>neither test guarantees detection of all practically important tail mismatches</strong>—especially if the sample size \( n \) is too small to observe the rare regime (\( n < \frac{1}{1 - q} \) for target quantile \( q \)) or if a dominant discrepancy in the bulk swamps a localized multimodal kink.</p>
+
+            <div class="scenario-card">
+                <div class="scenario-title">
+                    <span>Worked Example: Tail Divergence Under KS vs. AD</span>
+                    <span class="scenario-tag">Illustrative Engineering Model</span>
+                </div>
+                <p><strong>1. Production Scenario & Mechanism:</strong> Our Multi-Tenant Analytics Gateway serves \( 99.8\% \) of queries from warm Arrow memory caches following a Lognormal distribution with \( \mu = 4.605 \) (\(\text{median} = 100\text{ ms}\)) and \( \sigma = 0.782 \), which predicts a theoretical \( P_{99.9} = \exp(4.605 + 3.090 \times 0.782) \approx 1,120\text{ ms} \). However, \( 0.2\% \) of queries trigger cold object-storage partition compaction, pushing actual empirical latencies above \( P_{99.8} \) into a \( 4,500\text{ ms}–8,000\text{ ms} \) regime.</p>
+                <p><strong>2. Numerical Calculation (\( n = 1,000 \) traces):</strong></p>
+                <ul>
+                    <li>In a sample of \( n = 1,000 \) requests, only \( 2 \) observations (\( X_{(999)} = 4,800\text{ ms} \) and \( X_{(1000)} = 7,900\text{ ms} \)) fall into the compaction regime.</li>
+                    <li>At \( x = 1,120\text{ ms} \), the theoretical CDF is \( F(1120) = 0.9990 \), while the empirical ECDF is \( \hat{F}_{1000}(1120) = \frac{998}{1000} = 0.9980 \). The vertical CDF gap in the extreme tail is only \( |0.9980 - 0.9990| = 0.0010 \).</li>
+                    <li>Meanwhile, ordinary sampling fluctuation near the median (\( x \approx 100\text{ ms} \)) produces a vertical difference of \( D_{1000} = 0.028 \).</li>
+                    <li>For \( n = 1,000 \) at significance level \( \alpha = 0.05 \), the standard KS critical threshold is \( D_{\text{crit}} \approx \frac{1.358}{\sqrt{1000}} = 0.0429 \). Because \( D_{1000} = 0.028 < 0.0429 \), the KS test fails to reject \( H_0 \)—completely missing a \( 7\times \) latency blowout at \( P_{99.9} \).</li>
+                    <li>In the Anderson-Darling calculation, at \( X_{(1000)} = 7,900\text{ ms} \), the standardized \( z \)-score is \( z = \frac{\ln(7900) - 4.605}{0.782} = 5.587 \), where \( 1 - F(7900) \approx 1.15 \times 10^{-8} \) and \( \ln(1 - F(X_{(1000)})) \approx -18.28 \). Multiplying by \( (2n - 1)/n \approx 2 \) contributes \( +36.5 \) directly to \( A^2 \), pushing \( A^2 \) far past the \( \alpha = 0.05 \) critical value (\( 2.492 \)).</li>
+                </ul>
+                <p><strong>3. Architectural Decision:</strong> Never use a single unimodal distribution fit validated only by KS to provision timeout budgets or SLA commitments. Combine AD statistics with visual <strong>Quantile-Quantile (Q-Q) plots</strong> and stratified mixture modeling (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) to separate fast-path cache hits from slow-path compaction scans.</p>
             </div>
 
             <div class="math-explanation">
-                <strong>The Validation Trap & Large-n Paradox:</strong>
+                <strong>Three Mandatory Statistical Qualifications for Production Goodness-of-Fit:</strong>
                 <ul>
-                    <li><strong>Tail Blindness:</strong> If your empirical \( P_{99.9} \) is 8,000ms but your theoretical model predicts 2,000ms, the KS test will often pass because the absolute difference in cumulative probability is merely 0.001. The AD test catches this immediately.</li>
-                    <li><strong>Parametric Bootstrap Correction (Lilliefors):</strong> If you estimate parameters \( \hat{\theta} \) from the <em>same</em> telemetry sample you are testing against, standard KS/AD critical values are invalid (they assume pre-specified parameters). You must use Lilliefors correction or Monte Carlo bootstrapping.</li>
-                    <li><strong>The Large-n Paradox:</strong> In production telemetry, \( n = 10^6 \) traces is normal. At this scale, any goodness-of-fit test will yield \( p < 10^{-12} \) and reject the theoretical model over trivial 0.2ms deviations. Mathematical models are never perfect; they are abstractions. Complement formal tests with <strong>Q-Q (Quantile-Quantile) plots</strong> to evaluate practical, rather than strict statistical, conformance.</li>
+                    <li><strong>Simple vs. Composite Hypotheses (Lilliefors & Parametric Bootstrap):</strong> Standard KS and AD critical values assume the theoretical parameters \( \theta_0 \) were fully specified <em>before</em> looking at the data (e.g., from last week's baseline). If you estimate \( \hat{\theta} \) from the <em>same</em> sample you are testing, the fitted curve is pulled toward the data, making standard \( p \)-values overly conservative (inflating Type-II error). The classic <strong>Lilliefors correction</strong> adjusts critical values for this bias, but it applies only to specific location-scale families (such as the Normal or Exponential distributions, or Lognormal after log-transformation). For general multi-parameter distributions (Gamma, Weibull, Generalized Pareto), use distribution-specific calibrated tables or run a <strong>Parametric Bootstrap</strong>:
+                        <ol style="margin-top:0.4rem; margin-bottom:0.4rem;">
+                            <li>Fit parameters \( \hat{\theta} \) to your empirical sample of size \( n \) and compute the observed statistic \( T_{\text{obs}} \) (either \( D_n \) or \( A^2 \)).</li>
+                            <li>For \( b = 1 \dots B \) (e.g., \( B = 2,000 \)), generate a synthetic sample \( X^{*(b)}_1 \dots X^{*(b)}_n \sim F(x; \hat{\theta}) \).</li>
+                            <li><strong>Crucial step:</strong> Re-fit the parameters \( \hat{\theta}^{*(b)} \) on each synthetic replicate and compute \( T^{*(b)} \) comparing \( \hat{F}_n^{*(b)}(x) \) against \( F(x; \hat{\theta}^{*(b)}) \).</li>
+                            <li>Compute the calibrated \( p \)-value as \( \hat{p} = \frac{1}{B}\sum_{b=1}^B \mathbb{I}(T^{*(b)} \ge T_{\text{obs}}) \).</li>
+                        </ol>
+                    </li>
+                    <li><strong>The Large-\( n \) Paradox (Statistical vs. Operational Significance):</strong> In high-throughput services, \( n = 10^6 \) traces per minute is routine. Because \( D_{\text{crit}} \propto n^{-1/2} \), at \( n = 10^6 \) any deviation larger than \( 0.00136 \) yields \( p < 0.05 \). Real production latencies suffer from OS timer quantization, network packet framing, and minor diurnal drift; thus, at large \( n \), <em>every</em> parametric distribution is rejected with \( p < 10^{-12} \). Statistical significance measures whether you have enough data to detect a difference from an idealized curve; <strong>operational significance</strong> measures whether the quantile error \( |\hat{Q}_q - Q_q(\hat{\theta})| \) changes an engineering decision (such as buffer sizing or timeout configuration).</li>
+                    <li><strong>Quantile-Quantile (Q-Q) & Probability Plots:</strong> Always pair formal EDF tests with a Q-Q plot graphing empirical order statistics \( X_{(i)} \) on the vertical axis against theoretical quantiles \( F^{-1}\left(\frac{i - 0.5}{n}; \hat{\theta}\right) \) on the horizontal axis. If the points follow the \( y = x \) line up to \( P_{99} \) and then bend sharply upward, you have direct visual proof of a distinct heavy-tail mechanism or mixture population—regardless of what a single \( p \)-value reports.</li>
                 </ul>
             </div>
 
-            <h3>Interactive Simulation: ECDF Divergence</h3>
-            <p style="font-size: 0.92rem; color: var(--muted); margin-top: -0.5rem;"><em>Simulating empirical latencies against a theoretical CDF. Notice how max deviation (KS distance) typically occurs near the center, ignoring tail blowouts.</em></p>
+            <h3>Interactive Simulation: ECDF vs. Theoretical CDF (KS & AD Diagnostics)</h3>
 
             <div class="stage" data-sim-type="ecdf">
+                <div class="sim-header">
+                    <div class="sim-title">
+                        <span>Simulator 1: Empirical CDF Divergence & Tail Sensitivity</span>
+                        <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
+                    </div>
+                    <p class="sim-purpose">Compare a fixed theoretical baseline model \( \text{Lognormal}(\mu_0 = 0, \sigma_0 = 1.0) \) against synthetic empirical samples drawn from \( \text{Lognormal}(\mu = 0, \sigma_{\text{emp}}) \). Observe where the KS supremum \( D_n \) (red vertical bar) occurs versus how the Anderson-Darling statistic \( A^2 \) and empirical \( P_{99} \) respond when tail heaviness \( \sigma_{\text{emp}} \) diverges from the baseline.</p>
+                </div>
+
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Sample Size (n): <span id="v_n_ecdf">50</span></div>
-                            <input type="range" id="n_ecdf" aria-label="Sample size" min="10" max="200" step="10" value="50">
+                            <label for="n_ecdf">Sample Size (\( n \) traces): <span id="v_n_ecdf">60</span></label>
+                            <input type="range" id="n_ecdf" aria-label="Sample size n in traces" min="20" max="300" step="10" value="60">
                         </div>
                         <div class="param-group">
-                            <div>Tail Heaviness: <span id="v_tail_ecdf">1.0</span></div>
-                            <input type="range" id="tail_ecdf" aria-label="Lognormal sigma" min="0.5" max="2.0" step="0.1" value="1.0">
+                            <label for="tail_ecdf">Empirical Tail (\( \sigma_{\text{emp}} \)): <span id="v_tail_ecdf">1.0</span></label>
+                            <input type="range" id="tail_ecdf" aria-label="Empirical Lognormal sigma parameter" min="0.6" max="1.8" step="0.1" value="1.0">
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Generate Sample</button>
+                        <button type="button" class="sim-btn btn-run">▶ Draw Sample</button>
+                        <button type="button" class="sim-btn secondary btn-reset">↺ Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" role="img" aria-label="Plot of Empirical vs Theoretical CDF"></canvas>
+
+                <canvas class="sim-canvas" role="img" aria-label="Plot comparing Empirical CDF step function in teal against Theoretical Lognormal CDF in amber, highlighting maximum vertical KS distance in red."></canvas>
+
                 <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>KS Distance (Supremum): <span class="stat-ks">–</span></div>
+                    <div>Sample Size (\( n \)): <span class="stat-n">60</span></div>
+                    <div>KS Distance (\( D_n \)): <span class="stat-ks">–</span></div>
+                    <div>KS Crit (\( \alpha=0.05 \)): <span class="stat-kscrit">–</span></div>
+                    <div>AD Stat (\( A^2 \)): <span class="stat-ad">–</span></div>
+                    <div>Theo \( P_{99} \) (\(\sigma_0=1\)): <span class="stat-tp99">10.24 ms</span></div>
+                    <div>Emp \( P_{99} \): <span class="stat-ep99">–</span></div>
+                </div>
+
+                <div class="sim-meta-footer">
+                    <p><strong>Assumptions:</strong> Fixed null model \( H_0: X \sim \text{Lognormal}(\mu_0=0, \sigma_0=1.0) \) (amber curve, theoretical \( P_{99} = e^{2.326} \approx 10.24\text{ ms} \), \( \alpha=0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx 1.358/\sqrt{n} \), and AD critical value \( A^2_{\text{crit}} = 2.492 \)).</p>
+                    <p><strong>Engineering Interpretation:</strong> Set \( \sigma_{\text{emp}} = 1.4 \) or \( 1.5 \) at \( n = 50 \). Notice how Empirical \( P_{99} \) jumps to \( 20\text{ ms}–35\text{ ms} \) (\( 2\times–3\times \) above baseline) and \( A^2 \) frequently breaches \( 2.492 \), yet \( D_n \) often stays below \( D_{\text{crit}} \) with its red supremum bar pinned near the center (\( 1\text{ ms}–4\text{ ms} \)).</p>
                 </div>
             </div>
 
             <!-- ========================================== -->
             <!-- 2. RESIDUALS & DRIFT -->
             <!-- ========================================== -->
-            <h2>2. Residuals, CUSUM, and the Mathematics of Drift</h2>
+            <h2>2. Stationarity, Residual Diagnostics, and Calibrated CUSUM Drift Detection</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Detecting the Submarine</div>
+                <div class="tldr-eyebrow">The Intuition: Catching the Slow Leak Before the Outage</div>
                 <div class="tldr-content">
-                    <p>Static threshold alerts (e.g., "Alert if \( P_{99} > 500\text{ms} \)") are reactive and noisy. They miss quiet, chronic degradation—like a new tenant silently dragging the gateway cache-hit ratio from 92% to 84% over a week. The latency stays under the SLA, but CPU utilization is boiling the frog.</p>
-                    <p>To detect these shifts before they become outages, SREs employ <strong>Change-Point Detection</strong> on the time-series residuals using EWMA and Page's CUSUM algorithms.</p>
+                    <p>Every probability distribution from Parts 1–6 assumes the underlying stochastic process is <strong>stationary</strong> over the analysis window—meaning its true parameters (mean \( \mu \), variance \( \sigma^2 \), tail exponent \( \alpha \)) are constant over time. In production, stationarity is constantly violated by diurnal traffic waves, background compaction, and gradual resource leaks.</p>
+                    <p>Static point alerts (e.g., "Page if \( P_{99} > 500\text{ ms} \)") cannot detect a canary deployment that shifts mean query latency from \( 50\text{ ms} \) to \( 58\text{ ms} \) against a background standard deviation of \( \sigma_0 = 10\text{ ms} \). Single-point measurements stay buried inside the \( \pm 3\sigma_0 \) noise band until connection pools saturate days later. To catch subtle persistent shifts early, we standardize the time-series residuals and apply <strong>Page's Cumulative Sum (CUSUM)</strong> control chart.</p>
                 </div>
             </div>
 
-            <p>We smooth raw operational metrics \( x_t \) via an <strong>Exponentially Weighted Moving Average (EWMA)</strong> to isolate signal from aleatory noise:</p>
+            <h3>Step 1: Testing Independence via Residual Autocorrelation (ACF)</h3>
+
+            <p>Before running any change-point detector or EDF test, we must verify whether consecutive observations are independent. Suppose we observe a latency or utilization time series \( x_1, x_2, \dots, x_T \) aggregated at regular intervals (e.g., 1-minute windows) and subtract our baseline seasonal prediction \( \hat{\mu}_t \) to obtain raw residuals \( e_t = x_t - \hat{\mu}_t \). The sample <strong>Autocorrelation Function (ACF)</strong> at lag \( \tau \) measures linear serial dependence:</p>
 
             <div class="equation-flow">
-                \[ Z_t = \lambda_{\text{ewma}} x_t + (1 - \lambda_{\text{ewma}}) Z_{t-1} \]
+                \[ \hat{\rho}(\tau) = \frac{\sum_{t=1}^{T-\tau} \left(e_t - \bar{e}\right)\left(e_{t+\tau} - \bar{e}\right)}{\sum_{t=1}^{T} \left(e_t - \bar{e}\right)^2}, \quad \text{for } \tau = 1, 2, \dots \]
             </div>
 
-            <p>To detect subtle positive drift (mean shifting upwards) against a baseline \( \mu_0 \), we accumulate persistent errors using <strong>Page's CUSUM (Cumulative Sum)</strong>:</p>
+            <p>Under the null hypothesis that the residuals \( e_t \) are uncorrelated white noise, \( \hat{\rho}(\tau) \) is approximately normally distributed with mean \( 0 \) and standard error \( 1/\sqrt{T} \). If \( |\hat{\rho}(\tau)| > \frac{1.96}{\sqrt{T}} \), the residuals exhibit statistically significant serial correlation:</p>
+
+            <ul>
+                <li><strong>Periodic Spikes at Fixed Lag \( \tau \):</strong> A spike in \( \hat{\rho}(\tau) \) at \( \tau = 15\text{ minutes} \) or \( \tau = 60\text{ minutes} \) reveals deterministic background interference—such as RocksDB/Iceberg manifest compaction, JVM major garbage collection, or scheduled cron jobs—that violates the i.i.d. assumption.</li>
+                <li><strong>Slow Positive Decay Across Lags \( \tau = 1, 2, \dots, 10 \):</strong> Indicates persistent queue backlog carryover (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) or non-stationary baseline drift. Positive autocorrelation drastically reduces the effective sample size \( n_{\text{eff}} = \frac{n}{1 + 2\sum_{\tau=1}^{\infty} \rho(\tau)} \), causing standard CUSUM and KS tests to fire false alarms unless the series is pre-whitened (e.g., via an autoregressive AR(1) filter) or evaluated over larger block intervals.</li>
+            </ul>
+
+            <h3>Step 2: Smoothing vs. Accumulating (EWMA and Standardized CUSUM)</h3>
+
+            <p>To visualize noisy operational telemetry, engineers commonly apply an <strong>Exponentially Weighted Moving Average (EWMA)</strong> with smoothing weight \( \lambda_{\text{ewma}} \in (0, 1] \) (typically \( 0.10 \le \lambda_{\text{ewma}} \le 0.25 \)):</p>
 
             <div class="equation-flow">
-                \[ S_t = \max\left(0, \ S_{t-1} + (x_t - \mu_0 - k)\right) \]
+                \[ Z_t = \lambda_{\text{ewma}} x_t + \left(1 - \lambda_{\text{ewma}}\right) Z_{t-1}, \quad Z_0 = \mu_0 \]
             </div>
+
+            <p>For i.i.d. observations with baseline mean \( \mu_0 \) and baseline variance \( \sigma_0^2 \), the asymptotic variance of the smoothed EWMA statistic is \( \text{Var}(Z_t) = \sigma_0^2 \left(\frac{\lambda_{\text{ewma}}}{2 - \lambda_{\text{ewma}}}\right) \). While EWMA provides an intuitive smoothed trend line, <strong>Page's Tabular CUSUM</strong> is derived directly from Wald's Sequential Probability Ratio Test (SPRT) and is mathematically optimal for minimizing expected detection delay for a persistent step shift.</p>
+
+            <p>To make CUSUM parameters portable across metrics with different physical units (milliseconds, CPU percentage, error rates), we first compute the dimensionless <strong>standardized residual</strong> \( z_t \) using the healthy baseline mean \( \mu_0 \) and baseline standard deviation \( \sigma_0 \):</p>
+
+            <div class="equation-flow">
+                \[ \begin{aligned} z_t &= \frac{x_t - \mu_0}{\sigma_0} \\ S_t^+ &= \max\left(0, \, S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0 \end{aligned} \]
+            </div>
+
+            <p>where \( S_t^+ \) is the upper one-sided CUSUM accumulator (a symmetric lower accumulator \( S_t^- = \max(0, S_{t-1}^- - z_t - k) \) detects downward drops, such as a falling cache-hit ratio). Every variable in this equation has a precise operational meaning:</p>
 
             <div class="math-explanation">
-                <strong>The Mechanics of CUSUM:</strong>
+                <strong>Calibrating CUSUM Parameters (\( \sigma_0, \delta, k, h \)) and Average Run Length (ARL):</strong>
                 <ul>
-                    <li><strong>Slack Parameter (\( k \)):</strong> Represents allowable noise (typically \( 0.5\sigma \)). If the metric \( x_t \) exceeds \( \mu_0 + k \), the sum \( S_t \) begins to grow.</li>
-                    <li><strong>Reset to Zero:</strong> The \( \max(0, \dots) \) bounds the lower limit. If the system is healthy, random noise cancels out and \( S_t \) repeatedly pins to zero.</li>
-                    <li><strong>Threshold Alerting (\( h \)):</strong> When \( S_t > h \), an alarm fires. CUSUM is mathematically optimal for detecting small, persistent mean shifts that hide deep inside standard deviation bands.</li>
+                    <li><strong>Standardized Shift Magnitude (\( \delta \)):</strong> If we want to detect an upward mean shift from \( \mu_0 \) to \( \mu_1 = \mu_0 + \Delta\mu \), the standardized shift size is \( \delta = \frac{\Delta\mu}{\sigma_0} \) (measured in units of baseline standard deviation \( \sigma_0 \)). For example, if baseline latency is \( \mu_0 = 50\text{ ms} \) with \( \sigma_0 = 10\text{ ms} \), a \( +8\text{ ms} \) shift (\( +16\% \) of the mean) corresponds to \( \delta = \frac{8\text{ ms}}{10\text{ ms}} = 0.8\sigma_0 \).</li>
+                    <li><strong>Reference Value / Slack Parameter (\( k \)):</strong> Derived from the likelihood ratio between \( H_0: \mathbb{E}[z_t] = 0 \) and \( H_1: \mathbb{E}[z_t] = \delta \) under Gaussian noise, the optimal reference value is exactly half the target standardized shift:
+                        \[ k = \frac{\delta}{2} = \frac{\Delta\mu}{2\sigma_0} \]
+                        When the system is healthy (\( \mathbb{E}[z_t] = 0 \)), the expected drift per step is negative (\( \mathbb{E}[z_t - k] = -k < 0 \)), so \( S_t^+ \) repeatedly resets to \( 0 \). When the shift \( \delta \) occurs, the expected drift per step becomes positive (\( \mathbb{E}[z_t - k] = \delta - k = +\frac{\delta}{2} > 0 \)), causing \( S_t^+ \) to climb linearly. (In raw metric units, the unstandardized slack is \( K = k\sigma_0 = \Delta\mu / 2 \).)</li>
+                    <li><strong>Decision Threshold (\( h \)) and False-Alarm Behavior (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)):</strong> An alert triggers when \( S_t^+ > h \) (or in raw units, \( H = h\sigma_0 \)). You must never pick an arbitrary threshold like \( 4.0 \) without evaluating the <strong>Average Run Length (ARL)</strong>:
+                        <ul>
+                            <li><strong>In-Control \(\text{ARL}_0\):</strong> The expected number of sampling intervals before a <em>false alarm</em> occurs when no shift has happened (\( \delta = 0 \)).</li>
+                            <li><strong>Out-of-Control \(\text{ARL}_1\):</strong> The expected number of intervals required to <em>detect the shift</em> after a true shift of size \( \delta \) occurs, roughly approximated by Siegmund's formula or \( \text{ARL}_1 \approx \frac{h + 1.166}{\delta - k} \) for \( \delta > k \).</li>
+                        </ul>
+                        For i.i.d. Gaussian residuals with \( k = 0.5\sigma_0 \) (tuned for a \( \delta = 1.0\sigma_0 \) shift), setting \( h = 4.0\sigma_0 \) yields \( \text{ARL}_0 \approx 336 \) steps, while setting \( h = 5.0\sigma_0 \) yields \( \text{ARL}_0 \approx 930 \) steps and \( \text{ARL}_1 \approx 10.4 \) steps. At a 1-minute scrape interval, \( \text{ARL}_0 = 336 \) means one false alarm every \( 5.6 \) hours! Therefore, in 24/7 production monitoring, \( h = 4.0\sigma_0 \) is appropriate for a <em>30-minute deployment canary window</em>, whereas continuous paging alerts require \( h \ge 5.5\sigma_0–6.5\sigma_0 \) or multi-window confirmation.</li>
                 </ul>
             </div>
 
-            <h3>Interactive Simulation: CUSUM Drift Detection</h3>
-            <p style="font-size: 0.92rem; color: var(--muted); margin-top: -0.5rem;"><em>We inject a subtle +8% drift into the baseline signal halfway through the time series. Watch how CUSUM amplifies this hidden shift into a blazing alert.</em></p>
+            <h3>Interactive Simulation: Standardized Page's CUSUM Drift Detector</h3>
 
             <div class="stage" data-sim-type="cusum">
+                <div class="sim-header">
+                    <div class="sim-title">
+                        <span>Simulator 2: Standardized CUSUM Change-Point Detection</span>
+                        <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
+                    </div>
+                    <p class="sim-purpose">Observe how standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) detects a persistent step shift injected at time step \( t = 50 \). Both the injected drift \( \delta = \Delta\mu / \sigma_0 \), the slack parameter \( k \), and the decision threshold \( h = 4.0 \) are expressed in dimensionless baseline standard deviation units (\( \sigma_0 \)).</p>
+                </div>
+
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <div>Drift Injection: <span id="v_drift_cusum">0.8</span></div>
-                            <input type="range" id="drift_cusum" aria-label="Mean drift size" min="0.0" max="3.0" step="0.1" value="0.8">
+                            <label for="drift_cusum">Injected Shift (\( \delta \) in \( \sigma_0 \)): <span id="v_drift_cusum">0.8</span></label>
+                            <input type="range" id="drift_cusum" aria-label="Injected mean shift delta in sigma units" min="0.0" max="2.5" step="0.1" value="0.8">
                         </div>
                         <div class="param-group">
-                            <div>Slack (k): <span id="v_k_cusum">0.5</span></div>
-                            <input type="range" id="k_cusum" aria-label="CUSUM slack parameter" min="0.1" max="2.0" step="0.1" value="0.5">
+                            <label for="k_cusum">Slack Reference (\( k \) in \( \sigma_0 \)): <span id="v_k_cusum">0.4</span></label>
+                            <input type="range" id="k_cusum" aria-label="CUSUM slack reference k in sigma units" min="0.1" max="1.5" step="0.1" value="0.4">
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Generate Series</button>
+                        <button type="button" class="sim-btn btn-run">▶ Generate Series</button>
+                        <button type="button" class="sim-btn secondary btn-reset">↺ Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" role="img" aria-label="Plot of Raw Signal vs CUSUM Accumulator"></canvas>
+
+                <canvas class="sim-canvas" role="img" aria-label="Time series plot showing standardized residual signal z_t in grey, CUSUM accumulator S_t in amber, and decision threshold h=4.0 in red."></canvas>
+
                 <div class="readout" aria-live="polite">
-                    <div>Time Steps: <span class="stat-n">100</span></div>
-                    <div>Alert Triggered: <span class="stat-alert" id="cusum_alert">False</span></div>
+                    <div>Steps (\( T \)): <span class="stat-n">100 (Shift @ t=50)</span></div>
+                    <div>Threshold (\( h \)): <span>4.00 &sigma;<sub>0</sub></span></div>
+                    <div>Peak \( S_t^+ \): <span class="stat-maxs">–</span></div>
+                    <div>Theo Delay (\(\approx \text{ARL}_1\)): <span class="stat-arl1">–</span></div>
+                    <div>Sim Detection Delay: <span class="stat-delay">–</span></div>
+                    <div>Alert Status: <span class="stat-alert" id="cusum_alert">–</span></div>
+                </div>
+
+                <div class="sim-meta-footer">
+                    <p><strong>Assumptions:</strong> Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (representing e.g. \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Decision threshold is fixed at \( h = 4.0\sigma_0 \).</p>
+                    <p><strong>Engineering Interpretation:</strong> At default \( \delta = 0.8\sigma_0 \) and optimal slack \( k = \delta/2 = 0.4\sigma_0 \), individual grey observations \( z_t \) rarely cross a static \( +3\sigma_0 \) line, yet the amber accumulator \( S_t^+ \) crosses \( h = 4.0\sigma_0 \) in roughly \( 10–14 \) steps after \( t = 50 \). Set \( \delta = 0.0 \) and reduce \( k \) to \( 0.1 \) to see how insufficient slack triggers false alarms purely from baseline aleatory noise.</p>
                 </div>
             </div>
 
             <!-- ========================================== -->
             <!-- 3. HYPERGEOMETRIC FLEET AUDITING -->
             <!-- ========================================== -->
-            <h2>3. Hypergeometric Reality: Auditing Finite Fleets</h2>
+            <h2>3. Hypergeometric Reality: Auditing Finite Infrastructure Fleets</h2>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Sampling Without Replacement</div>
                 <div class="tldr-content">
-                    <p>The Binomial distribution assumes drawing with replacement from an infinite population. But infrastructure fleets are distinctly finite. When auditing 20 worker nodes out of a cluster of 50, every node you inspect alters the probability for the next draw. Applying infinite-population math to finite infrastructure audits drastically overstates variance, leading to panic over non-existent SLA violations.</p>
+                    <p>The Binomial distribution assumes independent Bernoulli trials drawn <em>with replacement</em> (or from an effectively infinite population). While that assumption holds when sampling \( 1,000 \) HTTP requests out of \( 50\text{ million} \), infrastructure fleets, storage shards, and enterprise tenant pools are strictly finite.</p>
+                    <p>When you audit \( n = 20 \) worker nodes out of a \( N = 50 \) node cluster without replacement, every healthy or defective node you inspect changes the conditional probability for the next draw. Treating finite-fleet audits as independent Binomial trials systematically overstates sample variance—inflating confidence intervals or triggering false compliance alarms.</p>
                 </div>
             </div>
 
-            <p>The probability of observing exactly \( k \) defective instances when drawing a sample of size \( n \) without replacement from a finite fleet of \( N \) total instances containing \( K \) total defectives is modeled by the <strong>Hypergeometric PMF</strong>:</p>
+            <p>Consider a finite population of \( N \) total units (nodes, shards, or enterprise tenants) containing an unknown integer number \( K \) of defective units (where the true population defect proportion is \( p = \frac{K}{N} \)). If we draw a simple random sample of \( n \) distinct units <em>without replacement</em>, the exact probability of observing \( X = k \) defective units in our audit sample is governed by the <strong>Hypergeometric Probability Mass Function (PMF)</strong>:</p>
 
             <div class="equation-flow">
-                \[ P(X = k) = \frac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}} \quad \text{and} \quad \mathbb{E}[X] = n\frac{K}{N} \]
+                \[ P(X = k) = \frac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}}, \quad \text{for } \max(0, \, n - (N - K)) \le k \le \min(n, K) \]
             </div>
 
-            <p>The exact variance of the audit sample introduces the crucial <strong>Finite Population Correction (FPC)</strong> factor \( \frac{N - n}{N - 1} \):</p>
+            <p>While the expected number of observed defects is identical to the Binomial expectation, the exact variance is scaled down by the <strong>Finite Population Correction (FPC)</strong> factor \( \frac{N - n}{N - 1} \):</p>
 
             <div class="equation-flow">
-                \[ \text{Var}(X) = n\left(\frac{K}{N}\right)\left(1 - \frac{K}{N}\right)\left(\frac{N - n}{N - 1}\right) \]
+                \[ \begin{aligned} \mathbb{E}[X] &= n\left(\frac{K}{N}\right) = np \\ \text{Var}_{\text{hyp}}(X) &= n\left(\frac{K}{N}\right)\left(1 - \frac{K}{N}\right)\left(\frac{N - n}{N - 1}\right) = \text{Var}_{\text{bin}}(X) \cdot \left(\frac{N - n}{N - 1}\right) \end{aligned} \]
             </div>
 
-            <div class="math-explanation">
-                <strong>Numerical Proof: Why Binomial Approximations Fail</strong>
-                <p>Let your system host \( N = 50 \) enterprise tenants, where \( K = 5 \) (10% defect rate) are actively experiencing a latent data corruption bug. You audit a sample of \( n = 20 \) tenants (40% of the population).</p>
+            <p>Correspondingly, for the sample defect proportion \( \hat{p} = \frac{X}{n} \), the exact standard error is:</p>
+
+            <div class="equation-flow">
+                \[ \text{SE}_{\text{hyp}}(\hat{p}) = \sqrt{\frac{p(1 - p)}{n} \left(\frac{N - n}{N - 1}\right)} \]
+            </div>
+
+            <p>Notice the boundary conditions of the FPC factor \( \frac{N - n}{N - 1} \): when \( n = 1 \), the factor equals \( 1 \) (identical to a single Bernoulli trial); when you audit the entire fleet (\( n = N \)), the factor equals \( 0 \)—because all aleatory sampling uncertainty vanishes once every unit has been inspected!</p>
+
+            <div class="scenario-card">
+                <div class="scenario-title">
+                    <span>Worked Example: Enterprise Tenant Snapshot Verification</span>
+                    <span class="scenario-tag">Illustrative Engineering Model</span>
+                </div>
+                <p><strong>1. Engineering Problem & Context:</strong> Our Multi-Tenant Analytics Gateway hosts \( N = 50 \) dedicated enterprise tenant Iceberg catalogs. Following a metadata migration, an offline reconciliation job deep-scans a random audit sample of \( n = 20 \) tenant catalogs without replacement to verify snapshot checksum integrity. Suppose the migration pipeline has a baseline defect rate affecting \( K = 5 \) tenants (\( p = \frac{5}{50} = 0.10 \)).</p>
+                <p><strong>2. Reproducible Calculation:</strong></p>
                 <ul>
-                    <li><strong>Naive Binomial Variance:</strong> \( np(1-p) = 20(0.1)(0.9) = 1.8 \)</li>
-                    <li><strong>Exact Hypergeometric Variance:</strong> \( 1.8 \times \frac{50 - 20}{50 - 1} = 1.8 \times \frac{30}{49} = 1.102 \)</li>
+                    <li><strong>Expected Defective Tenants in Audit:</strong> \( \mathbb{E}[X] = 20 \times \frac{5}{50} = 2.0\text{ tenants} \).</li>
+                    <li><strong>Naive Binomial Variance (assuming replacement):</strong>
+                        \[ \text{Var}_{\text{bin}}(X) = np(1 - p) = 20(0.10)(0.90) = 1.800 \implies \text{SE}_{\text{bin}}(X) = \sqrt{1.800} \approx 1.342\text{ tenants} \]
+                    </li>
+                    <li><strong>Exact Hypergeometric Variance (without replacement):</strong>
+                        \[ \text{Var}_{\text{hyp}}(X) = 1.800 \times \left(\frac{50 - 20}{50 - 1}\right) = 1.800 \times \frac{30}{49} \approx 1.102 \implies \text{SE}_{\text{hyp}}(X) = \sqrt{1.102} \approx 1.050\text{ tenants} \]
+                    </li>
+                    <li><strong>Upper-Tail Probability Discrepancy:</strong> Under the naive Binomial model, there is a non-zero probability of observing \( k = 6, 7, \dots, 20 \) corrupted tenants (\( P_{\text{bin}}(X \ge 6) \approx 0.0113 \)). Under the true Hypergeometric distribution, since only \( K = 5 \) corrupted tenants exist in the entire fleet, \( P_{\text{hyp}}(X \ge 6) = 0 \) strictly. Even for \( k = 5 \), \( P_{\text{hyp}}(X = 5) = \frac{\binom{5}{5}\binom{45}{15}}{\binom{50}{20}} \approx 0.0073 \) versus \( P_{\text{bin}}(X = 5) \approx 0.0319 \) (overstated by \( 4.4\times \)).</li>
                 </ul>
-                <p>Whenever you sample more than 5% of a finite population (\( n/N > 0.05 \)), the Binomial approximation fundamentally breaks. In this scenario, assuming independent binomial trials overstates the variance by ~63%. You will calculate confidence intervals that are far too wide, trigger false PagerDuty alerts, and misallocate SRE hours to anomalies that are strictly mathematically impossible given the finite bounds of the fleet.</p>
+                <p><strong>3. Qualifying the \( 5\% \) Rule of Thumb (\( n/N > 0.05 \)):</strong> Many statistics textbooks state a rule of thumb to apply the Finite Population Correction whenever the sampling fraction exceeds \( 5\% \) (\( f = n/N > 0.05 \)). <strong>This \( 5\% \) threshold is a practical convention, not a fundamental mathematical discontinuity.</strong> The variance scaling factor \( \frac{N-n}{N-1} \approx 1 - f \) varies smoothly with \( f \). At \( f = 0.05 \), omitting the FPC overstates the variance by \( \approx 5.3\% \) and the standard error by \( \approx 2.5\% \) (\(\sqrt{1/0.95} \approx 1.026\)). At \( f = 0.40 \) (as in our \( n = 20, N = 50 \) audit), omitting the FPC overstates the variance by \( \frac{49}{30} - 1 = 63.3\% \) and the standard error by \( 27.8\% \). Whether you need the FPC (or exact Hypergeometric tail probabilities) depends on your sampling fraction \( n/N \) and the required precision of your operational decision.</p>
             </div>
 
             <!-- ========================================== -->
             <!-- 4. TELEMETRY CENSORING -->
             <!-- ========================================== -->
-            <h2>4. Telemetry Defects, Censoring, and Aggregation Bias</h2>
+            <h2>4. Telemetry Defects: Right-Censoring and Percentile Aggregation Bias</h2>
 
-            <p>Even the most rigorous EDF and CUSUM models are completely blind to systematic measurement errors hiding in the observability stack.</p>
+            <p>Even the most sophisticated goodness-of-fit test or CUSUM detector will produce garbage conclusions if the underlying observability pipeline systematically distorts the random variable before it reaches your database. Two measurement defects are pervasive in production telemetry: <strong>Type-I Right-Censoring</strong> and <strong>Percentile Aggregation Bias</strong>.</p>
 
             <div class="scenario-card">
-                <div class="scenario-title">Right-Censoring: The Timeout Mirage</div>
-                <p>If an API gateway enforces a hard timeout at \( T_{\max} = 30\text{s} \), the observed latency random variable is actually \( Y = \min(X, T_{\max}) \). The observed mean \( \mathbb{E}[Y] \) is strictly less than the true mean \( \mathbb{E}[X] \). During a severe database lock contention event, true latency might stretch to 120s. The dashboard, dropping or bounding these errors, reports a "healthy" \( P_{99} \) of 29.5s. <strong>Never evaluate latency distributions without plotting the error-rate overlay.</strong></p>
+                <div class="scenario-title">
+                    <span>Defect 1: Type-I Right-Censoring and Truncation (The Timeout Mirage)</span>
+                    <span class="scenario-tag scenario-tag--warn">Telemetry Distortion</span>
+                </div>
+                <p>Suppose the true uncensored service time of a query is the random variable \( X \) with density \( f(x; \theta) \) and CDF \( F(x; \theta) \). However, the API gateway enforces a hard deadline timeout at \( T_{\max} = 30,000\text{ ms} \). The telemetry system never observes \( X \) above \( T_{\max} \); instead, it observes the <strong>Type-I Right-Censored</strong> pair \( (Y_i, \delta_i) \):</p>
+                <div class="equation-flow">
+                    \[ Y_i = \min\left(X_i, \, T_{\max}\right), \quad \delta_i = \mathbb{I}\left(X_i < T_{\max}\right) \]
+                </div>
+                <p>where \( \delta_i = 1 \) if the request completed normally and \( \delta_i = 0 \) if it timed out at \( T_{\max} \). Two distinct failures occur in standard dashboards:</p>
+                <ul>
+                    <li><strong>Success-Only Truncation Bias:</strong> Many APM tools compute latency percentiles exclusively over successful (`HTTP 200`) responses (\(\delta_i = 1\)), routing `HTTP 504` timeouts to a separate error counter. Mathematically, this plots the truncated conditional distribution \( F(x \mid X < T_{\max}) = \frac{F(x)}{F(T_{\max})} \). During a severe lock contention incident where \( 15\% \) of queries would have taken \( 120\text{ s} \) and time out at \( 30\text{ s} \), dropping those timeouts can actually make the "successful request \( P_{99} \)" appear healthy or even <em>decrease</em>!</li>
+                    <li><strong>Clipped Right-Censoring Bias:</strong> Even if timeouts are included in the latency histogram at \( Y_i = 30,000\text{ ms} \), fitting a parametric model by standard Maximum Likelihood \( \sum \ln f(y_i; \theta) \) treats a clipped timeout at \( 30\text{ s} \) as an exact completion at \( 30\text{ s} \), severely underestimating the tail parameter.</li>
+                </ul>
+                <p><strong>The Mathematical & Architectural Fix:</strong> To estimate distribution parameters \( \theta \) accurately under right-censoring, use the <strong>Censored Survival Log-Likelihood</strong> (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>), where uncensored completions contribute density \( f(y_i; \theta) \) and timed-out requests contribute the survival probability \( S(T_{\max}; \theta) = 1 - F(T_{\max}; \theta) \):</p>
+                <div class="equation-flow">
+                    \[ \ell(\theta) = \sum_{i=1}^{n} \left[ \delta_i \ln f(y_i; \theta) + (1 - \delta_i) \ln \left(1 - F(T_{\max}; \theta)\right) \right] \]
+                </div>
+                <p>Operationally, never evaluate a latency quantile chart without overlaying the timeout/rejection rate, or assign timed-out requests an explicit sentinel bucket above \( T_{\max} \) so that whenever timeout rates exceed \( 1 - q \) (e.g., \( > 1\% \) for \( P_{99} \)), the \( P_{99} \) chart visibly pins to the timeout ceiling \( \ge T_{\max} \).</p>
             </div>
 
             <div class="scenario-card">
-                <div class="scenario-title">Aggregation Bias: The Average of Percentiles</div>
-                <p>A Kubernetes cluster runs 10 Gateway pods. Each pod independently calculates its local \( P_{99} \) latency over a 1-minute window, resulting in values like <code>[120ms, 110ms, 150ms...]</code>. The Datadog/Prometheus dashboard then plots the <em>average</em> of these 10 values. <strong>Mathematically, \( P_{99}(A \cup B) \neq \frac{P_{99}(A) + P_{99}(B)}{2} \).</strong> Averaging percentiles completely destroys the heavy tail. Accurate global quantiles must be computed by merging raw histogram buckets (e.g., DDSketch or HDRHistogram).</p>
+                <div class="scenario-title">
+                    <span>Defect 2: Averaging Percentiles vs. Sketch Merging (HDRHistogram vs. DDSketch)</span>
+                    <span class="scenario-tag scenario-tag--warn">Aggregation Bias</span>
+                </div>
+                <p>Suppose our Analytics Gateway runs across \( M = 10 \) Kubernetes pods. Each pod \( m \) processes \( N_m \) requests per minute with local CDF \( F_m(x) \) and emits its local 99th percentile \( Q_{0.99}(F_m) = F_m^{-1}(0.99) \). A common anti-pattern in Prometheus or Datadog queries is taking the arithmetic mean `avg(p99_latency_by_pod)` across the 10 pods.</p>
+                <p><strong>Why Averaging Percentiles is Mathematically Invalid:</strong> The quantile operator \( F^{-1}(q) \) is non-linear. For a cluster where pod \( m \) handles traffic fraction \( w_m = \frac{N_m}{\sum_{j=1}^M N_j} \), the true global CDF is the mixture distribution:</p>
+                <div class="equation-flow">
+                    \[ F_{\text{global}}(x) = \sum_{m=1}^{M} w_m F_m(x), \quad \text{and} \quad Q_{q,\text{global}} = F_{\text{global}}^{-1}(q) \neq \sum_{m=1}^{M} w_m F_m^{-1}(q) \]
+                </div>
+                <p><strong>Concrete Numerical Proof:</strong> Suppose 9 pods are healthy and each process \( 1,000\text{ req/min} \) with \( 99\% \) of requests at \( 50\text{ ms} \) and \( 1\% \) at \( 100\text{ ms} \) (local \( P_{99} = 100\text{ ms} \)). Pod 10 hits a hot-key partition (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>) and processes \( 1,000\text{ req/min} \) where \( 85\% \) take \( 50\text{ ms} \) and \( 15\% \) (\( 150\text{ requests} \)) take \( 1,080\text{ ms} \) (local \( P_{99} = 1,080\text{ ms} \)).</p>
+                <ul>
+                    <li><strong>Naive Average of Pod \( P_{99} \)s:</strong> \( \frac{9(100\text{ ms}) + 1(1080\text{ ms})}{10} = 198\text{ ms} \).</li>
+                    <li><strong>True Global \( P_{99} \) Across All \( 10,000 \) Requests:</strong> Out of \( 10,000 \) total cluster requests, \( 150 \) requests (\( 1.5\% \) of the entire cluster traffic!) took \( 1,080\text{ ms} \). Thus, the 9,900th ordered request lies squarely inside that slow population: \( Q_{0.99,\text{global}} = 1,080\text{ ms} \). Averaging the pod percentiles under-reported the true cluster \( P_{99} \) by \( 5.45\times \)!</li>
+                </ul>
+                <p><strong>Choosing the Right Mergeable Representation (HDRHistogram vs. DDSketch):</strong> To compute valid global quantiles, pods must emit mergeable bucket counts so the aggregator can sum bucket frequencies \( C_{\text{global}}[b] = \sum_{m=1}^M C_m[b] \) before inverting the CDF. However, the two dominant industry structures have distinct engineering semantics and should not be treated as interchangeable:</p>
+                <ul>
+                    <li><strong>HDRHistogram (High Dynamic Range Histogram):</strong> Uses a linear-within-power-of-two bucket layout backed by fixed-size integer arrays. You must pre-declare a bounded dynamic range \( [x_{\min}, x_{\max}] \) (e.g., \( 1\text{ }\mu\text{s} \) to \( 3,600\text{ s} \)) and the number of significant decimal digits of resolution (e.g., 3 significant figures, giving \( \approx 0.1\% \) relative resolution). It offers zero allocation during recording and ultra-fast bitwise indexing, making it ideal for benchmark harnesses and bounded-latency services where \( x_{\max} \) is known via hard timeouts.</li>
+                    <li><strong>DDSketch (Distributed Quantile Sketch):</strong> Maps continuous values \( x > 0 \) into logarithmically sized buckets using index \( b(x) = \lceil \log_{\gamma}(x) \rceil \), where \( \gamma = \frac{1 + \alpha}{1 - \alpha} \). This provides a strict mathematical <strong>relative-error guarantee</strong> \( |\hat{Q}_q - Q_q| \le \alpha Q_q \) (e.g., \( \alpha = 0.01 \) for \( 1\% \) relative value accuracy) across arbitrary scales <em>without</em> requiring you to pre-declare an upper bound \( x_{\max} \) in advance, dynamically collapsing lowest buckets if a memory cap is reached.</li>
+                </ul>
             </div>
 
             <!-- ========================================== -->
-            <!-- 5. TLA+ CONFORMANCE -->
+            <!-- 5. VALIDATION METHODOLOGY MATRIX -->
             <!-- ========================================== -->
-            <h2>5. Formal Specification vs. Runtime Conformance</h2>
+            <h2>5. Diagnostic Methodology: Matching the Test to the Failure Mode</h2>
 
-            <p>Architects increasingly rely on formal methods like <strong>TLA+</strong> and the TLC model checker to prove distributed algorithms correct. TLA+ validates <em>Specification Verification</em>: it proves that a state-machine design satisfies safety invariants (e.g., "no two tenants hold the same lock") and liveness invariants ("every request eventually completes") under bounded non-determinism.</p>
-
-            <p>But TLA+ models are mathematically continuous and abstract. They assume fair scheduling and atomic transitions. They do not know about Linux <code>epoll</code>, GIL thread contention, or SSD wear-leveling. <strong>Implementation Conformance</strong> determines whether your Python/Rust runtime actually obeys the formal spec. When a theoretical probability model hits a deterministic physical cliff—like a connection pool exhaustion or a NIC bandwidth cap—the smooth continuous distributions we rely upon shatter. Validating conformance requires deliberately driving load into these hard physical saturation boundaries during chaos engineering.</p>
-
-            <!-- ========================================== -->
-            <!-- 6. END-TO-END VALIDATION CHECKLIST -->
-            <!-- ========================================== -->
-            <h2>6. End-to-End Validation: The Analytics Gateway</h2>
-
-            <p>When deploying the Multi-Tenant Analytics Gateway, rely on this 7-step validation checklist to bridge the gap between whiteboard probability and production reality.</p>
+            <p>Every diagnostic tool in this chapter makes specific statistical assumptions and has structural blind spots. Use this reference matrix to select the right validation method and interpret its output in production.</p>
 
             <div class="arch-table-wrap">
                 <table class="reality-table">
                     <thead>
                         <tr>
-                            <th>Step</th>
-                            <th>Objective</th>
-                            <th>SRE Action & Validation Math</th>
+                            <th>Diagnostic Tool</th>
+                            <th>What It Measures & Assumes</th>
+                            <th>What It Detects vs. Misses</th>
+                            <th>Interpretation & Next Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>1. Model Definition</strong></td>
-                            <td>Establish theoretical baseline.</td>
-                            <td>Define target stochastic models (e.g., Gamma for latencies, Negative Binomial for bursts).</td>
+                            <td><strong>KS Test (\( D_n \))</strong></td>
+                            <td><strong>Measures:</strong> Unweighted max vertical CDF distance \(\sup_x |\hat{F}_n(x) - F(x)|\).<br><strong>Assumes:</strong> Continuous i.i.d. sample; pre-specified parameters (unless bootstrapped).</td>
+                            <td><strong>Detects:</strong> Median shifts and bulk shape changes.<br><strong>Misses:</strong> High-quantile horizontal latency blowouts where vertical probability mass is small (\(< 0.01\)).</td>
+                            <td>Do not use a passing KS test to certify \( P_{99}+ \) tail safety. Use only for coarse bulk-distribution screening.</td>
                         </tr>
                         <tr>
-                            <td><strong>2. Telemetry Hygiene</strong></td>
-                            <td>Remove censoring and bias.</td>
-                            <td>Verify HDRHistograms are merged, not averaged. Extract right-censored timeouts.</td>
+                            <td><strong>Anderson-Darling (\( A^2 \))</strong></td>
+                            <td><strong>Measures:</strong> Integrated quadratic CDF error weighted by \([F(x)(1-F(x))]^{-1}\).<br><strong>Assumes:</strong> Continuous i.i.d. sample; calibrated critical values via parametric bootstrap if \(\hat{\theta}\) is fitted.</td>
+                            <td><strong>Detects:</strong> Discrepancies in both central body and upper/lower tails.<br><strong>Misses:</strong> At huge \( n \) (\(10^6\)), flags trivial \(0.2\text{ ms}\) noise; at very small \( n \), misses un-sampled rare regimes.</td>
+                            <td>Evaluate alongside bootstrap \( p \)-values and check absolute quantile error \(|\hat{Q}_{0.999} - Q_{0.999}(\hat{\theta})|\) for operational impact.</td>
                         </tr>
                         <tr>
-                            <td><strong>3. EDF Goodness-of-Fit</strong></td>
-                            <td>Assess empirical match.</td>
-                            <td>Calculate Anderson-Darling (\( A^2 \)) statistic. Reject KS (\( D_n \)) due to tail blindness. Plot Q-Q.</td>
+                            <td><strong>Q-Q Plot & Tail Exceedance</strong></td>
+                            <td><strong>Measures:</strong> Horizontal quantile mapping \(X_{(i)}\) vs. \(F^{-1}(\frac{i-0.5}{n}; \hat{\theta})\).<br><strong>Assumes:</strong> Uncensored order statistics (or survival-adjusted quantiles).</td>
+                            <td><strong>Detects:</strong> Heavy-tail divergence, multimodal knees, and saturation cliffs.<br><strong>Misses:</strong> Temporal ordering and serial autocorrelation over time.</td>
+                            <td>If the upper tail bends upward above a threshold \( u \), split the workload into a mixture model (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) or fit a Generalized Pareto tail (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>).</td>
                         </tr>
                         <tr>
-                            <td><strong>4. Residual Diagnostics</strong></td>
-                            <td>Find hidden correlations.</td>
-                            <td>Calculate ACF (Autocorrelation) on residuals to find periodic GC/compaction stalls.</td>
+                            <td><strong>Residual ACF (\(\hat{\rho}(\tau)\))</strong></td>
+                            <td><strong>Measures:</strong> Linear serial correlation between \(e_t\) and \(e_{t+\tau}\).<br><strong>Assumes:</strong> Weakly stationary time series with finite variance.</td>
+                            <td><strong>Detects:</strong> Periodic GC/compaction stalls and queue backlog carryover.<br><strong>Misses:</strong> Non-linear dependencies or single isolated step changes.</td>
+                            <td>If \(|\hat{\rho}(\tau)| > 1.96/\sqrt{T}\) at fixed lag \(\tau\), stagger periodic background jobs and pre-whiten residuals before running CUSUM.</td>
                         </tr>
                         <tr>
-                            <td><strong>5. Drift Detection</strong></td>
-                            <td>Catch chronic degradation.</td>
-                            <td>Deploy Page's CUSUM (\( S_t \)) on EWMA latencies to alert on subtle mean shifts.</td>
+                            <td><strong>Standardized CUSUM (\( S_t^+ \))</strong></td>
+                            <td><strong>Measures:</strong> Cumulative standardized deviation above reference slack \(k = \delta/2\).<br><strong>Assumes:</strong> Pre-whitened i.i.d. residuals with known baseline \((\mu_0, \sigma_0)\).</td>
+                            <td><strong>Detects:</strong> Small, persistent step shifts (\(\delta \sim 0.5\sigma_0–1.5\sigma_0\)) hidden inside \(3\sigma_0\) bands.<br><strong>Misses:</strong> Single transient spikes (by design) or miscalibrated shifts if \(\sigma_0\) is stale.</td>
+                            <td>When \(S_t^+ > h\), halt automated canary rollouts, inspect change-point timestamp \(t_0\) where \(S_t^+\) last left zero, and correlate with deploy/tenant logs.</td>
                         </tr>
                         <tr>
-                            <td><strong>6. Fleet Audit Math</strong></td>
-                            <td>Verify infrastructure state.</td>
-                            <td>Use Hypergeometric FPC for shard audits when \( n/N > 0.05 \). Do not use Binomial.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>7. Physical Saturation</strong></td>
-                            <td>Map the deterministic cliffs.</td>
-                            <td>Run chaos tests to find the OOM, connection pool, and IOPS ceilings where probability models break.</td>
+                            <td><strong>Hypergeometric Audit</strong></td>
+                            <td><strong>Measures:</strong> Exact defect count probability in sampling \(n\) of \(N\) without replacement.<br><strong>Assumes:</strong> Known finite population \(N\) and uniform random sampling without replacement.</td>
+                            <td><strong>Detects:</strong> True compliance confidence bounds on finite fleets/shards.<br><strong>Misses:</strong> Correlated common-cause cluster failures across Availability Zones (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>).</td>
+                            <td>Use exact Hypergeometric tail bounds or FPC whenever auditing finite infrastructure fleets or tenant pools; stratify sampling by fault domain.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            
-            <p>Even when an architecture is perfectly modeled, heavily monitored, and empirically validated, what happens when the system itself generates probabilistic outputs and must determine whether those outputs are correct?</p>
-            
-            <p>We are finally ready to step off the traditional cloud. In Part 8, we apply this entire stochastic toolkit to the most non-deterministic, epistemic challenge of all: generative AI, KV-cache pressure, and agentic workflows.</p>
+
+            <!-- ========================================== -->
+            <!-- 6. TLA+ CONFORMANCE & PHYSICAL CLIFFS -->
+            <!-- ========================================== -->
+            <h2>6. Formal Specification vs. Runtime Conformance and Physical Cliffs</h2>
+
+            <p>Architects increasingly use formal verification tools like <strong>TLA+</strong> and the TLC model checker to prove distributed algorithms correct before writing production code. TLA+ verifies <em>Logical Specification Correctness</em>: it exhaustively checks that a state-machine specification satisfies safety invariants (e.g., "a tenant snapshot lease is never held by two writers simultaneously") and temporal liveness properties ("every queued query eventually completes or aborts") under non-deterministic interleavings.</p>
+
+            <p>However, a verified TLA+ specification and a fitted probability distribution share a critical vulnerability: <strong>both are abstractions that omit physical resource boundaries unless explicitly modeled.</strong></p>
+
+            <ul>
+                <li><strong>Logical Transitions vs. Physical Execution:</strong> TLA+ assumes atomic state transitions and abstract fairness. It does not model Python GIL contention, Linux <code>epoll</code> wake-up storms, TCP ephemeral port exhaustion, or NVMe SSD garbage-collection stalls.</li>
+                <li><strong>Continuous Distributions vs. Deterministic Cliffs:</strong> Smooth probability distributions (Lognormal, Gamma, Pareto) are unbounded on \( (0, \infty) \). In real hardware, continuous queueing scaling holds only up to a hard physical ceiling—such as `max_connections = 500`, `ulimit -n = 65536` file descriptors, or a pod cgroup `memory.max` limit of `16 GiB`. The instant utilization touches that boundary, the continuous latency model shatters into a deterministic cliff: `OOMKilled` crashes, `EADDRNOTAVAIL` socket failures, or vertical swap thrashing.</li>
+            </ul>
+
+            <p><strong>Architectural Control — Enforcing Bounded Regimes Before the Cliff:</strong> Never rely on unbounded continuous probability models beyond your empirically validated load envelope. Map the exact physical saturation cliffs of the Analytics Gateway via controlled fault-injection and chaos load testing, then install hard admission control, per-tenant token buckets, and bounded worker queues at \( 75\%–80\% \) of the physical cliff (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>). By rejecting excess load early with fast, explicit `HTTP 429` backpressure, you keep the admitted workload strictly inside the continuous, mathematically validated operating regime.</p>
+
+            <!-- ========================================== -->
+            <!-- 7. END-TO-END VALIDATION CHECKLIST -->
+            <!-- ========================================== -->
+            <h2>7. End-to-End Validation Runbook: The Analytics Gateway</h2>
+
+            <p>When deploying or re-validating the Multi-Tenant Analytics Gateway after an architectural change, execute this 7-step operational verification pipeline to ensure your mathematical models match production reality.</p>
+
+            <div class="arch-table-wrap">
+                <table class="reality-table">
+                    <thead>
+                        <tr>
+                            <th>Stage</th>
+                            <th>Engineering Objective</th>
+                            <th>Validation Math, Architectural Control & Verification</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1. Telemetry Hygiene & Censoring</strong></td>
+                            <td>Eliminate aggregation bias and timeout truncation.</td>
+                            <td>Emit mergeable <code>DDSketch</code> (for unbounded relative-error quantiles) or <code>HDRHistogram</code> (for bounded high-resolution ranges) from every gateway pod; never average per-pod \( P_{99} \) gauges. Track right-censored timeouts \( (Y_i = T_{\max}, \delta_i = 0) \) jointly with latency.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. Workload Stratification</strong></td>
+                            <td>Separate distinct physical execution mechanisms.</td>
+                            <td>Partition telemetry by physical path (warm Arrow cache hit vs. cold Iceberg Parquet scan) and tenant tier (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) before fitting parametric models.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Residual & Stationarity Check</strong></td>
+                            <td>Verify i.i.d. and stationarity assumptions.</td>
+                            <td>De-trend diurnal traffic waves and compute residual ACF \( \hat{\rho}(\tau) \). If periodic spikes exceed \( \pm 1.96/\sqrt{T} \), isolate background compaction/GC schedules and pre-whiten residuals.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>4. Calibrated Goodness-of-Fit</strong></td>
+                            <td>Validate tail accuracy of candidate distributions.</td>
+                            <td>Evaluate Anderson-Darling (\( A^2 \)) calibrated via parametric bootstrap (refitting \( \hat{\theta}^{*(b)} \) per replicate) alongside Q-Q plots up to \( P_{99.9} \). Do not rely on unweighted KS (\( D_n \)) to certify tail latency.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>5. Standardized CUSUM Drift Gate</strong></td>
+                            <td>Catch subtle regressions during rollouts and steady state.</td>
+                            <td>Run standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) with \( k = \delta / 2 \) on pre-whitened residuals. Calibrate threshold \( h \) to the required in-control \(\text{ARL}_0\) to auto-abort degraded canary deployments.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>6. Finite-Fleet Compliance</strong></td>
+                            <td>Audit shard, node, and tenant integrity without variance inflation.</td>
+                            <td>Apply Hypergeometric PMF and Finite Population Correction \( \frac{N-n}{N-1} \) when auditing finite tenant catalogs or storage shards without replacement, adjusting precision to the sampling fraction \( n/N \).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>7. Physical Cliff Mapping</strong></td>
+                            <td>Protect the continuous regime via admission boundaries.</td>
+                            <td>Run chaos saturation tests to locate memory, connection-pool, and IOPS cliffs. Configure admission control and load shedding at \( 75\%–80\% \) of the physical ceiling so the runtime conforms to formal invariants.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>Across Parts 1 through 7, we have built a complete mathematical and empirical framework for classical distributed systems—where a request arrives, executes deterministic code over variable infrastructure, and returns a deterministic byte payload. If the infrastructure returns `HTTP 200` within the latency SLA and passes checksum verification, the response is correct.</p>
+
+            <p>What happens when we replace deterministic query execution with a stochastic token generator whose latency scales non-linearly with context length, whose KV-cache memory footprint fluctuates mid-request, and whose `HTTP 200` response can be syntactically valid yet semantically hallucinated? In Part 8, we bring our entire probabilistic toolkit to the frontier of AI infrastructure, LLM serving queues, and multi-step agentic reliability.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-6-state-empiricism-and-simulation.html">← Part 6: State, Empiricism, and the Simulation Fallacy</a>
@@ -520,61 +757,96 @@
                 return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
             }
 
-            // Normal distribution random variable via Box-Muller (Safe)
+            // Standard Normal RV via Box-Muller
             function randNormal() {
-                let u = safeRand(), v = safeRand();
+                const u = safeRand(), v = safeRand();
                 return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
             }
 
-            // Lognormal generator
+            // Lognormal RV generator
             function randLogNormal(mu, sigma) {
                 return Math.exp(mu + sigma * randNormal());
             }
 
-            // Lognormal CDF approximation
+            // High-precision Lognormal CDF (Abramowitz & Stegun 7.1.26)
             function logNormalCDF(x, mu, sigma) {
                 if (x <= 0) return 0;
                 const z = (Math.log(x) - mu) / (sigma * Math.SQRT2);
-                // Erf approximation
                 const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
-                const ans = 1 - t * Math.exp( -z*z -  1.26551223 +
-                                            t * ( 1.00002368 +
-                                            t * ( 0.37409196 + 
-                                            t * ( 0.09678418 + 
-                                            t * (-0.18628806 + 
-                                            t * ( 0.27886807 + 
-                                            t * (-1.13520398 + 
-                                            t * ( 1.48851587 + 
-                                            t * (-0.82215223 + 
-                                            t * ( 0.17087277))))))))));
-                return z >= 0 ? 0.5 + 0.5 * ans : 0.5 - 0.5 * ans;
+                const ans = 1 - t * Math.exp(
+                    -z * z - 1.26551223 +
+                    t * (1.00002368 +
+                    t * (0.37409196 +
+                    t * (0.09678418 +
+                    t * (-0.18628806 +
+                    t * (0.27886807 +
+                    t * (-1.13520398 +
+                    t * (1.48851587 +
+                    t * (-0.82215223 +
+                    t * 0.17087277))))))))
+                );
+                const cdf = z >= 0 ? 0.5 + 0.5 * ans : 0.5 - 0.5 * ans;
+                return Math.min(1 - 1e-15, Math.max(1e-15, cdf));
             }
 
             // ==========================================
-            // ECDF vs Theoretical Simulation
+            // Simulator 1: ECDF vs Theoretical CDF (KS & AD)
             // ==========================================
             class ECDFSimulator {
                 constructor(stageElement) {
                     this.canvas = stageElement.querySelector('.sim-canvas');
                     this.ctx = this.canvas.getContext('2d');
                     this.samples = [];
-                    
+
+                    // Fixed theoretical baseline model: Lognormal(mu0 = 0, sigma0 = 1.0)
+                    this.mu0 = 0.0;
+                    this.sigma0 = 1.0;
+
                     this.inputN = stageElement.querySelector('#n_ecdf');
                     this.labelN = stageElement.querySelector('#v_n_ecdf');
                     this.inputTail = stageElement.querySelector('#tail_ecdf');
                     this.labelTail = stageElement.querySelector('#v_tail_ecdf');
-                    
+
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statKS = stageElement.querySelector('.stat-ks');
+                    this.statKSCrit = stageElement.querySelector('.stat-kscrit');
+                    this.statAD = stageElement.querySelector('.stat-ad');
+                    this.statTP99 = stageElement.querySelector('.stat-tp99');
+                    this.statEP99 = stageElement.querySelector('.stat-ep99');
+
                     this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.defaultN = 60;
+                    this.defaultSigma = 1.0;
 
                     this.n = parseInt(this.inputN.value, 10);
-                    this.sigma = parseFloat(this.inputTail.value);
+                    this.sigmaEmp = parseFloat(this.inputTail.value);
 
-                    this.inputN.oninput = (e) => { this.n = parseInt(e.target.value, 10); this.labelN.textContent = this.n; };
-                    this.inputTail.oninput = (e) => { this.sigma = parseFloat(e.target.value); this.labelTail.textContent = this.sigma.toFixed(1); };
-                    
-                    this.btnRun.onclick = () => this.generate();
+                    this.inputN.addEventListener('input', (e) => {
+                        this.n = parseInt(e.target.value, 10);
+                        this.labelN.textContent = this.n;
+                        this.generate();
+                    });
+
+                    this.inputTail.addEventListener('input', (e) => {
+                        this.sigmaEmp = parseFloat(e.target.value);
+                        this.labelTail.textContent = this.sigmaEmp.toFixed(1);
+                        this.generate();
+                    });
+
+                    this.btnRun.addEventListener('click', () => this.generate());
+                    if (this.btnReset) {
+                        this.btnReset.addEventListener('click', () => {
+                            this.n = this.defaultN;
+                            this.sigmaEmp = this.defaultSigma;
+                            this.inputN.value = this.defaultN;
+                            this.labelN.textContent = this.defaultN;
+                            this.inputTail.value = this.defaultSigma;
+                            this.labelTail.textContent = this.defaultSigma.toFixed(1);
+                            this.generate();
+                        });
+                    }
 
                     this.resize();
                     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -588,7 +860,7 @@
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
                     const logicalW = Math.max(260, rect.width - 48);
-                    const logicalH = 240;
+                    const logicalH = 250;
 
                     this.canvas.width = Math.round(logicalW * dpr);
                     this.canvas.height = Math.round(logicalH * dpr);
@@ -604,11 +876,10 @@
 
                 generate() {
                     this.samples = [];
-                    // Generate empirical samples
-                    for(let i = 0; i < this.n; i++) {
-                        this.samples.push(randLogNormal(0, this.sigma));
+                    for (let i = 0; i < this.n; i++) {
+                        this.samples.push(randLogNormal(this.mu0, this.sigmaEmp));
                     }
-                    this.samples.sort((a,b) => a - b);
+                    this.samples.sort((a, b) => a - b);
                     this.draw();
                 }
 
@@ -618,7 +889,7 @@
                     const W = this.logicalW, H = this.logicalH;
                     ctx.clearRect(0, 0, W, H);
 
-                    const pad = { l: 45, r: 20, t: 24, b: 30 };
+                    const pad = { l: 48, r: 22, t: 28, b: 34 };
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
@@ -631,84 +902,130 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    const maxVal = Math.max(5, this.samples[this.samples.length-1] * 1.1);
-                    
+                    // Cap visual x-axis gently so the bulk and upper knee remain visible
+                    const p95Idx = Math.min(this.n - 1, Math.floor(this.n * 0.96));
+                    const maxVal = Math.max(8, Math.min(40, this.samples[p95Idx] * 1.35));
+
                     let maxKS = 0;
-                    let ksX = 0;
+                    let ksVal = 0;
                     let ksY1 = 0;
                     let ksY2 = 0;
 
-                    // Draw Theoretical CDF (smooth curve)
+                    // Compute exact KS and Anderson-Darling A^2 against fixed null Lognormal(mu0, sigma0)
+                    let adSum = 0;
+                    for (let i = 0; i < this.n; i++) {
+                        const val = this.samples[i];
+                        const f_i = logNormalCDF(val, this.mu0, this.sigma0);
+                        const f_rev = logNormalCDF(this.samples[this.n - 1 - i], this.mu0, this.sigma0);
+
+                        adSum += (2 * (i + 1) - 1) * (Math.log(f_i) + Math.log(1.0 - f_rev));
+
+                        const diffPrev = Math.abs((i / this.n) - f_i);
+                        const diffNext = Math.abs(((i + 1) / this.n) - f_i);
+
+                        if (diffPrev > maxKS) {
+                            maxKS = diffPrev;
+                            ksVal = val;
+                            ksY1 = H - pad.b - (i / this.n) * plotH;
+                            ksY2 = H - pad.b - f_i * plotH;
+                        }
+                        if (diffNext > maxKS) {
+                            maxKS = diffNext;
+                            ksVal = val;
+                            ksY1 = H - pad.b - ((i + 1) / this.n) * plotH;
+                            ksY2 = H - pad.b - f_i * plotH;
+                        }
+                    }
+                    const adStat = Math.max(0, -this.n - (adSum / this.n));
+                    const ksCrit = 1.358 / Math.sqrt(this.n);
+
+                    // Draw Theoretical Baseline CDF F(x; mu0=0, sigma0=1.0)
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--amber') || '#D4A72C';
                     ctx.lineWidth = 2;
-                    for(let px = 0; px <= plotW; px+=2) {
+                    for (let px = 0; px <= plotW; px += 2) {
                         const x = (px / plotW) * maxVal;
-                        const f = logNormalCDF(x, 0, this.sigma);
+                        const f = logNormalCDF(x, this.mu0, this.sigma0);
                         const py = H - pad.b - f * plotH;
-                        if(px === 0) ctx.moveTo(pad.l, py);
+                        if (px === 0) ctx.moveTo(pad.l, py);
                         else ctx.lineTo(pad.l + px, py);
                     }
                     ctx.stroke();
 
-                    // Draw Empirical CDF (step function) & find KS
+                    // Draw Empirical ECDF step function
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--teal') || '#4fb8a6';
-                    ctx.lineWidth = 1.5;
+                    ctx.lineWidth = 1.75;
                     ctx.moveTo(pad.l, H - pad.b);
 
-                    for(let i = 0; i < this.n; i++) {
-                        const val = this.samples[i];
+                    for (let i = 0; i < this.n; i++) {
+                        const val = Math.min(maxVal, this.samples[i]);
                         const xPos = pad.l + (val / maxVal) * plotW;
                         const yPosPrev = H - pad.b - (i / this.n) * plotH;
                         const yPosNext = H - pad.b - ((i + 1) / this.n) * plotH;
-                        
+
                         ctx.lineTo(xPos, yPosPrev);
                         ctx.lineTo(xPos, yPosNext);
-
-                        const theoF = logNormalCDF(val, 0, this.sigma);
-                        const diffPrev = Math.abs((i / this.n) - theoF);
-                        const diffNext = Math.abs(((i + 1) / this.n) - theoF);
-
-                        if (diffPrev > maxKS) { maxKS = diffPrev; ksX = xPos; ksY1 = yPosPrev; ksY2 = H - pad.b - theoF * plotH; }
-                        if (diffNext > maxKS) { maxKS = diffNext; ksX = xPos; ksY1 = yPosNext; ksY2 = H - pad.b - theoF * plotH; }
                     }
-                    ctx.lineTo(W - pad.r, H - pad.b - plotH);
+                    ctx.lineTo(W - pad.r, pad.t);
                     ctx.stroke();
 
-                    // Highlight KS Distance
+                    // Highlight KS Supremum Distance D_n
                     if (maxKS > 0) {
+                        const ksX = pad.l + (Math.min(maxVal, ksVal) / maxVal) * plotW;
+                        const badColor = getCssVar('--bad') || '#d97757';
                         ctx.beginPath();
-                        ctx.strokeStyle = getCssVar('--bad') || '#d97757';
-                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = badColor;
+                        ctx.lineWidth = 2.2;
                         ctx.moveTo(ksX, ksY1);
                         ctx.lineTo(ksX, ksY2);
                         ctx.stroke();
-                        
-                        // Circle markers
-                        ctx.fillStyle = getCssVar('--bad') || '#d97757';
-                        ctx.beginPath(); ctx.arc(ksX, ksY1, 3, 0, Math.PI*2); ctx.fill();
-                        ctx.beginPath(); ctx.arc(ksX, ksY2, 3, 0, Math.PI*2); ctx.fill();
+
+                        ctx.fillStyle = badColor;
+                        ctx.beginPath(); ctx.arc(ksX, ksY1, 3.2, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(ksX, ksY2, 3.2, 0, Math.PI * 2); ctx.fill();
                     }
 
-                    // Labels
+                    // Axes Labels & Legend
                     ctx.fillStyle = light ? '#475569' : '#8b93a3';
                     ctx.font = '10px "IBM Plex Mono", monospace';
                     ctx.textAlign = 'left';
-                    ctx.fillText('0', pad.l, H - 10);
+                    ctx.fillText('0 ms', pad.l, H - 10);
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Latency x (ms)', pad.l + plotW / 2, H - 10);
                     ctx.textAlign = 'right';
-                    ctx.fillText(maxVal.toFixed(1), W - pad.r, H - 10);
-                    ctx.textAlign = 'right';
-                    ctx.fillText('1.0', pad.l - 10, pad.t);
-                    ctx.fillText('0.0', pad.l - 10, H - pad.b);
+                    ctx.fillText(maxVal.toFixed(1) + ' ms', W - pad.r, H - 10);
+                    ctx.fillText('1.0', pad.l - 8, pad.t + 4);
+                    ctx.fillText('0.5', pad.l - 8, pad.t + plotH / 2 + 3);
+                    ctx.fillText('0.0', pad.l - 8, H - pad.b);
+
+                    // Top Legend
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = getCssVar('--amber') || '#D4A72C';
+                    ctx.fillText('— Theo CDF (σ₀=1.0)', pad.l + 8, pad.t - 8);
+                    ctx.fillStyle = getCssVar('--teal') || '#4fb8a6';
+                    ctx.fillText('— Emp ECDF', pad.l + 145, pad.t - 8);
+                    ctx.fillStyle = getCssVar('--bad') || '#d97757';
+                    ctx.fillText('| KS Supremum D_n', pad.l + 235, pad.t - 8);
+
+                    // Empirical P99 order statistic
+                    const p99Idx = Math.min(this.n - 1, Math.floor(0.99 * this.n));
+                    const empP99 = this.samples[p99Idx];
+                    const theoP99 = Math.exp(this.mu0 + 2.32635 * this.sigma0);
 
                     this.statN.textContent = this.n;
-                    this.statKS.textContent = maxKS.toFixed(3);
+                    this.statKS.textContent = maxKS.toFixed(3) + (maxKS > ksCrit ? ' (Reject)' : ' (Pass)');
+                    this.statKS.className = maxKS > ksCrit ? 'stat-ks stat-alert' : 'stat-ks stat-ok';
+                    this.statKSCrit.textContent = ksCrit.toFixed(3);
+                    this.statAD.textContent = adStat.toFixed(2) + (adStat > 2.492 ? ' (Reject)' : ' (Pass)');
+                    this.statAD.className = adStat > 2.492 ? 'stat-ad stat-alert' : 'stat-ad stat-ok';
+                    this.statTP99.textContent = theoP99.toFixed(2) + ' ms';
+                    this.statEP99.textContent = empP99.toFixed(2) + ' ms';
                 }
             }
 
             // ==========================================
-            // CUSUM Drift Simulation
+            // Simulator 2: Standardized Page's CUSUM
             // ==========================================
             class CUSUMSimulator {
                 constructor(stageElement) {
@@ -717,25 +1034,54 @@
                     this.series = [];
                     this.cusum = [];
                     this.alerted = false;
-                    
+                    this.firstAlertStep = null;
+
                     this.inputDrift = stageElement.querySelector('#drift_cusum');
                     this.labelDrift = stageElement.querySelector('#v_drift_cusum');
                     this.inputK = stageElement.querySelector('#k_cusum');
                     this.labelK = stageElement.querySelector('#v_k_cusum');
-                    
-                    this.statAlert = stageElement.querySelector('#cusum_alert');
-                    this.btnRun = stageElement.querySelector('.btn-run');
 
-                    this.driftAmt = parseFloat(this.inputDrift.value);
+                    this.statMaxS = stageElement.querySelector('.stat-maxs');
+                    this.statARL1 = stageElement.querySelector('.stat-arl1');
+                    this.statDelay = stageElement.querySelector('.stat-delay');
+                    this.statAlert = stageElement.querySelector('#cusum_alert');
+
+                    this.btnRun = stageElement.querySelector('.btn-run');
+                    this.btnReset = stageElement.querySelector('.btn-reset');
+
+                    this.defaultDrift = 0.8;
+                    this.defaultK = 0.4;
+
+                    this.driftDelta = parseFloat(this.inputDrift.value);
                     this.slackK = parseFloat(this.inputK.value);
                     this.N = 100;
-                    this.mu0 = 5.0; // Baseline
-                    this.threshold = 4.0; // Alert threshold
+                    this.changePoint = 50;
+                    this.thresholdH = 4.0; // Standardized decision interval h in sigma_0 units
 
-                    this.inputDrift.oninput = (e) => { this.driftAmt = parseFloat(e.target.value); this.labelDrift.textContent = this.driftAmt.toFixed(1); };
-                    this.inputK.oninput = (e) => { this.slackK = parseFloat(e.target.value); this.labelK.textContent = this.slackK.toFixed(1); };
-                    
-                    this.btnRun.onclick = () => this.generate();
+                    this.inputDrift.addEventListener('input', (e) => {
+                        this.driftDelta = parseFloat(e.target.value);
+                        this.labelDrift.textContent = this.driftDelta.toFixed(1);
+                        this.generate();
+                    });
+
+                    this.inputK.addEventListener('input', (e) => {
+                        this.slackK = parseFloat(e.target.value);
+                        this.labelK.textContent = this.slackK.toFixed(1);
+                        this.generate();
+                    });
+
+                    this.btnRun.addEventListener('click', () => this.generate());
+                    if (this.btnReset) {
+                        this.btnReset.addEventListener('click', () => {
+                            this.driftDelta = this.defaultDrift;
+                            this.slackK = this.defaultK;
+                            this.inputDrift.value = this.defaultDrift;
+                            this.labelDrift.textContent = this.defaultDrift.toFixed(1);
+                            this.inputK.value = this.defaultK;
+                            this.labelK.textContent = this.defaultK.toFixed(1);
+                            this.generate();
+                        });
+                    }
 
                     this.resize();
                     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -749,7 +1095,7 @@
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
                     const logicalW = Math.max(260, rect.width - 48);
-                    const logicalH = 240;
+                    const logicalH = 250;
 
                     this.canvas.width = Math.round(logicalW * dpr);
                     this.canvas.height = Math.round(logicalH * dpr);
@@ -767,18 +1113,22 @@
                     this.series = [];
                     this.cusum = [];
                     this.alerted = false;
-                    
+                    this.firstAlertStep = null;
+
                     let S = 0;
-                    for(let i = 0; i < this.N; i++) {
-                        // Drift injects at index 50
-                        const d = i >= 50 ? this.driftAmt : 0;
-                        const val = this.mu0 + d + randNormal() * 1.5;
-                        this.series.push(val);
-                        
-                        S = Math.max(0, S + (val - this.mu0 - this.slackK));
+                    for (let i = 0; i < this.N; i++) {
+                        // Standardized residual z_t ~ N(0, 1) for t < 50, and N(delta, 1) for t >= 50
+                        const shift = i >= this.changePoint ? this.driftDelta : 0.0;
+                        const z_t = shift + randNormal();
+                        this.series.push(z_t);
+
+                        S = Math.max(0, S + (z_t - this.slackK));
                         this.cusum.push(S);
-                        
-                        if (S > this.threshold) this.alerted = true;
+
+                        if (S > this.thresholdH && this.firstAlertStep === null) {
+                            this.alerted = true;
+                            this.firstAlertStep = i;
+                        }
                     }
                     this.draw();
                 }
@@ -789,7 +1139,7 @@
                     const W = this.logicalW, H = this.logicalH;
                     ctx.clearRect(0, 0, W, H);
 
-                    const pad = { l: 45, r: 20, t: 24, b: 30 };
+                    const pad = { l: 48, r: 22, t: 28, b: 34 };
                     const plotW = W - pad.l - pad.r;
                     const plotH = H - pad.t - pad.b;
 
@@ -802,81 +1152,123 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    const maxSig = Math.max(10, ...this.series, ...this.cusum);
-                    const minSig = Math.min(0, ...this.series);
-                    const span = maxSig - minSig;
+                    const maxVal = Math.max(6.0, ...this.series, ...this.cusum);
+                    const minVal = Math.min(-3.0, ...this.series);
+                    const span = maxVal - minVal;
 
-                    const getY = (val) => H - pad.b - ((val - minSig) / span) * plotH;
+                    const getY = (val) => H - pad.b - ((val - minVal) / span) * plotH;
                     const getX = (idx) => pad.l + (idx / (this.N - 1)) * plotW;
 
-                    // Plot Raw Signal (muted)
+                    // Vertical marker at drift injection step t = 50
+                    const cpX = getX(this.changePoint);
+                    ctx.beginPath();
+                    ctx.strokeStyle = light ? '#cbd5e1' : '#334155';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 3]);
+                    ctx.moveTo(cpX, pad.t);
+                    ctx.lineTo(cpX, H - pad.b);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Plot Standardized Residual z_t (muted)
                     ctx.beginPath();
                     ctx.strokeStyle = light ? '#94a3b8' : '#475569';
-                    ctx.lineWidth = 1;
-                    for(let i = 0; i < this.N; i++) {
+                    ctx.lineWidth = 1.1;
+                    for (let i = 0; i < this.N; i++) {
                         const px = getX(i);
                         const py = getY(this.series[i]);
-                        if(i === 0) ctx.moveTo(px, py);
+                        if (i === 0) ctx.moveTo(px, py);
                         else ctx.lineTo(px, py);
                     }
                     ctx.stroke();
 
-                    // Plot Baseline mu0
+                    // Plot Baseline E[z_t] = 0
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--teal') || '#4fb8a6';
                     ctx.lineWidth = 1;
                     ctx.setLineDash([4, 4]);
-                    ctx.moveTo(pad.l, getY(this.mu0));
-                    ctx.lineTo(W - pad.r, getY(this.mu0));
+                    ctx.moveTo(pad.l, getY(0));
+                    ctx.lineTo(W - pad.r, getY(0));
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Plot CUSUM Alert Threshold
+                    // Plot Decision Threshold h = 4.0 sigma_0
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--bad') || '#d97757';
-                    ctx.lineWidth = 1;
+                    ctx.lineWidth = 1.25;
                     ctx.setLineDash([2, 4]);
-                    ctx.moveTo(pad.l, getY(this.threshold));
-                    ctx.lineTo(W - pad.r, getY(this.threshold));
+                    ctx.moveTo(pad.l, getY(this.thresholdH));
+                    ctx.lineTo(W - pad.r, getY(this.thresholdH));
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Plot CUSUM Accumulator (strong)
+                    // Plot Standardized CUSUM Accumulator S_t^+
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--amber') || '#D4A72C';
-                    ctx.lineWidth = 2.5;
-                    for(let i = 0; i < this.N; i++) {
+                    ctx.lineWidth = 2.4;
+                    for (let i = 0; i < this.N; i++) {
                         const px = getX(i);
                         const py = getY(this.cusum[i]);
-                        if(i === 0) ctx.moveTo(px, py);
+                        if (i === 0) ctx.moveTo(px, py);
                         else ctx.lineTo(px, py);
                     }
                     ctx.stroke();
 
-                    // Labels
+                    // Labels & Legend
                     ctx.fillStyle = light ? '#475569' : '#8b93a3';
                     ctx.font = '10px "IBM Plex Mono", monospace';
                     ctx.textAlign = 'right';
-                    ctx.fillText(maxSig.toFixed(1), pad.l - 10, pad.t);
-                    ctx.fillText(minSig.toFixed(1), pad.l - 10, H - pad.b);
-                    ctx.fillStyle = getCssVar('--amber');
-                    ctx.fillText('CUSUM', pad.l - 10, getY(this.threshold) - 10);
-                    ctx.fillStyle = getCssVar('--bad');
-                    ctx.fillText('ALERT H', W - pad.r, getY(this.threshold) - 5);
+                    ctx.fillText(maxVal.toFixed(1) + 'σ', pad.l - 6, pad.t + 4);
+                    ctx.fillText('0.0σ', pad.l - 6, getY(0) + 3);
+                    ctx.fillText(minVal.toFixed(1) + 'σ', pad.l - 6, H - pad.b);
 
-                    if(this.alerted) {
-                        this.statAlert.textContent = "TRUE (Drift Caught)";
-                        this.statAlert.style.color = getCssVar('--bad');
+                    ctx.textAlign = 'left';
+                    ctx.fillText('t=0', pad.l, H - 10);
+                    ctx.textAlign = 'center';
+                    ctx.fillText('t=50 (Shift Injected)', cpX, H - 10);
+                    ctx.textAlign = 'right';
+                    ctx.fillText('t=100', W - pad.r, H - 10);
+                    ctx.fillStyle = getCssVar('--bad') || '#d97757';
+                    ctx.fillText('h = 4.0σ₀', W - pad.r, getY(this.thresholdH) - 5);
+
+                    // Top Legend
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = light ? '#64748b' : '#94a3b8';
+                    ctx.fillText('— Residual z_t', pad.l + 6, pad.t - 8);
+                    ctx.fillStyle = getCssVar('--amber') || '#D4A72C';
+                    ctx.fillText('— CUSUM S_t⁺ (σ₀)', pad.l + 110, pad.t - 8);
+
+                    const maxS = Math.max(...this.cusum);
+                    this.statMaxS.textContent = maxS.toFixed(2) + ' σ₀';
+
+                    if (this.driftDelta > this.slackK) {
+                        const theoARL1 = (this.thresholdH + 1.166) / (this.driftDelta - this.slackK);
+                        this.statARL1.textContent = '~' + theoARL1.toFixed(1) + ' steps';
                     } else {
-                        this.statAlert.textContent = "False (Stable)";
-                        this.statAlert.style.color = getCssVar('--good');
+                        this.statARL1.textContent = '∞ (δ ≤ k)';
+                    }
+
+                    if (this.alerted) {
+                        if (this.firstAlertStep >= this.changePoint) {
+                            const delay = this.firstAlertStep - this.changePoint + 1;
+                            this.statDelay.textContent = delay + ' steps (t=' + this.firstAlertStep + ')';
+                            this.statAlert.textContent = 'TRUE (Drift Caught)';
+                        } else {
+                            this.statDelay.textContent = 'False Alarm @ t=' + this.firstAlertStep;
+                            this.statAlert.textContent = 'FALSE ALARM (Pre-shift)';
+                        }
+                        this.statAlert.className = 'stat-alert';
+                    } else {
+                        this.statDelay.textContent = 'None';
+                        this.statAlert.textContent = 'False (Below h)';
+                        this.statAlert.className = 'stat-ok';
                     }
                 }
             }
 
             document.querySelectorAll('.stage').forEach(stage => {
-                if(stage.dataset.simType === 'ecdf') new ECDFSimulator(stage);
-                if(stage.dataset.simType === 'cusum') new CUSUMSimulator(stage);
+                if (stage.dataset.simType === 'ecdf') new ECDFSimulator(stage);
+                if (stage.dataset.simType === 'cusum') new CUSUMSimulator(stage);
             });
         });
     </script>

@@ -154,7 +154,7 @@
 
 <p>In <a href="part-7-architects-reality-check.html" style="color:var(--teal);text-decoration:none">Part 7</a>, we built an operational validation framework to detect when our latency, traffic, and reliability models drift away from physical reality. Throughout Parts 1 to 7, our proving ground was a traditional <strong>Multi-Tenant Analytics Gateway</strong>: a request arrived with a formal SQL query or API payload, and our job was to route, cache, shard, and execute it without violating tail-latency SLOs or exhausting memory boundaries.</p>
 
-<p>Those traditional data gateways guarantee <em>reproducible execution paths</em> given identical state. They are not, however, "correct by construction." They can still fail catastrophically via stale Iceberg snapshots, schema drift, authorization bugs, or broken SQL business logic. But the failure modes are deterministic: the same broken SQL run against the same database state yields the same error every time.</p>
+<p>Traditional query engines offer a narrower contract than “deterministic execution.” For a deterministic query over a fixed snapshot, <em>logical query semantics</em> are defined: the same SQL, session settings, and data should return the same rows, as a multiset unless <code>ORDER BY</code> fixes the order. They do not promise an identical <em>physical execution plan or path</em>. Optimizer and statistics changes can select a different plan, parallel scheduling and concurrency reorder operators, floating-point aggregation can differ in low-order digits when partial sums combine in a different order, nondeterministic functions (<code>random()</code>, <code>now()</code>) and external dependencies change results, queries without <code>ORDER BY</code> return unordered rows, and a different Iceberg snapshot is a different input. They are also not “correct by construction”: stale snapshots, schema drift, authorization bugs, and wrong business logic still produce wrong answers. The practical difference is diagnosability: pin the snapshot, settings, and plan, and a failure can usually be reproduced.</p>
 
 <p>Welcome to the frontier. Now suppose leadership asks us to extend that same Multi-Tenant Analytics Gateway with an <strong>AI Query Assistant and Autonomous Reconciliation Agent</strong>. Tenants can ask natural-language questions, retrieve Iceberg table metadata via RAG, synthesize analytical SQL, repair validation errors, and execute multi-step reconciliation workflows. Suddenly, an HTTP 200 with a 180 ms response time can still be a catastrophic production failure—because a syntactically valid JSON payload containing a plausible-looking SQL query just joined the wrong tenant partition or fabricated a regulatory metric.</p>
 
@@ -168,16 +168,31 @@
             <li><strong>Serving Reliability (\(E_{\text{serve}}\)):</strong> The inference engine accepts the request, allocates KV-cache memory, and streams tokens within the TTFT and TPOT latency budgets without HTTP 5xx, timeout, or OOM preemption.</li>
             <li><strong>Structural Correctness (\(E_{\text{struct}}\)):</strong> The generated output conforms to the syntactic contract—valid JSON, matching grammar, or a parseable AST without truncation.</li>
             <li><strong>Data &amp; Retrieval Correctness (\(E_{\text{data}}\)):</strong> Referenced entities, table names, column types, and tool parameters actually exist in the target catalog and respect tenant authorization boundaries. (For RAG, this includes chunk recall and freshness).</li>
-            <li><strong>Semantic Correctness (\(E_{\text{sem}}\)):</strong> Faithfulness to retrieved context and user intent. The output is logically executable, preserves domain invariants, and contains zero hallucinations.</li>
+            <li><strong>Semantic Correctness (\(E_{\text{sem}}\)):</strong> Faithfulness to retrieved context and user intent, judged against measurable acceptance conditions (Section 5): factual support, tenant correctness, domain invariants, numerical tolerance, citation validity, permitted uncertainty, and task-specific acceptance. It is reported as an observed error rate with an interval, not asserted as “zero hallucinations.”</li>
             <li><strong>End-to-End Task Success (\(E_{\text{task}}\)):</strong> The complete multi-step workflow—including downstream tool execution, validation, policy compliance, and side effects—safely completes the user's goal.</li>
         </ol>
-        <p>By the chain rule of probability, task success is the product of conditional probabilities across every layer:</p>
+        <p>Treat the five layers as a nested success chain. The order is a modelling convention (retrieval, for example, runs before generation); the point is that each factor is conditioned on the layers before it, so the factors must not be multiplied as independent probabilities unless independence is justified. Let \(E_{\text{exec}}\) be downstream tool execution, policy checks, and side effects completing correctly; \(E_{\text{task}}\) is the event that all five layers hold:</p>
         <div class="equation-flow">
-            \[ P(E_{\text{task}}) = P(E_{\text{serve}}) \cdot P(E_{\text{struct}} \mid E_{\text{serve}}) \cdot P(E_{\text{data}} \mid E_{\text{struct}}, E_{\text{serve}}) \cdot P(E_{\text{sem}} \mid E_{\text{data}}, \dots) \dots \]
+            \[ \begin{aligned}
+            P(E_{\text{task}}) &= P(E_{\text{serve}}) \cdot P(E_{\text{struct}} \mid E_{\text{serve}}) \cdot P(E_{\text{data}} \mid E_{\text{struct}}, E_{\text{serve}}) \\
+            &\quad \cdot P(E_{\text{sem}} \mid E_{\text{data}}, E_{\text{struct}}, E_{\text{serve}}) \cdot P(E_{\text{exec}} \mid E_{\text{sem}}, E_{\text{data}}, E_{\text{struct}}, E_{\text{serve}})
+            \end{aligned} \]
         </div>
-        <p>Optimizing one layer (such as forcing valid JSON via constrained decoding) drives \( P(E_{\text{struct}} \mid E_{\text{serve}}) \to 1 \), but does nothing to guarantee \( P(E_{\text{sem}}) \). This mathematically explains how \( P(E_{\text{serve}}) = 0.999 \) can routinely coexist with \( P(E_{\text{task}}) = 0.65 \).</p>
+        <p>Optimizing one layer, such as constrained decoding, drives \( P(E_{\text{struct}} \mid E_{\text{serve}}) \) toward 1 (apart from truncation and refusals) but does not bound \( P(E_{\text{sem}} \mid \dots) \). Illustratively, \( P(E_{\text{serve}}) = 0.999 \) alongside \( P(E_{\text{task}}) = 0.65 \) is arithmetically consistent: every infrastructure health check can pass while most tasks fail semantic acceptance. These values are illustrative, not industry benchmarks.</p>
     </div>
 </div>
+
+<h3>What Each Layer's Check Can See</h3>
+<div class="audit-table-wrap"><table class="audit-table">
+<thead><tr><th>Layer</th><th>Typical check</th><th>How it passes while the next layer fails</th></tr></thead>
+<tbody>
+<tr><td><strong>Serving</strong></td><td>HTTP 200, TTFT and ITL within budget, no OOM or preemption</td><td>A fluent 180 ms answer that cites another tenant's table</td></tr>
+<tr><td><strong>Structural</strong></td><td>JSON schema validates; SQL parses</td><td>Well-formed SQL that joins the wrong partition</td></tr>
+<tr><td><strong>Data &amp; retrieval</strong></td><td>Tables and columns exist; chunks are in tenant scope</td><td>Valid names, stale snapshot or chunk, wrong evidence for the question</td></tr>
+<tr><td><strong>Semantic</strong></td><td>Acceptance conditions and sampled audits (Section 5)</td><td>Passes the sample; an unsampled output is wrong, since sampling only bounds the rate</td></tr>
+<tr><td><strong>Task</strong></td><td>Outcome compared with a system of record</td><td>The tool call succeeded and the side effect landed, but on the wrong break</td></tr>
+</tbody></table></div>
+<p class="math-explanation"><strong>Evidence labels.</strong> Case studies below are either <em>Illustrative Engineering Models</em> or <em>Hypothetical Stress Scenarios</em>; the simulators are <em>Synthetic Simulations</em>. No percentage in this article is an industry benchmark or a measurement from a named organization. Illustrative numbers show the arithmetic and the decision, not typical rates.</p>
 
 <h2>1. The Categorical Distribution (Token Sampling)</h2>
 <div class="tldr-box"><div class="tldr-eyebrow">The Intuition: The Weighted Dice Roll</div><div class="tldr-content">
@@ -186,9 +201,9 @@
 </div></div>
 
 <h3>The Math</h3>
-<p>Let \(w_t\) be the random variable representing the token index selected at decoding step \(t\) from a vocabulary \(V\) (where \(i \in \{1, \dots, |V|\}\)), conditioned on the preceding context \(w_{<t}\). Given raw logit vector \(z \in \mathbb{R}^{|V|}\) and temperature \(T > 0\), the probability of sampling token \(i\) prior to Top-\(k\) or Top-\(p\) (Nucleus) truncation is the temperature-scaled Softmax:</p>
+<p>Let \(w_t\) be the random variable representing the token index selected at decoding step \(t\) from a vocabulary \(V\) (where \(i \in \{1, \dots, |V|\}\)), conditioned on the preceding context \(w_{\lt t}\). Given raw logit vector \(z \in \mathbb{R}^{|V|}\) and temperature \(T > 0\), the probability of sampling token \(i\) prior to Top-\(k\) or Top-\(p\) (Nucleus) truncation is the temperature-scaled Softmax:</p>
 <div class="equation-flow">
-    \[ P(w_t = i \mid w_{<t}) = \frac{\exp(z_i / T)}{\sum_{j=1}^{|V|} \exp(z_j / T)} \]
+    \[ P(w_t = i \mid w_{\lt t}) = \frac{\exp(z_i / T)}{\sum_{j=1}^{|V|} \exp(z_j / T)} \]
 </div>
 <div class="math-explanation">
 <strong>Let's decode this:</strong>
@@ -196,8 +211,8 @@
 <li><strong>\(w_t\):</strong> Discrete random variable for the single token selected at step \(t\).</li>
 <li><strong>\(z_i\):</strong> Unnormalized logit for vocabulary token \(i\).</li>
 <li><strong>\(T\):</strong> Temperature parameter (\(T > 0\)). As \(T \to 0^+\) (greedy decoding), probability mass concentrates entirely on \(\text{argmax}_i z_i\). As \(T \to \infty\), the distribution approaches uniformity \(1/|V|\).</li>
-<li><strong>Top-\(k\) / Top-\(p\) (Nucleus):</strong> Truncation techniques that zero out the logits of the long tail of unlikely tokens before applying the Softmax, preventing the sampling of highly improbable words even at higher temperatures.</li>
-<li><strong>Sequence vs. Step Distinction:</strong> A single token draw is Categorical, but an \(L\)-token response is a <em>non-homogeneous autoregressive stochastic process</em> where each draw \(w_t\) alters the conditioning prefix \(w_{<t+1}\) and shifts the entire logit vector at step \(t+1\).</li>
+<li><strong>Top-\(k\) / Top-\(p\) (Nucleus):</strong> Truncation techniques that assign zero probability to the long tail of unlikely tokens (equivalently a logit of \(-\infty\)) and renormalize the remainder before the draw, so highly improbable tokens cannot be sampled even at higher temperatures.</li>
+<li><strong>Sequence vs. Step Distinction:</strong> A single token draw is Categorical, but an \(L\)-token response is a <em>non-homogeneous autoregressive stochastic process</em> where each draw \(w_t\) alters the conditioning prefix \(w_{\lt t+1}\) and shifts the entire logit vector at step \(t+1\).</li>
 </ul>
 <p><strong>Worked example:</strong> Suppose at \(T = 1.0\) the Softmax distribution over four candidate tokens—<code>Data</code>, <code>Model</code>, <code>Magic</code>, and <code>Garbage</code>—is \(p = [0.40, 0.30, 0.20, 0.10]\). If an engineer raises temperature to \(T = 2.0\) to make responses “more creative,” the distribution flattens. The probability of drawing the undesirable tail token (<code>Garbage</code>) jumps from \(10.00\%\) to \(16.27\%\)—a <strong>62.7% relative increase</strong> on a single step. (Note: this is an illustrative single-step calculation, not a direct measurement of multi-token hallucination rate.)</p>
 </div>
@@ -205,11 +220,12 @@
 <div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap: The "Deterministic" Illusion</div><div class="tldr-content">
 <p>Temperature greater than zero makes sampling stochastic by design, so exact-string unit tests fail intermittently even when the answer is semantically valid. Conversely, setting \(T = 0\) selects the greedy token at each step, but it is <strong>not a hardware-level reproducibility guarantee in production</strong>.</p>
 <p>In distributed GPU clusters, floating-point non-associativity in split-K matrix reductions, variable continuous-batching composition, MoE routing capacity constraints, and silent provider model snapshots can alter the raw \(z_i\) values just enough to flip tie-breaking logits. For CI/CD regression suites, pin the model snapshot, prompt template, decoding parameters, and tool schemas; assert structural and semantic invariants rather than raw prose strings.</p>
-<p><strong>When this model breaks:</strong> Do not treat token sampling probability (low entropy) as a calibrated confidence score for factual truth. When a model is miscalibrated or lacks grounding data in its context window, the factually wrong token can easily hold the highest logit (\(p_1 = 0.85\)), meaning greedy decoding (\(T \to 0^+\)) will confidently select the falsehood <strong>100% of the time</strong> (a confident hallucination).</p>
+<p><strong>When this model breaks:</strong> Do not treat token sampling probability (low entropy) as a calibrated confidence score for factual truth. When a model is miscalibrated or lacks grounding data in its context window, the factually wrong token can easily hold the highest logit (\(p_1 = 0.85\)), meaning greedy decoding (\(T \to 0^+\)) will select the falsehood on every run for that prefix, barring numerical variation (a confident hallucination).</p>
 </div></div>
 
 <h3>Interactive Simulation</h3>
 <div class="stage" data-sim-type="categorical">
+<p class="math-explanation"><strong>Synthetic simulation.</strong> Purpose: show how temperature reshapes a four-token Softmax (base probabilities 0.40 / 0.30 / 0.20 / 0.10 at T = 1). Draws are independent Categorical samples from the equation above; the readout compares the theoretical probability of “Garbage” with its observed rate over the most recent 5,000 draws at most. It illustrates sampling variance, not factual truth.</p>
 <div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Temperature (T): <span id="v_temp_categorical">1.0</span></div><input type="range" id="temp_categorical" aria-label="Categorical temperature T" min="0.1" max="3" step="0.1" value="1"></div></div>
 <div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated categorical token sampling"></canvas>
@@ -219,16 +235,16 @@
 <div class="case-study-box">
     <div class="case-study-header">
         <div class="case-study-title">Case Study 1: Temperature-Induced SQL Dialect Drift in the Analytics Gateway</div>
-        <span class="scenario-tag scenario-tag--case">Illustrative Production Model</span>
+        <span class="scenario-tag scenario-tag--case">Illustrative Engineering Model</span>
     </div>
     <div class="case-grid">
-        <p class="case-step"><strong>1. The Incident:</strong> After rolling out the NL2SQL assistant on the Gateway, 14.8% of multi-join analytical queries began failing in DuckDB with parser errors (e.g., invoking PostgreSQL-only regex operators or Spark-specific <code>LATERAL VIEW EXPLODE</code>).</p>
+        <p class="case-step"><strong>1. The Scenario:</strong> After rolling out the NL2SQL assistant on the Gateway, roughly 15% of multi-join analytical queries began failing in DuckDB with parser errors (e.g., invoking PostgreSQL-only regex operators or Spark-specific <code>LATERAL VIEW EXPLODE</code>).</p>
         <p class="case-step"><strong>2. The Architectural Assumption:</strong> The application team reused a shared chat-completion client configured with \(T = 0.7\) and \(\text{Top-}p = 0.95\), assuming that because the system prompt explicitly specified “Generate valid DuckDB SQL,” minor token diversity would only affect SQL alias naming.</p>
-        <p class="case-step"><strong>3. The Physical Mechanism:</strong> Syntax tokens at dialect branch points (such as date-truncation functions) compete closely in logit space across pre-training dialects (Postgres, Spark, Snowflake, DuckDB). At \(T = 0.7\), the Categorical sampler occasionally draws a runner-up token from a competing dialect. Once that token enters the prefix \(w_{<t}\), autoregressive conditioning locks the remainder of the clause into the wrong dialect.</p>
+        <p class="case-step"><strong>3. The Physical Mechanism:</strong> Syntax tokens at dialect branch points (such as date-truncation functions) compete closely in logit space across pre-training dialects (Postgres, Spark, Snowflake, DuckDB). At \(T = 0.7\), the Categorical sampler occasionally draws a runner-up token from a competing dialect. Once that token enters the prefix \(w_{\lt t}\), autoregressive conditioning locks the remainder of the clause into the wrong dialect.</p>
         <p class="case-step"><strong>4. The Mathematical Model:</strong> Let a query contain \(m = 8\) dialect-sensitive branch points. At \(T = 0.7\), suppose the valid DuckDB token holds probability \(p_i = 0.98\) and competing dialect tokens share the remaining \(0.02\) at each branch point (assumed independent for this baseline).</p>
-        <p class="case-step"><strong>5. The Calculation:</strong> The probability that all \(m = 8\) branch points sample the valid DuckDB token is \(P(E_{\text{struct}}) = 0.98^8 \approx 0.8508\) (85.1%), yielding a <strong>14.9% syntax failure rate</strong>. Lowering \(T \to 0^+\) selects the dominant token deterministically at all 8 branch points.</p>
+        <p class="case-step"><strong>5. The Calculation:</strong> The probability that all \(m = 8\) branch points sample the valid DuckDB token is \(P(E_{\text{struct}}) = 0.98^8 \approx 0.8508\) (85.1%), yielding a <strong>14.9% syntax failure rate</strong>. Lowering \(T \to 0^+\) selects the dominant token at all 8 branch points. The product treats branch points as independent with equal probability; real branch probabilities are conditional on the prefix and differ by token, so \(0.85\) is a baseline to be replaced by a measured parse-error rate.</p>
         <p class="case-step"><strong>6. The Architectural Decision:</strong> Split decoding profiles by task class: enforce \(T = 0.0\) for all code, SQL, and tool-argument generation, and attach a deterministic pre-execution AST validator (<code>sqlglot</code>) before dispatching to DuckDB. <em>Trade-off:</em> Greedy decoding eliminates sampling diversity; if the wrong dialect token genuinely holds the highest logit, a simple retry at \(T = 0\) will fail identically unless the validator injects the AST parse error into the repair prompt.</p>
-        <p class="case-step"><strong>7. Production Verification:</strong> Track <code>gateway_sql_ast_parse_error_rate</code> segmented by decoding profile. Post-fix, unparseable failures dropped from 14.8% to 1.9% (the residual representing epistemic schema gaps rather than sampling variance).</p>
+        <p class="case-step"><strong>7. Production Verification:</strong> Track <code>gateway_sql_ast_parse_error_rate</code> segmented by decoding profile. In this illustrative scenario the goal is for unparseable failures to fall from roughly 15% to a small residual attributable to schema gaps rather than sampling variance; the segmentation by decoding profile, not the numbers, is the reusable part.</p>
     </div>
 </div>
 
@@ -243,7 +259,7 @@
 <p>Top-p sorts tokens by descending probability, retains the smallest prefix whose cumulative probability reaches or exceeds the configured threshold, then renormalizes the retained probabilities. It trims the low-probability tail; it does not know which tokens are “nonsensical,” and it cannot guarantee factuality.</p>
 <div class="scenario-ref">Reference: <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al., “The Curious Case of Neural Text Degeneration”</a></div></div>
 
-<h2>2. Inference Queueing & KV-Cache Physics</h2>
+<h2>2. Inference Queueing &amp; KV-Cache Physics</h2>
 <div class="tldr-box"><div class="tldr-eyebrow">The Intuition: Prefill vs. Decode</div><div class="tldr-content">
 <p>LLM serving latency is governed by two physically distinct phases:</p>
 <ul>
@@ -260,29 +276,38 @@
 </div>
 <p>However, total request service time \(S\) is non-exponential and highly variable due to the physical separation of the Prefill and Decode phases:</p>
 <div class="equation-flow">
-    \[ S = T_{\text{prefill}}(L_{\text{in}}) + \sum_{j=1}^{L_{\text{out}}} T_{\text{step}}(B_j) \]
+    \[ S = T_{\text{prefill}}(L_{\text{in}}) + \sum_{j=2}^{L_{\text{out}}} T_{\text{step}}(B_j) \]
 </div>
-<p>Furthermore, on a physical GPU running continuous batching, effective service capacity degrades discontinuously when active sequences exceed the available High-Bandwidth Memory (HBM) allocated for the KV-cache. For a transformer with \(L_{\text{layers}}\), \(H_{\text{kv}}\) KV heads per layer, head dimension \(d_h\), precision \(b_{\text{bytes}}\) (e.g., FP16/BF16 = 2 bytes), and \(C\) total active tokens across the running batch, the physical KV-cache footprint is:</p>
+<p>The prefill pass produces the first output token, so a request with \(L_{\text{out}}\) output tokens has \(L_{\text{out}}-1\) decode steps, and \(B_j\) is the batch size at step \(j\). Latency metrics are defined per request on that timeline:</p>
 <div class="equation-flow">
-    \[ M_{\text{token}} = 2 \cdot L_{\text{layers}} \cdot H_{\text{kv}} \cdot d_h \cdot b_{\text{bytes}} \]
+    \[ \begin{aligned}
+    \text{TTFT} &= t_{\text{first}} - t_{\text{arrive}} = W_q + T_{\text{prefill}}, \\
+    \text{TPOT} &= \frac{t_{\text{last}} - t_{\text{first}}}{L_{\text{out}} - 1}, \qquad L_{\text{out}} \ge 2
+    \end{aligned} \]
+</div>
+<p>TTFT includes queueing delay \(W_q\), prefill, and the first sample (plus network and tokenization when measured at the client). TPOT excludes the first token: it is the mean of that request's \(L_{\text{out}}-1\) inter-token latencies (ITL), while the ITL distribution keeps the individual gaps, so its p99 exposes stalls from prefill interference or preemption that a mean hides. Tools differ on both choices, so state where the clock starts (client, gateway, or engine) and whether the first token is excluded. Per-request and batch-level measures also differ: one decode step with batch size \(B\) takes \(T_{\text{step}}(B)\) and emits one token per sequence, so the per-request token rate is about \(1/\text{ITL}\) while batch token throughput is about \(B / T_{\text{step}}(B)\) tokens/s. Raising \(B\) usually raises throughput and lengthens ITL.</p>
+<p>Furthermore, on a physical GPU running continuous batching, effective service capacity degrades discontinuously when active sequences exceed the available High-Bandwidth Memory (HBM) allocated for the KV-cache. For a transformer with \(L_{\text{layers}}\), \(H_{\text{kv}}\) KV heads per layer, head dimension \(d_h\), precision \(b_{\text{bytes}}\) (e.g., FP16/BF16 = 2 bytes), and \(C\) total cached tokens across the running batch, the KV-cache footprint is (weights, activations, and allocator overhead are extra):</p>
+<div class="equation-flow">
+    \[ M_{\text{token}} = 2 \cdot L_{\text{layers}} \cdot H_{\text{kv}} \cdot d_h \cdot b_{\text{bytes}}, \qquad M_{\text{KV}}(C) = C \cdot M_{\text{token}} \]
 </div>
 <div class="math-explanation">
 <strong>Let's decode this:</strong>
 <ul>
 <li><strong>\(\lambda_a\), \(\mu\), \(\rho\):</strong> Mean arrival rate, mean service rate, and server utilization (\(\rho = \lambda_a/\mu\)).</li>
 <li><strong>\(\theta = \mu(1 - \rho)\):</strong> Net rate parameter of the \(M/M/1\) sojourn distribution. As \(\rho \to 1\), \(\theta \to 0\) and mean latency \(\to \infty\).</li>
-<li><strong>\(M_{\text{token}}\):</strong> Exact HBM memory (bytes) required to store Key and Value tensors (hence the factor of 2) for a single token.</li>
+<li><strong>\(M_{\text{token}}\):</strong> HBM bytes required to store Key and Value tensors (hence the factor of 2) for one token, before paging, fragmentation, and quantization-scale overhead.</li>
 </ul>
-<p><strong>Worked example:</strong> For a Llama-3 70B model (\(L_{\text{layers}} = 80, H_{\text{kv}} = 8, d_h = 128\)) running in FP16 (\(b_{\text{bytes}} = 2\)), \(M_{\text{token}} = 2 \cdot 80 \cdot 8 \cdot 128 \cdot 2 = 327,680\) bytes (\(\approx 320\) KiB). If an 80GB A100 reserves 30GB for the KV cache, the hard capacity limit is \(30\text{ GB} / 320\text{ KB} \approx 93,750\) total tokens. A burst of just five 16K-token RAG requests will consume 85% of this budget.</p>
+<p><strong>Worked example (illustrative configuration):</strong> For a Llama-3 70B-class model (\(L_{\text{layers}} = 80, H_{\text{kv}} = 8, d_h = 128\)) with an FP16 KV-cache (\(b_{\text{bytes}} = 2\)), \(M_{\text{token}} = 2 \cdot 80 \cdot 8 \cdot 128 \cdot 2 = 327{,}680\) bytes \(= 320\) KiB. The FP16 weights alone are about 140 GB, so a replica spans several GPUs with tensor parallelism; suppose 30 GiB of aggregate HBM across the group is reserved for the KV-cache. The hard limit is then \(30\ \text{GiB} / 320\ \text{KiB} = 98{,}304\) cached tokens. Five concurrent 16K-token RAG requests (\(5 \times 16{,}384 = 81{,}920\) tokens before any output) consume about 83% of that budget. This is a capacity ceiling for admission control, not a latency prediction.</p>
 </div>
 
 <div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap</div><div class="tldr-content">
-<p>Do not fit a single exponential curve to aggregate TTFT telemetry. Because prompt lengths often span three orders of magnitude (from 100-token chat turns to 32,000-token RAG contexts), service time has a high coefficient of variation (\(C_s^2 \gg 1\)). As we saw with Kingman's approximation in Part 3, heavy-tailed service times inflate queueing delay far beyond the \(M/M/1\) baseline.</p>
-<p>Dense full self-attention still requires <strong>O(n²) arithmetic operations</strong> in prompt sequence length \(n\) during prefill. FlashAttention reduces HBM bandwidth bottlenecks through IO-aware SRAM tiling, but it does not make dense prefill compute asymptotically linear. Meanwhile, \(M_{\text{KV}}(C)\) grows linearly with total cached tokens across all concurrent requests. When \(M_{\text{KV}}(C) > M_{\text{max}}\), the engine must preempt running sequences (evicting them to host memory or discarding them)—turning a smooth queueing curve into a bimodal cliff.</p>
+<p>Do not fit a single exponential curve to aggregate TTFT telemetry. Because prompt lengths often span three orders of magnitude (from 100-token chat turns to 32,000-token RAG contexts), service time has a high coefficient of variation (\(C_s^2 \gg 1\)). As Kingman's approximation in Part 3 showed, high service-time variability inflates queueing delay well beyond the \(M/M/1\) baseline; the approximation assumes finite variance, so where prompt-length tails are heavy enough that the sample variance does not stabilise, measure the empirical distribution instead.</p>
+<p>Dense full self-attention still requires <strong>O(n²) arithmetic operations</strong> in prompt sequence length \(n\) during prefill. FlashAttention reduces HBM bandwidth bottlenecks through IO-aware SRAM tiling, but it does not make dense prefill compute asymptotically linear. Meanwhile, \(M_{\text{KV}}(C)\) grows linearly with total cached tokens across all concurrent requests. When \(M_{\text{KV}}(C) > M_{\text{max}}\), the engine must preempt running sequences (evicting them to host memory or discarding them)—turning a smooth queueing curve into a sharp cliff.</p>
 </div></div>
 
 <h3>Interactive Simulation</h3>
 <div class="stage" data-sim-type="exponential">
+<p class="math-explanation"><strong>Synthetic simulation.</strong> Purpose: draw sojourn times from the M/M/1 baseline Exponential(θ). It assumes Poisson arrivals, exponential service, and stationarity; real LLM service times are not exponential. The observed mean (most recent 5,000 draws at most) should approach 1/θ seconds.</p>
 <div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Net Rate (\(\theta\)): <span id="v_lam_exponential">2.0</span></div><input type="range" id="lam_exponential" aria-label="Exponential rate theta" min=".2" max="10" step=".1" value="2"></div></div>
 <div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated exponential queueing sojourn times"></canvas>
@@ -292,14 +317,14 @@
 <div class="case-study-box">
     <div class="case-study-header">
         <div class="case-study-title">Case Study 2: KV-Cache Exhaustion and PagedAttention Preemption</div>
-        <span class="scenario-tag scenario-tag--case">Illustrative Production Model</span>
+        <span class="scenario-tag scenario-tag--case">Hypothetical Stress Scenario</span>
     </div>
     <div class="case-grid">
-        <p class="case-step"><strong>1. The Incident:</strong> During the 09:30 market-open burst, the Analytics Gateway's LLM serving tier suffered a sudden p99 TTFT spike from 1.8 s to 19.4 s, accompanied by mid-stream freezes in token streaming.</p>
+        <p class="case-step"><strong>1. The Scenario:</strong> During the 09:30 market-open burst, the Analytics Gateway's LLM serving tier suffered a sudden p99 TTFT spike from 1.8 s to 19.4 s, accompanied by mid-stream freezes in token streaming.</p>
         <p class="case-step"><strong>2. The Architectural Assumption:</strong> Capacity planners sized the GPU pool using average request throughput (\(\lambda_a = 6\) req/s) and configured the vLLM scheduler with <code>max_num_seqs = 32</code>, assuming 32 sequences would comfortably fit in GPU memory based on a historical average of 1,500 prompt tokens.</p>
         <p class="case-step"><strong>3. The Physical Mechanism:</strong> A new tenant enabled automated schema-RAG, injecting full Iceberg table manifests (averaging 7,000 total tokens per sequence). When concurrent long-context requests filled the 24 GiB KV-cache ceiling, the engine triggered sequence preemption—evicting partially decoded requests and later recomputing their entire prefill from scratch (thrashing).</p>
         <p class="case-step"><strong>4. The Mathematical Model:</strong> With \(M_{\text{token}} = 320\) KiB and a 24 GiB budget, the physical limit is 78,643 tokens. Under the legacy workload, 32 sequences required ~14.6 GiB (61% utilization). Under the RAG burst, just 12 concurrent sequences required 84,000 tokens—exceeding the 78,643 limit.</p>
-        <p class="case-step"><strong>5. The Architectural Decision:</strong> Replace request-count limits with <strong>token-budget admission control</strong> at the Gateway (capping in-flight active tokens per replica at an <em>illustrative admission-control threshold</em> of 65,000 tokens, or ~82% of capacity). Enable <strong>chunked prefill</strong> so long prefills do not stall active decodes, and route requests exceeding 4,096 prompt tokens to a dedicated long-context pool with FP8 KV-cache quantization (doubling token capacity). <em>Trade-off:</em> Strict admission control trades internal GPU thrashing for explicit edge backpressure (HTTP 429).</p>
+        <p class="case-step"><strong>5. The Architectural Decision:</strong> Replace request-count limits with <strong>token-budget admission control</strong> at the Gateway (capping in-flight active tokens per replica at an <em>illustrative admission-control threshold</em> of 65,000 tokens, or ~83% of capacity, counting each request’s prompt plus its reserved maximum output tokens because the KV-cache grows during decode). Enable <strong>chunked prefill</strong> so long prefills do not stall active decodes, and route requests exceeding 4,096 prompt tokens to a dedicated long-context pool with FP8 KV-cache quantization (roughly doubling token capacity, before scale-factor overhead, subject to validated output quality). <em>Trade-off:</em> Strict admission control trades internal GPU thrashing for explicit edge backpressure (HTTP 429).</p>
         <p class="case-step"><strong>6. Production Verification:</strong> Alert whenever <code>vllm:num_preemptions_total</code> rate exceeds 0, monitor <code>vllm:gpu_cache_usage_perc</code>, and track TTFT/TPOT histograms stratified by input token buckets.</p>
     </div>
 </div>
@@ -345,12 +370,13 @@
 </div>
 
 <div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap</div><div class="tldr-content">
-<p>Distinguish <strong>syntactic grammar failures</strong> (\(E_{\text{struct}}\)) from <strong>semantic or domain-constraint failures</strong> (\(E_{\text{data}}, E_{\text{sem}}\)). Grammar-constrained decoding (such as finite-state automata in Outlines or provider-native Strict JSON Schema modes) masks invalid vocabulary tokens during the Softmax step itself, driving syntactic JSON parse failures to nearly zero. That eliminates the need to spend retries on missing commas or unclosed braces.</p>
-<p>However, constrained decoding <strong>cannot prevent semantic hallucinations</strong>: the model will happily emit 100% schema-compliant JSON containing a fabricated trade ID or a logically inverted SQL `WHERE` clause. Worse, when retries burst simultaneously during a downstream schema drift event, the \(1/p\) call multiplier increases arrival rate \(\lambda_a\) at the GPU pool, driving utilization \(\rho \to 1\) and triggering a classic retry storm.</p>
+<p>Distinguish <strong>syntactic grammar failures</strong> (\(E_{\text{struct}}\)) from <strong>semantic or domain-constraint failures</strong> (\(E_{\text{data}}, E_{\text{sem}}\)). Grammar-constrained decoding (such as finite-state automata in Outlines or provider-native Strict JSON Schema modes) masks invalid vocabulary tokens during the Softmax step itself, driving syntactic JSON parse failures to nearly zero (truncation at the maximum-token limit, refusals, and unsupported schema features can still break structure). That eliminates the need to spend retries on missing commas or unclosed braces.</p>
+<p>However, constrained decoding <strong>cannot prevent semantic hallucinations</strong>: the model will happily emit 100% schema-compliant JSON containing a fabricated trade ID or a logically inverted SQL <code>WHERE</code> clause. Worse, when retries burst simultaneously during a downstream schema drift event, the \(1/p\) call multiplier increases arrival rate \(\lambda_a\) at the GPU pool, driving utilization \(\rho \to 1\) and triggering a classic retry storm.</p>
 </div></div>
 
 <h3>Interactive Simulation</h3>
 <div class="stage" data-sim-type="geometric">
+<p class="math-explanation"><strong>Synthetic simulation.</strong> Purpose: draw invocation counts K under the stationary baseline of independent attempts with constant success probability p. Real repair loops are non-stationary (Case Study 3). The observed mean (most recent 5,000 requests at most) should approach 1/p.</p>
 <div class="sim-toolbar"><div class="sim-params"><div class="param-group"><div>Single-Attempt Success (p): <span id="v_p_geometric">0.70</span></div><input type="range" id="p_geometric" aria-label="Geometric success probability p" min=".1" max=".99" step=".01" value=".7"></div></div>
 <div class="controls"><button class="sim-btn btn-run">▶ Run</button><button class="sim-btn secondary btn-step">Step 50</button><button class="sim-btn secondary btn-reset">Reset</button></div></div>
 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated geometric retry attempts"></canvas>
@@ -360,16 +386,16 @@
 <div class="case-study-box">
     <div class="case-study-header">
         <div class="case-study-title">Case Study 3: Self-Correction Prompt Bloat in NL2SQL Schema Validation</div>
-        <span class="scenario-tag scenario-tag--case">Illustrative Production Model</span>
+        <span class="scenario-tag scenario-tag--case">Hypothetical Stress Scenario</span>
     </div>
     <div class="case-grid">
-        <p class="case-step"><strong>1. The Incident:</strong> Following an upstream Iceberg table migration that renamed columns across 18 tenant namespaces, daily LLM token spend on the Gateway spiked by 68% within four hours, while GPU queue depth doubled, even though user query volume remained flat.</p>
-        <p class="case-step"><strong>2. The Architectural Assumption:</strong> Engineers wrapped the NL2SQL generator in a validation loop with \(m = 4\) max attempts. They assumed that if first-attempt validation dropped from 92% to 65%, the geometric call multiplier (\(1 / 0.65 \approx 1.54\)) would increase token costs by at most ~50% while automatically healing the queries.</p>
-        <p class="case-step"><strong>3. The Physical Mechanism:</strong> Two compounding mechanisms invalidated the stationary geometric calculation. First, because the RAG vector index still served stale column metadata, appending the DuckDB `Referenced column not found` traceback into the retry prompt gave the model contradictory instructions, causing conditional pass rates to collapse (\(p_1 = 0.65, p_2 = 0.25, p_3 = 0.10\)). Second, each retry appended the failed 600-token SQL block plus a 1,400-token catalog dump, inflating token cost \(C_k\) super-linearly.</p>
-        <p class="case-step"><strong>4. The Mathematical Model:</strong> We model the 4-attempt stateful repair chain using non-stationary pass probabilities \(p_1 = 0.65, p_2 = 0.25, p_3 = 0.10, p_4 = 0.05\) and measured per-attempt token costs \(C_1 = 2,500\), \(C_2 = 4,500\), \(C_3 = 6,500\), and \(C_4 = 8,500\) tokens.</p>
-        <p class="case-step"><strong>5. The Calculation:</strong> The probability of reaching attempt 2 is \(1 - p_1 = 0.35\); reaching attempt 3 is \(0.35 \times (1 - 0.25) = 0.2625\); reaching attempt 4 is \(0.2625 \times (1 - 0.10) = 0.23625\). Expected invocations per request is \(E[K_4] = 1 + 0.35 + 0.2625 + 0.23625 = 1.849\) attempts. Expected token spend is \(E[\text{Tokens}] = 2,500 + (0.35 \times 4,500) + (0.2625 \times 6,500) + (0.23625 \times 8,500) = 7,789\text{ tokens/request}\)—a <strong>3.12x token cost multiplier</strong> over baseline, with \(22.4\%\) of requests still failing after all 4 attempts.</p>
-        <p class="case-step"><strong>6. The Architectural Decision:</strong> Implement three controls: (a) enforce grammar-constrained decoding for structural JSON validity; (b) classify validation errors—if DuckDB returns a `ColumnNotFound` binder error, trigger an immediate <strong>deterministic catalog cache refresh</strong> before attempting a single repair (\(m = 2\) max attempts); and (c) enforce a cluster-wide <strong>10% token retry budget</strong> (if retry tokens exceed 10% of primary tokens over a 5-minute window, trip a circuit breaker). <em>Trade-off:</em> Capping repair attempts at \(m = 2\) slightly reduces recovery on complex multi-error queries in exchange for eliminating runaway GPU saturation.</p>
-        <p class="case-step"><strong>7. Production Verification:</strong> Instrument empirical conditional pass rates \(\hat{p}_1, \hat{p}_2\) by error class (`schema_binder_error`, `timeout`) and alert when \(\hat{p}_2 < 0.50\) (indicating the repair prompt is burning tokens without fixing the underlying cause).</p>
+        <p class="case-step"><strong>1. The Scenario:</strong> Following an upstream Iceberg table migration that renamed columns across 18 tenant namespaces, token spend per request rose sharply and GPU queue depth grew within hours, even though user query volume remained flat. The calculation below sizes that effect (about 2.1× tokens per request).</p>
+        <p class="case-step"><strong>2. The Architectural Assumption:</strong> Engineers wrapped the NL2SQL generator in a validation loop with \(m = 4\) max attempts. They assumed that if first-attempt validation dropped from 92% to 65%, the geometric call multiplier (\(1 / 0.65 \approx 1.54\)) would rise from \(1/0.92 \approx 1.09\) to \(1/0.65 \approx 1.54\) calls per request (about +42%) and that the extra calls would heal the queries.</p>
+        <p class="case-step"><strong>3. The Physical Mechanism:</strong> Two compounding mechanisms invalidated the stationary geometric calculation. First, because the RAG vector index still served stale column metadata, appending the DuckDB <code>Referenced column not found</code> traceback into the retry prompt gave the model contradictory instructions, causing conditional pass rates to collapse (\(p_1 = 0.65, p_2 = 0.25, p_3 = 0.10\)). Second, each retry appended the failed 600-token SQL block plus a 1,400-token catalog dump, inflating token cost \(C_k\) super-linearly.</p>
+        <p class="case-step"><strong>4. The Mathematical Model:</strong> We model the 4-attempt stateful repair chain using non-stationary pass probabilities \(p_1 = 0.65, p_2 = 0.25, p_3 = 0.10, p_4 = 0.05\) and assumed per-attempt token costs \(C_1 = 2,500\), \(C_2 = 4,500\), \(C_3 = 6,500\), and \(C_4 = 8,500\) tokens.</p>
+        <p class="case-step"><strong>5. The Calculation:</strong> The probability of reaching attempt 2 is \(1 - p_1 = 0.35\); reaching attempt 3 is \(0.35 \times (1 - 0.25) = 0.2625\); reaching attempt 4 is \(0.2625 \times (1 - 0.10) = 0.23625\). Expected invocations per request is \(E[K_4] = 1 + 0.35 + 0.2625 + 0.23625 = 1.849\) attempts. Expected token spend is \(E[\text{Tokens}] = 2,500 + (0.35 \times 4,500) + (0.2625 \times 6,500) + (0.23625 \times 8,500) = 7,789\text{ tokens/request}\)—<strong>3.12×</strong> the one-shot cost \(C_1\). The same chain with the pre-migration first-attempt rate \(p_1 = 0.92\) (keeping \(p_2, p_3, p_4\) unchanged for comparison) costs \(3{,}709\) tokens/request, so the migration raises expected tokens per request by \(7{,}789 / 3{,}709 \approx 2.1\times\), against \(\approx 1.4\times\) in calls under the stationary geometric model. About \(22.4\%\) of requests still fail all 4 attempts (\(0.35 \times 0.75 \times 0.90 \times 0.95\)).</p>
+        <p class="case-step"><strong>6. The Architectural Decision:</strong> Implement three controls: (a) enforce grammar-constrained decoding for structural JSON validity; (b) classify validation errors—if DuckDB returns a <code>ColumnNotFound</code> binder error, trigger an immediate <strong>deterministic catalog cache refresh</strong> before attempting a single repair (\(m = 2\) max attempts); and (c) enforce a cluster-wide <strong>10% token retry budget</strong> (if retry tokens exceed 10% of primary tokens over a 5-minute window, trip a circuit breaker). <em>Trade-off:</em> Capping repair attempts at \(m = 2\) slightly reduces recovery on complex multi-error queries in exchange for eliminating runaway GPU saturation.</p>
+        <p class="case-step"><strong>7. Production Verification:</strong> Instrument empirical conditional pass rates \(\hat{p}_1, \hat{p}_2\) by error class (<code>schema_binder_error</code>, <code>timeout</code>) and alert when \(\hat{p}_2 \lt 0.50\) (indicating the repair prompt is burning tokens without fixing the underlying cause).</p>
     </div>
 </div>
 
@@ -410,12 +436,13 @@
 </div>
 
 <div class="tldr-box tldr-box--math"><div class="tldr-eyebrow">The SRE Trap: Correlation and State-Space Collapse</div><div class="tldr-content">
-<p>Agent stages are almost never independent. If Stage 2 retrieves the wrong tenant's schema, Stages 3, 4, and 5 (SQL synthesis, execution, and narrative explanation) are conditioned on a false premise: \(P(S_3 = 1 \mid S_2 = 0) \approx 0\). Importantly, positive correlation across stages does <strong>not</strong> automatically make \(p^n\) an upper bound or a lower bound on true end-to-end reliability—the direction depends on how marginal probabilities \(p_i\) were measured (in isolation on golden inputs vs. conditioned on upstream pipeline outputs).</p>
-<p>When stages have distinct independent success probabilities \(p_1, \dots, p_n\), the count of successful stages follows a <strong>Poisson-Binomial distribution</strong>, and all-stage reliability is \(\prod_{i=1}^n p_i\). If an architect adds a deterministic validator and a bounded \(m\)-attempt recovery loop around stage \(i\), the effective stage reliability rises from \(p_i\) to \(p_{i,\text{eff}} = 1 - (1 - p_i)^m\)—turning a fragile serial chain into a governed state machine.</p>
+<p>Agent stages are almost never independent. If Stage 2 retrieves the wrong tenant's schema, Stages 3, 4, and 5 (SQL synthesis, execution, and narrative explanation) are conditioned on a false premise: \(P(S_3 = 1 \mid S_2 = 0) \approx 0\). The direction of the error from assuming independence is not fixed: if the \(p_i\) are true production marginals and stage successes are positively associated, \(\prod p_i\) understates all-stage success, but \(p_i\) measured in isolation on golden inputs overstate production marginals, and a poisoned stage has a conditional probability far below its isolated one. Measure \(P(S_i = 1 \mid S_1 = \dots = S_{i-1} = 1)\) on real upstream outputs.</p>
+<p>When stages have distinct independent success probabilities \(p_1, \dots, p_n\), the count of successful stages follows a <strong>Poisson-Binomial distribution</strong>, and all-stage reliability is \(\prod_{i=1}^n p_i\). If an architect adds a validator and a bounded \(m\)-attempt recovery loop around stage \(i\), reliability rises only for failures the validator detects. With detection coverage \(d_i\) and conditional retry pass probabilities \(r_{i,k} = P(\text{pass on retry } k \mid \text{earlier attempts failed})\), \(p_{i,\text{eff}} = p_i + (1 - p_i)\, d_i \bigl[1 - \prod_{k=1}^{m-1}(1 - r_{i,k})\bigr]\). The familiar \(1 - (1 - p_i)^m\) is the special case of perfect detection and independent, identical retries; undetected (silent) errors pass straight through.</p>
 </div></div>
 
 <h3>Interactive Simulation</h3>
 <div class="stage" data-sim-type="binomial">
+<p class="math-explanation"><strong>Synthetic simulation.</strong> Purpose: draw stage successes for n independent, identical Bernoulli stages. The all-stage rate approaches pⁿ only under that independence assumption; dependent stages need the conditional chain rule. The sample is the most recent 5,000 workflow runs at most.</p>
 <div class="sim-toolbar"><div class="sim-params">
 <div class="param-group"><div>Agent Stages (n): <span id="v_n_binomial">10</span></div><input type="range" id="n_binomial" aria-label="Number of agent stages n" min="2" max="30" step="1" value="10"></div>
 <div class="param-group"><div>Stage Success (p): <span id="v_p_binomial">0.95</span></div><input type="range" id="p_binomial" aria-label="Stage success probability p" min=".5" max=".99" step=".01" value=".95"></div>
@@ -427,15 +454,15 @@
 <div class="case-study-box">
     <div class="case-study-header">
         <div class="case-study-title">Case Study 4: Collapsing an Autonomous Trade-Reconciliation Agent into a Deterministic Control Plane</div>
-        <span class="scenario-tag scenario-tag--case">Illustrative Production Model</span>
+        <span class="scenario-tag scenario-tag--case">Illustrative Engineering Model</span>
     </div>
     <div class="case-grid">
-        <p class="case-step"><strong>1. The Incident:</strong> A prototype autonomous reconciliation agent built on top of the Gateway was tasked with investigating end-of-day trade breaks. In staging evaluations over 500 historical breaks, the agent completed only 48.2% of investigations accurately, while 19.0% terminated with silent semantic errors (attributing breaks to the wrong counterparty or computing fee deltas with floating-point hallucinations).</p>
+        <p class="case-step"><strong>1. The Scenario:</strong> A prototype autonomous reconciliation agent built on top of the Gateway was tasked with investigating end-of-day trade breaks. Suppose a staging evaluation over 500 historical breaks (an illustrative scenario, not a published benchmark) found that the agent completed only 48.2% of investigations correctly, while 19.0% ended in silent semantic errors (attributing breaks to the wrong counterparty or computing fee deltas with floating-point hallucinations).</p>
         <p class="case-step"><strong>2. The Architectural Assumption:</strong> The engineering team designed an open-ended 12-step ReAct agent loop where the LLM autonomously decided which tool to invoke next, parsed raw JSON tool payloads, performed currency-conversion arithmetic in-context, and wrote the final discrepancy ticket.</p>
         <p class="case-step"><strong>3. The Physical Mechanism:</strong> Each autonomous reasoning turn introduced an unverified stochastic branch. Even though individual prompt benchmarks showed ~94% per-turn accuracy on golden unit tests, chaining 12 open-ended turns meant small errors in early tool selection or in-context arithmetic poisoned the context window for all subsequent steps.</p>
-        <p class="case-step"><strong>4. The Mathematical Model:</strong> Under the initial \(n = 12\) serial LLM-turn architecture with benchmarked per-stage reliability \(p = 0.94\), baseline all-stage success is \(P(\text{All 12}) = p^{12}\). Under the refactored architecture, we replace 9 deterministic tasks (tenant routing, schema lookup, SQL execution, currency arithmetic, threshold comparison, and ticket formatting) with standard Python/DuckDB code (\(p_{\text{code}} = 0.9995\)) and retain only \(n = 3\) bounded LLM nodes, each wrapped in a deterministic validator with \(m = 2\) bounded attempts and conditional repair probability \(p_{i,\text{eff}} = 1 - (1 - p_i)(1 - p_{i,\text{retry}})\).</p>
-        <p class="case-step"><strong>5. The Calculation:</strong> In the original 12-turn autonomous loop, \(P(\text{Success}) = 0.94^{12} \approx 0.4759\) (<strong>47.6%</strong>, closely matching the 48.2% staging result). In the refactored 3-node state machine, each LLM stage has first-pass accuracy \(p_i = 0.94\) and validated retry recovery \(p_{i,\text{retry}} = 0.65\), giving per-stage effective reliability \(p_{i,\text{eff}} = 1 - (0.06 \times 0.35) = 0.9790\). Combined with the 9 deterministic code steps (\(0.9995^9 \approx 0.9955\)), end-to-end task completion rises to \(P(\text{Success}) = 0.9790^3 \times 0.9955 \approx 0.9341\) (<strong>93.4%</strong>)—nearly doubling end-to-end reliability while cutting average LLM invocations from 12.0 to \(3 \times 1.06 = 3.18\) calls per workflow (a <strong>73.5% reduction in inference load</strong>).</p>
-        <p class="case-step"><strong>6. The Architectural Decision:</strong> Replace unconstrained ReAct loops with an explicit directed acyclic graph (DAG) or finite state machine in the orchestrator. Enforce the rule that <strong>LLMs never perform arithmetic, authorization checks, or control-flow routing when deterministic code can compute the exact answer</strong>. Require idempotency keys on all side-effecting tool calls and route the residual workflows that fail validation to a human-in-the-loop review queue.</p>
+        <p class="case-step"><strong>4. The Mathematical Model:</strong> Under the initial \(n = 12\) serial LLM-turn architecture with benchmarked per-stage reliability \(p = 0.94\), baseline all-stage success is \(P(\text{All 12}) = p^{12}\). Under the refactored architecture, we move 9 steps into deterministic code (including tenant routing, schema lookup, SQL execution, currency arithmetic, threshold comparison, and ticket formatting) with standard Python/DuckDB code (\(p_{\text{code}} = 0.9995\)) and retain only \(n = 3\) bounded LLM nodes, each wrapped in a deterministic validator with \(m = 2\) bounded attempts and effective reliability \(p_{i,\text{eff}} = p_i + (1 - p_i)\, d\, r\), where \(d\) is validator detection coverage and \(r = P(\text{pass on retry} \mid \text{first attempt failed})\).</p>
+        <p class="case-step"><strong>5. The Calculation:</strong> In the original 12-turn loop, treating turns as independent with \(p = 0.94\) predicts \(0.94^{12} \approx 0.476\). The illustrative staging result (48.2%) sitting close to that prediction is consistent with independence but does not prove it; on real data, compare predicted and observed rates to test the assumption. In the refactored 3-node machine take \(p_i = 0.94\) and \(r = 0.65\). With perfect detection (\(d = 1\)), \(p_{i,\text{eff}} = 0.94 + 0.06 \times 0.65 = 0.979\); with nine deterministic steps (\(0.9995^9 \approx 0.9955\)), \(P(\text{Success}) = 0.979^3 \times 0.9955 \approx 0.934\) (<strong>93.4%</strong>), at an expected \(3 \times 1.06 = 3.18\) LLM calls per workflow versus 12 (a 73.5% reduction). Detection coverage is the sensitive assumption: \(d = 0.8\) gives \(p_{i,\text{eff}} = 0.9712\) and \(P(\text{Success}) \approx 91.2\%\); \(d = 0.5\) gives about 87.9%. The undetected remainder is silent semantic error, so \(d\) must be measured, not assumed. “Success” means a correct completion; workflows that fail validation go to human review and are not counted as correct.</p>
+        <p class="case-step"><strong>6. The Architectural Decision:</strong> Replace unconstrained ReAct loops with an explicit directed acyclic graph (DAG) or finite state machine in the orchestrator. Enforce the rule that <strong>LLMs never perform arithmetic, authorization checks, or control-flow routing when deterministic code can compute the exact answer</strong>. Require idempotency keys on all side-effecting tool calls and route the residual workflows that fail validation to a human-in-the-loop review queue. Set per-tool timeouts inside the workflow deadline, and treat a timed-out side-effecting call as outcome-unknown: retry it only with the same idempotency key.</p>
         <p class="case-step"><strong>7. Production Verification:</strong> Log step-level transition matrices in OpenTelemetry spans, track empirical conditional transition probabilities \(\hat{P}(S_i = 1 \mid S_{i-1} = 1)\) weekly, and audit semantic correctness (\(E_{\text{sem}}\)) via stratified daily sampling against deterministic reconciliation ledger balances.</p>
     </div>
 </div>
@@ -444,6 +471,9 @@
 <div class="scenario-card"><div class="scenario-title">Compounding Work in an Autonomous Loop <span class="scenario-tag">Bounded Execution</span></div>
 <p>For illustration, a 30-stage workflow with independent 98% stage reliability has an all-stage success probability of <code>0.98^30 ≈ 54.5%</code>. This is not evidence that a particular agent framework failed at that rate. It shows why an architect should bound iterations, define stop conditions, validate intermediate artifacts, and measure end-to-end task completion—not just isolated model accuracy.</p>
 <div class="scenario-ref">Background: <a href="https://arxiv.org/abs/2308.11432" target="_blank" rel="noopener noreferrer">Wang et al., “A Survey on Large Language Model based Autonomous Agents”</a></div></div>
+<div class="scenario-card"><div class="scenario-title">Tool Timeouts and Ambiguous Outcomes <span class="scenario-tag">Tool Execution</span></div>
+<p>A tool call that times out has an unknown outcome: the side effect may or may not have been applied. Classify tools as read-only or side-effecting, give each a deadline inside the workflow deadline, retry side-effecting calls only with a stable idempotency key, and reconcile ambiguous outcomes against the system of record before the agent continues. The timeout is a serving-layer failure; a retried write that duplicates a ticket is a task-layer failure that passes every health check.</p>
+<div class="scenario-ref">Engineering control: per-tool timeouts, idempotency keys, and outcome reconciliation in the orchestrator.</div></div>
 <div class="scenario-card"><div class="scenario-title">The Multi-Agent Echo Chamber <span class="scenario-tag">Multi-Agent Topologies</span></div>
 <p>Multiple agents can share the same mistaken premise, training biases, retrieved evidence, or tool output. Debate may improve some tasks, but agreement is not independent verification. Require evidence provenance and an external check—such as a compiler, database constraint, deterministic calculation, or independently sourced fact—before treating consensus as correctness.</p>
 <div class="scenario-ref">Background: <a href="https://arxiv.org/abs/2305.14325" target="_blank" rel="noopener noreferrer">Du et al., “Improving Factuality and Reasoning in Language Models through Multiagent Debate”</a></div></div>
@@ -451,22 +481,44 @@
 <p>Reduce unnecessary model calls by replacing predictable reasoning with ordinary code. Put each remaining model call behind typed input/output contracts, validators, bounded retries, deadlines, token budgets, and explicit state transitions. Use idempotency keys for side effects, audit the evidence used, and provide compensation or rollback paths where possible. Deterministic orchestration makes execution governable; it does not make model-generated content inherently correct.</p>
 <div class="scenario-ref">Reference: <a href="https://github.com/NVIDIA/NeMo-Guardrails" target="_blank" rel="noopener noreferrer">NVIDIA NeMo Guardrails</a></div></div>
 
-<h2>5. Semantic Evaluation and LLM-as-a-Judge</h2>
-<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: Judges Have False Positives</div><div class="tldr-content">
-<p>When using an LLM-as-a-Judge to evaluate Semantic Correctness (\(E_{\text{sem}}\)), the judge itself is a stochastic classifier subject to False Positives (\(\alpha_{\text{fp}}\)) and False Negatives (\(\beta_{\text{fn}}\)). You cannot take the raw pass rate on a dashboard at face value.</p>
+<h2>5. Semantic Correctness: Measurable Acceptance and LLM-as-a-Judge</h2>
+<div class="tldr-box"><div class="tldr-eyebrow">The Intuition: “Zero Hallucinations” Is Not a Test</div><div class="tldr-content">
+<p>A finite audit can bound an error rate but cannot show that it is zero, and “hallucination” is undefined until a task says what counts as wrong. Production acceptance should be a set of measurable conditions, each with a check and a reported error rate with its uncertainty. Some conditions are invariants that code enforces exactly, where a zero-tolerance rule is meaningful because a control enforces it; the rest are statistical and are reported as bounded rates. This article owns the reliability mechanics; the taxonomy of semantic wrongness belongs to the companion article on semantic wrongness.</p>
 </div></div>
 
-<h3>The Math</h3>
-<p>If an LLM Judge evaluates a pipeline where the true pass rate is \(p_{\text{true}}\), the observed pass rate \(p_{\text{obs}}\) on the dashboard is the sum of True Positives and False Positives. We apply the Rogan-Gladen prevalence adjustment:</p>
+<h3>Acceptance Conditions</h3>
+<div class="audit-table-wrap"><table class="audit-table">
+<thead><tr><th>Condition</th><th>Acceptance test</th><th>Checked by</th><th>On failure</th></tr></thead>
+<tbody>
+<tr><td><strong>Factual support</strong></td><td>Each claim is supported by retrieved evidence</td><td>Sampled human or judge audit</td><td>Flag or abstain; track unsupported-claim rate</td></tr>
+<tr><td><strong>Tenant correctness</strong></td><td>Every table, chunk, and cited row is within the caller's tenant scope</td><td>Deterministic: scoping enforced in code, canary tenants</td><td>Block and alert; any violation is a security incident</td></tr>
+<tr><td><strong>Domain invariants</strong></td><td>E.g. break amounts net to the ledger difference; allowed status transitions only</td><td>Deterministic checker</td><td>Reject; route to review</td></tr>
+<tr><td><strong>Numerical tolerance</strong></td><td>Values match an exact recomputation within a stated tolerance and rounding rule</td><td>Deterministic recompute</td><td>Reject; never trust in-context arithmetic</td></tr>
+<tr><td><strong>Citation validity</strong></td><td>Cited IDs exist, are in scope, and support the claim</td><td>Existence and scope deterministic; support sampled</td><td>Strip or reject</td></tr>
+<tr><td><strong>Permitted uncertainty</strong></td><td>“Insufficient evidence” is an accepted outcome in defined cases</td><td>Policy plus sampled review; abstention rate tracked</td><td>Route to human review</td></tr>
+<tr><td><strong>Task-specific acceptance</strong></td><td>E.g. generated SQL returns the reference result set on a test suite, compared as a multiset (ordered only where <code>ORDER BY</code> applies), not by query text or physical plan</td><td>Automated suite plus sampled audit</td><td>Regression gate; fallback workflow</td></tr>
+</tbody></table></div>
+
+<h3>Reporting an Observed Error Rate</h3>
+<p>For \(n\) independently sampled audited outputs with \(x\) failing the acceptance conditions, report \(\hat{e} = x/n\) with an interval. The Wilson 95% interval (\(z \approx 1.96\)) behaves well at small \(n\) and rates near zero; when \(x = 0\), the one-sided 95% upper bound is \(1 - 0.05^{1/n} \approx 3/n\):</p>
+<div class="equation-flow">
+    \[ \text{CI}_{\text{Wilson}} = \frac{\hat{e} + \dfrac{z^2}{2n} \pm z\sqrt{\dfrac{\hat{e}(1-\hat{e})}{n} + \dfrac{z^2}{4n^2}}}{1 + \dfrac{z^2}{n}} \]
+</div>
+<div class="math-explanation">
+<strong>Worked example (illustrative):</strong> An audit of \(n = 400\) randomly sampled outputs finds \(x = 8\) failures: \(\hat{e} = 2.0\%\), Wilson 95% interval about \(1.0\%\) to \(3.9\%\). An audit of \(n = 300\) with \(x = 0\) bounds the rate at about \(1 - 0.05^{1/300} \approx 0.99\%\) (95%, one-sided); it does not show the rate is zero. <strong>Assumptions:</strong> random sampling from the production population, stratified by tenant and task class; the interval describes the audited period, not future drift (Part 7).
+</div>
+
+<h3>Calibrating an LLM Judge</h3>
+<p>A judge that scores factual support or task acceptance is itself a stochastic classifier with false positives (\(\alpha_{\text{fp}}\): passes a wrong output) and false negatives (\(\beta_{\text{fn}}\): fails a correct one), so the dashboard pass rate is not the true pass rate. If the true pass rate is \(p_{\text{true}}\), the observed rate is:</p>
 <div class="equation-flow">
     \[ p_{\text{obs}} = p_{\text{true}}(1 - \beta_{\text{fn}}) + (1 - p_{\text{true}})\alpha_{\text{fp}} \]
 </div>
-<p>Solving for the true semantic pass rate yields:</p>
+<p>Solving gives the Rogan–Gladen correction, valid when \(\alpha_{\text{fp}} + \beta_{\text{fn}} < 1\) and the estimate is clipped to \([0, 1]\):</p>
 <div class="equation-flow">
     \[ \hat{p}_{\text{true}} = \frac{p_{\text{obs}} - \alpha_{\text{fp}}}{1 - \alpha_{\text{fp}} - \beta_{\text{fn}}} \]
 </div>
 <div class="math-explanation">
-<strong>Worked example:</strong> A deterministic regression suite confirms your Judge has a 5% False Positive rate (\(\alpha_{\text{fp}} = 0.05\)) and a 10% False Negative rate (\(\beta_{\text{fn}} = 0.10\)). If the dashboard shows an 80% observed pass rate (\(p_{\text{obs}} = 0.80\)), the true semantic reliability is actually \((0.80 - 0.05) / (1 - 0.05 - 0.10) = 0.75 / 0.85 \approx 88.2\%\).
+<strong>Worked example (illustrative):</strong> A labelled regression suite estimates \(\alpha_{\text{fp}} = 0.05\) and \(\beta_{\text{fn}} = 0.10\). With \(p_{\text{obs}} = 0.80\), \(\hat{p}_{\text{true}} = (0.80 - 0.05)/(1 - 0.05 - 0.10) = 0.75/0.85 \approx 88.2\%\). The error rates are estimates too: if they came from 10 false passes in 200 known-bad items and 20 false fails in 200 known-good items, their Wilson 95% intervals are about 2.7%–9.0% and 6.6%–14.9%, and the corrected rate spans roughly 84%–94% rather than a point value. <strong>Assumptions:</strong> error rates are the same across the populations being scored, and judge errors are not correlated with generator errors; a judge from the same model family can share the generator's blind spots, so calibrate on stratified labelled sets and keep deterministic checks for anything checkable exactly.
 </div>
 
 <h2>6. Operational Verification Checklist: Auditing AI Models in Production</h2>
@@ -496,7 +548,7 @@
                 <td>TTFT &amp; TPOT sojourn time \(S\) (seconds)</td>
                 <td>Heavy-tailed prompt lengths (\(C_s^2 \gg 1\)); KV-cache HBM exhaustion triggering sequence preemption</td>
                 <td><code>vllm:gpu_cache_usage_perc</code>, <code>num_preemptions_total</code>, TTFT p99 by token bucket</td>
-                <td>Token-budget admission control; chunked prefill; dedicated long-context worker pools</td>
+                <td>Token-budget admission control and concurrency limits; chunked prefill; dedicated long-context worker pools; quantized KV-cache where output quality is validated</td>
             </tr>
             <tr>
                 <td><strong>Structured Output Retries</strong><br>(Truncated Geometric)</td>
@@ -512,13 +564,27 @@
                 <td>OpenTelemetry stage transition matrix; human-in-the-loop escalation rate</td>
                 <td>Collapse reasoning steps into deterministic DAGs; idempotency keys; bounded iteration caps</td>
             </tr>
+            <tr>
+                <td><strong>Tool Execution &amp; Agent Loops</strong><br>(Outcome-unknown side effects)</td>
+                <td>Applied / not applied / unknown outcome per side-effecting call</td>
+                <td>Timeouts leave outcomes unknown; retries duplicate side effects; loops run unbounded</td>
+                <td>Tool timeout rate; duplicate-side-effect count; iterations per task</td>
+                <td>Per-tool deadlines; idempotency keys; bounded iteration; outcome reconciliation; fallback to a simpler deterministic path</td>
+            </tr>
+            <tr>
+                <td><strong>Semantic Acceptance</strong><br>(Observed error rate; judge calibration)</td>
+                <td>Pass/fail per output against the acceptance conditions</td>
+                <td>Audit sample unrepresentative; judge errors correlated with generator errors; input drift</td>
+                <td>Audited error rate with interval; judge \(\alpha_{\text{fp}}, \beta_{\text{fn}}\) on labelled sets; abstention and human-review rates</td>
+                <td>Deterministic checkers for invariants; stratified audits; human review queue; fallback model or workflow with replay from checkpoints</td>
+            </tr>
         </tbody>
     </table>
 </div>
 
 <div class="tldr-box tldr-box--warning" style="margin-top:3rem"><div class="tldr-eyebrow">The Final Reality: Constrain the Stochastic Core</div><div class="tldr-content">
 <p>Across all eight parts of <em>The Shape of Failure</em>, one engineering truth has remained constant: production outages happen in the gap between convenient mathematical assumptions and physical system boundaries. Whether you are sizing a distributed cache in Part 1, surviving a retry storm in Part 6, or orchestrating an LLM agent in Part 8, <strong>a probability distribution is a diagnostic lens, never a guarantee</strong>.</p>
-<p><strong>The Architect's Rule for AI Systems:</strong> Isolate stochastic models to the narrow semantic tasks that genuinely require them. Surround every model invocation with deterministic code for routing, arithmetic, authorization, schema validation, token-budget admission control, and idempotent state transitions. Measure end-to-end semantic task completion (\(E_{\text{task}}\)), not just HTTP 200 serving reliability (\(E_{\text{serve}}\)). The AI proposes; the deterministic control plane validates and authorizes.</p>
+<p><strong>The Architect's Rule for AI Systems:</strong> Isolate stochastic models to the narrow semantic tasks that genuinely require them. Surround every model invocation with deterministic code for routing, arithmetic, authorization, schema validation, token-budget admission control, and idempotent state transitions. Measure end-to-end semantic task completion (\(E_{\text{task}}\)), not just HTTP 200 serving reliability (\(E_{\text{serve}}\)). The AI proposes; the deterministic control plane validates what can be checked exactly, authorizes side effects, and reports a measured error rate, with its uncertainty, for what cannot.</p>
 <p><em>Where do we go from here?</em> To translate the principles in this finale into a rapid lookup reference for day-to-day capacity planning and architecture reviews, continue to the companion reference guide: <a href="appendix-ai-systems.html" style="color:var(--teal);font-weight:600;text-decoration:none">AI Infrastructure Appendix — Mapping the Shape of Failure to LLM Infrastructure</a>.</p>
 </div></div>
 <nav class="post-pager" aria-label="Series pagination"><a href="part-7-architects-reality-check.html">← Part 7: The Architect's Reality Check</a><a href="index.html">Back to Series Overview →</a></nav>
@@ -528,6 +594,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
+ if(typeof renderMathInElement==='function'){renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],throwOnError:false})}
  const canvasToSim=new Map();
  const logits=[Math.log(.4),Math.log(.3),Math.log(.2),Math.log(.1)];
  const themeBtn=document.querySelector('.theme-toggle');
