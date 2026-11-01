@@ -255,11 +255,11 @@
                 <p class="snarky-quote-author">— <strong>Architecture field note</strong></p>
             </blockquote>
 
-            <p>Every quarter, a well-meaning FinOps spreadsheet warrior looks at an observability dashboard, sees an event streaming cluster running at 70% average CPU utilization, and declares victory by scaling down worker nodes. Two days later, CPU sits at a "healthy, cost-optimized" 91%, the Grafana gauges are still green, and your regulatory reporting pipeline is silently breaching compliance SLAs.</p>
+            <p>Consider a recurring capacity-planning mistake. An event-streaming cluster averages 70% CPU utilization, so a cost review recommends removing workers. After the change, utilization spends more time near 90%, and a reporting pipeline begins missing its processing objective. These percentages are illustrative, not universal capacity thresholds; CPU utilization alone does not reveal per-partition saturation, service-time variability, queue age, or the capacity available for recovery.</p>
 
-            <p>Why? Because capacity planning based on averages assumes traffic arrives like a Swiss train schedule and executes in deterministic lockstep. In reality, requests arrive in random clusters, execution times jitter wildly, and queues act as mathematical amplifiers for both. As utilization approaches 100%, waiting time doesn't grow linearly—it goes vertical.</p>
+            <p>The mechanism is queueing. Arrivals do not line up perfectly with service completions, and service times are not identical. When a single-server queue operates close to its service capacity, variability leaves less idle time in which to absorb bursts. Waiting time can then rise sharply even while average throughput still matches average demand. The exact response depends on arrival variability, service-time variability, scheduling, buffering, and whether capacity can be added quickly.</p>
 
-            <p>To understand why a system can be simultaneously "healthy" on average and unusable in practice, model the arrival process (Poisson), service-time variability (Exponential as one baseline), sequential latency (Erlang), finite-queue overload, and the relationship between throughput, time, and concurrency (Little’s Law), alongside Kingman’s \(GI/G/1\) waiting-time approximation. Each model has explicit assumptions that must be tested against production telemetry.</p>
+            <p>This chapter moves from arrival counts to inter-arrival and service times, then to sequential stage durations, finite and multi-server queues, Little’s Law, and Kingman’s mean-wait approximation for a single-server \(GI/G/1\) queue. These are deliberately different models. A model is useful only when its assumptions match the workload and the operational decision being made.</p>
 
             <!-- ========================================== -->
             <!-- 1. POISSON DISTRIBUTION -->
@@ -274,8 +274,9 @@
                 </div>
             </div>
 
-            <p>We define the homogeneous Poisson counting process \(N(t) \sim \text{Poisson}(\lambda t)\) which models the number of arrivals in time \(t\). The time gap between these arrivals is modelled as \(A \sim \text{Exponential}(\lambda)\). This mathematical model relies on strict physical assumptions: independent increments, memorylessness, stationarity over the window, and non-simultaneous arrivals.</p>
-            <p>The probability of observing exactly \(k\) arrivals in a fixed time window, given an average arrival rate of \(\lambda\) events per unit time, is given by the Poisson Probability Mass Function (PMF):</p>
+            <p>Let \(\lambda\) be the arrival rate, measured in arrivals per unit time (for example, queries/second), and let \(t\) be the observation-window duration in that same time unit. The homogeneous Poisson counting process is \(N(t) \sim \operatorname{Poisson}(\lambda t)\). The product \(\lambda t\) is dimensionless and is the expected number of arrivals in the window—not an arrival rate. For a homogeneous Poisson process, inter-arrival times are independent exponential random variables with rate \(\lambda\), so their mean is \(1/\lambda\).</p>
+            <p>The model assumes independent increments and a constant rate over the window being analysed; it also assigns probability zero to exactly simultaneous arrivals. The exponential inter-arrival distribution is memoryless. These assumptions can fail with coordinated clients, batching, scheduled work, rate limits, and feedback-driven traffic.</p>
+            <p>The probability of observing exactly \(k\) arrivals in a fixed interval of duration \(t\) is given by the Poisson probability mass function (PMF):</p>
             
             <div class="math-display">
                 \[ P(N(t) = k) = \frac{(\lambda t)^k \cdot e^{-\lambda t}}{k!} \]
@@ -284,33 +285,33 @@
             <div class="math-explanation">
                 <strong>Decoding the parameters:</strong>
                 <ul>
-                    <li><strong>\(\lambda t\):</strong> The expected (average) number of arrivals in your chosen time window. Crucially, for a Poisson distribution, the <strong>Variance also equals the Mean</strong> (\(\sigma^2 = \lambda t\)).</li>
-                    <li><strong>\(k\):</strong> The exact integer number of requests arriving in that window (\(k = 0, 1, 2, \dots\)).</li>
-                    <li><strong>\(e\):</strong> Euler's constant (\(\approx 2.71828\)), the base of natural decay.</li>
+                    <li><strong>\(\lambda\):</strong> Arrival rate, in arrivals per unit time. <strong>\(t\):</strong> Window duration in the same time unit. <strong>\(\lambda t\):</strong> Expected arrival count in that window; for a Poisson count, the variance also equals this mean.</li>
+                    <li><strong>\(k\):</strong> The exact non-negative integer number of arrivals in that window (\(k=0,1,2,\ldots\)); the observation duration satisfies \(t\ge0\).</li>
+                    <li><strong>\(e\):</strong> Euler's number (\(\approx 2.71828\)), the base of natural decay.</li>
                     <li><strong>\(k!\):</strong> Factorial of \(k\) (the number of ways \(k\) arrivals can permute).</li>
                 </ul>
             </div>
 
-            <p>For example, with a Poisson mean of 10 arrivals per second, the probability of exactly 30 arrivals in a 1-second interval is approximately \(1.51 \times 10^{-7}\) (or \(0.0000151\%\)). An unusual count in a single interval does not by itself establish overload: the service rate, queue occupancy, and interval boundaries all dictate whether backlog accumulates.</p>
+            <p>For example, with \(\lambda = 10\) arrivals/second and \(t = 1\) second, the expected count is \(\lambda t = 10\). The probability of exactly 30 arrivals is \(e^{-10}10^{30}/30! \approx 1.71 \times 10^{-7}\), or about \(0.0000171\%\). An unusual count in one interval does not by itself establish overload: service capacity, existing queue occupancy, and the interval boundary determine whether backlog accumulates.</p>
 
             <div class="worked-section">
                 <div class="worked-title">Worked Scenario: The Analytics Gateway &amp; The 100ms Micro-Burst</div>
                 <p>Consider a simplified admission controller for our Multi-Tenant Analytics Gateway: the service sees an average of <strong>20 queries per second</strong> across all tenants, and we count arrivals in fixed, non-overlapping <strong>100ms windows</strong>. For this discrete calculation only, assume a window can admit at most five new queries and has no carry-over queue or background service draining queries mid-window. (A real continuous queue must also account for current occupancy and async service completions; the Poisson discrete count alone does not determine whether a real request is rejected).</p>
-                <p>How often do you drop traffic when your server is "only 20% utilized" against a theoretical capacity of 100 req/s? Let's do the math for a 100ms (\(0.1\text{ s}\)) window:</p>
+                <p>The mean offered arrival rate is 20 queries/s, one fifth of the stated nominal processing rate of 100 queries/s. That average-rate comparison is not a guarantee about any 100ms interval. For this deliberately simplified admission rule, count how often more than five arrivals appear in a window; the five-query cap is a per-window admission limit, not a derivation of the worker pool's service capacity:</p>
                 <div class="worked-steps">
-                    Window Rate expectation: \(\lambda t = 20 \text{ req/s} \times 0.1\text{ s} = 2.0\) arrivals per 100ms<br>
+                    Expected arrivals in the window: \(\lambda t = 20 \text{ queries/s} \times 0.1\text{ s} = 2.0\) arrivals per 100ms<br>
                     Base Decay: \(e^{-2} \approx 0.13534\)<br><br>
                     \(P(N(0.1) = 0) = \frac{2.0^0 \cdot 0.13534}{0!} = 0.1353\) (13.53% — dead quiet)<br>
                     \(P(N(0.1) = 1) = \frac{2.0^1 \cdot 0.13534}{1!} = 0.2707\) (27.07%)<br>
                     \(P(N(0.1) = 2) = \frac{2.0^2 \cdot 0.13534}{2!} = 0.2707\) (27.07% — the average)<br>
                     \(P(N(0.1) = 3) = \frac{2.0^3 \cdot 0.13534}{3!} = 0.1804\) (18.04%)<br>
                     \(P(N(0.1) = 4) = \frac{2.0^4 \cdot 0.13534}{4!} = 0.0902\) (9.02%)<br>
-                    \(P(N(0.1) = 5) = \frac{2.0^5 \cdot 0.13534}{5!} = 0.0361\) (3.61% — queue full)<br>
+                    \(P(N(0.1) = 5) = \frac{2.0^5 \cdot 0.13534}{5!} = 0.0361\) (3.61% — admission cap reached)<br>
                     ------------------------------------------------------------<br>
-                    Cumulative Safe Probability: \(P(N(0.1) \le 5) = 0.9834\) (98.34%)<br>
-                    <strong>Overflow Probability: \(P(N(0.1) \ge 6) = 1 - 0.9834 = 0.0166\) (1.66%)</strong>
+                    Cumulative Probability: \(P(N(0.1) \le 5) = 0.983436\) (98.34%)<br>
+                    <strong>Window-overflow Probability: \(P(N(0.1) \ge 6) = 1 - 0.983436 = 0.016564\) (1.66%)</strong>
                 </div>
-                <p><strong>The Punchline:</strong> Under this Poisson model, <strong>1.66% of 100ms windows contain six or more arrivals</strong>. There are 600 such windows in a minute, so that is about <strong>10 overflow-sized micro-bursts per minute on average</strong> under the toy admission rule. A perfectly green minute-level CPU average can easily hide latency spikes driven by sub-second clumping.</p>
+                <p><strong>Interpretation:</strong> Under the stated model, 1.66% of non-overlapping 100ms windows contain at least six arrivals. Across 600 windows per minute, the expected number of windows exceeding the five-arrival admission cap is \(600 \times 0.016564 \approx 9.94\) per minute. This is an expected count of overflow-sized windows, not a prediction of the number of dropped requests: the excess requests per window vary. The calculation also assumes a homogeneous Poisson process; real burst correlation can change the result substantially.</p>
             </div>
 
             <div class="editorial-callout editorial-callout--math">
@@ -321,7 +322,7 @@
             </div>
 
             <h3>Interactive Simulation</h3>
-            <p class="math-explanation"><strong>How to read it:</strong> Adjust \(\lambda\) and hit <strong>Run</strong>. Watch how wide the histogram spreads even when the average rate is steady. Notice that for small \(\lambda\), the distribution is heavily skewed right; as \(\lambda\) grows, its standard deviation grows proportionally to \(\sqrt{\lambda}\). The readout includes empirical p50/p95/p99 from the retained sample (at most 5,000 observations), not production SLO estimates. For large \(\lambda\), this browser demo samples using a rounded normal approximation to Poisson rather than an exact Poisson algorithm, so treat the histogram as an illustration, not a validation tool.</p>
+            <p class="math-explanation"><strong>How to read it:</strong> Adjust \(\\lambda\), measured as the expected arrivals per simulated interval, and select <strong>Run</strong>. The exact Poisson sampler generates synthetic interval counts; the histogram and p50/p95/p99 are empirical summaries of the retained sample (at most 5,000 observations), not production SLO estimates or a goodness-of-fit test. The theoretical mean and variance are both \(\\lambda\).</p>
             
             <div class="stage" data-sim-type="poisson">
                 <div class="sim-toolbar">
@@ -333,9 +334,9 @@
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button type="button" class="sim-btn btn-run">▶ Run</button>
+                        <button type="button" class="sim-btn secondary btn-step">Step 50</button>
+                        <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
@@ -360,7 +361,7 @@
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Load Balancer Tick" <span class="scenario-tag">Keep-Alive Synchronization</span></div>
-                <p>When an autoscaler spins up 40 new application pods simultaneously behind an ingress controller with a rigid `keepalive_timeout 60s` or `max_requests 1000` policy, thousands of persistent TCP connections expire and renegotiate TLS handshakes on the exact same second every minute. Your CPU graph grows a rhythmic sawtooth heartbeat until you jitter connection lifetimes.</p>
+                <p>Synthetic scenario: an autoscaler starts 40 application pods at once behind an ingress controller with synchronized connection-lifetime or request-count limits. A large cohort of persistent connections can then expire around the same time and trigger a concentrated wave of reconnects and TLS handshakes. Jittering connection lifetimes can spread that work; validate the mechanism with connection churn, handshake rate, and CPU telemetry rather than assuming every keep-alive policy creates synchronized expiry.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_1410_03_gregg.pdf" target="_blank" rel="noopener noreferrer">Brendan Gregg, "The Use of Performance Metrics"</a></div>
             </div>
 
@@ -368,19 +369,24 @@
             <!-- FINITE QUEUE: OVERLOAD AND BACKLOG GROWTH -->
             <!-- ========================================== -->
             <h2>Finite Queues: When Arrival Rate Exceeds Capacity</h2>
-            <p>Probability models describe variability; a capacity balance explains whether backlog can remain bounded. In classical queueing theory, we must clearly distinguish the infinite-buffer \(M/M/1\) model from the finite-buffer \(M/M/1/K\) model. In an infinite queue, the total number of requests in the system is \(L = L_q + L_s\) (requests in queue plus requests in service), and arriving traffic expects a non-empty queue with waiting probability \(P(\text{wait})\). However, when memory or admission control imposes a strict buffer capacity \(K\), arriving traffic is explicitly blocked with rejection probability \(P_K\). <strong>Rejected or shed requests (e.g., immediate HTTP 429/503) never accumulate queueing latency (\(W_q\)).</strong> Never conflate the probability of waiting with the probability of outright rejection.</p>
+            <p>Probability describes arrival variability; queueing balance determines whether work accumulates. In an infinite-buffer \(M/M/1\) queue, arrivals are Poisson at rate \(\lambda\), one server has exponential service rate \(\mu\), and the first-come, first-served queue is stable only when \(\rho = \lambda/\mu < 1\). Here \(\mu\) is measured in completions per unit time and the mean service time is \(1/\mu\). For this model, the probability an arrival must wait is \(P(\text{wait})=\rho\) (by PASTA), the mean number in the system is \(L=\rho/(1-\rho)\), and the mean queue length is \(L_q=\rho^2/(1-\rho)\). Little’s Law then gives \(W=1/(\mu-\lambda)\) and \(W_q=\rho/(\mu-\lambda)\). These are steady-state means, not burst-by-burst predictions.</p>
+
+            <p>The preceding 200-waiting-slot worker-pool example is an aggregate fluid balance, not the single-server model below. A finite-buffer \(M/M/1/K\) queue uses a different admission contract: <strong>\(K\) counts all places in the system, including the one request in service</strong>. An arrival finding \(K\) requests already present is blocked. For \(\rho=\lambda/\mu\ne1\), the steady-state probability of state \(n\) is \(p_n=(1-\rho)\rho^n/(1-\rho^{K+1})\), for \(n=0,\ldots,K\); the blocking probability is \(P_K=p_K\). At \(\rho=1\), all \(K+1\) states have probability \(1/(K+1)\), so the blocking probability is also \(1/(K+1)\). The effective admitted throughput is \(\lambda_{\mathrm{eff}}=\lambda(1-P_K)\). A finite-state loss system has a stationary distribution even when \(\lambda\ge\mu\), but it pays for overload through blocking rather than unbounded queue growth.</p>
+
+            <p>Do not confuse the textbook notation with an implementation-specific buffer setting. If an application allows \(K_q\) waiting requests plus one request in service, its total system capacity is \(K=K_q+1\) in the single-server \(M/M/1/K\) notation. A full queue may reject immediately, drop according to a policy, or apply backpressure upstream; those are different admission behaviours. A rejected request does not accrue local queue wait, but it may still experience client-side delay, retry, or upstream buffering.</p>
             
             <div class="worked-section">
                 <div class="worked-title">Worked Scenario: Consumer Lag in the Analytics Gateway</div>
-                <p>An Azure Event Hub consumer pulling trade events into the Analytics Gateway receives a sustained <strong>120 requests/s</strong> during a market open burst. The worker pool can process exactly <strong>100 requests/s</strong>. The internal buffer has a strict limit of <strong>200 waiting slots</strong>. Start with an empty queue and assume constant rates, no drops prior to buffer fill, and no auto-scaling.</p>
+                <p>An Azure Event Hubs consumer group feeding the Analytics Gateway receives a sustained aggregate <strong>120 events/s</strong> during a market-open burst. Its assigned workers can process an aggregate <strong>100 events/s</strong>. The application buffer has a strict limit of <strong>200 waiting slots</strong>, in addition to work already executing. Start with an empty waiting queue and assume constant aggregate rates, no drops before the buffer fills, and no auto-scaling. This is a fluid backlog calculation for a worker pool—not an exact \(M/M/1/K\) prediction.</p>
                 <div class="worked-steps">
                     Net backlog growth = arrival rate − service rate<br>
-                    \(120 - 100 = 20\) requests/s<br><br>
+                    \(120 - 100 = 20\) events/s<br><br>
                     Time to fill = queue capacity / net growth<br>
                     \(t_{\mathrm{fill}} = \frac{200}{120 - 100} = \mathbf{10\text{ seconds}}\)
                 </div>
-                <p>Once the 10-second mark hits, the queue is full. Subsequent arrivals exceeding the 100 req/s drain rate are instantly dropped (\(P_K\) blocking engages). This calculation is a fluid baseline, not an exact prediction under bursty arrivals or variable service times.</p>
-                <p><strong>Engineering controls:</strong> bound queue length and queued age, propagate deadlines, reject work that cannot finish within its remaining budget, shed low-priority work, apply per-tenant limits, and scale only when added capacity can arrive before the queue fills. After the burst, drain rate is service capacity minus new arrivals; if arrivals remain at 120/s while capacity is 100/s, the backlog never drains. A bigger queue buys time; it does not create processing capacity.</p>
+                <p>The fluid estimate reaches the 200-slot waiting limit after \(200/20=10\) seconds. At that point, the implementation must enforce its admission policy: reject new work, drop according to an explicit policy, or backpressure the producer. The formula does not determine which policy is used, nor the exact probability of blocking under bursty arrivals and variable service times.</p>
+                <p><strong>Recovery matters as much as saturation.</strong> If the burst subsides to 60 events/s while processing capacity remains 100 events/s, the net drain rate is \(100-60=40\) events/s. A 200-event backlog then takes approximately \(200/40=5\) seconds to clear under the same fluid assumptions. If arrivals remain at 120/s, the backlog never drains because demand still exceeds capacity. Bound queue length and age, propagate deadlines, reject work that cannot finish within its remaining budget, shed low-priority work, and scale only if added capacity arrives before the buffer fills. A larger queue buys time; it does not create processing capacity.</p>
+                <p><strong>Partition-level check:</strong> the 120 and 100 events/s figures above are aggregate rates. For a partitioned stream, also measure each partition's \(\lambda_i\), its assigned processing capacity \(\mu_i\), and lag/queue age. Aggregate headroom can coexist with one hot partition whose arrival rate exceeds its effective service rate. Consumer parallelism is constrained by partition ownership and the number of active consumers; adding workers cannot make one serially processed partition run concurrently unless the processing design changes.</p>
             </div>
 
             <!-- ========================================== -->
@@ -396,7 +402,7 @@
                 </div>
             </div>
 
-            <p>For a service process with single-server completion rate \(\mu\) (where mean service time is \(\mathbb{E}[S] = 1/\mu\)), the Probability Density Function (PDF) and the Tail Survival Function are:</p>
+            <p>For a single server whose service times are independent exponential random variables with rate \(\mu\) (completions per unit time), the mean service time is \(\mathbb{E}[S]=1/\mu\). This is the service-time component of an \(M/M/1\) model; it is not a claim that every production service has memoryless execution time. In a stable, infinite-buffer \(M/M/1\) queue, the arrival rate must satisfy \(\lambda \lt \mu\); the queueing delay is separate from the service duration defined here. The density and survival functions are:</p>
             
             <div class="math-display">
                 \[ f(t) = \mu \cdot e^{-\mu t} \quad \Big| \quad P(T > t) = e^{-\mu t} \]
@@ -405,7 +411,7 @@
             <div class="math-explanation">
                 <strong>Decoding the parameters:</strong>
                 <ul>
-                    <li><strong>\(\mu\) (Service Rate):</strong> The completion rate (e.g., \(\mu = 100\text{ req/sec}\), meaning mean service time \(\mathbb{E}[S] = 1/\mu = 10\text{ ms}\)).</li>
+                    <li><strong>\(\mu\) (Service Rate):</strong> The exponential rate, in completions per unit time. For example, \(\mu=100\) requests/s implies a mean service time of \(1/\mu=0.01\) s = 10 ms for this single-server model.</li>
                     <li><strong>\(t\):</strong> The elapsed time threshold you are evaluating (\(t \ge 0\)).</li>
                     <li><strong>\(P(T > t) = e^{-\mu t}\):</strong> The <strong>Survival Function</strong>—the exact probability that service takes <em>longer</em> than time \(t\). Note that a caller's total deadline budget encompasses queueing delay, network transit time, and any downstream work; service time is only one component. Furthermore, an upstream timeout does not automatically cancel downstream operations unless cancellation signals or deadlines are explicitly propagated.</li>
                 </ul>
@@ -425,30 +431,31 @@
                     3. Where is the actual p99 latency?<br>
                         \(0.01 = e^{-0.1 \times t} \implies t = \frac{-\ln(0.01)}{0.1} = \frac{4.605}{0.1} = \mathbf{46.05\text{ ms}}\)
                 </div>
-                <p><strong>The Punchline:</strong> In this exponential service-time model, a 30ms threshold is exceeded by about <strong>4.98% of requests</strong>. This is a modelled service-time exceedance, not automatically the end-to-end gRPC timeout rate: queueing, network transit, and downstream work also consume the deadline. Propagate deadlines, cancel work when callers abandon it, and use bounded retries with backoff and jitter so timed-out work does not multiply load.</p>
+                <p><strong>Interpretation:</strong> Under the exponential service-time assumption, about 4.98% of service executions exceed 30 ms, and the modelled p99 service time is about 46.05 ms. Neither figure is an end-to-end gRPC latency prediction: queueing, network transit, and downstream work also consume the deadline. Propagate deadlines and cancellation to the actual work. Retry amplification is a separate feedback mechanism treated in Part 6; retries should not be mistaken for additional Erlang stages.</p>
             </div>
 
             <div class="editorial-callout editorial-callout--math">
                 <div class="callout-eyebrow">Telemetry Check: Bimodal Mixture Reality (\(c_s^2\))</div>
                 <div class="callout-content">
-                    <p>The Exponential distribution has a Coefficient of Variation (\(c_s = \sigma / \mu\)) of exactly <strong>1.0</strong>. Real production services feature bimodal distributions: 90% cache hits at 1ms, and 10% cache misses hitting Postgres at 80ms (\(c_s \gg 1\)). Furthermore, Stop-the-World garbage collection pauses violate independence by freezing all worker threads simultaneously. Never treat service times as purely exponential if your telemetry exhibits heavy-tailed Pareto spikes.</p>
+                    <p>An exponential service-time distribution has coefficient of variation \(c_s=\sigma_S/\mathbb{E}[S]=1\) (the denominator is the mean service time, not the rate parameter). A production service may instead be a mixture: for example, 90% cache hits at 1 ms and 10% database misses at 80 ms. That mixture has a different mean and variability and should be measured as a mixture, not labelled exponential by default. Stop-the-world pauses can also correlate delays across many requests at once. Do not infer a Pareto tail merely from a few large observations; validate the tail model against representative data.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation</h3>
+            <p class="math-explanation">This synthetic experiment samples independent exponential service durations. The rate \(\\mu\) is expressed per time unit, so the displayed sample mean and quantiles are in the corresponding time units; the theoretical mean is \(1/\\mu\). It isolates service time and does not simulate queueing delay.</p>
             <div class="stage" data-sim-type="exponential">
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <span>Service Rate (μ):</span>
+                            <span>Service Rate (μ, per time unit):</span>
                             <input type="range" id="mu_exponential" aria-label="Exponential rate mu" min="0.1" max="5.0" step="0.1" value="1.0">
                             <span id="v_mu_exponential">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button type="button" class="sim-btn btn-run">▶ Run</button>
+                        <button type="button" class="sim-btn secondary btn-step">Step 50</button>
+                        <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
@@ -462,18 +469,18 @@
 
             <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Bimodal Cold Start" <span class="scenario-tag">AWS Lambda</span></div>
-                <p>Serverless functions don't follow a single exponential curve—they are a mixture model. Warm invocations resolve in 15ms, while cold starts pulling a bloated container image or initializing a heavy DI framework take 1,800ms. If you alert on average latency, a 1% cold-start rate hides effortlessly inside the mean while ruining your p99 SLO.</p>
+                <div class="scenario-title">The "Bimodal Cold Start" <span class="scenario-tag">Illustrative serverless mixture</span></div>
+                <p>Illustrative mixture, not measured AWS timing: warm invocations complete in 15 ms, while cold starts that load a large image or initialize a heavy dependency graph take 1,800 ms. A 1% slow component sits near the p99 boundary, so whether it breaches p99 depends on the exact mixture proportion and quantile convention; it will be more visible at higher quantiles such as p99.9. An average alone can conceal the operationally important slow population.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/compute/operating-lambda-performance-optimization-part-1/" target="_blank" rel="noopener noreferrer">AWS Lambda Performance Optimization</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Stop-the-World Guillotine" <span class="scenario-tag">JVM GC Pauses</span></div>
-                <p>Exponential models assume every request draws an independent random ticket. A Stop-the-World Garbage Collection pause violates independence by freezing all 200 worker threads simultaneously for 400ms. When the JVM wakes up, every in-flight request has breached its SLA simultaneously, and the ingress queue is packed with angry retries.</p>
+                <p>Exponential models assume every request draws an independent random ticket. Illustrative scenario: a stop-the-world garbage-collection pause violates independence by freezing all 200 worker threads simultaneously for 400 ms. When the JVM wakes up, every in-flight request has breached its SLA simultaneously, and the ingress queue is packed with angry retries.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.oreilly.com/library/view/java-performance-the/9781449363512/" target="_blank" rel="noopener noreferrer">Scott Oaks, "Java Performance: The Definitive Guide"</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Phantom Cancellation" <span class="scenario-tag">gRPC / HTTP Deadlines</span></div>
-                <p>When a client times out at 30ms and hangs up, an unpropagated context means the server thread keeps chewing on the JSON serialization and SQL joins for another 200ms—only to write the response into a closed socket. Always propagate `context.WithTimeout` (or gRPC deadlines) all the way to the storage driver so expired requests self-terminate immediately.</p>
+                <p>Illustrative scenario: when a client deadline expires, work may continue if cancellation is not propagated or if a downstream driver cannot interrupt an in-flight operation. That can consume capacity after the caller has abandoned the result. Propagate deadlines and cancellation as far as the execution stack supports, and verify that database calls and queued work actually stop; a context deadline alone does not guarantee that every dependency aborts immediately.</p>
                 <div class="scenario-ref">Reference: <a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener noreferrer">gRPC Deadline Propagation Guide</a></div>
             </div>
 
@@ -486,11 +493,11 @@
                 <div class="callout-eyebrow">The Intuition: The Microservice Relay Race</div>
                 <div class="callout-content">
                     <p>What happens when a single request has to pass sequentially through <strong>Ingress &rarr; Schema Validation &rarr; Enrichment &rarr; Partition Router &rarr; Storage Write</strong> before returning an acknowledgement? If each of those \(k\) stages has an independent, identically distributed exponential duration with service rate \(\mu\), and the request waits for all stages sequentially, the sum of stage durations follows an <strong>Erlang-\(k\) distribution</strong>. Real stages may be correlated, have different rates, overlap, or contain queueing; validate these assumptions before using the curve as a production predictor.</p>
-                    <p>Unlike the Exponential curve (which peaks at \(t = 0\)), the Erlang distribution has a hump in the middle. You can no longer get lucky and finish in \(0.1\text{ ms}\), because the request has to survive \(k\) consecutive hops. Near-zero latencies become less likely, the mean multiplies out to \(k/\mu\), and variances add across independent stages (Var = \(k / \mu^2\)). In this sequential model, the squared coefficient of variation is explicitly \(c_s^2 = 1/k\). This is a latency-sum model; it is not the product of stage success probabilities and does not by itself model end-to-end reliability. Contrast this with parallel fan-out (which we cover in Part 4) where wait times track the maximum, not the sum.</p>
+                    <p>For \(k\) independent, sequential exponential stages that all have the <strong>same rate \(\mu\)</strong>, the total duration is Erlang-\(k\): its mean is \(k/\mu\), its variance is \(k/\mu^2\), and its squared coefficient of variation is \(1/k\). The equal-rate and independence assumptions are essential. A sum of independent exponential stages with different rates is generally hypoexponential, while dependent stage times require a model that represents their dependence. If stages overlap, the elapsed time is not a simple sum. This Erlang model describes stage durations only; it does not automatically include queueing before each stage or end-to-end reliability. Parallel fan-out is a different maximum-of-latencies problem, covered in Part 4.</p>
                 </div>
             </div>
 
-            <p>The Probability Density Function (PDF) and Tail Survival Function for the sum of \(k\) independent exponential stages, each with the same rate \(\mu\), are:</p>
+            <p>For \(k\) independent exponential stage durations with a common rate \(\mu\), the Erlang density and survival function are:</p>
             
             <div class="math-display">
                 \[ f(x) = \frac{\mu^k \cdot x^{k-1} \cdot e^{-\mu x}}{(k-1)!} \quad \Big| \quad P(T > x) = e^{-\mu x} \sum_{n=0}^{k-1} \frac{(\mu x)^n}{n!} \]
@@ -500,7 +507,8 @@
                 <strong>Decoding the parameters:</strong>
                 <ul>
                     <li><strong>\(k\) (Shape):</strong> The integer number of sequential hops or pipeline stages (\(k = 1, 2, 3, \dots\)).</li>
-                    <li><strong>\(\mu\) (Rate):</strong> The service rate of <em>each individual stage</em>. Mean \(\mathbb{E}[T] = k / \mu\).</li>
+                    <li><strong>\(\mu\) (Rate):</strong> The common exponential rate of <em>each</em> stage, in inverse time units. All stages must have the same rate and be independent for this Erlang expression to apply. The mean total duration is \(\mathbb{E}[T]=k/\mu\).</li>
+                    <li><strong>\(x\) (Threshold):</strong> An elapsed-time threshold with \(x\ge0\), expressed in the same time unit as \(1/\mu\).</li>
                     <li><strong>Why \(P(T > x)\) is a sum:</strong> A pipeline takes longer than time \(x\) if and only if strictly fewer than \(k\) stages have completed by time \(x\).</li>
                 </ul>
             </div>
@@ -520,10 +528,11 @@
                     Series Sum = \(1.0 + 5.0 + 12.5 = 18.5\)<br><br>
                     <strong>SLA Breach Probability: \(P(T > 50\text{ ms}) = 0.006738 \times 18.5 = 0.12465\) (12.47%)</strong>
                 </div>
-                <p><strong>The Punchline:</strong> Even though each individual microservice averages a snappy 10ms and the pipeline averages 30ms, <strong>12.47% of your users—roughly 1 in 8 requests—will fail the 50ms SLA</strong> because variances add up across sequential hops.</p>
+                <p><strong>Interpretation:</strong> Under the independent, equal-rate exponential-stage model, the probability that the sum of the three stage durations exceeds 50 ms is about <strong>12.47%</strong>. This is a modelled latency-threshold exceedance, not a claim that the request fails or that a production SLA breach rate has been measured. Queueing before stages, network overhead, correlation, and differing stage distributions would change the end-to-end result.</p>
             </div>
 
             <h3>Interactive Simulation</h3>
+            <p class="math-explanation">This synthetic experiment sums \(k\) independent exponential stage durations, all using the same rate \(\\mu\). The rate is per time unit and the displayed duration is in that time unit; the theoretical mean is \(k/\\mu\). Changing stage count changes the shape while preserving the equal-rate, independent-stage assumption.</p>
             <div class="stage" data-sim-type="erlang">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -533,15 +542,15 @@
                             <span id="v_k_erlang">3</span>
                         </div>
                         <div class="param-group">
-                            <span>Rate (μ):</span>
+                            <span>Stage Rate (μ, per time unit):</span>
                             <input type="range" id="mu_erlang" aria-label="Erlang rate per stage mu" min="0.2" max="4.0" step="0.1" value="1.0">
                             <span id="v_mu_erlang">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
+                        <button type="button" class="sim-btn btn-run">▶ Run</button>
+                        <button type="button" class="sim-btn secondary btn-step">Step 50</button>
+                        <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
                 <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
@@ -556,17 +565,17 @@
             <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "Death by 20 Paper Cuts" <span class="scenario-tag">Microservice Chains</span></div>
-                <p>When an architecture diagram looks like the London Underground and a single request traverses 20 sequential microservice hops, each boasting "three nines" (\(99.9\%\)) availability, end-to-end reliability plummets to \(0.999^{20} = 98.02\%\). Worse, every hop adds network serialization, Envoy proxy traversal, and queueing jitter—turning fast local functions into a slow Erlang march.</p>
+                <p>A request that must complete 20 sequential stages accumulates the duration of every stage on its critical path. The Erlang model is appropriate only if those stage durations are independent exponentials with a common rate; real service chains usually need empirical or more flexible models. Availability multiplication (for example, \(0.999^{20}\)) belongs to the reliability analysis in Part 2 and additionally assumes independent required components; it is not a latency calculation.</p>
                 <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank" rel="noopener noreferrer">Dan Luu, "Latency Pitfalls in Distributed Systems"</a></div>
             </div>
             <div class="scenario-card">
-                <div class="scenario-title">The "Synchronous Checkout Gauntlet" <span class="scenario-tag">Stripe / E-Commerce</span></div>
-                <p>A naive checkout endpoint runs Cart Validation &rarr; Tax Calculation &rarr; Fraud Scoring &rarr; Card Auth &rarr; Ledger Write &rarr; Email Receipt synchronously in the user's request path (\(k = 6\)). High-scale payment architectures ruthlessly collapse synchronous stages—executing Fraud and Tax in parallel or pushing Ledger/Receipts onto asynchronous durable queues—to shrink \(k\) on the critical path.</p>
+                <div class="scenario-title">The "Synchronous Checkout Gauntlet" <span class="scenario-tag">Illustrative payment workflow</span></div>
+                <p>Illustrative workflow: a checkout endpoint that performs cart validation, tax calculation, fraud scoring, card authorization, ledger persistence, and receipt delivery synchronously places all six durations on the response path. A design can shorten that path by parallelizing only genuinely independent work or moving non-response-critical work to durable asynchronous processing. Those changes alter dependencies and failure semantics as well as latency; they are not simply a way to lower \(k\).</p>
                 <div class="scenario-ref">Reference: <a href="https://stripe.com/blog/payment-api-design" target="_blank" rel="noopener noreferrer">Stripe Engineering: Designing Robust Payment APIs</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Retry Multiplier" <span class="scenario-tag">Cascading Latency</span></div>
-                <p>Sequential retries turn a 1-stage call into an Erlang-style multi-stage ordeal at the worst possible moment. If a client retries 3 times with backoff across a 3-tier architecture where every tier also retries 3 times, a single slow database page lock triggers \(3^3 = 27\) downstream amplification attempts while holding the top-level user connection hostage.</p>
+                <p>Retries can add extra attempts and waiting time, but a retry sequence is not automatically an Erlang process: backoff intervals, conditional retry decisions, and state-dependent failures violate the equal-rate independent-stage assumptions. Retry feedback and load amplification are treated in Part 6; the queueing lesson here is simply that retries add offered work and can reduce the capacity available to drain an existing backlog.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
             </div>
 
@@ -592,17 +601,17 @@
             <div class="editorial-callout editorial-callout--warning" style="margin-top: 4rem;">
                 <div class="callout-eyebrow">The Grand Unification: Kingman’s Approximation &amp; The Utilization Trap</div>
                 <div class="callout-content">
-                    <p>To see how variability and utilization conspire to destroy performance, consider a <strong>single serial processing lane</strong>—such as one hot Kafka partition feeding one single-threaded trade ingestion process in our Gateway. This mathematical formulation is a stable \(G/G/1\) heavy-traffic queueing approximation. It must NOT be applied directly to multi-server \(G/G/c\) worker pools without accounting for multi-server pooling (using Erlang-C or Whitt's \(G/G/c\) approximations).</p>
+            <p>To see how variability and utilization affect waiting, consider one serial processing lane—for example, one hot Azure Event Hubs partition handled by one effective processing lane in the Gateway. Kingman’s formula is a <strong>mean queue-wait approximation</strong> for a stable, single-server \(G/G/1\) queue with a stationary renewal arrival process and an independent, identically distributed service-time sequence with finite mean and variance; the arrival and service sequences are assumed independent, under the usual heavy-traffic approximation. It is not a p95 or p99 predictor, and it is not a direct model of a pooled multi-server \(G/G/c\) worker pool. For an idealized \(M/M/c\) pool, Erlang-C is a standard model; more general multi-server systems require an appropriate approximation or simulation.</p>
                     
                     <ul>
-                        <li><strong>1. The Incident:</strong> During peak trading hours, Kafka consumer lag alerts fire aggressively on Partition 7. However, the worker pod consuming Partition 7 shows a seemingly "safe" 90% CPU utilization.</li>
-                        <li><strong>2. Architectural Assumption:</strong> "We have 10% capacity headroom left. The queue shouldn't be building up."</li>
-                        <li><strong>3. Physical Mechanism:</strong> Real traffic isn't uniform. Trade events arrive in bursty clumps (high arrival variance \(c_a\)), and the processing time per trade varies wildly depending on the size of the payload and database lock contention (high service variance \(c_s\)).</li>
-                        <li><strong>4. Mathematical Model:</strong> Kingman’s \(G/G/1\) approximation connects server utilization (\(\rho = \lambda/\mu\)), mean service time (\(\mathbb{E}[S]\)), and variability (squared coefficients of variation for arrivals \(c_a^2 = \text{Var}(A)/\mathbb{E}[A]^2\) and service \(c_s^2 = \text{Var}(S)/\mathbb{E}[S]^2\)) to estimate mean waiting time in the queue (\(\mathbb{E}[W_q]\)).</li>
+                        <li><strong>1. Illustrative scenario:</strong> During peak trading hours, lag rises on Event Hubs Partition 7 while the consumer process appears to have spare CPU capacity at the pod level. The 90% figure used later is a model input, not a universal threshold or a measured incident.</li>
+                        <li><strong>2. Architectural assumption:</strong> "There is 10% headroom, so this partition's backlog should not grow." That conclusion is valid only if the effective service capacity of the lane exceeds its own arrival rate.</li>
+                        <li><strong>3. Physical mechanism:</strong> Partition 7 receives its own arrival process \(\lambda_7\) and is served by an effective lane with rate \(\mu_7\). Bursty inter-arrivals increase \(c_a^2\); variable processing times caused by payload size or storage contention increase \(c_s^2\). Aggregate arrival rate across all partitions can conceal this local imbalance.</li>
+                        <li><strong>4. Mathematical model:</strong> For this one lane, \(\rho=\lambda_7/\mu_7\), where \(\lambda_7\) is the mean arrival rate and \(\mu_7=1/\mathbb{E}[S]\) is the effective service rate. The squared coefficients of variation are \(c_a^2=\operatorname{Var}(A)/\mathbb{E}[A]^2\) and \(c_s^2=\operatorname{Var}(S)/\mathbb{E}[S]^2\). Kingman estimates the mean queue wait \(\mathbb{E}[W_q]\).</li>
                     </ul>
 
-                    <p><strong>5. The Calculation:</strong></p>
-                    <p>Assume \(\mathbb{E}[S] = 10\text{ ms}\), stable utilization \(\rho = 0.90\), and both coefficients of variation are 1 (\(c_a = c_s = 1\)). Kingman’s approximation gives:</p>
+                    <p><strong>5. The illustrative calculation:</strong></p>
+                    <p>Assume mean service time \(\mathbb{E}[S]=10\text{ ms}\), stable utilization \(\rho=0.90\), and \(c_a=c_s=1\). These are illustrative inputs representing exponential-like variability, not measurements from a production partition. Kingman’s approximation gives:</p>
                 </div>
             </div>
             
@@ -615,11 +624,11 @@
             <div class="math-display">
                 \[ \mathbb{E}[W_q] \approx \left(\frac{0.95}{0.05}\right) \cdot 1 \cdot 10 = \mathbf{190\text{ ms}} \]
             </div>
+            <p>The mean service time remains 10 ms, while the estimated <strong>mean queue wait</strong> rises from 90 ms to 190 ms. Kingman does not predict the p99 from these inputs. As \(\rho\to1\), the approximation grows without bound; for an infinite-buffer single-server queue, \(\rho\ge1\) means no finite steady-state queue exists. A finite buffer behaves differently: occupancy remains bounded, but rejection or backpressure increases.</p>
+            <p>The calculation also shows why no utilization percentage is a universal threshold. Holding the same 10 ms mean service time and \(c_a=c_s=1\), the approximation gives about 23.3 ms mean queue wait at 70% utilization, 40 ms at 80%, 90 ms at 90%, and 190 ms at 95%. With lower variability, the wait can be much smaller at the same utilization; with burstier arrivals or heavier service-time variability, it can be larger. Capacity decisions must include the required latency objective, arrival shape, service variability, burst duration, and recovery headroom.</p>
 
-            <p>The actual work still takes 10 ms, yet the estimated mean queue wait more than doubles. Crucially, notice what happens as \(\rho \to 1\): the denominator \((1 - \rho)\) approaches zero, and queue length explodes toward infinity. The system enters an unstable, saturated state for \(\rho \ge 1\).</p>
-            
-            <p><strong>6. The Architectural Decision:</strong> A 90% utilization target is actively hostile to latency if traffic is highly variable. To control this, the architect must reduce variability (smooth arrivals with upstream jitter, enforce payload size limits to cap \(c_s\)), decrease utilization (add partitions, over-provision workers), or bound the queue (apply load shedding and dead-letter the excess).</p>
-            <p><strong>7. Production Verification:</strong> Stop looking solely at the CPU gauge. Measure \(c_a\) (arrival variance) and \(c_s\) (execution variance) directly from telemetry. Monitor the queue depth and wait time directly to validate whether the theoretical exponential curve matches the empirical reality of your overload.</p>
+            <p><strong>6. Architectural decision:</strong> First determine whether the bottleneck is per partition or aggregate. Reduce the hot-lane arrival rate through partitioning or workload routing where ordering and key semantics permit; increase effective service capacity; reduce service-time variability by bounding payload and query work; and use bounded queues with explicit admission/backpressure policies. Jitter can desynchronize scheduled producers, but it does not turn arbitrary traffic into a Poisson process. Each control has a cost: more partitions affect ordering and operations, reserved capacity costs money, and shedding sacrifices work by design.</p>
+            <p><strong>7. Production verification:</strong> Measure per-partition inter-arrival times and service times, estimate squared coefficients of variation from representative samples, and track utilization, queue depth, oldest-event age, admitted throughput, rejected work, and drain rate. Compare the modelled <em>mean</em> wait with measured mean wait under representative stable periods; use empirical quantiles or a validated simulation for tail objectives. Re-run the analysis after workload, partition assignment, or admission policy changes.</p>
 
             <section class="editorial-callout editorial-callout--math" aria-labelledby="model-validation-title">
                 <div class="callout-eyebrow" id="model-validation-title">Production Checklist: Validate Before You Size</div>
@@ -636,7 +645,7 @@
                 </div>
             </section>
             
-            <p>We now have a mathematical model for requests waiting in lines, executing as a mixture, and suffering through sequential pipelines. But modern architectures do not just execute tasks in sequence—they scatter queries across hundreds of database partitions simultaneously and wait for the results to aggregate. Erlang tells us what happens when stages run sequentially. But what if they run in parallel? What if we fan out to 100 partitions and wait for the slowest one? That is the mathematics of the extreme tail, and it requires a completely different toolset—which we will build in Part 4.</p>
+            <p>Queueing theory explains how arrival variability, service variability, utilization, and finite capacity shape waiting and recovery. It also forces an important distinction: aggregate worker capacity does not guarantee that every partition or tenant has enough service capacity. The next part changes the question from sequential sums and queue waits to parallel aggregation: when a request fans out across many partitions and waits for the slowest response, order statistics and tail behaviour become the governing mathematics. That is the focus of Part 4.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-2-mathematics-of-reliability-and-retries.html">← Part 2: The Mathematics of Reliability and Retries</a>
@@ -699,20 +708,17 @@
                 return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
             }
 
-            function randNormal() {
-                let u = 0, v = 0;
-                while (u === 0) u = safeRand();
-                while (v === 0) v = safeRand();
-                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-            }
-
+            // Knuth's exact Poisson sampler. The UI caps lambda at 40, so the
+            // expected loop count is small enough for this interactive demo.
             function randPoisson(lambda) {
-                if (lambda < 30) {
-                    let L = Math.exp(-lambda), k = 0, p = 1;
-                    do { k++; p *= safeRand(); } while (p > L);
-                    return k - 1;
-                }
-                return Math.max(0, Math.round(lambda + Math.sqrt(lambda) * randNormal()));
+                const limit = Math.exp(-lambda);
+                let product = 1;
+                let count = 0;
+                do {
+                    count++;
+                    product *= safeRand();
+                } while (product > limit);
+                return count - 1;
             }
 
             class Simulator {
@@ -784,7 +790,7 @@
                 resize() {
                     const dpr = window.devicePixelRatio || 1;
                     const rect = this.canvas.parentElement.getBoundingClientRect();
-                    const logicalW = Math.max(260, rect.width - 48);
+                    const logicalW = Math.max(180, rect.width - 48);
                     const logicalH = 220;
 
                     this.canvas.width = logicalW * dpr;
@@ -852,6 +858,19 @@
                     ctx.lineTo(pad.l, H - pad.b);
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
+
+                    // Axis labels and range endpoints make the histogram interpretable
+                    // without relying on colour or surrounding prose.
+                    ctx.fillStyle = labelColor;
+                    ctx.font = '10px "IBM Plex Mono", monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('Count', 4, 13);
+                    ctx.textAlign = 'left';
+                    ctx.fillText('0', pad.l, H - 8);
+                    ctx.textAlign = 'right';
+                    ctx.fillText('' + (this.type === 'poisson' ? Math.ceil(this.params.lam * 3 + 10) : this.getRange()[1].toFixed(1)), W - pad.r, H - 8);
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.type === 'poisson' ? 'Arrivals per interval' : 'Duration (time units)', W / 2, H - 2);
 
                     let theoreticalMean = 0;
                     if (this.type === 'poisson') theoreticalMean = this.params.lam;

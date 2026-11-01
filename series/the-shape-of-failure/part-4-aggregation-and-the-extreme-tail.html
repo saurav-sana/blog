@@ -227,7 +227,7 @@
                 <p class="snarky-quote-author">— A practical lesson from <strong><em>The Tail at Scale</em></strong></p>
             </blockquote>
 
-            <p>In Part 3, we examined what happens when a single request has to survive a sequential gauntlet of hops (the Erlang sum). But modern architectures rarely just run sequentially. Your Multi-Tenant Analytics Gateway asks 100 storage partitions for help in parallel. Ninety-nine reply quickly. One partition takes a scenic route through a cold cache, a minor GC pause, and a saturated network switch. If the aggregator must wait for all 100, that single straggler dictates how fast the entire query finishes.</p>
+            <p>In Part 3, we examined what happens when a single request has to survive a sequential gauntlet of hops (a sum of stage times; it is Erlang only when the stage times are iid exponential). But modern architectures rarely just run sequentially. Your Multi-Tenant Analytics Gateway asks 100 storage partitions for help in parallel. Ninety-nine reply quickly. One partition takes a scenic route through a cold cache, a minor GC pause, or a saturated network switch. If the aggregator must wait for all 100, the slowest required response determines completion time. The sequential stages before and after that fan-out still add to the request's critical path.</p>
 
 <p>This is the aggregation problem: <strong>a system can look perfectly healthy one component at a time, yet systematically breach deadlines end-to-end.</strong> The math is not a prophecy. It depends on the request deadline, the shape of each latency distribution, the correlation between dependencies, and whether the caller can gracefully accept partial results.</p>
 
@@ -235,7 +235,7 @@
 
 <p>Every distributed-systems post-mortem eventually arrives at the same awkward slide: the dashboard where every underlying storage node shows a green 99% SLA, next to the incident timeline where the top-level Gateway API breached its timeout for forty minutes straight.</p>
 
-<p>When you move from a monolith to a distributed architecture, you stop reasoning about one random variable and start reasoning about aggregation. You sum latencies across sequential proxy hops, take the maximum latency across parallel fan-out calls, and mix fast cache hits with slow database fallbacks.</p>
+<p>When you move from a monolith to a distributed architecture, you stop reasoning about one random variable and start reasoning about aggregation. Sequential stages add their elapsed times; a barrier-style parallel fan-out is governed by the slowest required child; and distinct execution paths can create a mixture of fast cache hits and slow database fallbacks. These are different mathematical operations, not interchangeable descriptions of 'latency'.</p>
 
 <p>Most teams reason about these systems using intuition trained on symmetric bell curves and sample averages. That intuition breaks at scale—not because standard statistics are wrong, but because engineers often apply the wrong statistical operator to the physical mechanism happening on the wire.</p>
 
@@ -274,26 +274,30 @@
 
 <h2>1. Order Statistics and the Fan-Out Tax</h2>
 
-<p>When an API gateway or aggregator fans out a request to \( N \) downstream services in parallel and waits for all of them before rendering a response, end-to-end latency is not the average of the downstream services. It is the maximum over all independent child latencies \( X_i \):</p>
+<h3>First, distinguish sums from maxima</h3>
+<p>For sequential stages, the elapsed time along the path is a sum, \(S_k = \sum_{i=1}^{k} X_i\), plus any orchestration overhead. Its distribution is the convolution of the stage distributions when the stages are independent; dependence changes that distribution. The Erlang distribution is a special case: it applies when the stage times are independent and identically distributed exponential variables with a common rate. Part 3 develops that queueing and Erlang model. For parallel children that all must finish, the relevant operator is instead the maximum.</p>
+
+<p>When an API gateway or aggregator fans out a request to \(N\) downstream services in parallel and waits for all of them before rendering a response, the fan-out portion of latency is the maximum over child latencies \(X_i\), not their average:</p>
 
 <div class="equation-flow">
     \[ Y_{(N)} = \max(X_1, X_2, \dots, X_N) \]
 </div>
 
-<p>In probability theory, the distribution of the maximum is governed by <strong>order statistics</strong>. Even if every individual service is well behaved, taking the maximum across dozens of concurrent calls systematically pushes the aggregate system into the extreme tail of the individual components.</p>
+<p>In probability theory, the distribution of the maximum is governed by <strong>order statistics</strong>. If the child latencies are independent but not identically distributed, then \(F_Y(t)=\prod_{i=1}^{N}F_i(t)\). For independent, identically distributed children this reduces to \(F_Y(t)=F_X(t)^N\). If the children are dependent, the joint distribution is required; multiplying marginal CDFs is no longer valid. Even when each component is individually well behaved, taking a maximum across many children moves the aggregate toward the individual components' upper tail.</p>
 
 <div class="scenario-card">
     <div class="scenario-title">The 100-Partition Scatter-Gather Timeout</div>
     
-    <p><strong>1. The Incident:</strong> The Multi-Tenant Analytics Gateway executes a distributed scatter-gather query across 100 Apache Iceberg storage partitions. The gateway enforces a strict 200 ms timeout to protect user experience. Over 60% of aggregate queries begin failing with timeout exceptions, triggering page alerts.</p>
+    <p><strong>Evidence label:</strong> Illustrative hypothetical engineering scenario. The figures below are model inputs, not a report of a measured production incident.</p>
+    <p><strong>1. The Scenario:</strong> The Multi-Tenant Analytics Gateway executes a distributed scatter-gather query across 100 Apache Iceberg storage partitions. The gateway enforces a 200 ms end-to-end deadline. The model asks how often this all-results request would miss that deadline under the stated assumptions; it does not assert an observed failure rate.</p>
     
     <p><strong>2. Architectural Assumption:</strong> The storage nodes boast a historical \( P_{99} \) latency of 200 ms. The architect assumed, "If the storage tier is 99% reliable at our deadline, the gateway will easily meet its SLA."</p>
     
     <p><strong>3. Physical Mechanism:</strong> The gateway issues 100 requests in parallel, but it <em>blocks</em> until the last partition returns its fragment. The query's completion time is dictated strictly by the slowest partition involved.</p>
     
-    <p><strong>4. Mathematical Model:</strong> Order Statistics of the maximum. Assuming the downstream calls are statistically independent and identically distributed, the probability that the maximum latency is less than a threshold \( \tau \) is the probability that <em>all</em> \( N \) partitions finish before \( \tau \).</p>
+    <p><strong>4. Mathematical Model:</strong> Order statistics of the maximum. Assume all 100 calls start together, have independent and identically distributed latency, and must all return before the same 200 ms deadline. Ignore gateway overhead and assume no retries, hedges, early cancellation, or partial-result policy in this baseline. Under this strict barrier policy, the parent misses its deadline if at least one required child exceeds 200 ms. If those assumptions do not hold, the child exceedance probability is not automatically the parent deadline-miss probability.</p>
 
-    <p><strong>5. The Calculation:</strong> Let individual exceedance probability be \( p = P(X_i > \tau) = 0.01 \). What is the probability that all 100 finish in time?</p>
+    <p><strong>5. The Calculation:</strong> Let the individual child exceedance probability at the shared deadline be \(p_D=P(X_i> D)=0.01\), with \(D=200\text{ ms}\). What is the probability that all 100 finish in time?</p>
     
     <div class="equation-flow">
         \[ P(Y_{(N)} \le \tau) = P(X_1 \le \tau) \dots P(X_N \le \tau) = (1 - p)^N = 0.99^{100} \approx 0.3660 \]
@@ -305,30 +309,31 @@
         \[ P(\text{at least one slow}) = 1 - (1 - p)^N = 1 - 0.3660 \approx \mathbf{0.6340 \ (63.4\%)} \]
     </div>
 
-    <p>To keep the <em>aggregate</em> Gateway query under 200 ms at \( P_{99} \), the individual storage nodes would need to meet a much stricter target: \( (1-p)^{100} = 0.99 \implies (1-p) = 0.9998995 \) (the \( P_{99.99} \)).</p>
+    <p>To make the all-results parent deadline-miss probability at most 1% under this iid model, the per-child exceedance probability must satisfy \((1-p_D)^{100}=0.99\). Thus \(p_D=1-0.99^{1/100}\approx0.0001005\), so each child must meet approximately the \(P_{99.99}\) deadline target (more exactly, the 99.98995th percentile). This is a requirement at the same 200 ms child budget in this simplified model—not a universal conversion between child and parent percentiles.</p>
     
-    <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow partition does not have to mean a 63.4% failure rate for the user. The architect implements <strong>bounded hedging</strong>: if a partition hasn't responded by the 95th percentile expected time, the Gateway fires a duplicate request to a secondary replica. Concurrently, they enable <strong>partial result semantics</strong>, allowing the Gateway to return 99 partitions of data with a "partial result" flag rather than treating the \( 63.4\% \) parent-wait probability as a hard failure.</p>
+    <p><strong>6. Architectural Decision:</strong> A 63.4% chance of at least one child exceeding 200 ms does not have to mean a 63.4% user-visible failure rate. Consider <strong>bounded hedging</strong> only for safe, idempotent reads, and only when the alternate replica is in a sufficiently independent failure domain and spare capacity exists. Triggering hedges at a measured latency threshold can reduce straggler impact, but it increases duplicate work and can worsen saturation; cap it with a token bucket and cancel the losing attempt. Also consider <strong>partial-result semantics</strong> when the query contract permits incomplete data: return the available fragments with an explicit completeness indicator. This improves availability at the cost of completeness and must never silently present an incomplete aggregate as complete.</p>
     
-    <p><strong>7. Production Verification:</strong> The team adds distributed tracing to log individual partition fetch times separately from the aggregate query time. They monitor the duplicate-request rate to ensure hedging is bounded by a token bucket—preventing a retry storm from collapsing an already saturated storage tier.</p>
+    <p><strong>7. Production Verification:</strong> Trace each partition span and the parent critical path separately. Record parent deadline outcomes, child deadline exceedances, hedge starts and wins, cancelled work, partial-result rates, and capacity saturation. Compare these metrics by dependency and failure domain; a low hedge rate is not evidence of safety if hedges are concentrated during correlated overload.</p>
 </div>
 
 <h3>The independence caveat</h3>
 
-<p>The equation \( (1-p)^N \) assumes strict independence. Production services often share RDS clusters, top-of-rack switches, CoreDNS pods, IAM providers, and deployment infrastructure. Shared congestion or a database checkpoint can make slowdowns positively correlated.</p>
+<p>The equation \((1-p)^N\) assumes independent child events. Production calls may share database clusters, top-of-rack switches, DNS, identity providers, deployment waves, or regional capacity. Shared congestion and common pauses can make slowdowns positively correlated. Correlation can make the independent calculation either overstate or understate a particular joint event; it is not a universal worst-case bound. For non-identical independent children, use \(\prod_i(1-p_i)\); for dependent children, estimate the joint behavior from traces, fault-domain data, or an explicit dependence model.</p>
 
-<p>Consequently, \( (1-p)^N \) is an optimistic baseline for isolated jitter—not a worst-case bound during shared saturation. Conversely, partial-result aggregators or \( k \)-of-\( N \) quorum reads rely on the \( Y_{(k)} \) order statistic, decoupling the caller from the absolute worst straggler.</p>
+<p>For a policy that can complete after any \(k\) of \(N\) children return, the parent waits for the \(k\)-th order statistic rather than the maximum. Under iid children with child-on-time probability \(F(D)\), the probability of receiving at least \(k\) responses by deadline \(D\) is \(\sum_{j=k}^{N}\binom Nj F(D)^j[1-F(D)]^{N-j}\). That is a binomial count model for the stated iid case; real quorum semantics, retries, correlated failures, and data-consistency requirements may change it.</p>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Fan-Out Tax</div>
                 <div class="tldr-content">
                     <p>Assuming independent calls, the probability that all 100 respond within 200 ms is \(0.99^{100}\). So the probability that at least one is slower is:</p>
-                    <p style="text-align:center;font-family:'IBM Plex Mono',monospace;font-size:1.1rem;margin:1rem 0;color:var(--amber);">P(at least one slow) = 1 − (0.99)<sup>100</sup> ≈ 63.4%</p>
-                    <p>That is a <strong>63.4% chance of at least one dependency exceeding 200 ms</strong>. The gateway's actual outcome depends on its deadline, how slow the straggler becomes, and whether a partial result is semantically acceptable.</p>
+                    <p>For 100 independent children, each with a 1% chance of exceeding the same 200 ms child budget:</p>
+                    <p>\(P(\text{at least one child exceeds }D)=1-(1-0.01)^{100}\approx63.4\%\).</p>
+                    <p>That is a <strong>63.4% chance of at least one dependency exceeding the threshold</strong>. It equals the parent deadline-miss probability only for the all-results barrier policy and aligned deadline assumptions stated above.</p>
                 </div>
             </div>
 
             <h3>Try the fan-out calculator</h3>
-            <p>Change the number of parallel dependencies and the probability that any one dependency is slow. This calculator estimates the chance of at least one slow dependency under the strict independence assumption.</p>
+            <p>Change the number of parallel dependencies and the probability that any one dependency is slow. This calculator estimates the chance of at least one child exceeding its selected latency threshold under the strict independence assumption. It is a parent deadline-miss probability only when that threshold equals the parent deadline and every child is required.</p>
             <div class="stage" id="fanout-calculator">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -349,13 +354,25 @@
                 <p class="math-explanation">This is a probability of crossing an individual-call threshold somewhere in the fan-out. It is not the end-to-end timeout probability unless the chosen threshold and request deadline make those equivalent.</p>
             </div>
 
+            <h3>Turn the fan-out model into runtime budgets</h3>
+            <p>The probability calculation describes exposure; runtime policy determines the outcome. Treat the parent deadline as a finite budget shared by gateway work and dependencies. Propagate the remaining deadline rather than giving every child a fresh copy of the full timeout. Reserve time for aggregation, serialization, and response delivery; for sequential dependencies, allocate budgets whose sum fits the remaining critical-path budget.</p>
+            <ul>
+                <li><strong>Dependency budgets and deadlines:</strong> set per-dependency limits from the parent deadline and measured critical-path needs. This bounds waiting, but overly tight child budgets create avoidable cancellations; verify deadline-exceeded rates by dependency and remaining budget.</li>
+                <li><strong>Bounded hedging:</strong> issue a duplicate only for safe, idempotent operations when a straggler threshold is crossed and spare capacity exists. It can reduce tail latency, but consumes extra capacity and can amplify correlated overload. Use token-bucket limits, separate failure domains, and cancel losing attempts.</li>
+                <li><strong>Parallelism limits:</strong> cap in-flight fan-out and queue admission so one parent cannot create unbounded downstream concurrency. This protects dependencies, but can increase parent latency or force batching; measure queue wait, concurrency, and deadline misses together.</li>
+                <li><strong>Partial results:</strong> return a subset only when the product contract permits it, with explicit completeness metadata and a clear minimum-result rule. This improves availability but trades completeness and sometimes consistency for latency.</li>
+                <li><strong>Cancellation:</strong> propagate client cancellation and expired deadlines to child operations. Cancellation reduces wasted work only when clients, services, and storage drivers cooperate; measure work continuing after the parent has abandoned the request.</li>
+                <li><strong>Tail-aware capacity planning:</strong> size for concurrent fan-out, bursts, and the extra work caused by hedges—not just average request rate. Reserve headroom and apply admission control before saturation; validate with load tests that reproduce the dependency topology and correlated slowdowns.</li>
+            </ul>
+            <p>For every control, compare parent p95/p99/p99.9, deadline outcomes, downstream saturation, cancelled work, and completeness. A lower parent percentile is not a win if it is purchased by pushing a dependency into overload.</p>
+
            <h2>2. The Normal Distribution: A Useful Baseline, Not a Villain</h2>
 
 <h3>The physical mechanism: additive noise versus asymmetric reality</h3>
 
 <p>It is fashionable to call the Normal distribution \(\mathcal{N}(\mu,\sigma^2)\) a lie in distributed systems. That is too categorical. The Normal model is appropriate when variation is driven by many small, independent, roughly symmetric perturbations—for example, clock drift, thermal sensor noise, or steady-state instruction jitter on an isolated CPU core.</p>
 
-<p>It is usually a poor model for raw end-to-end latency when queueing delays create strong right skew, execution paths are mixed, or rare garbage collection stalls dominate the SLO.</p>
+<p>It can be a poor model for raw end-to-end latency when queueing creates strong right skew, execution paths form distinct populations, or rare garbage-collection and network stalls dominate the SLO. A Normal model is not invalid by definition: use it when the mechanism plausibly produces roughly symmetric variation and when empirical quantiles and residuals support it over the operating range that matters.</p>
 
 <div class="tldr-box tldr-box--math">
     <div class="tldr-eyebrow">Why negative latency is a weak objection</div>
@@ -370,7 +387,7 @@
 
 <h3>Worked walkthrough: detecting a post-deployment tail regression</h3>
 
-<p><strong>Evidence label:</strong> Illustrative engineering model based on post-deployment telemetry analysis.</p>
+<p><strong>Evidence label:</strong> Illustrative hypothetical telemetry table. The percentile values are constructed to demonstrate a tail-regression diagnostic; they are not production measurements.</p>
 
 <p>Suppose a tenant validation service historically behaves normally:</p>
 
@@ -427,13 +444,14 @@
                         <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated normal distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of synthetic samples from a Normal distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean (\(\mu\)): <span class="stat-theory">–</span></div>
                 </div>
             </div>
+            <p class="math-explanation">The histogram display is limited to approximately \(\mu\pm4\sigma\); samples outside that horizontal range are not drawn as bars. The sample count and observed mean still include every retained sample.</p>
 
             <h2>3. Student's t: uncertainty about the mean</h2>
 
@@ -446,7 +464,7 @@
             </div>
 
             <h3>The math</h3>
-            <p>We must explicitly separate the population distribution of individual latencies \( X_i \) from the sampling distribution of the sample mean \( \bar{X} \). Under the Central Limit Theorem (or assuming Normal populations), \( \bar{X} \sim \mathcal{N}(\mu, \sigma^2/n) \). A confidence interval for the population mean \( \mu \) is:</p>
+            <p>We must separate the population distribution of individual latencies \(X_i\) from the sampling distribution of the sample mean \(\bar X\). For independent, identically distributed observations from a Normal population, the usual Student's t interval is exact when the population variance is unknown. For a sufficiently large sample, a central-limit approximation may support inference on the mean when the variance is finite and no severe dependence or non-stationarity invalidates the sampling model. With small samples from strongly skewed or heavy-tailed latency data, the t interval may be unreliable; serially correlated benchmark runs also reduce the effective sample size. A confidence interval for the population mean \(\mu\) is:</p>
             <div class="equation-flow">
                 \[ \text{CI} = \bar{x} \pm t_{1-\alpha/2, n-1} \frac{s}{\sqrt{n}} \]
             </div>
@@ -459,7 +477,7 @@
                 </ul>
                 <p><strong>Worked example:</strong> 10 independent benchmark observations have a mean of 50 ms and sample standard deviation of 20 ms. With 9 degrees of freedom, the 95% critical value is about 2.262:</p>
                 <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx 50 \pm 14.3 \approx [35.7, 64.3]\) ms</p>
-                <p>This interval describes where the <em>average</em> lies. It does <strong>not</strong> mean 95% of requests fall between 35.7 and 64.3 ms.</p>
+                <p>This interval quantifies sampling uncertainty about the <em>population mean</em>. It does <strong>not</strong> mean 95% of individual requests fall between 35.7 and 64.3 ms, and it says nothing directly about p99. For repeated or time-correlated benchmark runs, use an appropriate block or cluster bootstrap rather than pretending every observation is independent.</p>
             </div>
 
             <h3>Interactive simulation</h3>
@@ -478,17 +496,18 @@
                         <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Student t distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of synthetic samples from a Student t distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean: <span class="stat-theory">0.00</span></div>
                 </div>
             </div>
+            <p class="math-explanation">The histogram display is limited to \([-6,6]\); more extreme t draws are not shown as bars. The sample count and observed mean still include every retained sample. At two degrees of freedom the theoretical mean exists, but the variance is infinite.</p>
 
             <div class="scenario-card">
                 <div class="scenario-title">Case study: a canary with zero observed errors <span class="scenario-tag">Small sample</span></div>
-                <p>A canary receives 100 independent requests and records zero errors. The “rule of three” gives an approximate 95% upper bound of 3% on the true error probability. Zero observed errors is not proof of zero risk.</p>
+                <p>A canary receives 100 independent, representative requests and records zero errors. Under an independent Bernoulli model with a stable error probability, the exact one-sided 95% upper confidence bound is \(1-0.05^{1/100}\approx2.95\%\); the rule of three approximates this as \(3/n=3\%\). Zero observed errors is not proof of zero risk. The approximation is not a general correction for correlated observations, changing error rates, or stratified samples: account for clustering and estimate important paths or tenant strata separately.</p>
                 <p>If the true error rate is 1%, the chance of seeing zero errors in 100 requests is \( 0.99^{100} \approx 36.6\% \). So this tiny canary has a substantial chance of missing a 1% regression.</p>
                 <p><strong>Controls:</strong> choose sample sizes around the smallest harmful regression; exercise representative request paths and tenants; compare latency and error metrics; and use rollout gates that account for repeated looks at the data.</p>
                 <div class="scenario-ref">Further reading: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank" rel="noopener noreferrer">Netflix, “Automated Canary Analysis”</a></div>
@@ -500,7 +519,7 @@
                 <div class="tldr-eyebrow">The intuition: a long right tail</div>
                 <div class="tldr-content">
                     <p>Many latency measurements are positive and right-skewed: most requests are quick, while a smaller group takes much longer. A Log-Normal distribution is one possible model when the logarithm of the measured variable is approximately Normal.</p>
-                    <p>Be precise about the mechanism. <strong>Sequential stage times add</strong> (Erlang model). Multiplicative factors may affect a stage's duration, and products of suitable positive random factors can motivate a Log-Normal model. That does not mean end-to-end elapsed time is generally the product of its stages.</p>
+                    <p>Be precise about the mechanism. <strong>Sequential stage times add</strong>; an Erlang distribution is the special case for iid exponential stages. Multiplicative factors may affect a stage's duration, and products of suitable positive random factors can motivate a Log-Normal model. That does not mean end-to-end elapsed time is generally the product of its stages.</p>
                 </div>
             </div>
 
@@ -548,13 +567,14 @@
                         <button class="sim-btn secondary btn-reset" type="button">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated Log-Normal distribution"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of synthetic samples from a Log-Normal distribution"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean: <span class="stat-theory">–</span></div>
                 </div>
             </div>
+            <p class="math-explanation">The histogram display ends at \(\exp(\mu+3.5\sigma)\); larger draws are not shown as bars. The sample count and observed mean still include every retained sample.</p>
 
             <h2>5. Mixtures: when one curve hides two systems</h2>
 
@@ -573,42 +593,52 @@
 
             <h2>6. Dependence and common-cause failures</h2>
 
-            <p>Independence is convenient. Production architecture is often not. Two regions may share a global identity provider. 100 partitions may share the same top-of-rack switch or Redis cache. A shared failure can take several “independent” components down together, destroying the optimistic math of parallel redundancy. We will cover this failure correlation in depth when we look at the Geometry of Data Skew in Part 5.</p>
+            <p>Independence is convenient. Production architecture is often not. Two regions may share a global identity provider; 100 partitions may share the same top-of-rack switch, storage control plane, or cache. A common event can make many child latencies rise together, so the iid maximum formula is only a baseline. This section owns dependence as it affects aggregation; Part 5 examines a different mechanism—uneven key and tenant demand, routing, and hot partitions—rather than repeating that analysis here.</p>
 
             <h2>7. Extreme Value Theory: looking beyond the data you have</h2>
 
-            <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers tools for studying extremes. The Peaks Over Threshold (POT) method models the amount by which observations exceed a chosen threshold \( u \). The conditional excess latency \( Y = T - u \mid T > u \) converges to the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
+            <p>What if your SLO depends on events rarer than your telemetry has observed often enough? Extreme Value Theory (EVT) offers asymptotic tools for studying extremes; it does not manufacture evidence for an unobserved tail. The Peaks Over Threshold (POT) method models the excess \(Y=T-u\mid T>u\) above a high threshold \(u\). Under suitable regularity conditions and a sufficiently high threshold, the conditional excess distribution can be approximated by the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
 
             <div class="equation-flow">
-                \[ G_{\xi, \sigma}(y) = 1 - \left(1 + \xi \frac{y}{\sigma}\right)^{-1/\xi} \quad (\text{for } \xi \neq 0) \]
+                \[ G_{\xi,\beta}(y)=1-\left(1+\xi\frac{y}{\beta}\right)^{-1/\xi},\quad y\ge0,\quad 1+\xi y/\beta>0,\quad \xi\ne0 \]
+             \[ G_{0,\beta}(y)=1-e^{-y/\beta},\quad y\ge0. \]
             </div>
 
             <p>The shape parameter \( \xi \) defines the three Maximum Domains of Attraction (MDA):</p>
             <div class="math-explanation">
                 <ul>
-                    <li><strong>Weibull Domain (\( \xi < 0 \)):</strong> The tail has a finite upper bound. This models systems with hard timeouts or strict capacity limits that cap latency.</li>
-                    <li><strong>Gumbel Domain (\( \xi = 0 \)):</strong> Light-tailed exponential decay. Distributions like Normal, Gamma, and Log-Normal eventually behave this way in the extreme tail.</li>
-                    <li><strong>Fréchet Domain (\( \xi > 0 \)):</strong> Heavy-tailed power-law decay (like Pareto or Cauchy). Typical of unbounded queueing delays or cascade failures.</li>
+                    <li><strong>Weibull domain (\(\xi&lt;0\)):</strong> the fitted tail has a finite upper endpoint \(u-\beta/\xi\). Do not infer this merely because an application enforces a timeout: timeouts usually censor or truncate the observed latency; they do not prove the underlying completion time has a physical upper bound.</li>
+                    <li><strong>Gumbel domain (\(\xi=0\)):</strong> the exponential-limit GPD tail. Normal, Gamma, and Log-Normal distributions are in the Gumbel maximum domain of attraction, although their finite-threshold tail shapes are not identical.</li>
+                    <li><strong>Fréchet domain (\(\xi&gt;0\)):</strong> regularly varying, power-law-type tails, as in Pareto and Cauchy distributions. Some queueing workloads can exhibit heavy tails, but queueing delay is not automatically Fréchet; the workload and service mechanisms must support that model.</li>
                 </ul>
             </div>
 
-            <p>Fitting a GPD allows you to estimate rare percentiles (return levels). <strong>However, extrapolating far beyond observed data assumes the tail mechanism remains stable.</strong> A model fitted to queueing jitter cannot predict when the server will run out of physical memory and crash.</p>
+            <p>Let \(q_u=P(T>u)\) be the exceedance probability above threshold \(u\), and let \(p\) be a target CDF percentile with \(p>1-q_u\). Combining the empirical exceedance rate with the fitted conditional GPD gives the point estimate:</p>
+            <div class="equation-flow">
+                \[ Q_p=u+\frac{\beta}{\xi}\left[\left(\frac{q_u}{1-p}\right)^\xi-1\right],\quad \xi\ne0 \]
+                \[ Q_p=u+\beta\ln\left(\frac{q_u}{1-p}\right),\quad \xi=0. \]
+            </div>
+            <p>Here \(\beta>0\) is the GPD scale and \(\xi\) is its shape. The target must lie above the threshold percentile; for \(\xi<0\), it must also remain below the finite endpoint. The expression returns a model-based quantile, not a confidence bound.</p>
+
+            <p>Fitting a GPD can estimate high quantiles (often called return levels in an appropriate time-block formulation), but every stage of the fit matters. Choose \(u\) high enough for the asymptotic approximation yet low enough to retain a useful exceedance sample. Inspect mean-residual-life and parameter-stability plots and compare plausible thresholds; there is no universal threshold or universal minimum exceedance count. Check whether exceedances cluster in time. If they do, decluster into approximately independent events or use block methods, and preserve the dependence structure when estimating uncertainty.</p>
+             <p>Report the number of exceedances, threshold-selection rationale, fitting method, and sensitivity to threshold and time window. Parameter uncertainty propagates into the target quantile: use profile-likelihood intervals or a suitable parametric/block bootstrap, and report return-level confidence intervals rather than only a smooth fitted curve. Far-tail intervals can be very wide or unstable. A target many orders of magnitude beyond the observed support is an extrapolation scenario, not a precise SLA promise.</p>
+             <p>Finally, treat timeouts and aborted requests as right-censored observations when the true completion time is unknown; do not record every timeout as if the operation completed exactly at the timeout value. Survival methods or an explicitly modelled censoring process may be needed. A model fitted to queueing jitter cannot predict a new physical regime such as memory exhaustion or a machine crash.</p>
 
             <h2>Interactive workbench: turn the model into a decision</h2>
             <p>These tools are deliberately split by question. The mixture explorer studies observed latency shape; the canary lab separates uncertainty about a mean from the chance of missing a defect; and the EVT calculator shows how assumptions affect an extreme-tail estimate.</p>
 
             <div class="scenario-card workbench-card" id="mixture-workbench">
                 <div class="scenario-title">1. Normal vs. slow-path mixture <span class="scenario-tag">Latency diagnostics</span></div>
-                <p>Generate a reproducible synthetic sample containing a fast path and a slower path. The plotted curves compare the empirical CDF with a single Normal model fitted to the sample.</p>
+                <p>Generate a reproducible synthetic sample from a two-component, positive-truncated Normal mixture. The chart overlays its empirical CDF with a single Normal CDF fitted using the sample mean and standard deviation. This is a synthetic diagnostic illustration, not a fit to production telemetry. The slow-path standard deviation is fixed at max(1 ms, 10% of its location); both components are sampled from Normal distributions conditioned on positive latency.</p>
                 <div class="wb-grid">
-                    <div class="param-group"><label for="mix-fast-mean">Fast-path mean (ms): <strong id="mix-fast-mean-v">10</strong></label><input id="mix-fast-mean" type="range" min="5" max="50" step="1" value="10"></div>
+                    <div class="param-group"><label for="mix-fast-mean">Fast-path Normal location (ms): <strong id="mix-fast-mean-v">10</strong></label><input id="mix-fast-mean" type="range" min="5" max="50" step="1" value="10"></div>
                     <div class="param-group"><label for="mix-fast-sd">Fast-path SD (ms): <strong id="mix-fast-sd-v">2</strong></label><input id="mix-fast-sd" type="range" min="0.5" max="15" step="0.5" value="2"></div>
                     <div class="param-group"><label for="mix-weight">Slow-path share: <strong id="mix-weight-v">1%</strong></label><input id="mix-weight" type="range" min="0" max="5" step="0.25" value="1"></div>
-                    <div class="param-group"><label for="mix-slow-mean">Slow-path mean (ms): <strong id="mix-slow-mean-v">250</strong></label><input id="mix-slow-mean" type="range" min="50" max="1000" step="10" value="250"></div>
+                    <div class="param-group"><label for="mix-slow-mean">Slow-path Normal location (ms): <strong id="mix-slow-mean-v">250</strong></label><input id="mix-slow-mean" type="range" min="50" max="1000" step="10" value="250"></div>
                     <div class="param-group"><label for="mix-sample-n">Sample size: <strong id="mix-sample-n-v">10,000</strong></label><input id="mix-sample-n" type="range" min="1000" max="20000" step="1000" value="10000"></div>
                 </div>
                 <div class="controls"><button type="button" class="sim-btn btn-run" id="mix-regenerate">↻ Regenerate sample</button></div>
-                <canvas id="mix-cdf" class="sim-canvas workbench-canvas" width="800" height="260" role="img" aria-label="Empirical cumulative distribution compared with a fitted Normal CDF"></canvas>
+                <canvas id="mix-cdf" class="sim-canvas workbench-canvas" width="800" height="260" role="img" aria-label="Synthetic mixture empirical cumulative distribution overlaid with a fitted Normal cumulative distribution"></canvas>
                 <div class="wb-stats" id="mix-stats" aria-live="polite"></div>
             </div>
 
@@ -623,11 +653,12 @@
                     <div class="param-group"><label for="bench-sd">Sample SD (ms): <strong id="bench-sd-v">20</strong></label><input id="bench-sd" type="range" min="1" max="60" step="1" value="20"></div>
                 </div>
                 <div class="wb-stats" id="canary-stats" aria-live="polite"></div>
+                <p class="math-explanation">The zero-error bound assumes independent Bernoulli trials with a stable error probability. The t interval assumes independent benchmark observations and a defensible mean-sampling approximation (exact for a Normal population); it is not a latency-percentile interval. The rule-of-three result is an approximation, not a correction for clustering or stratified sampling.</p>
             </div>
 
             <div class="scenario-card workbench-card" id="evt-workbench">
                 <div class="scenario-title">3. EVT / GPD tail explorer <span class="scenario-tag">Extrapolation warning</span></div>
-                <p>Estimate a target quantile from a threshold-exceedance model. Change the threshold, observed exceedance rate, scale, and shape.</p>
+                <p>Estimate a target quantile from a threshold-exceedance model. Change the threshold, observed exceedance rate, scale, and shape. The displayed value is a point estimate only; the workbench does not calculate a confidence interval or validate threshold choice, independence, or GPD fit.</p>
                 <div class="wb-grid">
                     <div class="param-group"><label for="evt-u">Threshold u (ms): <strong id="evt-u-v">500</strong></label><input id="evt-u" type="range" min="100" max="2000" step="50" value="500"></div>
                     <div class="param-group"><label for="evt-rate">Exceedance rate: <strong id="evt-rate-v">0.1%</strong></label><input id="evt-rate" type="range" min="0.01" max="5" step="0.01" value="0.1"></div>
@@ -637,6 +668,7 @@
                     <div class="param-group"><label for="evt-N">Total observed requests N: <strong id="evt-N-v">10,000,000</strong></label><input id="evt-N" type="range" min="100000" max="50000000" step="100000" value="10000000"></div>
                 </div>
                 <div class="wb-stats" id="evt-stats" aria-live="polite"></div>
+                <p class="math-explanation">The expected exceedance count is \(Nq_u\); the model-implied expected count beyond the target is \(N(1-p)\). These are expectations, not a claim that those events were actually observed. The extrapolation ratio is a support heuristic, not a confidence measure. Before using a return level, assess threshold stability, exceedance clustering, censoring, parameter uncertainty, and a confidence interval from profile likelihood or an appropriate bootstrap.</p>
             </div>
 
             <h2>8. From a distribution to an engineering decision</h2>
@@ -666,7 +698,7 @@
         <tr>
             <th scope="row">Uncertainty and sample size</th>
             <td>Are we declaring a benchmark win on too few runs or promoting an error-free canary too early?</td>
-            <td>Use t-intervals for means, block bootstrap for percentiles, and \( n \ge 3/p_{\text{tolerable}} \) for zero-error gates.</td>
+            <td>Use t-intervals for means only when their sampling assumptions are defensible; use block or cluster methods for dependent data. For zero events, \(p_{\text{upper}}\approx3/n\) is an approximate one-sided 95% upper bound after zero events under an independent Bernoulli model, not a universal rule for correlated or stratified samples.</td>
         </tr>
         <tr>
             <th scope="row">Tail validation</th>
@@ -684,13 +716,13 @@
 <div class="tldr-box tldr-box--warning">
     <div class="tldr-eyebrow">Final engineering rule</div>
     <div class="tldr-content">
-        <p>A fitted distribution is not a production control. The useful result is the control that follows from the validated model: a deadline, a queue limit, an isolation boundary, a canary sample size, a bounded duplicate-work budget, or a deliberate graceful-degradation policy.</p>
+        <p>A fitted distribution is not a production control. The useful result is the control that follows from the validated model: a dependency deadline, a queue limit, an isolation boundary, a canary sample size, a bounded duplicate-work budget, or a deliberate graceful-degradation policy. Revisit the model when the workload, deployment, topology, or failure regime changes.</p>
     </div>
 </div>
             
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-3-physics-of-time-traffic-and-queues.html">← Part 3: The Physics of Time, Traffic, and Queues</a>
-                <a href="part-5-routing-sharding-and-data-skew.html">Part 5: Routing, Sharding, and Data Skew →</a>
+                <a href="part-5-routing-sharding-and-data-skew.html">Part 5: Routing, Sharding, and the Heavy-Tailed Geometry of Data Skew →</a>
             </nav>
         </main>
 
@@ -755,6 +787,7 @@
                         const sim = canvasToSim.get(canvas);
                         if (sim) sim.draw();
                     });
+                    document.dispatchEvent(new Event('themechange'));
                 });
             }
 
@@ -797,8 +830,12 @@
 
                     this.resize();
                     
-                    this.resizeObserver = new ResizeObserver(() => this.resize());
-                    this.resizeObserver.observe(this.canvas.parentElement);
+                    if ('ResizeObserver' in window) {
+                        this.resizeObserver = new ResizeObserver(() => this.resize());
+                        this.resizeObserver.observe(this.canvas.parentElement);
+                    } else {
+                        window.addEventListener('resize', () => this.resize());
+                    }
 
                     canvasToSim.set(this.canvas, this);
                     this.draw();
@@ -880,14 +917,14 @@
                         }
                         return z / Math.sqrt(s / df);
                     } else if (this.type === 'lognormal') {
-                        return Math.exp((this.params.mu || 0.3) + (this.params.sig || 0.6) * randNormal());
+                        return Math.exp((Number.isFinite(this.params.mu) ? this.params.mu : 0.3) + (Number.isFinite(this.params.sig) ? this.params.sig : 0.6) * randNormal());
                     }
                 }
 
                 getRange() {
                     if (this.type === 'normal') return [(this.params.mu || 0) - 4 * (this.params.sig || 1), (this.params.mu || 0) + 4 * (this.params.sig || 1)];
                     if (this.type === 'studentt') return [-6, 6];
-                    if (this.type === 'lognormal') return [0, Math.exp((this.params.mu || 0.3) + 3.5 * (this.params.sig || 0.6))];
+                    if (this.type === 'lognormal') return [0, Math.exp((Number.isFinite(this.params.mu) ? this.params.mu : 0.3) + 3.5 * (Number.isFinite(this.params.sig) ? this.params.sig : 0.6))];
                 }
 
                 draw() {
@@ -920,7 +957,7 @@
                     let theoreticalMean = 0;
                     if (this.type === 'normal') theoreticalMean = this.params.mu || 0;
                     if (this.type === 'studentt') theoreticalMean = 0;
-                    if (this.type === 'lognormal') theoreticalMean = Math.exp((this.params.mu || 0.3) + Math.pow(this.params.sig || 0.6, 2) / 2);
+                    if (this.type === 'lognormal') theoreticalMean = Math.exp((Number.isFinite(this.params.mu) ? this.params.mu : 0.3) + Math.pow(Number.isFinite(this.params.sig) ? this.params.sig : 0.6, 2) / 2);
                     
                     if (this.statTheory) {
                         this.statTheory.textContent = theoreticalMean.toFixed(2);
@@ -1034,7 +1071,7 @@
                 }
             }
 
-            document.querySelectorAll('.stage').forEach(stage => {
+            document.querySelectorAll('.stage[data-sim-type]').forEach(stage => {
                 new Simulator(stage);
             });
         });
@@ -1054,29 +1091,67 @@
           pairs.forEach(([id, out, fn]) => { if($(id)&&$(out)) $(out).textContent=fn(Number($(id).value)); }); 
       }
 
-      function drawCdf(canvas, sample, mean, sd) {
-        if(!canvas) return;
+      function normalCdf(z) {
+        // Abramowitz-Stegun erf approximation; adequate for a teaching overlay.
+        const sign = z < 0 ? -1 : 1;
+        const x = Math.abs(z) / Math.sqrt(2);
+        const t = 1 / (1 + 0.3275911 * x);
+        const erf = 1 - (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t) * Math.exp(-x * x);
+        return 0.5 * (1 + sign * erf);
+      }
+
+      function drawCdf(canvas, sortedSample, mean, sd) {
+        if(!canvas || !sortedSample.length) return;
         const ctx=canvas.getContext('2d'), rect=canvas.getBoundingClientRect();
         const W=Math.max(320,Math.floor(rect.width||800)), H=260, dpr=window.devicePixelRatio||1;
         canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);
-        const pad={l:48,r:18,t:18,b:36}, pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+        const pad={l:48,r:18,t:34,b:42}, pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
         ctx.clearRect(0,0,W,H);
-        
-        const sorted=sample.slice().sort((a,b)=>a-b);
-        const max=Math.max(30,quantile(sorted,.999)*1.08), min=0;
-        ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--border').trim()||'#888';
-        ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#333';
-        ctx.font='11px sans-serif'; ctx.lineWidth=1;
-        
-        [0,.25,.5,.75,1].forEach(v=>{const y=pad.t+(1-v)*ph;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText(Math.round(v*100)+'%',5,y+4);});
-        [0,.25,.5,.75,1].forEach(v=>{const x=pad.l+v*pw;ctx.fillText(Math.round(max*v),x-8,H-12);});
-        
-        // Empirical CDF
+
+        const max=Math.max(30,quantile(sortedSample,.999)*1.08);
+        const styles=getComputedStyle(document.documentElement);
+        const grid=styles.getPropertyValue('--line-soft').trim()||'#888';
+        const textColor=styles.getPropertyValue('--text').trim()||'#333';
+        ctx.strokeStyle=grid; ctx.fillStyle=textColor; ctx.font='11px "IBM Plex Sans",sans-serif'; ctx.lineWidth=1;
+
+        [0,.25,.5,.75,1].forEach(v=>{
+          const y=pad.t+(1-v)*ph;
+          ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+          ctx.fillText(Math.round(v*100)+'%',5,y+4);
+        });
+        [0,.25,.5,.75,1].forEach(v=>{
+          const x=pad.l+v*pw;
+          ctx.fillText(String(Math.round(max*v)),x-8,H-28);
+        });
+        ctx.fillText('Latency (ms)',pad.l+pw/2,H-8);
+
+        // Empirical CDF.
         ctx.beginPath(); ctx.strokeStyle='#2d9cdb'; ctx.lineWidth=2;
-        sorted.forEach((v,i)=>{const x=pad.l+(Math.min(max,v)/max)*pw,y=pad.t+(1-(i+1)/sorted.length)*ph;if(i===0)ctx.moveTo(pad.l,y);ctx.lineTo(x,y);});
+        ctx.moveTo(pad.l,pad.t+ph);
+        sortedSample.forEach((v,i)=>{
+          const x=pad.l+(Math.min(max,Math.max(0,v))/max)*pw;
+          const y=pad.t+(1-(i+1)/sortedSample.length)*ph;
+          ctx.lineTo(x,y);
+        });
         ctx.stroke();
-        
-        ctx.fillStyle='#2d9cdb';ctx.fillRect(pad.l,H-26,12,3);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#333';ctx.fillText('Empirical CDF',pad.l+17,H-21);
+
+        // Fitted Normal CDF using the sample mean and sample standard deviation.
+        if(Number.isFinite(sd) && sd>0) {
+          ctx.beginPath(); ctx.strokeStyle='#d97757'; ctx.lineWidth=2; ctx.setLineDash([5,3]);
+          for(let i=0;i<=200;i++) {
+            const xValue=max*i/200;
+            const x=pad.l+(xValue/max)*pw;
+            const y=pad.t+(1-normalCdf((xValue-mean)/sd))*ph;
+            if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+          }
+          ctx.stroke(); ctx.setLineDash([]);
+        }
+
+        ctx.fillStyle='#2d9cdb';ctx.fillRect(pad.l,15,12,3);
+        ctx.fillStyle=textColor;ctx.fillText('Empirical CDF',pad.l+17,19);
+        ctx.strokeStyle='#d97757';ctx.lineWidth=2;ctx.setLineDash([5,3]);
+        ctx.beginPath();ctx.moveTo(pad.l+125,16);ctx.lineTo(pad.l+145,16);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=textColor;ctx.fillText('Fitted Normal CDF',pad.l+151,19);
       }
 
       function updateMixture() {
@@ -1087,20 +1162,22 @@
         let seed=20261029; const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return Math.min(1 - 1e-12, Math.max(1e-12, seed/4294967296));};
         const gauss=()=>{let u=rnd(),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
         const sample=[];let sum=0,sum2=0,slowCount=0;
-        
+        const positiveNormal=(m,s)=>{let value;do{value=m+s*gauss();}while(value<=0);return value;};
+
         for(let i=0;i<n;i++){
             const isSlow=rnd()<w;
             if(isSlow) slowCount++;
-            const val=Math.max(0,isSlow?slow+Math.max(1,slow*.1)*gauss():fast+sd*gauss());
+            const val=isSlow?positiveNormal(slow,Math.max(1,slow*.1)):positiveNormal(fast,sd);
             sample.push(val);
             sum+=val;
             sum2+=val*val;
         }
         const mean=sum/n, sdev=Math.sqrt(Math.max(0,(sum2-n*mean*mean)/(n-1)));
-        const p50=quantile(sample,.5),p95=quantile(sample,.95),p99=quantile(sample,.99),p999=quantile(sample,.999);
+        const sorted=sample.slice().sort((a,b)=>a-b);
+        const p50=quantile(sorted,.5),p95=quantile(sorted,.95),p99=quantile(sorted,.99),p999=quantile(sorted,.999);
         const normalQ=p=>mean+(p===.5?0:p===.95?1.644854:p===.99?2.326348:3.090232)*sdev;
-        
-        drawCdf($('mix-cdf'),sample,mean,sdev);
+
+        drawCdf($('mix-cdf'),sorted,mean,sdev);
         $('mix-stats').innerHTML=[
           ['Sample mean',fmt(mean)+' ms'],['Sample SD',fmt(sdev)+' ms'],['Empirical p50 / p95',fmt(p50)+' / '+fmt(p95)+' ms'],
           ['Empirical p99 / p99.9',fmt(p99)+' / '+fmt(p999)+' ms'],
@@ -1154,11 +1231,11 @@
         const cards=[
           ['Estimated target quantile',valid?fmt(result)+' ms':'Not estimable'],
           ['Expected threshold exceedances',Math.round(expected).toLocaleString()],
-          ['Expected observations beyond target',fmt(targetExpected,1)],
+          ['Model-implied expected observations beyond target',fmt(targetExpected,1)],
           ['Tail extrapolation ratio',fmt(extrapRatio,1)+'×']
         ].map(([a,b])=>'<div class="wb-stat"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
         
-        $('evt-stats').innerHTML=cards+(valid?(warn?'<div class="wb-warning"><strong>Red flag: extreme extrapolation.</strong> The target is more than 10× rarer than the expected observed tail support. Report parameter uncertainty and threshold sensitivity; do not treat this estimate as an SLA guarantee.</div>':'<div class="wb-ok">The target is within the workbench’s simple support heuristic. This does not prove the model is well fitted.</div>'):'<div class="wb-warning">'+note+'</div>');
+        $('evt-stats').innerHTML=cards+(valid?(warn?'<div class="wb-warning"><strong>Red flag: extreme extrapolation.</strong> The threshold-exceedance count is more than 10× the model-implied expected count beyond the target. This is only a support heuristic. Report parameter uncertainty and threshold sensitivity; do not treat this point estimate as an SLA guarantee.</div>':'<div class="wb-ok">The target is within the workbench’s simple support heuristic. This does not prove the model is well fitted.</div>'):'<div class="wb-warning">'+note+'</div>');
       }
 
       const mixIds=['mix-fast-mean','mix-fast-sd','mix-weight','mix-slow-mean','mix-sample-n'];
@@ -1169,6 +1246,7 @@
       ['evt-u','evt-rate','evt-beta','evt-xi','evt-target','evt-N'].forEach(id=>{ if($(id)) $(id).addEventListener('input',updateEvt); });
       
       window.addEventListener('resize',()=>{if($('mix-cdf'))updateMixture();});
+      document.addEventListener('themechange',()=>{if($('mix-cdf'))updateMixture();});
       updateMixture(); updateCanary(); updateEvt();
     });
     </script>
