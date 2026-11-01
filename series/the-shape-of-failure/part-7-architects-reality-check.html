@@ -229,7 +229,7 @@
 
             <p>Every one of those mathematical models rests on a foundational premise: <strong>a distribution is a model, not an invariant.</strong> Even if our Multi-Tenant Analytics Gateway genuinely followed a Lognormal latency profile with scale parameter \( \sigma = 0.8 \) last month, a minor kernel upgrade, a shifted tenant query mix, or a subtle memory leak in the Arrow buffer pool can invalidate that model overnight.</p>
 
-            <p>How do we determine whether a mathematical model still represents production reality? Why can a distribution test report a "good fit" while \( P_{99.9} \) breaches the SLA by \( 4\times \)? Why do static \( P_{99} \) threshold alerts remain silent for weeks while cache degradation slowly boils the cluster? And how can our observability pipeline itself falsify the data through timeout censoring and percentile averaging?</p>
+            <p>How do we determine whether a mathematical model still represents production reality? Why can a distribution test report a "good fit" while extreme tail latencies breach our design envelope? Why do static \( P_{99} \) threshold alerts remain silent for weeks while cache degradation slowly boils the cluster? And how can our observability pipeline itself falsify the data through timeout censoring and percentile averaging?</p>
 
             <p>In Part 7, we establish the empirical validation pipeline that bridges probability theory and production engineering: <strong>Empirical Goodness-of-Fit, Quantile Diagnostics, Residual Autocorrelation, Standardized Drift Detection, Finite-Fleet Auditing, Telemetry Hygiene, and Runtime Conformance.</strong></p>
 
@@ -241,8 +241,8 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Vertical Probability vs. Horizontal Latency</div>
                 <div class="tldr-content">
-                    <p>When validating a candidate latency distribution (such as Lognormal, Gamma, or Weibull) against production traces, engineers often run a Kolmogorov-Smirnov (KS) test using default statistical libraries. While the KS test is mathematically sound for detecting shifts in the central body of a distribution, relying on it to validate tail-latency models is dangerous.</p>
-                    <p>The KS test measures the maximum <em>vertical</em> difference in cumulative probability \( |\hat{F}_n(x) - F(x)| \) with equal weight across all \( x \). At \( P_{99.9} \), cumulative probability is already \( 0.999 \)—the remaining vertical room to \( 1.000 \) is at most \( 0.001 \). Even if your empirical \( P_{99.9} \) blows out from \( 2,000\text{ ms} \) to \( 8,000\text{ ms} \) horizontally, the vertical CDF discrepancy in the extreme tail cannot exceed a few thousandths, which is easily masked by sampling noise near the median.</p>
+                    <p>When validating a candidate latency distribution (such as Lognormal, Gamma, or Weibull) against production traces, engineers often run a Kolmogorov-Smirnov (KS) test using default statistical libraries. While the KS test is mathematically sound for detecting shifts in the central body of a distribution, relying on it alone to validate tail-latency models is dangerous.</p>
+                    <p>The KS test measures the maximum <em>vertical</em> difference in cumulative probability \( |\hat{F}_n(x) - F(x)| \) with equal weight across all \( x \). At \( P_{99.9} \), cumulative probability is already \( 0.999 \)—the remaining vertical room to \( 1.000 \) is at most \( 0.001 \). Even if empirical tail observations stretch horizontally from \( 1,120\text{ ms} \) to \( 4,800\text{ ms} \) or \( 7,900\text{ ms} \), the vertical CDF discrepancy in the extreme tail cannot exceed a few thousandths, which is easily masked by ordinary sampling noise near the median.</p>
                 </div>
             </div>
 
@@ -274,29 +274,31 @@
                 \[ \begin{aligned} A^2 &= n \int_{-\infty}^{\infty} \frac{\left(\hat{F}_n(x) - F(x; \theta_0)\right)^2}{F(x; \theta_0)\left(1 - F(x; \theta_0)\right)} \, dF(x; \theta_0) \\ &= -n - \frac{1}{n}\sum_{i=1}^{n} (2i - 1)\left[\ln F\left(X_{(i)}; \theta_0\right) + \ln\left(1 - F\left(X_{(n+1-i)}; \theta_0\right)\right)\right] \end{aligned} \]
             </div>
 
-            <p>Because \( \ln(1 - F(X_{(n+1-i)}; \theta_0)) \) diverges toward \( -\infty \) as \( F(X_{(n)}; \theta_0) \to 1 \), the Anderson-Darling test gives substantially greater weight to observations in the upper and lower tails than the KS test. However, <strong>neither test guarantees detection of all practically important tail mismatches</strong>—especially if the sample size \( n \) is too small to observe the rare regime (\( n < \frac{1}{1 - q} \) for target quantile \( q \)) or if a dominant discrepancy in the bulk swamps a localized multimodal kink.</p>
+            <p>Because \( \ln(1 - F(X_{(n+1-i)}; \theta_0)) \) diverges toward \( -\infty \) as \( F(X_{(n)}; \theta_0) \to 1 \), the Anderson-Darling test gives substantially greater weight to observations in the upper and lower tails than the KS test. However, <strong>neither test guarantees detection of all practically important tail mismatches</strong>—especially if the sample size \( n \) is too small to reliably sample the tail regime or if a dominant discrepancy in the bulk swamps a localized multimodal kink.</p>
 
             <div class="scenario-card">
                 <div class="scenario-title">
-                    <span>Worked Example: Tail Divergence Under KS vs. AD</span>
+                    <span>Worked Example: Tail Divergence, Sample Quantiles, and KS vs. AD</span>
                     <span class="scenario-tag">Illustrative Engineering Model</span>
                 </div>
-                <p><strong>1. Production Scenario & Mechanism:</strong> Our Multi-Tenant Analytics Gateway serves \( 99.8\% \) of queries from warm Arrow memory caches following a Lognormal distribution with \( \mu = 4.605 \) (\(\text{median} = 100\text{ ms}\)) and \( \sigma = 0.782 \), which predicts a theoretical \( P_{99.9} = \exp(4.605 + 3.090 \times 0.782) \approx 1,120\text{ ms} \). However, \( 0.2\% \) of queries trigger cold object-storage partition compaction, pushing actual empirical latencies above \( P_{99.8} \) into a \( 4,500\text{ ms}–8,000\text{ ms} \) regime.</p>
-                <p><strong>2. Numerical Calculation (\( n = 1,000 \) traces):</strong></p>
+                <p><strong>1. Production Scenario & Mechanism:</strong> Our Multi-Tenant Analytics Gateway serves \( 99.8\% \) of queries from warm Arrow memory caches following a Lognormal distribution with \( \mu = 4.605 \) (\(\text{median} = 100\text{ ms}\)) and \( \sigma = 0.782 \), which predicts a theoretical \( 99.9\text{th} \) percentile of \( Q_{0.999} = \exp(4.605 + 3.090 \times 0.782) \approx 1,120\text{ ms} \). However, \( 0.2\% \) of queries trigger cold object-storage partition compaction, pushing latencies in that secondary regime into the \( 4,500\text{ ms}–8,000\text{ ms} \) range.</p>
+                <p><strong>2. Order Statistics, Quantile Conventions, and Numerical Calculation (\( n = 1,000 \) traces):</strong></p>
                 <ul>
-                    <li>In a sample of \( n = 1,000 \) requests, only \( 2 \) observations (\( X_{(999)} = 4,800\text{ ms} \) and \( X_{(1000)} = 7,900\text{ ms} \)) fall into the compaction regime.</li>
-                    <li>At \( x = 1,120\text{ ms} \), the theoretical CDF is \( F(1120) = 0.9990 \), while the empirical ECDF is \( \hat{F}_{1000}(1120) = \frac{998}{1000} = 0.9980 \). The vertical CDF gap in the extreme tail is only \( |0.9980 - 0.9990| = 0.0010 \).</li>
-                    <li>Meanwhile, ordinary sampling fluctuation near the median (\( x \approx 100\text{ ms} \)) produces a vertical difference of \( D_{1000} = 0.028 \).</li>
-                    <li>For \( n = 1,000 \) at significance level \( \alpha = 0.05 \), the standard KS critical threshold is \( D_{\text{crit}} \approx \frac{1.358}{\sqrt{1000}} = 0.0429 \). Because \( D_{1000} = 0.028 < 0.0429 \), the KS test fails to reject \( H_0 \)—completely missing a \( 7\times \) latency blowout at \( P_{99.9} \).</li>
-                    <li>In the Anderson-Darling calculation, at \( X_{(1000)} = 7,900\text{ ms} \), the standardized \( z \)-score is \( z = \frac{\ln(7900) - 4.605}{0.782} = 5.587 \), where \( 1 - F(7900) \approx 1.15 \times 10^{-8} \) and \( \ln(1 - F(X_{(1000)})) \approx -18.28 \). Multiplying by \( (2n - 1)/n \approx 2 \) contributes \( +36.5 \) directly to \( A^2 \), pushing \( A^2 \) far past the \( \alpha = 0.05 \) critical value (\( 2.492 \)).</li>
+                    <li>Suppose we draw a validation sample of \( n = 1,000 \) traces. The top two order statistics fall into the compaction regime: \( X_{(999)} = 4,800\text{ ms} \) and the sample maximum \( X_{(1000)} = 7,900\text{ ms} \), while \( X_{(998)} = 980\text{ ms} \).</li>
+                    <li><strong>Distinguishing Sample \( P_{99.9} \) from the Sample Maximum:</strong> Under the standard <em>nearest-rank quantile convention</em>, the empirical quantile estimator for probability \( q \) is \( \hat{Q}_q = X_{(\lceil q n \rceil)} \). At \( n = 1,000 \) and \( q = 0.999 \):
+                        \[ \hat{Q}_{0.999} = X_{(\lceil 0.999 \times 1000 \rceil)} = X_{(999)} = 4,800\text{ ms} \]
+                        (Linear interpolation conventions such as Hyndman-Fan Type 7 yield a nearly identical \( 4,803.1\text{ ms} \).) Thus, the empirical \( P_{99.9} \) is \( 4,800\text{ ms} \) (\( 4.3\times \) the theoretical \( 1,120\text{ ms} \)), whereas \( X_{(1000)} = 7,900\text{ ms} \) (\( 7.1\times \) theoretical \( P_{99.9} \)) is the <strong>sample maximum</strong>, not \( P_{99.9} \).</li>
+                    <li><strong>Why KS Misses the Tail Blowout:</strong> At \( x = 1,120\text{ ms} \), the theoretical CDF is \( F(1120) = 0.9990 \), while the empirical ECDF is \( \hat{F}_{1000}(1120) = \frac{998}{1000} = 0.9980 \). Across the entire region \( x \ge 1,120\text{ ms} \), the vertical CDF gap never exceeds \( |0.9980 - 0.9990| = 0.0010 \). Meanwhile, ordinary sampling fluctuation near the median (\( x \approx 100\text{ ms} \)) produces a vertical difference of \( D_{1000} = 0.028 \). Because \( D_{1000} = 0.028 \) is well below the \( \alpha = 0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx \frac{1.358}{\sqrt{1000}} = 0.0429 \), the KS test fails to reject \( H_0 \)—missing both the \( 4.3\times \) \( P_{99.9} \) exceedance and the \( 7,900\text{ ms} \) maximum.</li>
+                    <li><strong>Why Anderson-Darling Catches It:</strong> In the AD summation, both extreme observations \( X_{(999)} = 4,800\text{ ms} \) and the sample maximum \( X_{(1000)} = 7,900\text{ ms} \) are weighted by \( \ln(1 - F(X_{(n+1-i)})) \). At \( X_{(1000)} = 7,900\text{ ms} \), the standardized score is \( z = \frac{\ln(7900) - 4.605}{0.782} = 5.587 \), giving \( 1 - F(7900) \approx 1.15 \times 10^{-8} \) and \( \ln(1 - F(X_{(1000)})) \approx -18.28 \). Multiplied by \( \frac{2n - 1}{n} = 1.999 \), this single extreme observation contributes \( +36.5 \) to \( A^2 \) (and \( X_{(999)} = 4,800\text{ ms} \) contributes another \( +23.7 \)), driving \( A^2 \) far beyond the \( \alpha = 0.05 \) critical value (\( 2.492 \)).</li>
+                    <li><strong>Sample Size & Epistemic Uncertainty of Extreme Quantiles:</strong> While \( n = 1,000 \) suffices here for AD to reject the unimodal Lognormal model, <strong>\( n = 1,000 \) is far too small to stably estimate \( P_{99.9} \).</strong> Under i.i.d. sampling, the number of observations exceeding the true \( 99.9\text{th} \) percentile follows \( M \sim \text{Binomial}(n, 0.001) \). At \( n = 1,000 \), the expected number of exceedances is only \( \mathbb{E}[M] = 1000(0.001) = 1.0 \), with a \( P(M = 0) = (0.999)^{1000} \approx 36.8\% \) probability of observing <em>zero</em> requests beyond the true \( P_{99.9} \)! To bound the relative standard error of the exceedance count \(\frac{1}{\sqrt{n(1-q)}}\) to \(\le 15\%–20\%\) at \( P_{99.9} \), you must collect at least \( n = 25,000–50,000 \) independent traces (providing \( 25–50 \) expected tail exceedances).</li>
                 </ul>
-                <p><strong>3. Architectural Decision:</strong> Never use a single unimodal distribution fit validated only by KS to provision timeout budgets or SLA commitments. Combine AD statistics with visual <strong>Quantile-Quantile (Q-Q) plots</strong> and stratified mixture modeling (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) to separate fast-path cache hits from slow-path compaction scans.</p>
+                <p><strong>3. Architectural Decision:</strong> Never use a passing KS test to certify tail-latency SLAs, and never trust an empirical \( P_{99.9} \) estimate computed from a window of only \( 1,000 \) requests. Combine AD statistics with visual <strong>Quantile-Quantile (Q-Q) plots</strong>, enforce minimum sample counts (\( n \ge \frac{25}{1 - q} \)) before evaluating empirical quantile gates, and use stratified mixture modeling (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) to separate fast-path cache hits from slow-path compaction scans.</p>
             </div>
 
             <div class="math-explanation">
                 <strong>Three Mandatory Statistical Qualifications for Production Goodness-of-Fit:</strong>
                 <ul>
-                    <li><strong>Simple vs. Composite Hypotheses (Lilliefors & Parametric Bootstrap):</strong> Standard KS and AD critical values assume the theoretical parameters \( \theta_0 \) were fully specified <em>before</em> looking at the data (e.g., from last week's baseline). If you estimate \( \hat{\theta} \) from the <em>same</em> sample you are testing, the fitted curve is pulled toward the data, making standard \( p \)-values overly conservative (inflating Type-II error). The classic <strong>Lilliefors correction</strong> adjusts critical values for this bias, but it applies only to specific location-scale families (such as the Normal or Exponential distributions, or Lognormal after log-transformation). For general multi-parameter distributions (Gamma, Weibull, Generalized Pareto), use distribution-specific calibrated tables or run a <strong>Parametric Bootstrap</strong>:
+                    <li><strong>Simple vs. Composite Hypotheses (Lilliefors & Parametric Bootstrap):</strong> Standard KS and AD critical values assume the theoretical parameters \( \theta_0 \) were fully specified <em>before</em> looking at the data (e.g., from an external SLA contract or prior baseline). If you estimate \( \hat{\theta} \) from the <em>same</em> sample you are testing, the fitted curve is pulled toward the data, making standard \( p \)-values overly conservative (inflating Type-II error). The classic <strong>Lilliefors correction</strong> adjusts critical values for this bias, but it applies only to specific location-scale families (such as the Normal or Exponential distributions, or Lognormal after log-transformation). For general multi-parameter distributions (Gamma, Weibull, Generalized Pareto), use distribution-specific calibrated tables or run a <strong>Parametric Bootstrap</strong>:
                         <ol style="margin-top:0.4rem; margin-bottom:0.4rem;">
                             <li>Fit parameters \( \hat{\theta} \) to your empirical sample of size \( n \) and compute the observed statistic \( T_{\text{obs}} \) (either \( D_n \) or \( A^2 \)).</li>
                             <li>For \( b = 1 \dots B \) (e.g., \( B = 2,000 \)), generate a synthetic sample \( X^{*(b)}_1 \dots X^{*(b)}_n \sim F(x; \hat{\theta}) \).</li>
@@ -304,8 +306,8 @@
                             <li>Compute the calibrated \( p \)-value as \( \hat{p} = \frac{1}{B}\sum_{b=1}^B \mathbb{I}(T^{*(b)} \ge T_{\text{obs}}) \).</li>
                         </ol>
                     </li>
-                    <li><strong>The Large-\( n \) Paradox (Statistical vs. Operational Significance):</strong> In high-throughput services, \( n = 10^6 \) traces per minute is routine. Because \( D_{\text{crit}} \propto n^{-1/2} \), at \( n = 10^6 \) any deviation larger than \( 0.00136 \) yields \( p < 0.05 \). Real production latencies suffer from OS timer quantization, network packet framing, and minor diurnal drift; thus, at large \( n \), <em>every</em> parametric distribution is rejected with \( p < 10^{-12} \). Statistical significance measures whether you have enough data to detect a difference from an idealized curve; <strong>operational significance</strong> measures whether the quantile error \( |\hat{Q}_q - Q_q(\hat{\theta})| \) changes an engineering decision (such as buffer sizing or timeout configuration).</li>
-                    <li><strong>Quantile-Quantile (Q-Q) & Probability Plots:</strong> Always pair formal EDF tests with a Q-Q plot graphing empirical order statistics \( X_{(i)} \) on the vertical axis against theoretical quantiles \( F^{-1}\left(\frac{i - 0.5}{n}; \hat{\theta}\right) \) on the horizontal axis. If the points follow the \( y = x \) line up to \( P_{99} \) and then bend sharply upward, you have direct visual proof of a distinct heavy-tail mechanism or mixture population—regardless of what a single \( p \)-value reports.</li>
+                    <li><strong>The Large-\( n \) Paradox (Statistical vs. Operational Significance):</strong> In high-throughput services, \( n = 10^6 \) traces per minute is routine. Because \( D_{\text{crit}} \propto n^{-1/2} \), at \( n = 10^6 \) any vertical CDF deviation larger than \( 0.00136 \) yields \( p < 0.05 \). Real production latencies suffer from OS timer quantization, network packet framing, and minor diurnal drift; thus, at large \( n \), <em>every</em> parametric distribution is rejected with \( p < 10^{-12} \). Statistical significance measures whether you have enough data to detect a departure from an idealized curve; <strong>operational significance</strong> measures whether the horizontal quantile error \( |\hat{Q}_q - Q_q(\hat{\theta})| \) changes an engineering decision (such as buffer sizing or timeout configuration).</li>
+                    <li><strong>Quantile-Quantile (Q-Q) & Probability Plots:</strong> Always pair formal EDF tests with a Q-Q plot graphing empirical order statistics \( X_{(i)} \) on the vertical axis against theoretical plotting positions \( F^{-1}\left(\frac{i - 0.5}{n}; \hat{\theta}\right) \) on the horizontal axis. If the points follow the \( y = x \) line up to \( P_{99} \) and then bend sharply upward, you have direct visual proof of a distinct heavy-tail mechanism or mixture population—regardless of what a single scalar \( p \)-value reports.</li>
                 </ul>
             </div>
 
@@ -317,7 +319,7 @@
                         <span>Simulator 1: Empirical CDF Divergence & Tail Sensitivity</span>
                         <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
                     </div>
-                    <p class="sim-purpose">Compare a fixed theoretical baseline model \( \text{Lognormal}(\mu_0 = 0, \sigma_0 = 1.0) \) against synthetic empirical samples drawn from \( \text{Lognormal}(\mu = 0, \sigma_{\text{emp}}) \). Observe where the KS supremum \( D_n \) (red vertical bar) occurs versus how the Anderson-Darling statistic \( A^2 \) and empirical \( P_{99} \) respond when tail heaviness \( \sigma_{\text{emp}} \) diverges from the baseline.</p>
+                    <p class="sim-purpose">Compare a fixed theoretical baseline model \( \text{Lognormal}(\mu_0 = 0, \sigma_0 = 1.0) \) against synthetic empirical samples drawn from \( \text{Lognormal}(\mu = 0, \sigma_{\text{emp}}) \). Observe where the KS supremum \( D_n \) (red vertical bar) occurs versus how the Anderson-Darling statistic \( A^2 \) and nearest-rank empirical \( P_{99} = X_{(\lceil 0.99n \rceil)} \) respond when tail heaviness \( \sigma_{\text{emp}} \) diverges from the baseline.</p>
                 </div>
 
                 <div class="sim-toolbar">
@@ -345,12 +347,12 @@
                     <div>KS Crit (\( \alpha=0.05 \)): <span class="stat-kscrit">–</span></div>
                     <div>AD Stat (\( A^2 \)): <span class="stat-ad">–</span></div>
                     <div>Theo \( P_{99} \) (\(\sigma_0=1\)): <span class="stat-tp99">10.24 ms</span></div>
-                    <div>Emp \( P_{99} \): <span class="stat-ep99">–</span></div>
+                    <div>Emp \( P_{99} \) (\(\lceil 0.99n \rceil\)): <span class="stat-ep99">–</span></div>
                 </div>
 
                 <div class="sim-meta-footer">
-                    <p><strong>Assumptions:</strong> Fixed null model \( H_0: X \sim \text{Lognormal}(\mu_0=0, \sigma_0=1.0) \) (amber curve, theoretical \( P_{99} = e^{2.326} \approx 10.24\text{ ms} \), \( \alpha=0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx 1.358/\sqrt{n} \), and AD critical value \( A^2_{\text{crit}} = 2.492 \)).</p>
-                    <p><strong>Engineering Interpretation:</strong> Set \( \sigma_{\text{emp}} = 1.4 \) or \( 1.5 \) at \( n = 50 \). Notice how Empirical \( P_{99} \) jumps to \( 20\text{ ms}–35\text{ ms} \) (\( 2\times–3\times \) above baseline) and \( A^2 \) frequently breaches \( 2.492 \), yet \( D_n \) often stays below \( D_{\text{crit}} \) with its red supremum bar pinned near the center (\( 1\text{ ms}–4\text{ ms} \)).</p>
+                    <p><strong>Assumptions:</strong> Fixed null model \( H_0: X \sim \text{Lognormal}(\mu_0=0, \sigma_0=1.0) \) (amber curve, theoretical \( P_{99} = e^{2.32635} \approx 10.24\text{ ms} \), \( \alpha=0.05 \) two-sided KS critical value \( D_{\text{crit}} \approx 1.358/\sqrt{n} \), and AD critical value \( A^2_{\text{crit}} = 2.492 \)). Empirical \( P_{99} \) uses the nearest-rank order statistic \( X_{(\lceil 0.99n \rceil)} \).</p>
+                    <p><strong>Engineering Interpretation:</strong> Set \( \sigma_{\text{emp}} = 1.4 \) or \( 1.5 \) at \( n = 50 \). Notice how Empirical \( P_{99} \) jumps to \( 20\text{ ms}–35\text{ ms} \) (\( 2\times–3\times \) above baseline) and \( A^2 \) frequently breaches \( 2.492 \), yet \( D_n \) often stays below \( D_{\text{crit}} \) with its red supremum bar pinned near the center (\( 1\text{ ms}–4\text{ ms} \)). Also note how noisy \(\hat{Q}_{0.99}\) is at \(n=50\) (where \(\lceil 0.99 \times 50 \rceil = 50\), the sample maximum) compared to \(n=300\).</p>
                 </div>
             </div>
 
@@ -367,19 +369,28 @@
                 </div>
             </div>
 
-            <h3>Step 1: Testing Independence via Residual Autocorrelation (ACF)</h3>
+            <h3>Step 1: Testing Serial Dependence via Residual Autocorrelation (ACF)</h3>
 
             <p>Before running any change-point detector or EDF test, we must verify whether consecutive observations are independent. Suppose we observe a latency or utilization time series \( x_1, x_2, \dots, x_T \) aggregated at regular intervals (e.g., 1-minute windows) and subtract our baseline seasonal prediction \( \hat{\mu}_t \) to obtain raw residuals \( e_t = x_t - \hat{\mu}_t \). The sample <strong>Autocorrelation Function (ACF)</strong> at lag \( \tau \) measures linear serial dependence:</p>
 
             <div class="equation-flow">
-                \[ \hat{\rho}(\tau) = \frac{\sum_{t=1}^{T-\tau} \left(e_t - \bar{e}\right)\left(e_{t+\tau} - \bar{e}\right)}{\sum_{t=1}^{T} \left(e_t - \bar{e}\right)^2}, \quad \text{for } \tau = 1, 2, \dots \]
+                \[ \hat{\rho}(\tau) = \frac{\sum_{t=1}^{T-\tau} \left(e_t - \bar{e}\right)\left(e_{t+\tau} - \bar{e}\right)}{\sum_{t=1}^{T} \left(e_t - \bar{e}\right)^2}, \quad \text{for } \tau = 1, 2, \dots, L \]
             </div>
 
-            <p>Under the null hypothesis that the residuals \( e_t \) are uncorrelated white noise, \( \hat{\rho}(\tau) \) is approximately normally distributed with mean \( 0 \) and standard error \( 1/\sqrt{T} \). If \( |\hat{\rho}(\tau)| > \frac{1.96}{\sqrt{T}} \), the residuals exhibit statistically significant serial correlation:</p>
+            <p>Under the null hypothesis that the residuals \( e_t \) are uncorrelated white noise, a <em>single</em> pre-specified lag \( \hat{\rho}(\tau) \) is asymptotically normal with mean \( 0 \) and standard error \( 1/\sqrt{T} \) (giving point-wise \( 95\% \) bounds of \( \pm \frac{1.96}{\sqrt{T}} \)). However, inspecting a correlogram across \( L \) lags simultaneously introduces a <strong>multiple-testing problem</strong>: at \( L = 20 \) lags, the probability of at least one lag crossing \( \pm \frac{1.96}{\sqrt{T}} \) purely by chance under white noise is \( 1 - (0.95)^{20} \approx 64.2\% \). Therefore, when screening \( L \) lags, apply a family-wise adjustment such as the Bonferroni bound \( \pm \frac{z_{1 - \alpha/(2L)}}{\sqrt{T}} \) (e.g., \( \pm \frac{3.02}{\sqrt{T}} \) for \( L = 20, \alpha = 0.05 \)) or evaluate the joint <strong>Ljung-Box portmanteau statistic</strong> \( Q_{\text{LB}} = T(T+2)\sum_{\tau=1}^L \frac{\hat{\rho}(\tau)^2}{T-\tau} \) against a \( \chi^2_L \) distribution.</p>
+
+            <p>When significant serial correlation is present, what does it mean for our engineering models?</p>
 
             <ul>
-                <li><strong>Periodic Spikes at Fixed Lag \( \tau \):</strong> A spike in \( \hat{\rho}(\tau) \) at \( \tau = 15\text{ minutes} \) or \( \tau = 60\text{ minutes} \) reveals deterministic background interference—such as RocksDB/Iceberg manifest compaction, JVM major garbage collection, or scheduled cron jobs—that violates the i.i.d. assumption.</li>
-                <li><strong>Slow Positive Decay Across Lags \( \tau = 1, 2, \dots, 10 \):</strong> Indicates persistent queue backlog carryover (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) or non-stationary baseline drift. Positive autocorrelation drastically reduces the effective sample size \( n_{\text{eff}} = \frac{n}{1 + 2\sum_{\tau=1}^{\infty} \rho(\tau)} \), causing standard CUSUM and KS tests to fire false alarms unless the series is pre-whitened (e.g., via an autoregressive AR(1) filter) or evaluated over larger block intervals.</li>
+                <li><strong>Periodic Spikes at Fixed Lag \( \tau \):</strong> A pronounced spike in \( \hat{\rho}(\tau) \) at \( \tau = 15\text{ minutes} \) or \( \tau = 60\text{ minutes} \) reveals deterministic background interference—such as RocksDB/Iceberg manifest compaction, JVM major garbage collection, or scheduled cron jobs—that violates the i.i.d. assumption.</li>
+                <li><strong>Positive Decay Across Lags and Its Specific Impact on Mean, EDF, and CUSUM:</strong> Slow positive decay across lags \( \tau = 1, 2, \dots, 10 \) indicates persistent queue backlog carryover (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) or non-stationary drift. For <em>inference on the sample mean \( \bar{X}_n \)</em> of a weakly stationary process, positive autocorrelation inflates the variance of the sample mean according to the classical <strong>effective sample size</strong> approximation:
+                    \[ \text{Var}(\bar{X}_n) \approx \frac{\sigma^2}{n_{\text{eff}}}, \quad \text{where} \quad n_{\text{eff}} = \frac{n}{1 + 2\sum_{\tau=1}^{\infty} \rho(\tau)} \]
+                    <strong>Critical Statistical Warning:</strong> Do <em>not</em> blindly plug this sample-mean \( n_{\text{eff}} \) into Kolmogorov-Smirnov (\( D_{\text{crit}} = 1.358/\sqrt{n} \)), Anderson-Darling, or CUSUM ARL formulas! Those statistics are non-linear functionals of the empirical process or sequential stopping times and have their own dependence-sensitive null distributions:
+                    <ul style="margin-top:0.35rem;">
+                        <li><strong>Calibrating KS/AD Under Serial Dependence:</strong> If observations are serially correlated, calibrate KS and AD critical values using a <strong>Moving-Block Bootstrap</strong> or <strong>Stationary Bootstrap</strong> (resampling contiguous blocks of length \( b \sim n^{1/3} \) to preserve short-range temporal dependence) rather than scaling \( n \) by \( n_{\text{eff}} \).</li>
+                        <li><strong>Calibrating CUSUM Under Serial Dependence:</strong> Positive autocorrelation causes consecutive residuals to stay on the same side of the mean, drastically shortening in-control \(\text{ARL}_0\) and causing false-alarm storms. You can either (a) calibrate the decision threshold \( h \) directly via Monte Carlo simulation over the observed dependent residual process, or (b) apply a time-series pre-whitening filter (such as an autoregressive \(\text{AR}(p)\) model) and run CUSUM on the one-step-ahead innovation errors \( \hat{\epsilon}_t = e_t - \sum_{j=1}^p \hat{\phi}_j e_{t-j} \). <strong>Pre-whitening is not an automatic cure:</strong> you must re-check the ACF of the filtered innovations \( \hat{\epsilon}_t \) to verify they are actually white noise, and recognize that an adaptive \(\text{AR}\) filter can partially absorb a slow ramp drift if its parameters are continually re-fit online.</li>
+                    </ul>
+                </li>
             </ul>
 
             <h3>Step 2: Smoothing vs. Accumulating (EWMA and Standardized CUSUM)</h3>
@@ -392,27 +403,47 @@
 
             <p>For i.i.d. observations with baseline mean \( \mu_0 \) and baseline variance \( \sigma_0^2 \), the asymptotic variance of the smoothed EWMA statistic is \( \text{Var}(Z_t) = \sigma_0^2 \left(\frac{\lambda_{\text{ewma}}}{2 - \lambda_{\text{ewma}}}\right) \). While EWMA provides an intuitive smoothed trend line, <strong>Page's Tabular CUSUM</strong> is derived directly from Wald's Sequential Probability Ratio Test (SPRT) and is mathematically optimal for minimizing expected detection delay for a persistent step shift.</p>
 
-            <p>To make CUSUM parameters portable across metrics with different physical units (milliseconds, CPU percentage, error rates), we first compute the dimensionless <strong>standardized residual</strong> \( z_t \) using the healthy baseline mean \( \mu_0 \) and baseline standard deviation \( \sigma_0 \):</p>
+            <p>To keep units strictly consistent across metrics with different physical scales (milliseconds, CPU ratio, queries/sec), we formulate Page's CUSUM in <strong>dimensionless standardized form</strong> by normalizing each observation \( x_t \) with the healthy baseline mean \( \mu_0 \) and baseline standard deviation \( \sigma_0 \):</p>
 
             <div class="equation-flow">
-                \[ \begin{aligned} z_t &= \frac{x_t - \mu_0}{\sigma_0} \\ S_t^+ &= \max\left(0, \, S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0 \end{aligned} \]
+                \[ \begin{aligned} z_t &= \frac{x_t - \mu_0}{\sigma_0} \\ S_t^+ &= \max\left(0, \, S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0, \quad \text{Alert when } S_t^+ > h \end{aligned} \]
             </div>
 
-            <p>where \( S_t^+ \) is the upper one-sided CUSUM accumulator (a symmetric lower accumulator \( S_t^- = \max(0, S_{t-1}^- - z_t - k) \) detects downward drops, such as a falling cache-hit ratio). Every variable in this equation has a precise operational meaning:</p>
+            <p>Here, \( z_t \), the upper accumulator \( S_t^+ \), the reference slack \( k \), and the decision threshold \( h \) are all <strong>strictly dimensionless numbers</strong> (representing multiples of the baseline standard deviation \( \sigma_0 \)). A symmetric lower accumulator \( S_t^- = \max(0, S_{t-1}^- - z_t - k) \) detects downward drops, such as a falling cache-hit ratio. If you prefer to implement the accumulator directly in raw physical units (e.g., milliseconds), multiply the recurrence by \( \sigma_0 \) to obtain the raw-unit accumulator \( C_t^+ = \sigma_0 S_t^+ \):</p>
+
+            <div class="equation-flow">
+                \[ C_t^+ = \max\left(0, \, C_{t-1}^+ + \left(x_t - \mu_0 - K\right)\right), \quad K = k\sigma_0, \quad \text{Alert when } C_t^+ > H = h\sigma_0 \]
+            </div>
 
             <div class="math-explanation">
-                <strong>Calibrating CUSUM Parameters (\( \sigma_0, \delta, k, h \)) and Average Run Length (ARL):</strong>
+                <strong>Calibrating Standardized CUSUM Parameters (\( \delta, k, h \)) and Average Run Length (ARL):</strong>
                 <ul>
-                    <li><strong>Standardized Shift Magnitude (\( \delta \)):</strong> If we want to detect an upward mean shift from \( \mu_0 \) to \( \mu_1 = \mu_0 + \Delta\mu \), the standardized shift size is \( \delta = \frac{\Delta\mu}{\sigma_0} \) (measured in units of baseline standard deviation \( \sigma_0 \)). For example, if baseline latency is \( \mu_0 = 50\text{ ms} \) with \( \sigma_0 = 10\text{ ms} \), a \( +8\text{ ms} \) shift (\( +16\% \) of the mean) corresponds to \( \delta = \frac{8\text{ ms}}{10\text{ ms}} = 0.8\sigma_0 \).</li>
-                    <li><strong>Reference Value / Slack Parameter (\( k \)):</strong> Derived from the likelihood ratio between \( H_0: \mathbb{E}[z_t] = 0 \) and \( H_1: \mathbb{E}[z_t] = \delta \) under Gaussian noise, the optimal reference value is exactly half the target standardized shift:
+                    <li><strong>Dimensionless Target Shift (\( \delta \)):</strong> Suppose we want to detect an upward mean shift from \( \mu_0 \) to \( \mu_1 = \mu_0 + \Delta\mu \). The dimensionless standardized shift magnitude is:
+                        \[ \delta = \frac{\Delta\mu}{\sigma_0} \]
+                        For example, if baseline latency is \( \mu_0 = 50\text{ ms} \) with baseline standard deviation \( \sigma_0 = 10\text{ ms} \), a \( \Delta\mu = +8\text{ ms} \) shift (\( +16\% \) of the mean) corresponds to a dimensionless shift of \( \delta = \frac{8\text{ ms}}{10\text{ ms}} = 0.8 \).</li>
+                    <li><strong>Dimensionless Reference Value / Slack (\( k \)):</strong> Derived from the log-likelihood ratio between \( H_0: z_t \sim \mathcal{N}(0, 1) \) and \( H_1: z_t \sim \mathcal{N}(\delta, 1) \), the optimal dimensionless reference value is half the target shift:
                         \[ k = \frac{\delta}{2} = \frac{\Delta\mu}{2\sigma_0} \]
-                        When the system is healthy (\( \mathbb{E}[z_t] = 0 \)), the expected drift per step is negative (\( \mathbb{E}[z_t - k] = -k < 0 \)), so \( S_t^+ \) repeatedly resets to \( 0 \). When the shift \( \delta \) occurs, the expected drift per step becomes positive (\( \mathbb{E}[z_t - k] = \delta - k = +\frac{\delta}{2} > 0 \)), causing \( S_t^+ \) to climb linearly. (In raw metric units, the unstandardized slack is \( K = k\sigma_0 = \Delta\mu / 2 \).)</li>
-                    <li><strong>Decision Threshold (\( h \)) and False-Alarm Behavior (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)):</strong> An alert triggers when \( S_t^+ > h \) (or in raw units, \( H = h\sigma_0 \)). You must never pick an arbitrary threshold like \( 4.0 \) without evaluating the <strong>Average Run Length (ARL)</strong>:
+                        When the system is in control (\( \mathbb{E}[z_t] = 0 \)), the expected increment per step is negative (\( \mathbb{E}[z_t - k] = -k < 0 \)), continually pushing \( S_t^+ \) back to the reflecting barrier at \( 0 \). When a shift of size \( \delta \) occurs, the expected increment becomes positive (\( \mathbb{E}[z_t - k] = \delta - k = +\frac{\delta}{2} > 0 \)), causing \( S_t^+ \) to accumulate linearly. (For our \( \Delta\mu = 8\text{ ms}, \sigma_0 = 10\text{ ms} \) example, dimensionless \( k = 0.4 \), while the raw-unit slack is \( K = k\sigma_0 = 4.0\text{ ms} \).)</li>
+                    <li><strong>Dimensionless Decision Threshold (\( h \)) and Reconciled ARL Calculations (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)):</strong> An alert fires when \( S_t^+ > h \) (or in raw units, \( C_t^+ > H = h\sigma_0 \)). Calibrating \( h \) requires balancing two quantities under your verified residual distribution:
                         <ul>
-                            <li><strong>In-Control \(\text{ARL}_0\):</strong> The expected number of sampling intervals before a <em>false alarm</em> occurs when no shift has happened (\( \delta = 0 \)).</li>
-                            <li><strong>Out-of-Control \(\text{ARL}_1\):</strong> The expected number of intervals required to <em>detect the shift</em> after a true shift of size \( \delta \) occurs, roughly approximated by Siegmund's formula or \( \text{ARL}_1 \approx \frac{h + 1.166}{\delta - k} \) for \( \delta > k \).</li>
+                            <li><strong>In-Control \(\text{ARL}_0\):</strong> The expected number of sampling steps before a <em>false alarm</em> occurs when \( \delta = 0 \).</li>
+                            <li><strong>Out-of-Control \(\text{ARL}_1\):</strong> The expected number of steps required to <em>detect the shift</em> after a true shift \( \delta > k \) occurs. Using Siegmund's corrected diffusion approximation for one-sided Gaussian CUSUM (starting from \( S_0^+ = 0 \)):
+                                \[ \text{ARL}_1 \approx \frac{h + 1.166}{\delta - k} \]
+                            </li>
                         </ul>
-                        For i.i.d. Gaussian residuals with \( k = 0.5\sigma_0 \) (tuned for a \( \delta = 1.0\sigma_0 \) shift), setting \( h = 4.0\sigma_0 \) yields \( \text{ARL}_0 \approx 336 \) steps, while setting \( h = 5.0\sigma_0 \) yields \( \text{ARL}_0 \approx 930 \) steps and \( \text{ARL}_1 \approx 10.4 \) steps. At a 1-minute scrape interval, \( \text{ARL}_0 = 336 \) means one false alarm every \( 5.6 \) hours! Therefore, in 24/7 production monitoring, \( h = 4.0\sigma_0 \) is appropriate for a <em>30-minute deployment canary window</em>, whereas continuous paging alerts require \( h \ge 5.5\sigma_0–6.5\sigma_0 \) or multi-window confirmation.</li>
+                        Let us verify the exact numbers for a unit-shift design (\( \delta = 1.0, k = 0.5 \)) under i.i.d. \(\mathcal{N}(0,1)\) baseline noise:
+                        <ul>
+                            <li><strong>At \( h = 4.0 \) (raw \( H = 4.0\sigma_0 \)):</strong> In-control \(\text{ARL}_0 \approx 336\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{4.0 + 1.166}{1.0 - 0.5} = \frac{5.166}{0.5} = 10.33\text{ steps} \]
+                            </li>
+                            <li><strong>At \( h = 5.0 \) (raw \( H = 5.0\sigma_0 \)):</strong> In-control \(\text{ARL}_0 \approx 930\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{5.0 + 1.166}{1.0 - 0.5} = \frac{6.166}{0.5} = 12.33\text{ steps} \]
+                            </li>
+                            <li><strong>At \( \delta = 0.8, k = 0.4, h = 4.0 \) (Simulator 2 default):</strong> In-control \(\text{ARL}_0 \approx 168\) steps, and out-of-control detection delay is:
+                                \[ \text{ARL}_1 \approx \frac{4.0 + 1.166}{0.8 - 0.4} = \frac{5.166}{0.4} = 12.92\text{ steps} \]
+                            </li>
+                        </ul>
+                        <strong>Operational Calibration Rule:</strong> Never copy a fixed \( h \) across systems without stating your sampling interval, residual tail behavior, and false-alarm budget. Under i.i.d. Gaussian noise at a 1-minute scrape interval, \( \text{ARL}_0 = 336 \) (\( k=0.5, h=4.0 \)) produces one false alarm every \( 5.6\text{ hours} \)—suitable for gating a <em>30-minute automated canary deployment</em>, but far too noisy for 24/7 paging across 50 microservices. Always calibrate \( h \) by simulating \(\text{ARL}_0\) on your empirical historical residuals to meet your team's target false-alarm rate.</li>
                 </ul>
             </div>
 
@@ -424,18 +455,18 @@
                         <span>Simulator 2: Standardized CUSUM Change-Point Detection</span>
                         <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
                     </div>
-                    <p class="sim-purpose">Observe how standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) detects a persistent step shift injected at time step \( t = 50 \). Both the injected drift \( \delta = \Delta\mu / \sigma_0 \), the slack parameter \( k \), and the decision threshold \( h = 4.0 \) are expressed in dimensionless baseline standard deviation units (\( \sigma_0 \)).</p>
+                    <p class="sim-purpose">Observe how dimensionless standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) detects a persistent step shift injected at time step \( t = 50 \). Here \( z_t = (x_t - \mu_0)/\sigma_0 \), the injected shift \( \delta = \Delta\mu / \sigma_0 \), the slack parameter \( k \), and the decision threshold \( h = 4.00 \) are all strictly dimensionless.</p>
                 </div>
 
                 <div class="sim-toolbar">
                     <div class="sim-params">
                         <div class="param-group">
-                            <label for="drift_cusum">Injected Shift (\( \delta \) in \( \sigma_0 \)): <span id="v_drift_cusum">0.8</span></label>
-                            <input type="range" id="drift_cusum" aria-label="Injected mean shift delta in sigma units" min="0.0" max="2.5" step="0.1" value="0.8">
+                            <label for="drift_cusum">Dimensionless Shift (\( \delta \)): <span id="v_drift_cusum">0.8</span></label>
+                            <input type="range" id="drift_cusum" aria-label="Dimensionless mean shift delta" min="0.0" max="2.5" step="0.1" value="0.8">
                         </div>
                         <div class="param-group">
-                            <label for="k_cusum">Slack Reference (\( k \) in \( \sigma_0 \)): <span id="v_k_cusum">0.4</span></label>
-                            <input type="range" id="k_cusum" aria-label="CUSUM slack reference k in sigma units" min="0.1" max="1.5" step="0.1" value="0.4">
+                            <label for="k_cusum">Dimensionless Slack (\( k \)): <span id="v_k_cusum">0.4</span></label>
+                            <input type="range" id="k_cusum" aria-label="Dimensionless CUSUM slack reference k" min="0.1" max="1.5" step="0.1" value="0.4">
                         </div>
                     </div>
                     <div class="controls">
@@ -444,11 +475,11 @@
                     </div>
                 </div>
 
-                <canvas class="sim-canvas" role="img" aria-label="Time series plot showing standardized residual signal z_t in grey, CUSUM accumulator S_t in amber, and decision threshold h=4.0 in red."></canvas>
+                <canvas class="sim-canvas" role="img" aria-label="Time series plot showing dimensionless standardized residual signal z_t in grey, CUSUM accumulator S_t in amber, and decision threshold h=4.00 in red."></canvas>
 
                 <div class="readout" aria-live="polite">
                     <div>Steps (\( T \)): <span class="stat-n">100 (Shift @ t=50)</span></div>
-                    <div>Threshold (\( h \)): <span>4.00 &sigma;<sub>0</sub></span></div>
+                    <div>Threshold (\( h \)): <span>4.00 (dimensionless)</span></div>
                     <div>Peak \( S_t^+ \): <span class="stat-maxs">–</span></div>
                     <div>Theo Delay (\(\approx \text{ARL}_1\)): <span class="stat-arl1">–</span></div>
                     <div>Sim Detection Delay: <span class="stat-delay">–</span></div>
@@ -456,8 +487,8 @@
                 </div>
 
                 <div class="sim-meta-footer">
-                    <p><strong>Assumptions:</strong> Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (representing e.g. \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Decision threshold is fixed at \( h = 4.0\sigma_0 \).</p>
-                    <p><strong>Engineering Interpretation:</strong> At default \( \delta = 0.8\sigma_0 \) and optimal slack \( k = \delta/2 = 0.4\sigma_0 \), individual grey observations \( z_t \) rarely cross a static \( +3\sigma_0 \) line, yet the amber accumulator \( S_t^+ \) crosses \( h = 4.0\sigma_0 \) in roughly \( 10–14 \) steps after \( t = 50 \). Set \( \delta = 0.0 \) and reduce \( k \) to \( 0.1 \) to see how insufficient slack triggers false alarms purely from baseline aleatory noise.</p>
+                    <p><strong>Assumptions:</strong> Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (corresponding to raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Dimensionless decision threshold is fixed at \( h = 4.00 \) (raw \( H = h\sigma_0 = 40\text{ ms} \)).</p>
+                    <p><strong>Engineering Interpretation:</strong> At default \( \delta = 0.8 \) and optimal slack \( k = \delta/2 = 0.4 \), Siegmund's formula predicts \(\text{ARL}_1 \approx \frac{4.0 + 1.166}{0.8 - 0.4} = 12.9\text{ steps}\) (or try \(\delta = 1.0, k = 0.5\) to verify \(\text{ARL}_1 \approx 10.3\text{ steps}\)). Individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) reliably crosses \( h = 4.00 \) shortly after \( t = 50 \). Set \( \delta = 0.0 \) and reduce \( k \) to \( 0.1 \) to see how insufficient slack triggers false alarms purely from baseline noise.</p>
                 </div>
             </div>
 
@@ -590,26 +621,26 @@
                         </tr>
                         <tr>
                             <td><strong>Anderson-Darling (\( A^2 \))</strong></td>
-                            <td><strong>Measures:</strong> Integrated quadratic CDF error weighted by \([F(x)(1-F(x))]^{-1}\).<br><strong>Assumes:</strong> Continuous i.i.d. sample; calibrated critical values via parametric bootstrap if \(\hat{\theta}\) is fitted.</td>
-                            <td><strong>Detects:</strong> Discrepancies in both central body and upper/lower tails.<br><strong>Misses:</strong> At huge \( n \) (\(10^6\)), flags trivial \(0.2\text{ ms}\) noise; at very small \( n \), misses un-sampled rare regimes.</td>
-                            <td>Evaluate alongside bootstrap \( p \)-values and check absolute quantile error \(|\hat{Q}_{0.999} - Q_{0.999}(\hat{\theta})|\) for operational impact.</td>
+                            <td><strong>Measures:</strong> Integrated quadratic CDF error weighted by \([F(x)(1-F(x))]^{-1}\).<br><strong>Assumes:</strong> Continuous i.i.d. sample; calibrated critical values via parametric bootstrap if \(\hat{\theta}\) is fitted, or block bootstrap if serially dependent.</td>
+                            <td><strong>Detects:</strong> Discrepancies in both central body and upper/lower tails.<br><strong>Misses:</strong> At huge \( n \) (\(10^6\)), flags trivial \(0.2\text{ ms}\) noise; at small \( n \), misses un-sampled rare regimes.</td>
+                            <td>Evaluate alongside bootstrap \( p \)-values and check absolute quantile error \(|\hat{Q}_{0.999} - Q_{0.999}(\hat{\theta})|\) with sufficient sample size (\(n \ge 25/(1-q)\)).</td>
                         </tr>
                         <tr>
                             <td><strong>Q-Q Plot & Tail Exceedance</strong></td>
-                            <td><strong>Measures:</strong> Horizontal quantile mapping \(X_{(i)}\) vs. \(F^{-1}(\frac{i-0.5}{n}; \hat{\theta})\).<br><strong>Assumes:</strong> Uncensored order statistics (or survival-adjusted quantiles).</td>
+                            <td><strong>Measures:</strong> Horizontal quantile mapping \(X_{(i)}\) vs. \(F^{-1}(\frac{i-0.5}{n}; \hat{\theta})\).<br><strong>Assumes:</strong> Uncensored order statistics (or survival-adjusted quantiles); explicit quantile convention.</td>
                             <td><strong>Detects:</strong> Heavy-tail divergence, multimodal knees, and saturation cliffs.<br><strong>Misses:</strong> Temporal ordering and serial autocorrelation over time.</td>
                             <td>If the upper tail bends upward above a threshold \( u \), split the workload into a mixture model (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) or fit a Generalized Pareto tail (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>).</td>
                         </tr>
                         <tr>
                             <td><strong>Residual ACF (\(\hat{\rho}(\tau)\))</strong></td>
-                            <td><strong>Measures:</strong> Linear serial correlation between \(e_t\) and \(e_{t+\tau}\).<br><strong>Assumes:</strong> Weakly stationary time series with finite variance.</td>
+                            <td><strong>Measures:</strong> Linear serial correlation between \(e_t\) and \(e_{t+\tau}\) across \(L\) lags.<br><strong>Assumes:</strong> Weakly stationary time series with finite variance; multiple-testing control across \(L\) lags.</td>
                             <td><strong>Detects:</strong> Periodic GC/compaction stalls and queue backlog carryover.<br><strong>Misses:</strong> Non-linear dependencies or single isolated step changes.</td>
-                            <td>If \(|\hat{\rho}(\tau)| > 1.96/\sqrt{T}\) at fixed lag \(\tau\), stagger periodic background jobs and pre-whiten residuals before running CUSUM.</td>
+                            <td>Use Bonferroni bounds \(\pm z_{1-\alpha/(2L)}/\sqrt{T}\) or Ljung-Box \(Q_{\text{LB}}\). Stagger periodic background jobs; use block bootstrap for EDF tests or validate pre-whitening filters.</td>
                         </tr>
                         <tr>
                             <td><strong>Standardized CUSUM (\( S_t^+ \))</strong></td>
-                            <td><strong>Measures:</strong> Cumulative standardized deviation above reference slack \(k = \delta/2\).<br><strong>Assumes:</strong> Pre-whitened i.i.d. residuals with known baseline \((\mu_0, \sigma_0)\).</td>
-                            <td><strong>Detects:</strong> Small, persistent step shifts (\(\delta \sim 0.5\sigma_0–1.5\sigma_0\)) hidden inside \(3\sigma_0\) bands.<br><strong>Misses:</strong> Single transient spikes (by design) or miscalibrated shifts if \(\sigma_0\) is stale.</td>
+                            <td><strong>Measures:</strong> Dimensionless cumulative deviation above reference slack \(k = \delta/2\).<br><strong>Assumes:</strong> Known baseline \((\mu_0, \sigma_0)\); \(\text{ARL}_0\) calibrated on empirical/dependent residuals.</td>
+                            <td><strong>Detects:</strong> Small, persistent step shifts (\(\delta \sim 0.5–1.5\)) hidden inside \(\pm 3\sigma_0\) bands.<br><strong>Misses:</strong> Single transient spikes (by design) or slow ramp drift absorbed by adaptive pre-whitening.</td>
                             <td>When \(S_t^+ > h\), halt automated canary rollouts, inspect change-point timestamp \(t_0\) where \(S_t^+\) last left zero, and correlate with deploy/tenant logs.</td>
                         </tr>
                         <tr>
@@ -666,19 +697,19 @@
                             <td>Partition telemetry by physical path (warm Arrow cache hit vs. cold Iceberg Parquet scan) and tenant tier (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) before fitting parametric models.</td>
                         </tr>
                         <tr>
-                            <td><strong>3. Residual & Stationarity Check</strong></td>
+                            <td><strong>3. Residual & Dependence Check</strong></td>
                             <td>Verify i.i.d. and stationarity assumptions.</td>
-                            <td>De-trend diurnal traffic waves and compute residual ACF \( \hat{\rho}(\tau) \). If periodic spikes exceed \( \pm 1.96/\sqrt{T} \), isolate background compaction/GC schedules and pre-whiten residuals.</td>
+                            <td>De-trend diurnal waves and check ACF \( \hat{\rho}(\tau) \) across \( L \) lags using Bonferroni bounds or Ljung-Box \( Q_{\text{LB}} \). If serial dependence exists, use block bootstrap for EDF tests and verify any pre-whitening filter on innovation residuals.</td>
                         </tr>
                         <tr>
                             <td><strong>4. Calibrated Goodness-of-Fit</strong></td>
                             <td>Validate tail accuracy of candidate distributions.</td>
-                            <td>Evaluate Anderson-Darling (\( A^2 \)) calibrated via parametric bootstrap (refitting \( \hat{\theta}^{*(b)} \) per replicate) alongside Q-Q plots up to \( P_{99.9} \). Do not rely on unweighted KS (\( D_n \)) to certify tail latency.</td>
+                            <td>Evaluate Anderson-Darling (\( A^2 \)) calibrated via parametric bootstrap (refitting \( \hat{\theta}^{*(b)} \) per replicate) alongside Q-Q plots up to \( P_{99.9} \) with adequate sample size (\( n \ge 25/(1-q) \)). Do not rely on unweighted KS (\( D_n \)) for tail certification.</td>
                         </tr>
                         <tr>
                             <td><strong>5. Standardized CUSUM Drift Gate</strong></td>
                             <td>Catch subtle regressions during rollouts and steady state.</td>
-                            <td>Run standardized Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) with \( k = \delta / 2 \) on pre-whitened residuals. Calibrate threshold \( h \) to the required in-control \(\text{ARL}_0\) to auto-abort degraded canary deployments.</td>
+                            <td>Run dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) with \( k = \delta / 2 \). Calibrate dimensionless threshold \( h \) (or raw \( H = h\sigma_0 \)) against empirical residual \(\text{ARL}_0\) to auto-abort degraded canary deployments.</td>
                         </tr>
                         <tr>
                             <td><strong>6. Finite-Fleet Compliance</strong></td>
@@ -694,9 +725,9 @@
                 </table>
             </div>
 
-            <p>Across Parts 1 through 7, we have built a complete mathematical and empirical framework for classical distributed systems—where a request arrives, executes deterministic code over variable infrastructure, and returns a deterministic byte payload. If the infrastructure returns `HTTP 200` within the latency SLA and passes checksum verification, the response is correct.</p>
+            <p>Across Parts 1 through 7, we have built a rigorous mathematical and empirical framework for classical distributed systems. Traditional data platforms offer deterministic execution contracts and reproducible query semantics, yet even here, <strong>infrastructure success is never identical to business correctness</strong>: an `HTTP 200` status code establishes transport delivery, meeting a \( P_{99} \) target establishes timing compliance, and a passing checksum proves only that received bytes match a reference buffer. True correctness in our Analytics Gateway still requires semantic invariants, tenant authorization boundaries, Iceberg snapshot isolation, and application-level validation.</p>
 
-            <p>What happens when we replace deterministic query execution with a stochastic token generator whose latency scales non-linearly with context length, whose KV-cache memory footprint fluctuates mid-request, and whose `HTTP 200` response can be syntactically valid yet semantically hallucinated? In Part 8, we bring our entire probabilistic toolkit to the frontier of AI infrastructure, LLM serving queues, and multi-step agentic reliability.</p>
+            <p>What happens when that boundary between infrastructure health and semantic correctness becomes intrinsically probabilistic—when the execution engine itself is a stochastic token generator whose latency scales non-linearly with dynamic output length, whose KV-cache memory footprint fluctuates mid-request, and whose `HTTP 200` payload can be syntactically valid yet semantically hallucinated? In Part 8, we bring our entire probabilistic toolkit to the frontier of AI infrastructure, LLM serving queues, and multi-step agentic reliability.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-6-state-empiricism-and-simulation.html">← Part 6: State, Empiricism, and the Simulation Fallacy</a>
@@ -903,7 +934,7 @@
                     ctx.stroke();
 
                     // Cap visual x-axis gently so the bulk and upper knee remain visible
-                    const p95Idx = Math.min(this.n - 1, Math.floor(this.n * 0.96));
+                    const p95Idx = Math.min(this.n - 1, Math.max(0, Math.ceil(this.n * 0.96) - 1));
                     const maxVal = Math.max(8, Math.min(40, this.samples[p95Idx] * 1.35));
 
                     let maxKS = 0;
@@ -1008,9 +1039,9 @@
                     ctx.fillStyle = getCssVar('--bad') || '#d97757';
                     ctx.fillText('| KS Supremum D_n', pad.l + 235, pad.t - 8);
 
-                    // Empirical P99 order statistic
-                    const p99Idx = Math.min(this.n - 1, Math.floor(0.99 * this.n));
-                    const empP99 = this.samples[p99Idx];
+                    // Nearest-rank Empirical P99 order statistic: X_(ceil(0.99 * n)) -> 0-based index ceil(0.99 * n) - 1
+                    const p99RankIdx = Math.min(this.n - 1, Math.max(0, Math.ceil(0.99 * this.n) - 1));
+                    const empP99 = this.samples[p99RankIdx];
                     const theoP99 = Math.exp(this.mu0 + 2.32635 * this.sigma0);
 
                     this.statN.textContent = this.n;
@@ -1056,7 +1087,7 @@
                     this.slackK = parseFloat(this.inputK.value);
                     this.N = 100;
                     this.changePoint = 50;
-                    this.thresholdH = 4.0; // Standardized decision interval h in sigma_0 units
+                    this.thresholdH = 4.0; // Strictly dimensionless decision threshold h
 
                     this.inputDrift.addEventListener('input', (e) => {
                         this.driftDelta = parseFloat(e.target.value);
@@ -1117,7 +1148,7 @@
 
                     let S = 0;
                     for (let i = 0; i < this.N; i++) {
-                        // Standardized residual z_t ~ N(0, 1) for t < 50, and N(delta, 1) for t >= 50
+                        // Dimensionless standardized residual z_t ~ N(0, 1) for t < 50, and N(delta, 1) for t >= 50
                         const shift = i >= this.changePoint ? this.driftDelta : 0.0;
                         const z_t = shift + randNormal();
                         this.series.push(z_t);
@@ -1192,7 +1223,7 @@
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Plot Decision Threshold h = 4.0 sigma_0
+                    // Plot Dimensionless Decision Threshold h = 4.00
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--bad') || '#d97757';
                     ctx.lineWidth = 1.25;
@@ -1202,7 +1233,7 @@
                     ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Plot Standardized CUSUM Accumulator S_t^+
+                    // Plot Dimensionless CUSUM Accumulator S_t^+
                     ctx.beginPath();
                     ctx.strokeStyle = getCssVar('--amber') || '#D4A72C';
                     ctx.lineWidth = 2.4;
@@ -1214,13 +1245,13 @@
                     }
                     ctx.stroke();
 
-                    // Labels & Legend
+                    // Dimensionless Axes Labels & Legend
                     ctx.fillStyle = light ? '#475569' : '#8b93a3';
                     ctx.font = '10px "IBM Plex Mono", monospace';
                     ctx.textAlign = 'right';
-                    ctx.fillText(maxVal.toFixed(1) + 'σ', pad.l - 6, pad.t + 4);
-                    ctx.fillText('0.0σ', pad.l - 6, getY(0) + 3);
-                    ctx.fillText(minVal.toFixed(1) + 'σ', pad.l - 6, H - pad.b);
+                    ctx.fillText(maxVal.toFixed(1), pad.l - 6, pad.t + 4);
+                    ctx.fillText('0.0', pad.l - 6, getY(0) + 3);
+                    ctx.fillText(minVal.toFixed(1), pad.l - 6, H - pad.b);
 
                     ctx.textAlign = 'left';
                     ctx.fillText('t=0', pad.l, H - 10);
@@ -1229,17 +1260,17 @@
                     ctx.textAlign = 'right';
                     ctx.fillText('t=100', W - pad.r, H - 10);
                     ctx.fillStyle = getCssVar('--bad') || '#d97757';
-                    ctx.fillText('h = 4.0σ₀', W - pad.r, getY(this.thresholdH) - 5);
+                    ctx.fillText('h = 4.00', W - pad.r, getY(this.thresholdH) - 5);
 
                     // Top Legend
                     ctx.textAlign = 'left';
                     ctx.fillStyle = light ? '#64748b' : '#94a3b8';
                     ctx.fillText('— Residual z_t', pad.l + 6, pad.t - 8);
                     ctx.fillStyle = getCssVar('--amber') || '#D4A72C';
-                    ctx.fillText('— CUSUM S_t⁺ (σ₀)', pad.l + 110, pad.t - 8);
+                    ctx.fillText('— CUSUM S_t⁺ (dimensionless)', pad.l + 110, pad.t - 8);
 
                     const maxS = Math.max(...this.cusum);
-                    this.statMaxS.textContent = maxS.toFixed(2) + ' σ₀';
+                    this.statMaxS.textContent = maxS.toFixed(2);
 
                     if (this.driftDelta > this.slackK) {
                         const theoARL1 = (this.thresholdH + 1.166) / (this.driftDelta - this.slackK);
