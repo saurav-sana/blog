@@ -205,9 +205,9 @@
 
   <p>There is a familiar scene in an architecture review. Someone draws three database replicas, labels each one “99.9% available”, multiplies three small failure probabilities, and announces that the cluster is practically immortal. The room nods. Nobody asks whether the replicas share a control plane, a kernel update, a certificate issuer, a network fabric, or the same deployment pipeline.</p>
   <p>That is <strong>replication theater</strong>: counting boxes without examining whether their failure modes are independent. Redundancy helps only when the system can lose one component without losing the others—or when the remaining components can still deliver the service users need. Three copies are not three independent chances if one shared event can disable all three.</p>
-  <p>Start by separating quantities that are often collapsed into the word <em>reliability</em>. Component reliability is \(R(t)=P(T>t)\): the probability that a component has not experienced its defined failure by age \(t\). Its complement, \(F(t)=1-R(t)\), is cumulative failure probability by that age. Component unavailability is the fraction of time a repairable component is unable to perform its required function. Service unavailability is the fraction of time the complete service cannot meet its stated contract. Quorum loss is the loss of the minimum voting set; a workflow interruption is a user- or job-visible loss of progress. They are related, but they are not interchangeable.</p>
+  <p>Before we let anyone near a whiteboard with a dry-erase marker, we have to separate quantities that are casually collapsed into the word <em>reliability</em>. Component reliability is \(R(t)=P(T>t)\): the probability that a component has not experienced its defined failure by age \(t\). Its complement, \(F(t)=1-R(t)\), is cumulative failure probability by that age. Component unavailability is the fraction of time a repairable component is unable to perform its required function. Service unavailability is the fraction of time the complete service cannot meet its stated contract. Quorum loss is the loss of the minimum voting set; a workflow interruption is a user- or job-visible loss of progress. They are related, but they are not interchangeable—no matter how badly an SLA slide wants them to be.</p>
   <p>For a lifetime random variable \(T\), the age-conditioned failure hazard (often called the age-dependent failure rate) is \(\lambda(t)=f(t)/S(t)\), where \(S(t)=P(T>t)\). It is an instantaneous conditional rate, not the probability of failure over an arbitrary interval. Only when this hazard is constant does the lifetime model reduce to an exponential, memoryless time-to-failure model. We use \(\mu_{\text{repair}}\) for a repair-completion rate when a rate model is justified; it is not the component failure rate. The long-run unavailability of an alternating up/down repair process is \(U=\text{MTTR}/(\text{MTTF}+\text{MTTR})\), under the renewal assumptions explained below. That expression is not an instantaneous failure probability.</p>
-  <p>This part examines Bernoulli and Binomial reliability, redundancy, common-cause failure, Weibull survival and repair, then applies the same discipline to a large synchronous AI-training job. The aim is to connect a physical mechanism to a model, expose the assumptions, and derive an engineering control that can be tested.</p>
+  <p>This part examines Bernoulli and Binomial reliability, redundancy, common-cause failure, Weibull survival and repair, then applies the same discipline to a large synchronous AI-training job. The aim is to connect a physical mechanism to a model, expose the assumptions, and derive an engineering control that can be tested before production tests it for you.</p>
   
   <div class="tldr-box">
       <div class="eyebrow">The modelling contract</div>
@@ -216,13 +216,13 @@
   </div>
 
   <h2>1. Bernoulli reliability: one request and many required dependencies</h2>
-  <p>A Bernoulli variable describes one binary trial. Let \(X=1\) mean that a request fails and \(X=0\) mean that it succeeds. If the failure probability is \(q\), then:</p>
+  <p>A Bernoulli variable is the simplest possible coin flip in systems engineering: one binary trial. Let \(X=1\) mean that a request fails and \(X=0\) mean that it succeeds. If the failure probability is \(q\), then:</p>
   
   <div class="equation-flow">
       \[ P(X=x)=q^x(1-q)^{1-x},\quad x\in\{0,1\},\qquad E[X]=q \]
   </div>
   
-  <p>This is a deliberately small model. It says nothing by itself about why the request failed, whether the next request will fail, or whether failures arrive in bursts. Those are separate questions about dependence and system state.</p>
+  <p>This is a deliberately small model. It says nothing by itself about why the request failed, whether the next request will fail, or whether failures arrive in angry herds. Those are separate questions about dependence and system state.</p>
   
   <div class="incident-banner">
       <div class="incident-head">Documented evidence · AWS S3 service event · 28 February 2017</div>
@@ -230,7 +230,7 @@
   </div>
 
   <h3>Composite workflows turn small risks into visible failure rates</h3>
-  <p>Suppose a gateway query requires four sequential operations: authenticate the caller, read catalog metadata, obtain a query plan, and fetch a required object. Assume—only for this calculation—that each operation succeeds independently with probability \(0.999\) and that all four are mandatory. The workflow succeeds only if all four succeed, so multiply the <em>success</em> probabilities and take the complement to obtain workflow failure. Multiplying failure probabilities as \(q^N\) would instead describe the event that all \(N\) operations fail, not the event that at least one mandatory operation fails. The multiplication also depends on independence: for two failure events, \(P(F_1\cap F_2)=P(F_1)P(F_2)\) only when they are independent.</p>
+  <p>Modern microservice architectures love turning one function call into a scavenger hunt across twenty network hops. Suppose a gateway query requires just four sequential operations: authenticate the caller, read catalog metadata, obtain a query plan, and fetch a required object. Assume—only for this calculation—that each operation succeeds independently with probability \(0.999\) and that all four are mandatory. Every single team owns a green dashboard and a “three-nines” badge. Yet the workflow succeeds only if all four succeed, so we multiply the <em>success</em> probabilities and take the complement to obtain workflow failure. (Multiplying failure probabilities as \(q^N\) would instead describe the event that all \(N\) operations fail simultaneously, not the event that at least one mandatory operation trips the request. And that multiplication still depends on independence: for two failure events, \(P(F_1\cap F_2)=P(F_1)P(F_2)\) only when they are independent.)</p>
   
   <div class="equation-flow">
       \[ P(\text{workflow succeeds})=0.999^4\approx0.996006 \]
@@ -239,44 +239,44 @@
       \[ P(\text{workflow fails})=1-0.999^4\approx0.003994=0.3994\% \]
   </div>
   
-  <p>That is about <strong>399 failed workflows per 100,000</strong>, even though each dependency individually reports 99.9% success. The result is not a contradiction: the user experiences the composition of the required steps, not the health of one dependency in isolation.</p>
+  <p>That is about <strong>399 failed workflows per 100,000</strong>, even though each dependency individually reports 99.9% success. Every backend team hits its quarterly OKR while the user-facing gateway quietly bleeds four-tenths of a percent of all traffic. The result is not a contradiction: the user experiences the composition of the required steps, not the isolated pride of one microservice owner.</p>
   <p>Real workflows are often more complicated. Some calls are parallel, some are optional, some are retried, and failures may share a cause. The four-step example is a simple sequential series system. Do not reuse its multiplication for a fan-out tree or a workflow with graceful degradation without deriving the appropriate model.</p>
 
-  <h3>Retries: when another attempt helps—and when it adds load</h3>
-  <p>Assume a request has a constant failure probability \(q\) on each attempt, and attempts fail independently. With <strong>three total attempts</strong> (the initial attempt plus two retries), the probability that all attempts fail is:</p>
+  <h3>Retries: when another attempt helps—and when it weaponizes your own fleet</h3>
+  <p>When an engineer sees a 0.4% failure rate, the instinctive reflex is to slap a <code>@Retry(maxAttempts=3)</code> annotation on the client and go home early. On a whiteboard, the math looks magical. Assume a request has a constant failure probability \(q\) on each attempt, and attempts fail independently. With <strong>three total attempts</strong> (the initial attempt plus two retries), the probability that all attempts fail is:</p>
   
   <div class="equation-flow">
       \[ P(\text{all 3 attempts fail})=q^3 \]
   </div>
   
-  <p>For \(q=0.001\), that is \(10^{-9}\) per operation under the independence assumption. For a workflow with 1,000 mandatory operations, and assuming the attempt-exhaustion events are also independent across operations, the illustrative probability of at least one operation exhausting all three attempts is:</p>
+  <p>For \(q=0.001\), that is \(10^{-9}\) per operation under the independence assumption—nine nines summoned out of thin air! For a workflow with 1,000 mandatory operations, and assuming the attempt-exhaustion events are also independent across operations, the illustrative probability of at least one operation exhausting all three attempts is:</p>
   
   <div class="equation-flow">
       \[ 1-(1-10^{-9})^{1000}\approx10^{-6} \]
   </div>
   
-  <p>This is the optimistic case—not a universal retry guarantee. A timeout caused by a transient packet loss may be followed by a successful attempt. A timeout caused by an overloaded connection pool, exhausted storage tier, failed DNS resolver, or unavailable control plane may persist across attempts.</p>
-  <p>When failures are state-dependent, the useful quantity is not simply \(q^3\). It is the conditional probability of another failure given the observed failure and the current system state: \(P(F_{i+1}\mid F_i,S_i)\). During saturation that probability can be close to one. Retrying then adds work to the same constrained resource while making little progress. The detailed retry-feedback treatment belongs to Part 6; here, the point is narrower: the Bernoulli multiplication is valid only when attempt outcomes satisfy the stated independence and constant-probability assumptions.</p>
+  <p>This is the optimistic case—not a universal retry guarantee. A timeout caused by a transient cosmic-ray packet drop may be followed by a clean second attempt. A timeout caused by an overloaded database connection pool, an exhausted storage tier, a dead DNS resolver, or a locked-up control plane will happily greet your second and third attempts with the exact same brick wall.</p>
+  <p>When failures are state-dependent, the useful quantity is not the fantasy of \(q^3\). It is the conditional probability of another failure given the observed failure and the current system state: \(P(F_{i+1}\mid F_i,S_i)\). During saturation that probability marches right up to \(1.0\). Retrying then becomes a self-inflicted denial-of-service attack: it shovels fresh work onto the exact same constrained resource while making zero forward progress. The detailed retry-feedback treatment belongs to Part 6; here, the point is narrower: the Bernoulli multiplication is valid only when attempt outcomes satisfy the stated independence and constant-probability assumptions.</p>
   
   <div class="tldr-box warning">
       <div class="eyebrow">A retry is new work, not free reliability</div>
-      <p>Three <em>total attempts</em> means at most two retries. Three <em>retries</em> means up to four attempts. State which convention you use. Also distinguish the probability of exhausting attempts from the expected number of attempts and from the load multiplier under overload.</p>
+      <p>Three <em>total attempts</em> means at most two retries. Three <em>retries</em> means up to four attempts. State which convention you use before your nested SDK wrappers multiply them into 64 attempts. Also distinguish the probability of exhausting attempts from the expected number of attempts and from the load multiplier under overload.</p>
   </div>
   
   <h3>How much extra work can bounded retries create?</h3>
-  <p>Let \(p\) be the probability that one attempt succeeds, independently and with the same probability on every attempt. With at most \(A\) attempts, the expected number of attempts is:</p>
+  <p>Let \(p\) be the probability that one attempt succeeds, independently and with the same probability on every attempt. With at most \(A\) attempts, the expected number of attempts per logical call is:</p>
   
   <div class="equation-flow">
       \[ E[N_A]=\sum_{j=1}^{A}P(N_A\ge j)=\sum_{j=0}^{A-1}(1-p)^j=\frac{1-(1-p)^A}{p} \]
   </div>
   
-  <p>For \(p=0.9\) and \(A=4\) (one initial attempt plus three retries), \(E[N_4]=1.111\). That is an 11.1% average attempt increase under the model. Under overload, however, \(p\) is not fixed: extra attempts can increase queueing and reduce the probability of success, creating positive feedback. The expression is a bounded-attempt expectation, not a prediction for a saturated service.</p>
+  <p>For \(p=0.9\) and \(A=4\) (one initial attempt plus three retries), \(E[N_4]=1.111\). That is a polite 11.1% average attempt tax under the stationary model. Under overload, however, \(p\) is not fixed: those extra attempts inflate queues, burn CPU on context switches, and drag \(p\) toward zero—creating positive feedback that turns a 10% hiccup into a 4x traffic tsunami. The expression is a bounded-attempt expectation, not a prediction for a saturated service.</p>
   
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
       <ul>
-          <li><strong>Bound retries and give them a budget.</strong> Use a process- or service-wide retry budget, not an unlimited retry loop in every call site. A token-bucket policy is one implementation: successful traffic replenishes a small budget and retries consume it.</li>
-          <li><strong>Use exponential backoff with jitter.</strong> Spread retries over time; do not synchronize clients on the same fixed delay. Respect the end-to-end deadline and stop retrying when there is insufficient time left for a useful attempt.</li>
+          <li><strong>Bound retries and give them a budget.</strong> Use a process- or service-wide retry budget, not an unlimited retry loop in every call site. A token-bucket policy is one implementation: successful traffic replenishes a small budget and retries consume it. When the bucket is empty, fail fast.</li>
+          <li><strong>Use exponential backoff with jitter.</strong> Spread retries over time; do not synchronize clients on the same fixed delay like a marching band hitting a wooden bridge. Respect the end-to-end deadline and stop retrying when there is insufficient time left for a useful attempt.</li>
           <li><strong>Classify failures.</strong> Retry transient transport failures selectively. Do not retry authorization denials, invalid requests, deterministic schema errors, or operations whose side effects are not protected by idempotency.</li>
           <li><strong>Protect the dependency.</strong> Combine retry budgets with admission control, concurrency limits, circuit breaking, load shedding, and cancellation of abandoned work.</li>
       </ul>
@@ -320,7 +320,7 @@
   </div>
 
   <h2>2. Redundancy, quorum, and the common-cause wall</h2>
-  <p>If \(n\) components each have the same probability \(p\) of being unavailable at one specified observation instant, and those component states are independent, the number unavailable \(X\) follows a Binomial distribution. A failure-event count over a window can also be Binomial if each component contributes one independent binary event, but that is not automatically the probability of quorum loss at any time during the window:</p>
+  <p>If \(n\) components each have the same probability \(p\) of being unavailable at one specified observation instant, and those component states are genuinely independent, the number unavailable \(X\) follows a Binomial distribution. A failure-event count over a window can also be Binomial if each component contributes one independent binary event, but that is not automatically the probability of quorum loss at any time during the window:</p>
   
   <div class="equation-flow">
       \[ P(X=k)=\binom{n}{k}p^k(1-p)^{n-k} \]
@@ -332,7 +332,7 @@
       \[ P(X \ge 3)=\sum_{k=3}^{5}\binom{5}{k}(0.01)^k(0.99)^{5-k}\approx9.8506\times10^{-6}=0.0009851\% \]
   </div>
   
-  <p>The number is small because the model assumes independent voter unavailability with identical probability. It estimates <em>quorum loss</em> under that rule; it does not prove that a service request succeeds. A five-voter group may retain a majority while the service is unavailable because the leader is isolated, the network cannot carry a quorum of messages, storage stalls, or the application cannot reach the cluster. Conversely, a client workflow can fail even while quorum remains. This is not a general availability prediction for etcd, Raft, or another consensus implementation: network partitions, correlated latency, election timing, disk stalls, membership changes and client behavior need additional models.</p>
+  <p>Five nines of quorum survival! This is the exact number that gets pasted into executive architecture decks right before everyone congratulates themselves. It is tiny because the model assumes independent voter unavailability with identical probability. Even on its own terms, it estimates <em>quorum loss</em> under that rule; it does not prove that a service request succeeds. A five-voter group may retain a majority on paper while the service is completely dead in the water because the leader is isolated in an asymmetric network partition, the fabric cannot carry a quorum of messages, storage fsyncs stall across nodes, or the client routing layer cannot reach the cluster. This is not a general availability prediction for etcd, Raft, or another consensus implementation: network partitions, correlated latency, election timing, disk stalls, membership changes and client behavior need additional models.</p>
   
   <div class="incident-banner">
       <div class="incident-head">Documented evidence · CrowdStrike Channel File 291 · 19 July 2024</div>
@@ -340,13 +340,14 @@
   </div>
 
   <h3>Model the shared event explicitly</h3>
-  <p>Now add a shared event that disables the whole five-voter group with probability \(q_c=0.001\) at that same observation instant. Conditional on that event <em>not</em> occurring, retain the independent per-voter unavailability probability \(p=0.01\). This is a simple two-regime common-cause model:</p>
+  <p>Now let reality into the room. Add a shared event—a bad configuration push, an expired root certificate, a buggy kernel module, or a shared top-of-rack power trip—that disables the whole five-voter group with probability \(q_c=0.001\) at that same observation instant. Conditional on that event <em>not</em> occurring, retain the independent per-voter unavailability probability \(p=0.01\). This is a simple two-regime common-cause model:</p>
   
   <div class="equation-flow">
-      \[ P(\text{Loss})=q_c+(1-q_c)P_{\mathrm{Binomial}}(X\ge3)=0.001+0.999(9.8506\times10^{-6})\approx0.00100984=0.100984\% \]
+      \[ P(\text{Loss})=q_c+(1-q_c)P_{\mathrm{Binomial}}(X\ge3) \]
+      \[=0.001+0.999(9.8506\times10^{-6})\approx0.00100984=0.100984\% \]
   </div>
   
-  <p>The common event dominates the result. In this model the marginal unavailability of an individual voter is <strong>not 1%</strong>; it is \(q_c+(1-q_c)p=1.099\%\). The 1% value is the conditional independent component risk when the shared event is absent. Keeping those quantities separate avoids quietly changing the meaning of \(p\) halfway through the calculation.</p>
+  <p>The five-nines mirage evaporates instantly; the common event dominates the result by two orders of magnitude. Notice a subtle accounting trap here: in this coupled model, the marginal unavailability of an individual voter is <strong>not 1%</strong>; it is \(q_c+(1-q_c)p=1.099\%\). The 1% value is the conditional independent component risk when the shared event is absent. Keeping those quantities separate avoids quietly changing the meaning of \(p\) halfway through the calculation.</p>
   
   <div class="table-wrap">
       <table>
@@ -387,15 +388,15 @@
       </table>
   </div>
   
-  <p>Adding voters still helps against independent failures. It does not remove a shared event that disables the entire group. The common-cause term is a floor in this particular model, not a universal mathematical ceiling for every failure architecture. A more detailed model may distinguish partial shared events, different failure-domain membership, and conditional per-node risks.</p>
+  <p>Look at the bottom row of that table: scaling from five voters to seven voters crushes the independent failure risk down to \(0.000034\%\), yet total quorum loss barely budges from \(0.1009\%\) to \(0.1000\%\). Buying two more servers did nothing but give the shared configuration bug two more places to crash simultaneously. Adding voters helps against independent failures, but it cannot tunnel underneath a shared event that disables the entire group. The common-cause term acts as a hard floor in this model, not a universal mathematical ceiling for every failure architecture. A more detailed model may distinguish partial shared events, different failure-domain membership, and conditional per-node risks.</p>
   <p>This simple construction is related in spirit to common-cause and beta-factor approaches, but it is not itself a fitted classical beta-factor model. In a traditional beta-factor formulation, a fraction of component failure intensity is attributed to common-cause events; parameter definitions, component population and event structure must be stated before comparing results.</p>
 
   <h3>Reliability block diagrams: what redundancy actually buys</h3>
-  <p>A reliability block diagram (RBD) makes the service-success condition explicit. In a <strong>series system</strong>, every block is required. If component reliabilities are \(R_i(t)\) and failures are independent, then:</p>
+  <p>A reliability block diagram (RBD) makes the service-success condition explicit instead of leaving it implied by pretty arrows. In a <strong>series system</strong>, every block is required. If component reliabilities are \(R_i(t)\) and failures are independent, then:</p>
   <div class="equation-flow">
       \[ R_{\text{series}}(t)=\prod_{i=1}^{n}R_i(t) \]
   </div>
-  <p>In an ideal <strong>parallel redundant system</strong>, the service succeeds if at least one component succeeds. Under independent failures and perfect detection/switchover:</p>
+  <p>In an ideal <strong>parallel redundant system</strong>, the service succeeds if at least one component succeeds. Under independent failures and perfect, instantaneous detection and switchover:</p>
   <div class="equation-flow">
       \[ R_{\text{parallel}}(t)=1-\prod_{i=1}^{n}\left(1-R_i(t)\right) \]
   </div>
@@ -403,10 +404,10 @@
   <div class="equation-flow">
       \[ A_{k:n}=\sum_{j=k}^{n}\binom{n}{j}a^j(1-a)^{n-j} \]
   </div>
-  <p>These are idealized RBD equations. They assume the diagram captures every required path, component outcomes are independent where multiplied, switching works when needed, and no unmodelled shared dependency defeats the redundancy. A component can fail while redundancy masks that failure; component failure is therefore not automatically component unavailability at the service boundary. A standby replica that cannot be promoted, a shared load balancer that fails, or a quorum that cannot communicate is not represented by simply adding another parallel block. The five-voter example above uses the equivalent failure-count rule: service-level quorum is lost at three or more unavailable voters, but actual consensus service availability also depends on communication and protocol state.</p>
+  <p>These are idealized RBD equations, and the word “idealized” is doing heavy lifting. They assume the diagram captures every required path, component outcomes are independent where multiplied, switching works flawlessly when needed, and no unmodelled shared dependency defeats the redundancy. A component can fail while redundancy masks that failure; component failure is therefore not automatically component unavailability at the service boundary. Conversely, a hot standby replica whose promotion script fails after six months of bit-rot, a shared load balancer that drops its BGP session, or a quorum that cannot communicate is not represented by simply drawing another parallel box. The five-voter example above uses the equivalent failure-count rule: service-level quorum is lost at three or more unavailable voters, but actual consensus service availability also depends on communication and protocol state.</p>
 
-  <h3>Independence is an architectural property to test</h3>
-  <p>Shared fate can enter through more than the availability zone. Replicas may share an image, kernel, agent, certificate authority, identity provider, DNS resolver, storage control plane, deployment wave, or operator procedure. Conversely, placing replicas in different zones does not automatically make every one of those dependencies independent.</p>
+  <h3>Independence is an architectural property to test, not assume</h3>
+  <p>Shared fate sneaks in through far more doors than the availability zone label. Replicas deployed across three continents may still share an OS image, kernel version, security agent, certificate authority, identity provider, DNS resolver, storage control plane, CI/CD deployment wave, or a single fatigued operator pasting commands at 2 a.m. Placing boxes in different zip codes does not automatically make any of those software dependencies independent.</p>
   
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
@@ -453,7 +454,7 @@
   </div>
 
   <h2>3. Weibull reliability: conditional hazard, aging, and censored data</h2>
-  <p>Not every component has a constant failure hazard. For a non-repairable lifetime measured from a defined origin, and a reasonably homogeneous cohort whose units share the same lifetime mechanism and parameters, a two-parameter Weibull model uses dimensionless shape \(\beta\) and scale \(\eta\) (in the same time or exposure units as \(t\)) to describe survival and age-conditioned hazard. At \(t=\eta\), cumulative failure probability is \(1-e^{-1}\approx63.2\%\): this is a scale parameter, not the mean lifetime.</p>
+  <p>Not every component has a constant, memoryless failure hazard. Hardware wears out, flash cells lose charge-trap integrity, and burnt-in cohorts shed defective stragglers early. For a non-repairable lifetime measured from a defined origin, and a reasonably homogeneous cohort whose units share the same lifetime mechanism and parameters, a two-parameter Weibull model uses dimensionless shape \(\beta\) and scale \(\eta\) (in the same time or exposure units as \(t\)) to describe survival and age-conditioned hazard. At \(t=\eta\), cumulative failure probability is \(1-e^{-1}\approx63.2\%\): this is a characteristic scale parameter, not the mean lifetime.</p>
   
   <div class="equation-flow">
       \[ S(t)=P(T>t)=e^{-(t/\eta)^\beta},\qquad F(t)=1-S(t) \]
@@ -463,11 +464,11 @@
   </div>
   
   <ul>
-      <li><strong>\(\beta<1\):</strong> the model's hazard decreases with age. This can describe an early-life failure population in which weaker units fail sooner, leaving a more robust surviving cohort.</li>
-      <li><strong>\(\beta=1\):</strong> the Weibull reduces to the exponential model with constant hazard.</li>
-      <li><strong>\(\beta>1\):</strong> the model's hazard increases with age, consistent with some wear-out mechanisms.</li>
+      <li><strong>\(\beta<1\):</strong> the model's hazard decreases with age. This can describe an early-life “infant mortality” population in which weaker units fail sooner, leaving a more robust surviving cohort.</li>
+      <li><strong>\(\beta=1\):</strong> the Weibull reduces to the exponential model with constant, memoryless hazard.</li>
+      <li><strong>\(\beta>1\):</strong> the model's hazard increases with age, consistent with physical wear-out or cumulative stress mechanisms.</li>
   </ul>
-  <p>These are interpretations of a fitted model, not labels to assign from intuition. For \(\beta<1\), the fitted hazard decreases; for \(\beta=1\), it is constant; for \(\beta>1\), it increases. Hardware can have multiple competing failure mechanisms. Software aging can arise from resource accumulation, fragmentation, leaks, or workload-dependent state—but a deterministic leak is not automatically a Weibull lifetime process. Do not infer physical wear-out merely because a fitted curve has \(\beta>1\); identify a plausible degradation mechanism and test whether age, exposure and cohort effects support it.</p>
+  <p>These are mathematical properties of a fitted model, not diagnostic labels to assign from vibes. Hardware can have multiple competing failure mechanisms at different stages of life. And a word of caution on software: while “software aging” can arise from resource accumulation, heap fragmentation, unclosed file descriptors, or workload-dependent state, <strong>a deterministic C++ memory leak is a bug, not a Weibull distribution</strong>. Do not dignify a missing <code>free()</code> or an unbounded cache with a stochastic survival curve, and do not infer physical wear-out merely because a curve fit spits out \(\beta>1\); identify a plausible degradation mechanism and test whether age, exposure and cohort effects support it.</p>
   
   <div class="incident-banner">
       <div class="incident-head">Empirical resource · Backblaze drive data</div>
@@ -475,30 +476,30 @@
   </div>
 
   <h3>Worked example: the risk in the next interval</h3>
-  <p><strong>Illustrative model:</strong> suppose a cohort follows a Weibull lifetime with \(\beta=3\) and \(\eta=5\) years. The probability of failure by year four is:</p>
+  <p><strong>Illustrative model:</strong> suppose a hardware cohort follows a Weibull lifetime with \(\beta=3\) and \(\eta=5\) years. The cumulative probability of failure from birth to year four is:</p>
   
   <div class="equation-flow">
       \[ F(4)=1-e^{-(4/5)^3}=1-e^{-0.512}\approx40.07\% \]
   </div>
   
-  <p>That cumulative probability describes the original cohort from age zero to age four. It is not the probability that a unit already aged four will fail next year. For a node that has survived to age four, the relevant age-conditioned probability of failure between years four and five is:</p>
+  <p>That cumulative probability describes the original cohort from age zero to age four. It is <em>not</em> the probability that a survivor already sitting in your rack at age four will fail next year. For a node that has already survived to age four, the relevant age-conditioned probability of failure between years four and five is:</p>
   
   <div class="equation-flow">
-      \[ P(4<T\le5\mid T>4)=1-\frac{S(5)}{S(4)}=1-e^{-[(5/5)^3-(4/5)^3]}=1-e^{-0.488}\approx38.61\% \]
+      \[ P(4 < T \le 5 \mid T > 4)=1-\frac{S(5)}{S(4)}=1-e^{-[(5/5)^3-(4/5)^3]}=1-e^{-0.488}\approx38.61\% \]
   </div>
   
-  <p>For a new node, the probability of failure in its first year is:</p>
+  <p>Compare that with a brand-new node's probability of failing in its first year:</p>
   
   <div class="equation-flow">
-      \[ P(0<T\le1)=1-e^{-(1/5)^3}\approx0.80\% \]
+     \[ P(0 < T \le 1)=1-e^{-(1/5)^3}\approx0.80\% \]
   </div>
   
-  <p>Under this illustrative increasing-hazard model, a surviving four-year-old unit has a much higher chance of failing in the next year than a new unit. That does <strong>not</strong> mean every long-running server is about to fail. The conclusion depends on the fitted cohort model, its age definition, and whether the observed population is reasonably homogeneous.</p>
+  <p>Under this illustrative increasing-hazard model (\(\beta=3\)), a surviving four-year-old unit has a nearly <strong>48x higher chance of failing in the next year</strong> (\(38.61\%\) vs. \(0.80\%\)) than a new unit. That does <strong>not</strong> mean every long-running server is a ticking time bomb—if \(\beta=1\), the four-year-old unit and the brand-new unit have the exact same next-year risk. The conclusion depends entirely on the fitted cohort model, its age definition, and whether the observed population is reasonably homogeneous.</p>
 
   <h3>Survival estimation is not the same as Weibull fitting</h3>
-  <p>Operational datasets rarely contain a failure time for every unit. A unit still operating at the end of observation contributes a <strong>right-censored</strong> lifetime: we know it survived at least until its last observation, but we do not know its eventual failure time. A machine removed during maintenance or retired for another reason is not automatically a failure. It may be right-censored if removal is independent of the latent failure time under the analysis assumptions; if retirement is related to condition or is itself an outcome of interest, it should be handled as informative censoring or a competing event rather than silently treated as an ordinary survivor.</p>
+  <p>Operational datasets rarely hand you a neat failure time for every unit. Most of your fleet is (hopefully) still alive when you run the query. A unit still operating at the end of observation contributes a <strong>right-censored</strong> lifetime: we know it survived at least until its last observation, but we do not know its eventual failure time. Dropping right-censored survivors from your dataset and averaging only the dead machines is a classic way to underestimate fleet lifetime and terrify your CFO. Similarly, a machine removed during a rack decommission or retired for an upgrade is not automatically a hardware failure. It may be right-censored if removal is independent of the latent failure time under the analysis assumptions; if retirement is related to degraded condition or is itself an outcome of interest, it must be handled as informative censoring or a competing event rather than silently treated as an ordinary survivor.</p>
   <ul>
-      <li><strong>Kaplan–Meier</strong> estimates the survival function non-parametrically from observed failure times and right-censored units. Under independent (non-informative) censoring, a unit still operating at its last observation remains in the risk set until that time; it is not counted as a failure. Kaplan–Meier does not estimate Weibull \(\beta\) and \(\eta\).</li>
+      <li><strong>Kaplan–Meier</strong> estimates the survival function non-parametrically from observed failure times and right-censored units. Under independent (non-informative) censoring, a unit still operating at its last observation remains in the risk set until that time; it is not counted as a failure. Kaplan–Meier lets the empirical data speak first; it does not estimate Weibull \(\beta\) and \(\eta\).</li>
       <li><strong>Parametric Weibull estimation</strong> can use maximum likelihood with both observed failures and right-censored exposure times. Let \(\delta_i=1\) for an observed failure and \(\delta_i=0\) for a right-censored unit. The likelihood and log-likelihood are:
       <div class="equation-flow">
           \[ \begin{aligned}
@@ -506,7 +507,7 @@
           \ell(\beta,\eta)&=\sum_{i=1}^{n}\left[\delta_i\log f(t_i;\beta,\eta)+(1-\delta_i)\log S(t_i;\beta,\eta)\right]
           \end{aligned} \]
       </div>
-      The product is the likelihood; its logarithm is the log-likelihood. Report parameter uncertainty intervals and check whether the fitted curve is plausible.</li>
+      The product is the likelihood; its logarithm is the log-likelihood. Report parameter uncertainty intervals and check whether the fitted curve actually resembles reality.</li>
       <li><strong>Diagnostics</strong> should compare the fitted parametric survival curve with the empirical Kaplan–Meier curve, inspect probability plots/residuals, examine cohort differences, and test sensitivity to the observation window.</li>
   </ul>
   
@@ -515,8 +516,8 @@
   <div class="control-panel">
       <div class="panel-title">Architectural controls derived from the model</div>
       <ul>
-          <li><strong>Use rejuvenation where the mechanism supports it.</strong> Stagger worker recycling, compaction, firmware changes and hardware replacement. Set policy from measured risk and recovery capacity, not an arbitrary age threshold.</li>
-          <li><strong>Avoid synchronized cohort aging.</strong> Randomize maintenance windows and rollout cohorts so a shared deployment date does not become a shared operational cliff.</li>
+          <li><strong>Use rejuvenation where the mechanism supports it.</strong> Stagger worker recycling, compaction, firmware changes and hardware replacement. Set policy from measured risk and recovery capacity, not an arbitrary cron-job superstition.</li>
+          <li><strong>Avoid synchronized cohort aging.</strong> Randomize maintenance windows and rollout cohorts so a shared procurement or deployment date does not become a synchronized fleet-wide cliff.</li>
           <li><strong>Preserve censoring information.</strong> Keep start time, last-seen time, failure time, retirement reason, maintenance history and cohort identity. Treat a graceful deployment restart as a competing event or censoring event according to the question being estimated.</li>
           <li><strong>Budget recovery throughput.</strong> For a repairable component alternating between up and down states, the long-run unavailability is \(U=E[D]/(E[Uptime]+E[D])=\text{MTTR}/(\text{MTTF}+\text{MTTR})\), assuming regenerative cycles with finite mean up- and down-times. If up- and down-times are exponential, \(\lambda\) is the constant failure rate, \(\mu_{\text{repair}}\) is the constant repair-completion rate, MTTF is \(1/\lambda\), MTTR is \(1/\mu_{\text{repair}}\), and \(U=\lambda/(\lambda+\mu_{\text{repair}})\). The renewal expression itself does not require exponential durations. It is a long-run fraction, not the probability that a component of a given age fails in the next minute. Reducing repair time can improve availability, but only if detection, isolation, spare capacity and safe restoration keep pace.</li>
       </ul>
@@ -527,12 +528,12 @@
   </div>
 
   <h3>Failure and repair are different clocks</h3>
-  <p>The failure hazard \(\lambda(t)\) describes the instantaneous rate of first failure conditional on surviving to age \(t\). The repair process starts after a failure and has its own duration distribution. If repair completion is exponential with constant rate \(\mu_{\text{repair}}\), its mean duration is \(1/\mu_{\text{repair}}\). A constant repair rate does <strong>not</strong> make the failure process memoryless: the failure hazard may still increase or decrease with component age, as in a Weibull model.</p>
-  <p>Here \(\text{MTTF}=E[Uptime]\) is the mean operating duration from restoration to the next failure, and \(\text{MTTR}=E[D]\) is the mean down/repair duration from the chosen failure-detection boundary to restored service. Define those measurement boundaries consistently; MTTR may include diagnosis, waiting for a spare, repair, validation and reintegration. For an exponential up/down continuous-time Markov model—with constant failure rate \(\lambda\) and constant repair rate \(\mu_{\text{repair}}\)—\(\text{MTTF}=1/\lambda\) and \(\text{MTTR}=1/\mu_{\text{repair}}\), and the steady-state unavailability is:</p>
+  <p>The failure hazard \(\lambda(t)\) describes the instantaneous rate of first failure conditional on surviving to age \(t\). The repair process starts after a failure and runs on its own clock with its own duration distribution. If repair completion is exponential with constant rate \(\mu_{\text{repair}}\), its mean duration is \(1/\mu_{\text{repair}}\). A constant repair rate does <strong>not</strong> make the failure process memoryless: the failure hazard may still increase or decrease with component age, as in a Weibull model.</p>
+  <p>Here \(\text{MTTF}=E[Uptime]\) is the mean operating duration from restoration to the next failure, and \(\text{MTTR}=E[D]\) is the mean down/repair duration from the chosen failure-detection boundary to restored service. Define those measurement boundaries honestly; in production, \(\text{MTTR}\) includes alert delay, human paging, ticket triage, waiting for a spare drive in a warehouse, data rebuild, validation and reintegration—not just the forty seconds it took to run <code>systemctl restart</code>. For an exponential up/down continuous-time Markov model—with constant failure rate \(\lambda\) and constant repair rate \(\mu_{\text{repair}}\)—\(\text{MTTF}=1/\lambda\) and \(\text{MTTR}=1/\mu_{\text{repair}}\), and the steady-state unavailability is:</p>
   <div class="equation-flow">
       \[ U_{\infty}=\frac{\lambda}{\lambda+\mu_{\text{repair}}},\qquad A_{\infty}=\frac{\mu_{\text{repair}}}{\lambda+\mu_{\text{repair}}} \]
   </div>
-  <p>More generally, for an alternating renewal process with finite mean up- and down-times, the long-run unavailability is \(U_{\infty}=E[D]/(E[Uptime]+E[D])\), whether or not those durations are exponential. The familiar MTTR/(MTTF+MTTR) expression is this long-run reward fraction. It does not give the age-conditioned probability of failure in the next interval; for a lifetime model that probability is \(P(t<T\le t+\Delta\mid T>t)=1-S(t+\Delta)/S(t)\).</p>
+  <p>More generally, for an alternating renewal process with finite mean up- and down-times, the long-run unavailability is \(U_{\infty}=E[D]/(E[Uptime]+E[D])\), whether or not those durations are exponential. The familiar \(\text{MTTR}/(\text{MTTF}+\text{MTTR})\) expression is this long-run reward fraction. It does not give the age-conditioned probability of failure in the next interval; for a lifetime model that probability is \(P(t<T\le t+\Delta\mid T>t)=1-S(t+\Delta)/S(t)\).</p>
   <p>In a real service, service unavailability also depends on redundancy, detection, failover, network reachability and repair/rebuild capacity. A component's steady-state availability cannot simply be copied into the service-level SLO.</p>
 
   <div class="stage" data-sim="weibull">
@@ -569,8 +570,8 @@
 
   <h2>4. Capstone: reliability economics in a synchronous GPU training fleet</h2>
   <div class="tldr-box warning">
-      <div class="eyebrow">The series-system trap</div>
-      <p>In synchronous distributed training, a slow or failed rank can stall progress for the group at a collective or synchronization boundary. More GPUs can increase throughput, but they also increase the number of components and links that can interrupt a job. The right model is a job-level interruption model—not a claim that every GPU is literally an independent series component for every failure mode.</p>
+      <div class="eyebrow">The series-system trap at hyperscale</div>
+      <p>In synchronous distributed training, 16,384 GPUs march in lockstep across collective communication barriers (such as <code>AllReduce</code>). A single dead rank, a flaky optical transceiver, or a wedged PCIe bus stalls progress for the entire job. More GPUs buy raw FLOP/s, but they also assemble a massive series-like exposure surface. The right model is a job-level interruption model—not a claim that every GPU is literally an independent series component for every failure mode.</p>
   </div>
   
   <div class="incident-banner">
@@ -585,36 +586,60 @@
       \[ \hat\Lambda_{\mathrm{job}}=\frac{419}{1,296}\approx0.3233\text{ interruptions/hour} \]
   </div>
   
-  <p>The reciprocal is an average interval between reported unexpected interruptions of:</p>
+  <p>The reciprocal gives an average interval between reported unexpected interruptions of:</p>
   
   <div class="equation-flow">
-      \[ \widehat{MTBI}=\frac{1}{\hat\Lambda_{\mathrm{job}}}\approx3.09\text{ hours} \]
+      \[ \widehat{MTBI}=\frac{1}{\hat\Lambda_{\mathrm{job}}}\approx3.09\text{ hours}\quad(185.6\text{ minutes}) \]
   </div>
   
-  <p>This is an <strong>observed run-level unexpected-interruption intensity</strong>. It is not an H100 MTBF, GPU lifetime, node lifetime, rack lifetime, or fleet replacement rate. It excludes the 47 planned interruptions and does not prove that unexpected events form a stationary Poisson process. The calculation treats each reported unexpected interruption as one event over the stated exposure window. A production forecast should stratify by cause, distinguish job interruption from node failure, include planned stoppages in the checkpoint schedule, and test whether the rate changes with cluster configuration, workload phase, repairs and software rollout.</p>
-  <p>If, purely as a first approximation, unexpected job interruptions followed a homogeneous Poisson process at this rate, the probability of no unexpected interruption during a 24-hour period would be:</p>
+  <p>Every three hours, on average, something punches the training job in the face. Keep the label clean: this is an <strong>observed run-level unexpected-interruption intensity</strong>. It is not an H100 hardware MTBF, GPU lifetime, node lifetime, rack lifetime, or fleet replacement rate. It excludes the 47 planned interruptions and does not prove that unexpected events form a stationary Poisson process. The calculation treats each reported unexpected interruption as one event over the stated exposure window. A production forecast should stratify by cause, distinguish job interruption from node failure, include planned stoppages in the checkpoint schedule, and test whether the rate changes with cluster configuration, workload phase, repairs and software rollout.</p>
+  <p>If, purely as a first approximation, unexpected job interruptions followed a homogeneous Poisson process at this rate, the probability of surviving a full 24-hour day without a single unexpected interruption would be:</p>
   
   <div class="equation-flow">
       \[ P(N(24)=0)=e^{-0.3233\times24}\approx0.00042=0.042\% \]
   </div>
   
-  <p>That is a stress signal for checkpoint and recovery design—not a claim that the next training run has exactly this probability. The observed rate may include multiple failure mechanisms and changing operating conditions.</p>
+  <p>A 0.042% chance of a quiet day is a visceral stress signal for checkpoint and recovery design—not a claim that the next training run has exactly this probability. The observed rate may include multiple failure mechanisms and changing operating conditions.</p>
 
-  <h3>Step B · Checkpoint frequency is an economic decision</h3>
-  <p>Let \(M\) be the mean interval implied by the unexpected-interruption intensity used in this illustrative scenario, \(\delta\) the blocking time per checkpoint, \(R\) the restart overhead after an interruption, and \(\tau\) the checkpoint interval. Planned maintenance interruptions are excluded from this value of \(M\) and would need to be represented in a full schedule-aware model. Under the simplified Young–Daly approximation, the fraction of wall-clock time lost is:</p>
+  <h3>Step B · Checkpoint frequency is an economic tug-of-war (The Young–Daly Model)</h3>
+  <p>When a job halts every three hours, you survive by saving checkpoints. This sets up a fundamental economic tug-of-war: <strong>checkpoint too frequently</strong>, and you burn millions of dollars of GPU time freezing the training loop to write terabytes of weights and optimizer states to storage; <strong>checkpoint too rarely</strong>, and a crash wipes out hours of forward progress, forcing the entire cluster to replay steps it already computed.</p>
+  <p>The <strong>Young–Daly model</strong> frames this trade-off as a first-order optimization problem. Let \(M\) be the mean interval implied by the unexpected-interruption intensity used in this illustrative scenario (\(M = 1/\Lambda_{\mathrm{job}}\)), \(\delta\) the blocking time per checkpoint, \(R\) the restart overhead after an interruption, and \(\tau\) the checkpoint interval (our control variable). Planned maintenance interruptions are excluded from this value of \(M\) and would need to be represented in a full schedule-aware model. Under the simplified Young–Daly approximation, the total fraction of wall-clock time lost to overhead and recovery, \(W(\tau)\), is the sum of two competing taxes:</p>
   
   <div class="equation-flow">
-      \[ W(\tau)=\frac{\delta}{\tau}+\frac{\tau/2+R}{M} \]
+      \[ W(\tau)=\underbrace{\frac{\delta}{\tau}}_{\text{Proactive Tax}}+\underbrace{\frac{\tau/2+R}{M}}_{\text{Reactive Tax}} \]
   </div>
   
-  <p>The first term is checkpoint overhead. The second approximates lost work since the last checkpoint (average \(\tau/2\) under a uniform interruption time within an interval) plus restart overhead. Differentiating with respect to \(\tau\) gives:</p>
+  <ul>
+      <li><strong>1. The Proactive Tax — Checkpoint Overhead (\(\frac{\delta}{\tau}\)):</strong> In every scheduled training cycle of length \(\tau\), the training loop is frozen for \(\delta\) minutes while weights and optimizer states are serialized and flushed to persistent storage. The fraction of wall-clock time surrendered to this voluntary I/O pause is simply the ratio \(\frac{\delta}{\tau}\). As you lengthen the interval \(\tau\), this tax shrinks hyperbolically.</li>
+      <li><strong>2. The Reactive Tax — Crash &amp; Recovery Cost (\(\frac{\tau/2+R}{M}\)):</strong> Over a long run of duration \(T\), the job suffers approximately \(T/M\) unexpected interruptions. If interruptions arrive as a memoryless Poisson process, a crash is equally likely to strike at any point inside a checkpoint window \([0,\tau]\). By the properties of a continuous uniform distribution on \([0,\tau]\), the expected amount of uncommitted training work destroyed by a crash is the midpoint: \(\frac{\tau}{2}\). On top of that lost work, every crash charges a fixed restart penalty \(R\)—the time required to detect the dead rank, cordon the bad node, re-initialize the communicator (e.g., <code>ncclCommInitRank</code>), load the last checkpoint from storage, and resume the step loop. Because each interruption costs \((\tau/2 + R)\) minutes and strikes once every \(M\) minutes on average, the fraction of total time consumed by crashes is \(\frac{\tau/2+R}{M}\). As you lengthen \(\tau\), this tax grows linearly.</li>
+  </ul>
+
+  <p>Because the proactive tax falls as \(1/\tau\) and the reactive tax rises linearly with \(\tau\), the total waste curve \(W(\tau)\) is convex. To find the optimal checkpoint interval \(\tau^*\) that minimizes wasted time (and maximizes <strong>goodput</strong>, \(G(\tau)=1-W(\tau)\)), differentiate with respect to \(\tau\) and set the derivative to zero:</p>
   
   <div class="equation-flow">
-      \[ \frac{dW}{d\tau}=-\frac{\delta}{\tau^2}+\frac{1}{2M}=0 \quad \therefore\quad\tau^*=\sqrt{2\delta M} \]
+      \[ \frac{dW}{d\tau}=-\frac{\delta}{\tau^2}+\frac{1}{2M}=0 \quad \implies \quad \frac{\delta}{\tau^2}=\frac{1}{2M} \quad \therefore\quad\tau^*=\sqrt{2\delta M} \]
   </div>
-  
-  <p>This is a simplified model. It assumes a stable interruption hazard, fixed checkpoint and restart costs, periodic checkpoints, and an interruption time that is approximately uniform within a checkpoint interval, so average lost work is \(\tau/2\). It is most defensible as a first-order approximation when interruptions are not strongly clustered and the rate is stable over the planning horizon. It does not automatically describe asynchronous checkpoint protocols, incremental checkpoints, correlated failures, age-dependent job hazards, or recovery that overlaps with useful work.</p>
-  <p><strong>Hypothetical planning inputs, not Meta cost data:</strong> \(M=185.6\) minutes (the reciprocal of the observed unexpected-interruption intensity above), blocking checkpoint time \(\delta=2\) minutes, restart overhead \(R=20\) minutes, modeled job allocation of 16,384 GPUs, and an assumed blended cost of $2.50 per GPU-hour.</p>
+
+  <h3>Three architectural insights hidden inside \(\tau^*=\sqrt{2\delta M}\)</h3>
+  <ol>
+      <li><strong>\(R\) vanishes from the optimal interval \(\tau^*\):</strong> Look closely at the derivative—the restart overhead \(R\) completely disappears! While a sluggish 20-minute restart \(R\) directly punishes your overall goodput \(1-W(\tau)\), it does <strong>not</strong> change how often you should checkpoint. You cannot compensate for a slow container orchestrator, bloated Docker image pulls, or sluggish NCCL initialization by checkpointing more frequently.</li>
+      <li><strong>Square-root scaling:</strong> If you scale your cluster up and the mean time between interruptions \(M\) drops by a factor of 4, you do not checkpoint 4 times as often—you checkpoint \(\sqrt{4}=2\) times as often, as economic leverage shifts between I/O pause and rework risk.</li>
+      <li><strong>Why asynchronous checkpointing changes the game:</strong> Moving checkpoint serialization off the critical path (for example, snapshotting weights to pinned host RAM via copy-on-write and flushing to distributed storage asynchronously in the background) shrinks the <em>blocking</em> pause \(\delta\) by an order of magnitude (say, from 2 minutes down to 12 seconds). Because \(\tau^*\propto\sqrt{\delta}\), slashing \(\delta\) lets you checkpoint much more frequently while simultaneously driving down <em>both</em> the proactive pause tax and the reactive rework tax.</li>
+  </ol>
+
+  <h3>Where the first-order approximation breaks</h3>
+  <p>The linear equation \(W(\tau)=\frac{\delta}{\tau}+\frac{\tau/2+R}{M}\) is a first-order approximation of a renewal-reward process. Before betting a cluster budget on it, know where its assumptions bend and break:</p>
+  <ul>
+      <li><strong>Small-ratio assumption (\(\tau \ll M\) and \(\delta \ll \tau\)):</strong> In the exact renewal formulation, the denominator of the proactive tax and the numerator of the expected rework are conditioned on surviving the interval. Young (1974) and Daly (2006) showed that when \(\tau\) becomes a sizable fraction of \(M\), higher-order terms matter, leading to Daly's perturbed solution:
+      <div class="equation-flow">
+          \[ \tau^*_{\mathrm{Daly}} = \sqrt{2\delta M}\left(1 + \frac{1}{3}\sqrt{\frac{\delta}{2M}} + \frac{1}{9}\left(\frac{\delta}{2M}\right)\right) - \delta \]
+      </div>
+      For typical cluster parameters where \(\delta \ll M\), the clean \(\sqrt{2\delta M}\) formula is accurate within 1–2%.</li>
+      <li><strong>Unbounded loss at extreme failure rates:</strong> Because the linear expression adds the two fractions directly, extreme stress inputs (where \(R > M\) or \(\delta\) is huge) can push \(W(\tau) \ge 1\) (implying 100%+ waste and negative goodput). In Interactive Lab 4 below, this is why <code>const valid = rawLoss &lt; 1</code> is explicitly guarded.</li>
+      <li><strong>No failure during recovery or checkpointing:</strong> The basic equation assumes crashes only strike during useful compute (\(\tau\)), ignoring the probability of a secondary node dying while you are in the middle of the \(R\)-minute restart or \(\delta\)-minute checkpoint write. It also does not automatically model incremental checkpoints, correlated failure bursts, age-dependent job hazards, or recovery that overlaps with useful work.</li>
+  </ul>
+
+  <p><strong>Hypothetical planning inputs, not Meta cost data:</strong> Let us plug in \(M=185.6\) minutes (the reciprocal of the observed unexpected-interruption intensity above), blocking checkpoint time \(\delta=2\) minutes, restart overhead \(R=20\) minutes, modeled job allocation of 16,384 GPUs, and an assumed blended cost of $2.50 per GPU-hour.</p>
   
   <div class="equation-flow">
       \[ \tau^*=\sqrt{2\times2\times185.6}\approx27.2\text{ minutes} \]
@@ -669,10 +694,10 @@
       </table>
   </div>
   
-  <p>The third row is not “async checkpointing automatically produces 93.2% goodput.” It is the result of changing the model inputs to a 0.2-minute blocking cost and four-minute restart. An asynchronous design must still establish a consistent recovery point, ensure checkpoint durability, manage host-memory/NVMe pressure, and account for background flush contention. If the checkpoint is truly non-blocking, replace \(\delta\) with the measured residual pause and model the background resource cost separately.</p>
+  <p>Notice the financial leverage here: tuning a single config parameter from hourly checkpoints (\(\tau=60\)) to the Young–Daly optimum (\(\tau=27.2\)) recovers <strong>$2.6 million</strong> in time-equivalent compute without buying a single piece of hardware. Pushing further—slashing blocking pause \(\delta\) to 0.2 minutes and restart \(R\) to 4 minutes—recovers nearly <strong>$10 million</strong> more. That third row is not “async checkpointing automatically produces 93.2% goodput.” It is the result of changing the model inputs to a 0.2-minute blocking cost and four-minute restart. An asynchronous design must still establish a consistent recovery point, ensure checkpoint durability, manage host-memory/NVMe pressure, and account for background flush contention. If the checkpoint is truly non-blocking, replace \(\delta\) with the measured residual pause and model the background resource cost separately.</p>
 
   <h3>Step C · A spare pool is a queueing problem, not just a percentage</h3>
-  <p>Suppose—hypothetically—that every interruption corresponds to one repairable node entering a 24-hour repair pipeline. At the observed unexpected-interruption rate, the expected number of events during 24 hours is:</p>
+  <p>Nobody wants a $53M training job sitting idle waiting for an RMA truck. So you keep hot spares on the floor. Suppose—hypothetically—that every interruption corresponds to one repairable node entering a 24-hour repair pipeline. At the observed unexpected-interruption rate, the expected number of events during 24 hours is:</p>
   
   <div class="equation-flow">
       \[ \Lambda_{24}=0.3233\times24\approx7.76 \]
@@ -684,15 +709,15 @@
       \[ P(X>18\mid\Lambda_{24}=7.76)\approx0.000455=0.0455\% \]
   </div>
   
-  <p>That is below 0.1% under the stated model. But the calculation is useful only if the assumptions hold: one unexpected interruption must map to one spare-consuming repair, repairs must take approximately 24 hours, arrivals must be reasonably Poisson, and failures must not arrive in correlated bursts. The Llama 3 interruption count includes multiple causes, so this is a <strong>hypothetical buffer-sizing example</strong>, not a spare recommendation derived from the report.</p>
-  <p>In a real fleet, model the spare pool as an inventory/repair system. Measure repair-time distribution, simultaneous failures, spare compatibility, maintenance backlog, time to detect, time to isolate, and whether a spare can join the same topology without creating a new bottleneck.</p>
+  <p>That is below 0.1% stockout risk under the stated model. But the calculation is useful only if the assumptions hold: one unexpected interruption must map to one spare-consuming repair, repairs must take approximately 24 hours, arrivals must be reasonably Poisson, and failures must not arrive in correlated bursts (like a bad firmware push bricking 30 NICs at once). The Llama 3 interruption count includes multiple causes, so this is a <strong>hypothetical buffer-sizing example</strong>, not a spare recommendation derived from the report.</p>
+  <p>In a real fleet, model the spare pool as an inventory/repair system (such as an \(M/G/\infty\) or finite-repair-server queue). Measure repair-time distribution, simultaneous failures, spare compatibility, maintenance backlog, time to detect, time to isolate, and whether a spare can join the same rail-optimized network topology without creating a new bottleneck.</p>
 
   <h3>Do not turn a GPU interruption rate into a rack replacement policy</h3>
-  <p>There are at least four different asset populations in a large accelerator fleet, and each has a different failure process:</p>
+  <p>One of the fastest ways to embarrass yourself in capacity planning is to take a job interruption rate, divide by 16,384, call it “GPU lifetime,” and use it to schedule data-center rack replacements. There are at least four different asset populations in a large accelerator fleet, and each has a different failure process:</p>
   <ul>
       <li><strong>GPU lifetime:</strong> time or exposure until a GPU-specific fault makes that accelerator unfit for service. HBM, package, board and firmware faults may have different mechanisms.</li>
       <li><strong>Node lifetime:</strong> time until the server as an integrated unit cannot meet its role. A node can fail because of its GPU, CPU, memory, NIC, power supply, cooling or motherboard; the GPU's lifetime is not the node's lifetime.</li>
-      <li><strong>Rack lifetime:</strong> time until a rack-level assembly or shared subsystem—power distribution, cooling, top-of-rack networking, cabling or structural infrastructure—requires intervention or replacement. Rack failures can be common-cause events for many nodes.</li>
+      <li><strong>Rack lifetime:</strong> time until a rack-level assembly or shared subsystem—power distribution, liquid cooling manifolds, top-of-rack networking, cabling or structural infrastructure—requires intervention or replacement. Rack failures can be common-cause events for many nodes.</li>
       <li><strong>Fleet replacement policy:</strong> a portfolio decision shaped by age cohorts, capacity demand, maintenance windows, spare inventory, supply lead time, compatibility, energy efficiency and planned refresh cycles. It is not obtained by multiplying one GPU's failure probability by the fleet size.</li>
   </ul>
   <p>An age-based replacement policy can be evaluated for a clearly defined, homogeneous asset. Let \(T\) be its lifetime, \(S(t)\) its survival function, and \(a\) the planned replacement age. Under a renewal model in which a replacement starts a new cycle, the expected operating time per cycle is \(E[\min(T,a)]=\int_0^a S(t)\,dt\). A simplified long-run cost rate per unit of operating time is:</p>
@@ -742,7 +767,7 @@
           </div>
       </div>
       <canvas id="gcvv" height="220" role="img" aria-label="Theoretical estimated goodput against checkpoint interval"></canvas>
-      <p class="canvas-description">Analytical sensitivity curve from the simplified Young–Daly loss approximation. The selected interval is marked; settings that imply at least 100% lost time are flagged as outside the model\’s valid range.</p>
+      <p class="canvas-description">Analytical sensitivity curve from the simplified Young–Daly loss approximation. The selected interval is marked; settings that imply at least 100% lost time are flagged as outside the model’s valid range.</p>
       <div class="readout">
           <div class="readout-item">Optimal interval<span id="gtau">—</span></div>
           <div class="readout-item">Estimated goodput<span id="ggood">—</span></div>
@@ -753,7 +778,7 @@
   </div>
 
   <h2>5. The principal architect's diagnostic matrix</h2>
-  <p>Use this table as a review aid. The important question is not “Which distribution should I use?” It is “What physical process generated this observation, and what evidence would make me reject the model?”</p>
+  <p>Use this table as a review aid the next time someone brings suspiciously clean availability math to a design review. The important question is never “Which distribution should I use?” It is “What physical process generated this observation, and what production evidence would force me to throw this model in the trash?”</p>
   
   <div class="table-wrap">
       <table>
@@ -807,7 +832,7 @@
   </div>
 
   <h2>What to carry into the next part</h2>
-  <p>Reliability models tell us how components, redundant groups and workflows fail—and why repair capacity and shared dependencies matter as much as the count of replicas. They do not yet tell us what happens when requests arrive faster than a service can complete them. In Part 3, we move from discrete failure events to the physics of <strong>time, traffic and queues</strong>: why utilization, variability and bursty arrivals can turn a seemingly healthy service into a latency problem long before it reports a hard failure.</p>
+  <p>Reliability models tell us how components, redundant groups and workflows fail—and why repair capacity and shared dependencies matter far more than how many boxes you can fit on a slide. They do not yet tell us what happens when requests arrive faster than a service can complete them. In Part 3, we move from discrete failure events to the physics of <strong>time, traffic and queues</strong>: why utilization, variability and bursty arrivals can turn a seemingly healthy service into a latency disaster long before a single node reports a hard failure.</p>
   
   <nav class="post-pager" aria-label="Series pagination">
       <a href="part-1-illusion-of-determinism.html">← Part 1: The Illusion of Determinism</a>
