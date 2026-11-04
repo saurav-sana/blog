@@ -233,13 +233,13 @@
 
             <p>In Part 3, we watched what happens when a single request runs a sequential relay race across microservice hops (a sum of stage durations, which simplifies to an Erlang distribution only when every hop is independent, identically distributed, and exponential). Modern distributed systems, however, are rarely content to fail one hop at a time. Instead, we build parallel scatter-gather engines. Your Multi-Tenant Analytics Gateway receives one innocent dashboard query and fans it out across 100 storage partitions in parallel. Ninety-nine partitions reply in 12 milliseconds. Partition #47, unfortunately, is busy having an existential crisis—a cold NVMe page cache, a minor JVM stop-the-world pause, or a congested top-of-rack switch buffer. If your aggregator blocks until all 100 partitions report back, the 99 fast nodes get zero credit. The slowest straggler in the room hijacks the entire user experience—and any sequential stages before and after the fan-out still tack their own time onto the critical path.</p>
 
-            <p>This is the aggregation trap: <strong>a system can look glowing green one microservice at a time while systematically torching its end-to-end SLA.</strong> That outcome is not a curse from the demo gods; it is a mathematical consequence of applying the `max()` operator across random variables. How badly it hurts depends on your deadline budget, the tail shape of each child, shared-fate correlations across dependencies, and whether your product contract allows you to return partial results instead of waiting for the straggler.</p>
+            <p>This is the aggregation trap: <strong>a system can look glowing green one microservice at a time while systematically torching its end-to-end SLA.</strong> That outcome is not a curse from the demo gods; it is a mathematical consequence of applying the <code>max()</code> operator across random variables. How badly it hurts depends on your deadline budget, the tail shape of each child, shared-fate correlations across dependencies, and whether your product contract allows you to return partial results instead of waiting for the straggler.</p>
 
             <h2>Prologue: The Architecture Review Where Averages Lied</h2>
 
             <p>Every distributed-systems post-mortem eventually arrives at the same awkward slide. On the left is a screenshot of 100 storage node dashboards, each proudly wearing a green "99.0% within 200 ms SLA" badge. On the right is the top-level Gateway API timeline, bleeding red timeouts for forty straight minutes. Every component team swears they are innocent. Mathematically, they are—and the user is still staring at a spinner.</p>
 
-            <p>When you break a monolith into a distributed graph, you stop reasoning about a single random variable and start reasoning about **statistical aggregation operators**. Sequential hops *add* their elapsed times (convolution); a barrier-style parallel fan-out takes the *maximum* of its required children (order statistics); and conditional routing creates a *mixture* of fast cache hits and slow database fallbacks. Treating all three as interchangeable flavours of "average latency" is how architecture reviews turn into incident bridges.</p>
+            <p>When you break a monolith into a distributed graph, you stop reasoning about a single random variable and start reasoning about <strong>statistical aggregation operators</strong>. Sequential hops <em>add</em> their elapsed times (convolution); a barrier-style parallel fan-out takes the <em>maximum</em> of its required children (order statistics); and conditional routing creates a <em>mixture</em> of fast cache hits and slow database fallbacks. Treating all three as interchangeable flavours of "average latency" is how architecture reviews turn into incident bridges.</p>
 
             <p>Human intuition is calibrated for small numbers, symmetric bell curves, and arithmetic averages. At scale, that intuition fails—not because probability theory is broken, but because engineers keep bringing a sample mean to an order-statistics knife fight.</p>
 
@@ -279,7 +279,7 @@
             <h2>1. Order Statistics and the Fan-Out Tax</h2>
 
             <h3>First, distinguish sums from maxima</h3>
-            <p>When a request steps through \(k\) sequential stages one after another, total elapsed time along that chain is a sum, \(S_k = \sum_{i=1}^{k} X_i\), plus orchestration overhead. If the stages are independent, the distribution of \(S_k\) is the convolution of the individual stage distributions (and if they are correlated, the variance grows even faster). As we saw in Part 3, the Erlang-\(k\) distribution is simply the special case where those sequential stages are independent and identically distributed (iid) exponentials sharing the same rate. When a parent request fans out to \(N\) children in parallel and waits for all of them at a synchronization barrier, summation goes out the window—the governing operator is the **maximum**.</p>
+            <p>When a request steps through \(k\) sequential stages one after another, total elapsed time along that chain is a sum, \(S_k = \sum_{i=1}^{k} X_i\), plus orchestration overhead. If the stages are independent, the distribution of \(S_k\) is the convolution of the individual stage distributions (and if they are correlated, the variance grows even faster). As we saw in Part 3, the Erlang-\(k\) distribution is simply the special case where those sequential stages are independent and identically distributed (iid) exponentials sharing the same rate. When a parent request fans out to \(N\) children in parallel and waits for all of them at a synchronization barrier, summation goes out the window—the governing operator is the <strong>maximum</strong>.</p>
 
             <p>If an API gateway or query coordinator dispatches \(N\) parallel sub-queries and cannot assemble the final payload until the last child finishes, the fan-out duration is the maximum of the child latencies \(X_i\), never their average:</p>
 
@@ -287,7 +287,7 @@
                 \[ Y_{(N)} = \max(X_1, X_2, \dots, X_N) \]
             </div>
 
-            <p>In probability theory, the behavior of \(Y_{(N)}\) is governed by **order statistics**. Why does the cumulative distribution function (CDF) multiply? Because the maximum of \(N\) numbers is less than or equal to \(t\) if and only if *every single one* of those \(N\) numbers is less than or equal to \(t\). If the child latencies are independent (even with different distributions \(F_i\)), then \(F_Y(t) = P(Y_{(N)} \le t) = \prod_{i=1}^{N} F_i(t)\). When the children are independent and identically distributed (iid), this collapses to \(F_Y(t) = [F_X(t)]^N\). If the children share a congested resource and are dependent, you cannot simply multiply marginal CDFs—you must model their joint distribution. Either way, raising a fractional probability like \(0.99\) to the \(N\)-th power shoves the parent's distribution relentlessly toward the upper tail of the children.</p>
+            <p>In probability theory, the behavior of \(Y_{(N)}\) is governed by <strong>order statistics</strong>. Why does the cumulative distribution function (CDF) multiply? Because the maximum of \(N\) numbers is less than or equal to \(t\) if and only if <em>every single one</em> of those \(N\) numbers is less than or equal to \(t\). If the child latencies are independent (even with different distributions \(F_i\)), then \(F_Y(t) = P(Y_{(N)} \le t) = \prod_{i=1}^{N} F_i(t)\). When the children are independent and identically distributed (iid), this collapses to \(F_Y(t) = [F_X(t)]^N\). If the children share a congested resource and are dependent, you cannot simply multiply marginal CDFs—you must model their joint distribution. Either way, raising a fractional probability like \(0.99\) to the \(N\)-th power shoves the parent's distribution relentlessly toward the upper tail of the children.</p>
 
             <div class="scenario-card">
                 <div class="scenario-title">The 100-Partition Scatter-Gather Timeout</div>
@@ -295,13 +295,13 @@
                 <p><strong>Evidence label:</strong> Illustrative hypothetical engineering scenario. The numbers below are clean model inputs to expose the fan-out mechanism, not a post-mortem from a specific production outage.</p>
                 <p><strong>1. The Scenario:</strong> Our Multi-Tenant Analytics Gateway executes a distributed scatter-gather query across \(N = 100\) Apache Iceberg storage partitions in parallel. The gateway enforces a hard 200 ms end-to-end deadline. We want to know how often an all-results query breaches that deadline under idealized independence—before reality makes things even messier.</p>
                 
-                <p><strong>2. Architectural Assumption:</strong> Storage node dashboards show a historical \( P_{99} \) latency of 200 ms. In the design review, someone Inevitably says: <em>"Each storage node meets our 200 ms deadline 99% of the time, so the gateway will easily hit a 99% SLA!"</em></p>
+                <p><strong>2. Architectural Assumption:</strong> Storage node dashboards show a historical \( P_{99} \) latency of 200 ms. In the design review, someone inevitably says: <em>"Each storage node meets our 200 ms deadline 99% of the time, so the gateway will easily hit a 99% SLA!"</em></p>
                 
-                <p><strong>3. Physical Mechanism:</strong> The gateway fires 100 requests in parallel, but it *blocks* at a barrier until partition #100 returns its Arrow record batch. One slow partition stalls the entire parent query.</p>
+                <p><strong>3. Physical Mechanism:</strong> The gateway fires 100 requests in parallel, but it <em>blocks</em> at a barrier until partition #100 returns its Arrow record batch. One slow partition stalls the entire parent query.</p>
                 
                 <p><strong>4. Mathematical Model:</strong> Order statistics of the maximum. Assume all 100 child calls start at the same instant, have iid latency distributions, and must all finish within the shared 200 ms budget. Ignore gateway serialization overhead and assume no retries, hedges, early cancellation, or partial-result degradation in this baseline. Under this strict all-results barrier, the parent misses its deadline whenever at least one child exceeds 200 ms. (If any of those assumptions change, child exceedance and parent timeout are no longer identical.)</p>
 
-                <p><strong>5. The Calculation:</strong> Each child has an exceedance probability \(p_D = P(X_i > D) = 0.01\) at deadline \(D = 200\text{ ms}\), meaning each child finishes on time with probability \(1 - p_D = 0.99\). What is the probability that *all 100* finish on time?</p>
+                <p><strong>5. The Calculation:</strong> Each child has an exceedance probability \(p_D = P(X_i > D) = 0.01\) at deadline \(D = 200\text{ ms}\), meaning each child finishes on time with probability \(1 - p_D = 0.99\). What is the probability that <em>all 100</em> finish on time?</p>
                 
                 <div class="equation-flow">
                     \[ P(Y_{(N)} \le \tau) = P(X_1 \le \tau) \dots P(X_N \le \tau) = (1 - p)^N = 0.99^{100} \approx 0.3660 \]
@@ -313,25 +313,25 @@
                     \[ P(\text{at least one slow}) = 1 - (1 - p)^N = 1 - 0.3660 \approx \mathbf{0.6340 \ (63.4\%)} \]
                 </div>
 
-                <p>Read that again: every single storage node is hitting its 99% SLA, yet **63.4% of parent queries breach the 200 ms budget**! Now flip the algebra around: if the business demands that the parent query succeed within 200 ms at least 99% of the time under this iid barrier model, how fast must each individual child be? We need \((1 - p_D)^{100} = 0.99\), which means \(p_D = 1 - 0.99^{1/100} \approx 0.0001005\). Each child must hit 200 ms at the **\(P_{99.99}\) level** (more precisely, the 99.98995th percentile) just to buy the parent a humble \(P_{99}\)!</p>
+                <p>Read that again: every single storage node is hitting its 99% SLA, yet <strong>63.4% of parent queries breach the 200 ms budget</strong>! Now flip the algebra around: if the business demands that the parent query succeed within 200 ms at least 99% of the time under this iid barrier model, how fast must each individual child be? We need \((1 - p_D)^{100} = 0.99\), which means \(p_D = 1 - 0.99^{1/100} \approx 0.0001005\). Each child must hit 200 ms at the <strong>\(P_{99.99}\) level</strong> (more precisely, the 99.98995th percentile) just to buy the parent a humble \(P_{99}\)!</p>
                 
-                <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow child does not have to mean a 63.4% user-facing failure rate if you refuse to play passive barrier roulette. First, consider **bounded request hedging**—but *only* for safe, idempotent reads, and *only* when the secondary replica lives in an independent failure domain with spare capacity. Firing a hedged read when a child crosses its \(P_{95}\) can chop off stragglers, but unbudgeted hedging turns into a self-inflicted load multiplier during cluster stress; lock it behind a token bucket and cancel the losing flight the microsecond the winner arrives. Second, consider **partial-result semantics** where the product contract allows it: return the 99 partitions that answered on time alongside an explicit `is_partial: true` flag, rather than throwing away 99% of the work because Partition #47 sneezed. Never silently palm off partial data as a complete financial ledger.</p>
+                <p><strong>6. Architectural Decision:</strong> A 63.4% chance of a slow child does not have to mean a 63.4% user-facing failure rate if you refuse to play passive barrier roulette. First, consider <strong>bounded request hedging</strong>—but <em>only</em> for safe, idempotent reads, and <em>only</em> when the secondary replica lives in an independent failure domain with spare capacity. Firing a hedged read when a child crosses its \(P_{95}\) can chop off stragglers, but unbudgeted hedging turns into a self-inflicted load multiplier during cluster stress; lock it behind a token bucket and cancel the losing flight the microsecond the winner arrives. Second, consider <strong>partial-result semantics</strong> where the product contract allows it: return the 99 partitions that answered on time alongside an explicit <code>is_partial: true</code> flag, rather than throwing away 99% of the work because Partition #47 sneezed. Never silently palm off partial data as a complete financial ledger.</p>
                 
                 <p><strong>7. Production Verification:</strong> Instrument child spans and the parent barrier wait separately. Track parent deadline misses, per-child exceedances, hedge trigger rates, hedge win rates, cancelled in-flight work, partial-result responses, and downstream queue saturation by failure domain. A 2% hedge rate looks cheap on paper—until you discover all 2% fire simultaneously during a storage rack brownout.</p>
             </div>
 
             <h3>The independence caveat</h3>
 
-            <p>The clean formula \((1-p)^N\) assumes your 100 child calls fail like 100 independent casino dice. In production, those 100 calls traverse the same core switches, authenticate against the same token service, read from the same object-store prefix, or land on hosts undergoing the same background compaction wave. When slowdowns are positively correlated, child exceedances clump together: you might see fewer queries with *one* isolated straggler and more queries where *thirty* children stall in unison. Correlation can make the naive independent formula either overstate or understate specific joint outcomes—it is never an automatic "worst-case" or "best-case" bound. For non-identical independent children, compute \(\prod_i(1-p_i)\); when shared resources couple the children, measure the joint tail directly from production traces and fault-injection tests.</p>
+            <p>The clean formula \((1-p)^N\) assumes your 100 child calls fail like 100 independent casino dice. In production, those 100 calls traverse the same core switches, authenticate against the same token service, read from the same object-store prefix, or land on hosts undergoing the same background compaction wave. When slowdowns are positively correlated, child exceedances clump together: you might see fewer queries with <em>one</em> isolated straggler and more queries where <em>thirty</em> children stall in unison. Correlation can make the naive independent formula either overstate or understate specific joint outcomes—it is never an automatic "worst-case" or "best-case" bound. For non-identical independent children, compute \(\prod_i(1-p_i)\); when shared resources couple the children, measure the joint tail directly from production traces and fault-injection tests.</p>
 
-            <p>What if your aggregator doesn't need all \(N\) responses, and can return as soon as *any \(k\) of \(N\)* children reply (for instance, a quorum read or a hedged lookup)? Then the parent waits for the **\(k\)-th order statistic** \(Y_{(k)}\) instead of the maximum \(Y_{(N)}\). Under iid children with on-time probability \(F(D)\), the probability that at least \(k\) children beat the deadline \(D\) is the binomial tail sum \(\sum_{j=k}^{N}\binom{N}{j} F(D)^j [1-F(D)]^{N-j}\). Keep in mind that real quorum protocols also have to contend with state staleness, correlated zone latency, and background read-repair load.</p>
+            <p>What if your aggregator doesn't need all \(N\) responses, and can return as soon as <em>any \(k\) of \(N\)</em> children reply (for instance, a quorum read or a hedged lookup)? Then the parent waits for the <strong>\(k\)-th order statistic</strong> \(Y_{(k)}\) instead of the maximum \(Y_{(N)}\). Under iid children with on-time probability \(F(D)\), the probability that at least \(k\) children beat the deadline \(D\) is the binomial tail sum \(\sum_{j=k}^{N}\binom{N}{j} F(D)^j [1-F(D)]^{N-j}\). Keep in mind that real quorum protocols also have to contend with state staleness, correlated zone latency, and background read-repair load.</p>
 
             <div class="tldr-box tldr-box--warning">
                 <div class="tldr-eyebrow">The Fan-Out Tax</div>
                 <div class="tldr-content">
                     <p>When a parent request blocks on \(N = 100\) independent children, and each child has a \(p = 1\%\) chance of exceeding the 200 ms budget, the probability that every child behaves is \(0.99^{100} \approx 36.6\%\). The probability that at least one straggler blows the budget is:</p>
                     <p>\(P(\text{at least one child exceeds }D) = 1 - (1 - 0.01)^{100} \approx 63.4\%\).</p>
-                    <p>Under a strict all-results barrier with aligned deadlines, **your component \(P_{99}\) becomes your gateway \(P_{36.6}\)**. Fan-out is a tail-latency amplifier.</p>
+                    <p>Under a strict all-results barrier with aligned deadlines, <strong>your component \(P_{99}\) becomes your gateway \(P_{36.6}\)</strong>. Fan-out is a tail-latency amplifier.</p>
                 </div>
             </div>
 
@@ -358,7 +358,7 @@
             </div>
 
             <h3>Turn the fan-out model into runtime budgets</h3>
-            <p>Math diagnoses the exposure; runtime architecture stops the bleeding. Treat the parent request's deadline as a finite, non-renewable time budget shared across gateway parsing, network transit, child execution, and final serialization. Propagate the *remaining* budget downstream (`grpc-timeout` / context deadlines) rather than stamping every child hop with a brand-new 200 ms timer:</p>
+            <p>Math diagnoses the exposure; runtime architecture stops the bleeding. Treat the parent request's deadline as a finite, non-renewable time budget shared across gateway parsing, network transit, child execution, and final serialization. Propagate the <em>remaining</em> budget downstream (<code>grpc-timeout</code> / context deadlines) rather than stamping every child hop with a brand-new 200 ms timer:</p>
             <ul>
                 <li><strong>Dependency budgets and deadlines:</strong> carve out explicit per-stage time budgets from the parent deadline, reserving headroom for final merge and serialization. Overly tight child budgets trigger premature cancellations, while loose budgets let stragglers hold sockets hostage; monitor deadline-exceeded counters alongside remaining budget at arrival.</li>
                 <li><strong>Bounded hedging:</strong> fire a secondary hedged request only for idempotent reads after a high-percentile straggler delay (e.g., \(P_{95}\)) and only when a process-wide token bucket confirms spare capacity. Route the hedge to a distinct rack or zone, and send an explicit cancel to the slower leg the instant the first response lands.</li>
@@ -375,7 +375,7 @@
 
             <p>In systems-engineering blog posts, it has become a rite of passage to dunk on the Normal (Gaussian) distribution \(\mathcal{N}(\mu,\sigma^2)\) as a naive textbook fairy tale. That is lazy criticism. By the Central Limit Theorem, the Normal distribution is the exact right baseline whenever variation is the sum of many small, independent, roughly symmetric perturbations with finite variance—think crystal oscillator clock drift, thermal sensor noise, or instruction-level jitter on a pinned, isolated CPU core.</p>
 
-            <p>Where the Normal distribution falls flat on its face is as a blind model for *end-to-end request latency*. In a networked service, requests cannot finish faster than the speed of light and instruction execution (a hard lower bound), while on the upper end they get stretched by non-linear queueing hockey sticks (Part 3), bimodal cache misses (Part 1), lock convoys, and stop-the-world GC pauses. Use a Normal model when the physical mechanism is genuinely additive and symmetric—and use residual diagnostics to prove it.</p>
+            <p>Where the Normal distribution falls flat on its face is as a blind model for <em>end-to-end request latency</em>. In a networked service, requests cannot finish faster than the speed of light and instruction execution (a hard lower bound), while on the upper end they get stretched by non-linear queueing hockey sticks (Part 3), bimodal cache misses (Part 1), lock convoys, and stop-the-world GC pauses. Use a Normal model when the physical mechanism is genuinely additive and symmetric—and use residual diagnostics to prove it.</p>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">Why "latency can't be negative" is a weak objection</div>
@@ -384,7 +384,7 @@
                     <div class="equation-flow">
                         \[ P(T < 0) = \Phi(-6.67) \approx 1.3 \times 10^{-11} \]
                     </div>
-                    <p>Nobody's capacity plan has ever been ruined by a \(10^{-11}\) left-tail phantom. The *actual* reason a Gaussian fit betrays you in production is its **right tail**: the Gaussian density decays ultra-fast like \(\exp(-z^2/2)\), which makes it pathologically blind to queueing spikes, heavy tails, and bimodal fallback paths.</p>
+                    <p>Nobody's capacity plan has ever been ruined by a \(10^{-11}\) left-tail phantom. The <em>actual</em> reason a Gaussian fit betrays you in production is its <strong>right tail</strong>: the Gaussian density decays ultra-fast like \(\exp(-z^2/2)\), which makes it pathologically blind to queueing spikes, heavy tails, and bimodal fallback paths.</p>
                 </div>
             </div>
 
@@ -417,13 +417,13 @@
                 </tbody>
             </table>
 
-            <p>Look at how the numbers behave after Tuesday's deployment. The overall mean barely twitches (moving from 100 ms to ~103.5 ms). The \(P_{50}\) and \(P_{95}\) look completely boring. Even \(P_{99}\) is only off by 7 ms. Then, at \(P_{99.9}\), the residual detonates to **+653.6 ms**. That residual is your smoking gun: the service did not "get slightly higher variance." A second physical regime entered the chat—specifically, 0.5% of requests from legacy tenants are missing the in-memory validator and falling back to a synchronous, unindexed database query taking 800 ms.</p>
+            <p>Look at how the numbers behave after Tuesday's deployment. The overall mean barely twitches (moving from 100 ms to ~103.5 ms). The \(P_{50}\) and \(P_{95}\) look completely boring. Even \(P_{99}\) is only off by 7 ms. Then, at \(P_{99.9}\), the residual detonates to <strong>+653.6 ms</strong>. That residual is your smoking gun: the service did not "get slightly higher variance." A second physical regime entered the chat—specifically, 0.5% of requests from legacy tenants are missing the in-memory validator and falling back to a synchronous, unindexed database query taking 800 ms.</p>
 
             <h3>Production controls</h3>
 
             <ul>
                 <li><strong>Never pre-average histograms on the host:</strong> emit mergeable sketch structures (DDSketch, HDRHistogram, or Prometheus native histograms) so you can compute true cluster-wide tail quantiles and residuals without averaging percentages—a crime against mathematics.</li>
-                <li><strong>Stratify telemetry by execution branch:</strong> tag spans with `cache_hit`, `fallback_path`, `tenant_tier`, and `build_id` so a 0.5% slow path shows up as its own distribution rather than a mysterious tail residual.</li>
+                <li><strong>Stratify telemetry by execution branch:</strong> tag spans with <code>cache_hit</code>, <code>fallback_path</code>, <code>tenant_tier</code>, and <code>build_id</code> so a 0.5% slow path shows up as its own distribution rather than a mysterious tail residual.</li>
                 <li><strong>Alert on quantile divergence, not just the mean:</strong> when \(P_{99.9} / P_{50}\) suddenly balloons while \(P_{50}\) stays flat, you are looking at a mixture shift or tail contention, not a uniform CPU slowdown.</li>
             </ul>
 
@@ -461,8 +461,8 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The intuition: “I ran the load test 10 times and latency is 50 ms!”</div>
                 <div class="tldr-content">
-                    <p>An engineer spins up a staging cluster, runs 10 benchmark trials, gets a sample average of 50 ms, and posts in Slack that the new release meets the 55 ms performance target. How much money should you bet that the *true* underlying mean is actually below 55 ms? With \(n = 10\) noisy runs, the honest answer is: keep your wallet in your pocket. **Student's t-distribution** is how we price the epistemic uncertainty of a sample mean when both the true mean and true variance have to be estimated from a small sample.</p>
-                    <p><strong>Do not confuse the two distributions:</strong> A confidence interval on the mean bounds where the *average* of the population sits. It tells you **absolutely nothing** about where the \( P_{99} \) of individual user requests lands!</p>
+                    <p>An engineer spins up a staging cluster, runs 10 benchmark trials, gets a sample average of 50 ms, and posts in Slack that the new release meets the 55 ms performance target. How much money should you bet that the <em>true</em> underlying mean is actually below 55 ms? With \(n = 10\) noisy runs, the honest answer is: keep your wallet in your pocket. <strong>Student's t-distribution</strong> is how we price the epistemic uncertainty of a sample mean when both the true mean and true variance have to be estimated from a small sample.</p>
+                    <p><strong>Do not confuse the two distributions:</strong> A confidence interval on the mean bounds where the <em>average</em> of the population sits. It tells you <strong>absolutely nothing</strong> about where the \( P_{99} \) of individual user requests lands!</p>
                 </div>
             </div>
 
@@ -480,7 +480,7 @@
                 </ul>
                 <p><strong>Worked example:</strong> You run \(n = 10\) independent benchmark trials and measure \(\bar{x} = 50\text{ ms}\) with sample standard deviation \(s = 20\text{ ms}\). At \(n - 1 = 9\) degrees of freedom, the two-sided 95% critical value is \(t_{0.975, 9} \approx 2.262\) (notice how much wider that is than the Normal \(1.96\) multiplier):</p>
                 <p style="font-family:'IBM Plex Mono',monospace">\(50 \pm 2.262 \times \frac{20}{\sqrt{10}} \approx 50 \pm 14.3 \approx [35.7, \, 64.3]\) ms</p>
-                <p>Your "50 ms average" has a 95% confidence interval spanning nearly **30 milliseconds** (\([35.7, 64.3]\text{ ms}\))! Declaring victory on a 2 ms diff after 10 noisy benchmark runs is statistical comedy. And remember: \([35.7, 64.3]\text{ ms}\) bounds the *population mean* \(\mu\); individual requests still scatter much wider, and if your benchmark trials are serially correlated (e.g., warming caches or filling disks across runs), your effective sample size is even smaller than \(n=10\)—use a block or cluster bootstrap instead.</p>
+                <p>Your "50 ms average" has a 95% confidence interval spanning nearly <strong>30 milliseconds</strong> (\([35.7, 64.3]\text{ ms}\))! Declaring victory on a 2 ms diff after 10 noisy benchmark runs is statistical comedy. And remember: \([35.7, 64.3]\text{ ms}\) bounds the <em>population mean</em> \(\mu\); individual requests still scatter much wider, and if your benchmark trials are serially correlated (e.g., warming caches or filling disks across runs), your effective sample size is even smaller than \(n=10\)—use a block or cluster bootstrap instead.</p>
             </div>
 
             <h3>Interactive simulation</h3>
@@ -510,8 +510,8 @@
 
             <div class="scenario-card">
                 <div class="scenario-title">Case study: "The Canary Had Zero Errors, Ship It!" <span class="scenario-tag">The Rule of Three</span></div>
-                <p>A team deploys a canary pod, routes \(n = 100\) live requests through it, sees **0 errors**, and immediately promotes the build to 100% of production. Five minutes later, production is throwing a 1% `HTTP 500` rate. How did a broken build pass a zero-error canary?</p>
-                <p>Because **zero observed errors in a tiny sample is not proof of zero risk**. Under an independent Bernoulli trial model with true error rate \(p\), the probability of seeing zero errors in \(n\) requests is \((1 - p)^n\). To find the one-sided 95% upper confidence bound on \(p\) when 0 errors are observed, set \((1 - p_{\text{upper}})^n = 0.05\), which gives the exact bound \(p_{\text{upper}} = 1 - 0.05^{1/n}\). Since \(-\ln(0.05) \approx 2.9957 \approx 3\), statisticians call the fast mental shortcut the **Rule of Three**: \(p_{\text{upper}} \approx 3/n\). For \(n = 100\) error-free requests, the exact 95% upper bound is **2.95%** (\(\approx 3/100 = 3\%\)).</p>
+                <p>A team deploys a canary pod, routes \(n = 100\) live requests through it, sees <strong>0 errors</strong>, and immediately promotes the build to 100% of production. Five minutes later, production is throwing a 1% <code>HTTP 500</code> rate. How did a broken build pass a zero-error canary?</p>
+                <p>Because <strong>zero observed errors in a tiny sample is not proof of zero risk</strong>. Under an independent Bernoulli trial model with true error rate \(p\), the probability of seeing zero errors in \(n\) requests is \((1 - p)^n\). To find the one-sided 95% upper confidence bound on \(p\) when 0 errors are observed, set \((1 - p_{\text{upper}})^n = 0.05\), which gives the exact bound \(p_{\text{upper}} = 1 - 0.05^{1/n}\). Since \(-\ln(0.05) \approx 2.9957 \approx 3\), statisticians call the fast mental shortcut the <strong>Rule of Three</strong>: \(p_{\text{upper}} \approx 3/n\). For \(n = 100\) error-free requests, the exact 95% upper bound is <strong>2.95%</strong> (\(\approx 3/100 = 3\%\)).</p>
                 <p>Look at it from the other direction: if the canary build is genuinely broken with a \(p = 1\%\) error rate, the chance that 100 random requests sail through with zero errors is \(0.99^{100} \approx \mathbf{36.6\%}\)! Your 100-request canary is blind to a 1% outage more than a third of the time. (And remember: the \(3/n\) rule assumes independent requests with a constant error probability; if errors arrive in correlated bursts or only affect a specific tenant tier that wasn't sampled, your blind spot is even larger.)</p>
                 <p><strong>Controls:</strong> Size your canary traffic \(n \ge 3 / p_{\text{target}}\) for the smallest regression you care about (e.g., at least \(3 / 0.001 = 3{,}000\) independent requests per critical path to bound a 0.1% error rate), stratify by tenant and endpoint, and use sequential testing gates that account for continuous peeking.</p>
                 <div class="scenario-ref">Further reading: <a href="https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69" target="_blank" rel="noopener noreferrer">Netflix TechBlog, “Automated Canary Analysis at Netflix with Kayenta”</a></div>
@@ -522,8 +522,8 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The intuition: fast median, long right tail</div>
                 <div class="tldr-content">
-                    <p>Plot a single execution path's latency histogram in production and you will rarely see a symmetric bell curve; you will see a sharp peak of fast completions on the left and a long, stubborn right tail stretching out to the right. The **Log-Normal distribution** is one classic parametric candidate for strictly positive, right-skewed data where the logarithm of the variable behaves Normally.</p>
-                    <p><strong>Keep the physics straight:</strong> You will sometimes hear engineers claim that microservice chains are Log-Normal "because sequential stages multiply." **No—sequential stage durations add** (\(T = T_1 + T_2 + \dots + T_k\), which gives an Erlang sum when stages are iid exponential). A Log-Normal shape arises when *multiplicative factors* compound on a rate or duration (by the multiplicative Central Limit Theorem, a product of positive independent factors \(\prod_j W_j\) has a sum of logs \(\sum_j \ln W_j\)), or simply as a convenient empirical fit to a skewed unimodal process. Never confuse stage addition with multiplicative compounding.</p>
+                    <p>Plot a single execution path's latency histogram in production and you will rarely see a symmetric bell curve; you will see a sharp peak of fast completions on the left and a long, stubborn right tail stretching out to the right. The <strong>Log-Normal distribution</strong> is one classic parametric candidate for strictly positive, right-skewed data where the logarithm of the variable behaves Normally.</p>
+                    <p><strong>Keep the physics straight:</strong> You will sometimes hear engineers claim that microservice chains are Log-Normal "because sequential stages multiply." <strong>No—sequential stage durations add</strong> (\(T = T_1 + T_2 + \dots + T_k\), which gives an Erlang sum when stages are iid exponential). A Log-Normal shape arises when <em>multiplicative factors</em> compound on a rate or duration (by the multiplicative Central Limit Theorem, a product of positive independent factors \(\prod_j W_j\) has a sum of logs \(\sum_j \ln W_j\)), or simply as a convenient empirical fit to a skewed unimodal process. Never confuse stage addition with multiplicative compounding.</p>
                 </div>
             </div>
 
@@ -534,7 +534,7 @@
             </div>
             <div class="math-explanation">
                 <ul>
-                    <li><strong>\(\mu\) (Log-location):</strong> The mean of \(\ln X\) in log-space—**not** the millisecond mean of \(X\)!</li>
+                    <li><strong>\(\mu\) (Log-location):</strong> The mean of \(\ln X\) in log-space—<strong>not</strong> the millisecond mean of \(X\)!</li>
                     <li><strong>\(\sigma\) (Log-scale / shape):</strong> The standard deviation of \(\ln X\) in log-space. This parameter controls the skewness and tail heaviness.</li>
                     <li><strong>Median (\(P_{50}\)):</strong> \(e^\mu\) (because the median of \(\ln X\) is \(\mu\)).</li>
                     <li><strong>Arithmetic Mean (\(\mathbb{E}[X]\)):</strong> \(e^{\mu + \sigma^2/2}\). Notice that the mean is always pulled above the median by the factor \(e^{\sigma^2/2}\)!</li>
@@ -591,7 +591,7 @@
                     <div class="equation-flow">
                         \[ \mathbb{E}[T] = 0.99 \times 10 + 0.01 \times 250 = 12.4 \text{ ms} \]
                     </div>
-                    <p>An aggregate dashboard reports a sleepy 12.4 ms average, hiding the fact that 1 in 100 requests is taking **25× longer**. In this simplified two-point model, \( P_{99} \) sits right on the cliff edge (10 ms or 250 ms depending on quantile rounding), while \( P_{99.9} \) is 250 ms. Do not curve-fit the blend—split the metric by `source=redis` vs. `source=cosmos` and model the mixture weight \(w(t)\) explicitly.</p>
+                    <p>An aggregate dashboard reports a sleepy 12.4 ms average, hiding the fact that 1 in 100 requests is taking <strong>25× longer</strong>. In this simplified two-point model, \( P_{99} \) sits right on the cliff edge (10 ms or 250 ms depending on quantile rounding), while \( P_{99.9} \) is 250 ms. Do not curve-fit the blend—split the metric by <code>source=redis</code> vs. <code>source=cosmos</code> and model the mixture weight \(w(t)\) explicitly.</p>
                 </div>
             </div>
 
@@ -601,30 +601,30 @@
 
             <h2>7. Extreme Value Theory: peering into the far tail without fooling yourself</h2>
 
-            <p>What happens when a financial regulator or a hyperscale SLA asks you to reason about \(P_{99.99}\) or \(P_{99.999}\), where your sample only has a handful of observations—or where a naive histogram runs out of data? **Extreme Value Theory (EVT)** is the branch of probability that studies the asymptotic behavior of extreme tails. Notice the word *asymptotic*: EVT provides principled mathematical structure for the tail above a high threshold, but **it cannot manufacture empirical certainty out of thin air**.</p>
+            <p>What happens when a financial regulator or a hyperscale SLA asks you to reason about \(P_{99.99}\) or \(P_{99.999}\), where your sample only has a handful of observations—or where a naive histogram runs out of data? <strong>Extreme Value Theory (EVT)</strong> is the branch of probability that studies the asymptotic behavior of extreme tails. Notice the word <em>asymptotic</em>: EVT provides principled mathematical structure for the tail above a high threshold, but <strong>it cannot manufacture empirical certainty out of thin air</strong>.</p>
 
-            <p>In the **Peaks Over Threshold (POT)** framework, we pick a high latency threshold \(u\) and inspect only the *excesses* above that threshold: \(Y = T - u \mid T > u\). By the Pickands–Balkema–de Haan theorem, under suitable regularity conditions and as \(u\) approaches the upper endpoint of the distribution, the conditional excess distribution converges to the **Generalized Pareto Distribution (GPD)**:</p>
+            <p>In the <strong>Peaks Over Threshold (POT)</strong> framework, we pick a high latency threshold \(u\) and inspect only the <em>excesses</em> above that threshold: \(Y = T - u \mid T > u\). By the Pickands–Balkema–de Haan theorem, under suitable regularity conditions and as \(u\) approaches the upper endpoint of the distribution, the conditional excess distribution converges to the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
 
             <div class="equation-flow">
                 \[ G_{\xi,\beta}(y)=1-\left(1+\xi\frac{y}{\beta}\right)^{-1/\xi},\quad y\ge0,\quad 1+\xi y/\beta>0,\quad \xi\ne0 \]
                 \[ G_{0,\beta}(y)=1-e^{-y/\beta},\quad y\ge0. \]
             </div>
 
-            <p>Here \(\beta > 0\) is the GPD scale parameter, and \(\xi\) (xi) is the **shape parameter** (or tail index), which sorts the universe of tail behavior into three **Maximum Domains of Attraction (MDA)**:</p>
+            <p>Here \(\beta > 0\) is the GPD scale parameter, and \(\xi\) (xi) is the <strong>shape parameter</strong> (or tail index), which sorts the universe of tail behavior into three <strong>Maximum Domains of Attraction (MDA)</strong>:</p>
             <div class="math-explanation">
                 <ul>
-                    <li><strong>Weibull / Bounded-tail domain (\(\xi < 0\)):</strong> The tail has a hard, finite upper ceiling at \(y_{\max} = u - \beta/\xi\). *Warning:* Do not blindly conclude your system has \(\xi < 0\) just because your metrics stop at 5,000 ms! An application `5000ms` timeout **right-censors** the observation; it does not mean the underlying database query finished or hit a physical law of nature.</li>
+                    <li><strong>Weibull / Bounded-tail domain (\(\xi < 0\)):</strong> The tail has a hard, finite upper ceiling at \(y_{\max} = u - \beta/\xi\). <em>Warning:</em> Do not blindly conclude your system has \(\xi < 0\) just because your metrics stop at 5,000 ms! An application <code>5000ms</code> timeout <strong>right-censors</strong> the observation; it does not mean the underlying database query finished or hit a physical law of nature.</li>
                     <li><strong>Gumbel / Light-tail domain (\(\xi = 0\)):</strong> The excess tail decays exponentially like \(e^{-y/\beta}\). Exponential, Normal, Gamma, and Log-Normal distributions all belong to the Gumbel maximum domain of attraction asymptotically (though at finite thresholds, a Log-Normal sample often looks like a positive-\(\xi\) fit).</li>
                     <li><strong>Fréchet / Heavy-tail domain (\(\xi > 0\)):</strong> The tail decays as a power law (\(y^{-1/\xi}\)), as seen in Pareto and Cauchy distributions. When \(\xi \ge 0.5\), the variance of the tail is infinite; when \(\xi \ge 1\), even the mean is infinite! Variable payload sizes, unindexed scans, and heavy-tailed file transfers can push latencies into this regime—though queueing delay alone is not automatically Fréchet unless the arrival or service inputs drive it there.</li>
                 </ul>
             </div>
 
-            <p>Let \(q_u = P(T > u)\) be the empirical fraction of requests that exceed threshold \(u\), and let \(p\) be the high target percentile you want to estimate (with \(p > 1 - q_u\)). Inverting the tail identity \(1 - p = q_u [1 - G_{\xi,\beta}(Q_p - u)]\) yields the **POT quantile estimator**:</p>
+            <p>Let \(q_u = P(T > u)\) be the empirical fraction of requests that exceed threshold \(u\), and let \(p\) be the high target percentile you want to estimate (with \(p > 1 - q_u\)). Inverting the tail identity \(1 - p = q_u [1 - G_{\xi,\beta}(Q_p - u)]\) yields the <strong>POT quantile estimator</strong>:</p>
             <div class="equation-flow">
                 \[ Q_p=u+\frac{\beta}{\xi}\left[\left(\frac{q_u}{1-p}\right)^\xi-1\right],\quad \xi\ne0 \]
                 \[ Q_p=u+\beta\ln\left(\frac{q_u}{1-p}\right),\quad \xi=0. \]
             </div>
-            <p>Look closely at the ratio \(\frac{q_u}{1 - p}\): it measures how far into the tail you are extrapolating beyond your threshold \(u\). When \(\xi > 0\), that ratio is raised to the power \(\xi\); even a tiny estimation error in \(\hat{\xi}\) gets amplified exponentially as \(p \to 1\). Remember that \(Q_p\) is a **model-based point estimate**, never an automatic SLA guarantee.</p>
+            <p>Look closely at the ratio \(\frac{q_u}{1 - p}\): it measures how far into the tail you are extrapolating beyond your threshold \(u\). When \(\xi > 0\), that ratio is raised to the power \(\xi\); even a tiny estimation error in \(\hat{\xi}\) gets amplified exponentially as \(p \to 1\). Remember that \(Q_p\) is a <strong>model-based point estimate</strong>, never an automatic SLA guarantee.</p>
 
             <p>To use EVT in production without fooling yourself, enforce four guardrails:</p>
             <ol>
@@ -639,7 +639,7 @@
 
             <div class="scenario-card workbench-card" id="mixture-workbench">
                 <div class="scenario-title">1. Normal vs. slow-path mixture <span class="scenario-tag">Latency diagnostics</span></div>
-                <p>Generate a reproducible synthetic sample from a two-component, positive-truncated Normal mixture (fast path + slow fallback path). The canvas overlays the true **Empirical CDF** (blue) against a single **Fitted Normal CDF** (dashed orange) computed from the blended sample mean and standard deviation. Watch how the unimodal Normal curve completely misses the knee of the distribution and underpredicts the \(P_{99.9}\) residual.</p>
+                <p>Generate a reproducible synthetic sample from a two-component, positive-truncated Normal mixture (fast path + slow fallback path). The canvas overlays the true <strong>Empirical CDF</strong> (blue) against a single <strong>Fitted Normal CDF</strong> (dashed orange) computed from the blended sample mean and standard deviation. Watch how the unimodal Normal curve completely misses the knee of the distribution and underpredicts the \(P_{99.9}\) residual.</p>
                 <div class="wb-grid">
                     <div class="param-group"><label for="mix-fast-mean">Fast-path Normal location (ms): <strong id="mix-fast-mean-v">10</strong></label><input id="mix-fast-mean" type="range" min="5" max="50" step="1" value="10"></div>
                     <div class="param-group"><label for="mix-fast-sd">Fast-path SD (ms): <strong id="mix-fast-sd-v">2</strong></label><input id="mix-fast-sd" type="range" min="0.5" max="15" step="0.5" value="2"></div>
@@ -663,12 +663,12 @@
                     <div class="param-group"><label for="bench-sd">Sample SD (ms): <strong id="bench-sd-v">20</strong></label><input id="bench-sd" type="range" min="1" max="60" step="1" value="20"></div>
                 </div>
                 <div class="wb-stats" id="canary-stats" aria-live="polite"></div>
-                <p class="math-explanation">The zero-error bound assumes independent Bernoulli trials with stationary error probability. The \(t\)-interval bounds the *population mean* under independent trials (never individual request percentiles). If trials are correlated or stratified across tenants, effective sample size is smaller.</p>
+                <p class="math-explanation">The zero-error bound assumes independent Bernoulli trials with stationary error probability. The \(t\)-interval bounds the <em>population mean</em> under independent trials (never individual request percentiles). If trials are correlated or stratified across tenants, effective sample size is smaller.</p>
             </div>
 
             <div class="scenario-card workbench-card" id="evt-workbench">
                 <div class="scenario-title">3. EVT / GPD tail explorer <span class="scenario-tag">Extrapolation warning</span></div>
-                <p>Explore how the Generalized Pareto POT formula estimates a high quantile \(Q_p\) above threshold \(u\). Slide the shape parameter \(\xi\) from negative (bounded) through zero (exponential) to positive (heavy-tailed power law), and watch how the point estimate and the **tail extrapolation ratio** respond.</p>
+                <p>Explore how the Generalized Pareto POT formula estimates a high quantile \(Q_p\) above threshold \(u\). Slide the shape parameter \(\xi\) from negative (bounded) through zero (exponential) to positive (heavy-tailed power law), and watch how the point estimate and the <strong>tail extrapolation ratio</strong> respond.</p>
                 <div class="wb-grid">
                     <div class="param-group"><label for="evt-u">Threshold u (ms): <strong id="evt-u-v">500</strong></label><input id="evt-u" type="range" min="100" max="2000" step="50" value="500"></div>
                     <div class="param-group"><label for="evt-rate">Exceedance rate: <strong id="evt-rate-v">0.1%</strong></label><input id="evt-rate" type="range" min="0.01" max="5" step="0.01" value="0.1"></div>
