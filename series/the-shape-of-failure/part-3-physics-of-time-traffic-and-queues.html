@@ -16,7 +16,7 @@
     <!-- Primary SEO & AIO Meta Tags -->
     <title>Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana</title>
     <meta name="title" content="Part 3: The Physics of Time, Traffic, and Queues | The Shape of Failure | Saurav Sana">
-    <meta name="description" content="Poisson arrivals, exponential service times, Erlang pipelines, finite queues, Little’s Law, and Kingman’s approximation—with explicit assumptions, case studies, and production controls.">
+    <meta name="description" content="Poisson arrivals, rate-limiter burst sizing (Token Bucket M/D/1/B duality), exponential service times, Erlang pipelines, finite queues, Little’s Law, and Kingman’s approximation.">
     <meta name="author" content="Saurav Sana">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-3-physics-of-time-traffic-and-queues.html">
@@ -48,7 +48,7 @@
 
     <style>
         /* =======================================================================
-           EDITORIAL CLEAN TYPOGRAPHY & LAYOUT (NO BACKGROUND CARDS)
+           EDITORIAL CLEAN TYPOGRAPHY & LAYOUT (ALIGNED WITH SERIES PART 1 & 2)
            ======================================================================= */
 
         .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
@@ -56,43 +56,56 @@
 
         h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.65rem; margin-top: 4rem; margin-bottom: 1.25rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--line-soft); color: var(--text); letter-spacing: -0.01em; }
         h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2.25rem; margin-bottom: 0.85rem; }
+        h4 { font-family: 'Libre Franklin', sans-serif; font-size: 1.05rem; color: var(--text); margin-top: 1.75rem; margin-bottom: 0.6rem; font-weight: 600; }
         p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.75; color: var(--text); }
         p { margin-bottom: 1.4rem; }
+        ul, ol { margin: 0.75rem 0 1.5rem 0; padding-left: 1.4rem; }
+        li { margin-bottom: 0.45rem; }
         code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
 
         /* --- Editorial Quote Styling --- */
-        .snarky-quote { border-left: 2px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.5rem; margin: 3rem 0; background: transparent; }
+        .snarky-quote { border-left: 2px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.5rem; margin: 2.5rem 0; background: transparent; }
         .snarky-quote-text { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.2rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
         .snarky-quote-author { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; color: var(--muted); margin: 0; letter-spacing: 0.02em; }
         .snarky-quote-author strong { font-weight: 600; color: var(--text); font-style: normal; }
 
         .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
-        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; letter-spacing: -0.02em; }
+        .series-heading-row h1 { margin: 0; font-size: 2.15rem; font-family: 'Libre Franklin', sans-serif; letter-spacing: -0.02em; line-height: 1.2; }
 
         /* --- Clean Editorial Callouts (Transparent / No Background Cards) --- */
         .editorial-callout { border-left: 2px solid var(--teal, #4fb8a6); padding: 0.5rem 0 0.5rem 1.5rem; margin: 2rem 0; background: transparent; }
         .editorial-callout--warning { border-left-color: var(--bad, #d97757); }
-        .editorial-callout--math { border-left-color: var(--amber); }
+        .editorial-callout--math { border-left-color: var(--amber, #D4A72C); }
         
         .callout-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.75rem; font-weight: 600; }
-        .editorial-callout--warning .callout-eyebrow { color: var(--bad); }
-        .editorial-callout--math .callout-eyebrow { color: var(--amber); }
+        .editorial-callout--warning .callout-eyebrow { color: var(--bad, #d97757); }
+        .editorial-callout--math .callout-eyebrow { color: var(--amber, #D4A72C); }
         
         .callout-content p { margin: 0 0 0.85rem 0; color: var(--text); font-size: 1.02rem; }
         .callout-content p:last-child { margin-bottom: 0; }
         .callout-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
-        .callout-content li { margin-bottom: 0.35rem; }
+        .callout-content li { margin-bottom: 0.35rem; font-size: 1rem; }
 
         /* --- Math Equation Styling (KaTeX Integration) --- */
-        .math-display { margin: 1.75rem 0; text-align: center; overflow-x: auto; padding: 0.5rem 0; font-size: 1.15em; color: var(--text); background: transparent; border: none; }
+        .math-display { margin: 1.75rem 0; text-align: center; overflow-x: auto; padding: 0.5rem 0; font-size: 1.12em; color: var(--text); background: transparent; border: none; }
         
         .math-explanation { font-size: 0.98rem; color: var(--muted); margin: 1.25rem 0; padding-left: 1.25rem; border-left: 1px solid var(--line); }
         .math-explanation strong { color: var(--text); }
         .math-explanation ul { margin: 0.5rem 0 0.75rem 0; padding-left: 1.25rem; }
         .math-explanation li { margin-bottom: 0.35rem; font-size: 0.95rem; }
 
+        /* --- Editorial Data Tables (Matches Part 2 Minimalist Style) --- */
+        .table-wrap { overflow-x: auto; margin: 1.75rem 0; }
+        .editorial-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.92rem; color: var(--text); }
+        .editorial-table th { font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: left; padding: 0.65rem 0.85rem; border-bottom: 2px solid var(--line); background: transparent; white-space: nowrap; }
+        .editorial-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--line-soft); line-height: 1.5; vertical-align: top; }
+        .editorial-table tr:last-child td { border-bottom: 1px solid var(--line); }
+        .editorial-table td strong { color: var(--teal); font-weight: 600; }
+        .editorial-table td.warn { color: var(--bad); font-weight: 600; }
+        .editorial-table td.good { color: var(--teal); font-weight: 600; }
+
         /* --- Worked Scenarios (Clean Editorial Format) --- */
-        .worked-section { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 1.5rem 0; margin: 2rem 0; }
+        .worked-section { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 1.5rem 0; margin: 2.25rem 0; }
         .worked-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--teal); font-weight: 600; margin-bottom: 0.85rem; }
         .worked-section p { font-size: 1rem; margin-bottom: 0.85rem; }
         .worked-section p:last-child { margin-bottom: 0; }
@@ -112,7 +125,7 @@
         
         .sim-params { 
             display: flex; 
-            gap: 1.25rem; 
+            gap: 1.15rem; 
             align-items: center; 
             flex-wrap: wrap; 
             background: var(--panel-2); 
@@ -124,24 +137,24 @@
         .param-group { 
             display: flex; 
             align-items: center; 
-            gap: 0.75rem;
+            gap: 0.6rem;
             font-family: 'IBM Plex Mono', monospace; 
-            font-size: 0.76rem; 
+            font-size: 0.75rem; 
             color: var(--muted); 
             white-space: nowrap;
         }
         
         .param-group input[type=range] { 
-            width: 85px; 
+            width: 80px; 
             accent-color: var(--teal); 
             height: 4px; 
             cursor: pointer;
         }
         
-        .param-group span { 
+        .param-group span.val { 
             font-weight: 600; 
             color: var(--text); 
-            min-width: 24px;
+            min-width: 28px;
             text-align: right;
         }
         
@@ -173,14 +186,14 @@
         button.sim-btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
         
         canvas { width: 100%; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 4px; display: block; }
-        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; background: var(--panel-2); padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .readout { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; background: var(--panel-2); padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid var(--line); flex-wrap: wrap; }
         .readout span { color: var(--amber); font-weight: 600; }
 
         /* --- Scenario Cards --- */
         .scenario-card { border-left: 2px solid var(--line); padding-left: 1.25rem; margin: 1.75rem 0; }
-        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.75rem; }
+        .scenario-title { font-family: 'Libre Franklin', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
         .scenario-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--teal); border: 1px solid var(--teal); padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .scenario-card p { font-size: 0.95rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.6; }
+        .scenario-card p { font-size: 0.95rem; color: var(--muted); margin: 0 0 0.5rem 0; line-height: 1.65; }
         .scenario-card p strong { color: var(--text); }
         .scenario-ref { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted-2); margin-top: 0.4rem; }
         .scenario-ref a { color: var(--teal); text-decoration: none; }
@@ -202,7 +215,7 @@
             .sim-toolbar { flex-direction: column; align-items: stretch; gap: 0.75rem; }
             .sim-params { flex-direction: column; align-items: stretch; width: 100%; gap: 0.5rem; }
             .param-group { justify-content: space-between; }
-            .param-group input[type=range] { width: 140px; }
+            .param-group input[type=range] { width: 130px; }
             .controls { justify-content: flex-start; }
         }
     </style>
@@ -246,7 +259,7 @@
             </div>
 
             <div class="series-heading-row">
-                <h1>The Physics of Time, Traffic, and Queues</h1>
+                <h1>Part 3: The Physics of Time, Traffic, and Queues</h1>
             </div>
             <div class="post-meta" style="margin-bottom: 1.5rem;">October 24, 2026 · Part 3 of 8</div>
 
@@ -255,11 +268,11 @@
                 <p class="snarky-quote-author">— <strong>Architecture field note</strong>, usually written right after a FinOps cost-cutting sprint turns into a Sev-1 incident.</p>
             </blockquote>
 
-            <p>There is a ritual sacrifice performed every quarter in cloud cost reviews. Someone pulls up a dashboard showing an event-streaming cluster humming along at 70% average CPU utilization, declares the remaining 30% "wasted shareholder value," and trims the worker fleet. A week later, average utilization sits near 90%, nobody has deployed a single line of new code, and the regulatory reporting pipeline is missing its SLA by twenty minutes. Every node is healthy. Nothing has crashed. Yet the service is effectively broken. (Those percentages are illustrative, not universal laws of nature; a top-level CPU gauge says nothing by itself about per-partition saturation, service-time variance, queue age, or the headroom required to drain a backlog.)</p>
+            <p>There is a ritual sacrifice performed every quarter in cloud cost reviews. Someone pulls up a Grafana dashboard showing an event-streaming cluster humming along at 70% average CPU utilization, declares the remaining 30% "wasted shareholder value," and trims the worker fleet. A week later, average utilization sits near 90%, nobody has deployed a single line of new code, and the regulatory reporting pipeline is missing its SLA by twenty minutes. Every node is healthy. Nothing has crashed. Yet the service is effectively broken.</p>
 
-            <p>The culprit is the physics of queueing. Requests do not march into your NIC on a metronome, and queries do not take identical microseconds to complete. When a processing lane operates close to its service ceiling, random bursts of arrivals and heavy queries eat up the tiny slivers of idle time the server needs to catch up. Waiting time then climbs along a steep hockey stick even while average throughput still matches average demand. How violently that curve bends depends on arrival burstiness, service-time variability, scheduling discipline, buffer bounds, and how fast new capacity can actually join the fight.</p>
+            <p>In <a href="part-1-illusion-of-determinism.html" style="color:var(--teal);">Part 1</a> we saw how tail latencies mock average gauges, and in <a href="part-2-mathematics-of-reliability-and-retries.html" style="color:var(--teal);">Part 2</a> we saw how correlated failures and unbudgeted retries shred redundancy math. Here in Part 3, we confront the third horseman of distributed systems: <strong>the physics of time, traffic clumping, and queues</strong>. Requests do not march into your NIC on a robotic metronome, and queries do not take identical microseconds to complete. When a processing lane operates close to its service ceiling, random bursts of arrivals and heavy queries devour the tiny slivers of idle time the server needs to catch up.</p>
 
-            <p>This chapter moves step-by-step from discrete arrival counts (Poisson) to continuous inter-arrival and service times (Exponential), sequential pipeline stages (Erlang), finite buffers (\(M/M/1/K\)), Little’s Law, and finally Kingman’s heavy-traffic approximation for a single-server \(GI/G/1\) queue. Each equation models a specific physical mechanism. Use them where their assumptions hold—and know how to spot when production is lying to the formula.</p>
+            <p>This chapter moves step-by-step from discrete arrival counts (Poisson) to rate-limiter engineering (how to actually size `rate` and `burst` without strangling legitimate traffic), finite buffers (\(M/M/1/K\)), continuous service times (Exponential), sequential microservice pipelines (Erlang), Little’s Law, and finally Kingman’s heavy-traffic approximation. Each equation models a concrete physical mechanism. Use them where their assumptions hold—and know how to spot when production is lying to the formula.</p>
 
             <!-- ========================================== -->
             <!-- 1. POISSON DISTRIBUTION -->
@@ -267,37 +280,35 @@
             <h2>1. The Poisson Distribution (Arrivals)</h2>
 
             <div class="editorial-callout">
-                <div class="callout-eyebrow">The Intuition: The Unscheduled Bus Stop</div>
+                <div class="callout-eyebrow">The Intuition: Coin Flips Pushed to Continuous Time</div>
                 <div class="callout-content">
                     <p>Imagine standing at a bus stop where buses arrive at an average rate of 4 per hour, completely independently of one another. You will not see a polite bus every 15 minutes on the dot. You will stand in the rain for 42 minutes wondering if society has collapsed, and then three buses will show up bumper-to-bumper because independent random events naturally clump.</p>
-                    <p>In distributed systems, the <strong>Poisson distribution</strong> is the classic baseline for counting arrivals in a fixed window when events fire independently at a roughly stable average rate. It is a baseline, not a law of the cosmos: cron-aligned batch jobs, synchronized client retries, and load-shedding feedback loops will happily shred the independence assumption. Use telemetry to test whether your traffic is actually Poisson at the timescale that matters.</p>
+                    <p>Where does the Poisson formula actually come from? Take a 1-second window expecting \(\lambda\) requests on average, and slice it into \(n = 1{,}000\) millisecond coin flips (Bernoulli trials), each with success probability \(p = \lambda / n\). A Binomial model counts how many slots see an arrival, but it breaks if two requests collide in the same millisecond. Push the number of slices to infinity (\(n \to \infty\)) while shrinking each slice's probability (\(p \to 0\)) such that \(np = \lambda\) stays constant, and the Binomial distribution converges to the <strong>Poisson distribution</strong>.</p>
                 </div>
             </div>
 
-            <p>Let \(\lambda\) be the arrival rate, measured in arrivals per unit time (for example, queries/second), and let \(t\) be the observation-window duration in that exact same time unit. The homogeneous Poisson counting process is \(N(t) \sim \operatorname{Poisson}(\lambda t)\). Keep the units straight: \(\lambda\) is a rate, while the product \(\lambda t\) is a dimensionless count—the expected number of arrivals inside the window of length \(t\). Whenever counts follow a homogeneous Poisson process, the time gaps between consecutive arrivals are independent exponential random variables with rate \(\lambda\) and mean \(1/\lambda\).</p>
-            <p>The math rests on three strict pillars: independent increments (what happened in the last millisecond does not influence the next), a stationary rate \(\lambda\) over the window being analysed, and events arriving one at a time (probability zero of two truly simultaneous arrivals at the same instant). Those assumptions evaporate the moment 10,000 enterprise clients fire a `00:00:00` cron job or retry a failed RPC in lockstep.</p>
-            <p>Under those assumptions, the probability of observing exactly \(k\) arrivals in an interval of duration \(t\) is given by the Poisson probability mass function (PMF):</p>
+            <p>Let \(\lambda\) be the arrival rate, measured in arrivals per unit time (for example, queries/second), and let \(t\) be the observation-window duration in that exact same time unit. The homogeneous Poisson counting process is \(N(t) \sim \operatorname{Poisson}(\lambda t)\). Keep the units straight: \(\lambda\) is a rate, while the product \(\lambda t\) is a dimensionless count—the expected number of arrivals inside the window of length \(t\). Whenever discrete counts follow a homogeneous Poisson process, the continuous waiting times between consecutive arrivals are independent exponential random variables with rate \(\lambda\) and mean \(1/\lambda\).</p>
+
+            <p>The math rests on three strict pillars: <strong>independent increments</strong> (what happened in the last millisecond does not influence the next), a <strong>stationary rate \(\lambda\)</strong> over the window being analyzed, and <strong>orderliness</strong> (events arrive one at a time, with probability zero of two truly simultaneous arrivals at the exact same instant). Under those assumptions, the probability of observing exactly \(k\) arrivals in an interval of duration \(t\) is given by the Poisson probability mass function (PMF):</p>
             
             <div class="math-display">
                 \[ P(N(t) = k) = \frac{(\lambda t)^k \cdot e^{-\lambda t}}{k!} \]
             </div>
             
             <div class="math-explanation">
-                <strong>Decoding the parameters:</strong>
+                <strong>Anatomy of the formula:</strong>
                 <ul>
-                    <li><strong>\(\lambda\):</strong> Arrival rate, in arrivals per unit time. <strong>\(t\):</strong> Window duration in the same time unit (\(t \ge 0\)). <strong>\(\lambda t\):</strong> Expected arrival count in that window; a signature property of the Poisson distribution is that its variance equals its mean (\(\operatorname{Var}(N(t)) = \mathbb{E}[N(t)] = \lambda t\)).</li>
-                    <li><strong>\(k\):</strong> The exact non-negative integer count of arrivals you are testing (\(k=0,1,2,\ldots\)).</li>
-                    <li><strong>\(e^{-\lambda t}\):</strong> The probability of observing <em>zero</em> arrivals in the window—the baseline exponential decay term.</li>
-                    <li><strong>\(k!\):</strong> Factorial of \(k\), accounting for the permutations of \(k\) indistinguishable events.</li>
+                    <li><strong>\(\lambda t\) (Expected Count &amp; Equidispersion):</strong> Expected arrival count in window \(t\). A signature property of the Poisson distribution is that its variance equals its mean: \(\operatorname{Var}(N(t)) = \mathbb{E}[N(t)] = \lambda t\), making the standard deviation \(\sigma = \sqrt{\lambda t}\).</li>
+                    <li><strong>\((\lambda t)^k\) (Rate Scaling):</strong> Increases the probability weight of higher counts \(k\) when the expected traffic volume \(\lambda t\) is high.</li>
+                    <li><strong>\(e^{-\lambda t}\) (Zero-Event Baseline):</strong> Plug in \(k = 0\) and you get \(P(N(t) = 0) = e^{-\lambda t}\)—the exact probability that <em>nothing arrives</em> during the window. It also normalizes the Taylor series \(\sum_{k=0}^{\infty} (\lambda t)^k / k! = e^{\lambda t}\) so all probabilities sum to \(1\).</li>
+                    <li><strong>\(k!\) (Combinatorial Dampener):</strong> Factorial growth eventually outruns exponential growth \((\lambda t)^k\), dragging the probability of extreme bursts back toward zero.</li>
                 </ul>
             </div>
 
-            <p>For a quick sanity check: if \(\lambda = 10\) arrivals/second and \(t = 1\) second, the expected count is \(\lambda t = 10\). The chance of seeing a freak micro-spike of exactly 30 arrivals in one second purely by random clumping is \(e^{-10}10^{30}/30! \approx 1.71 \times 10^{-7}\) (\(0.0000171\%\)). Note also that an arrival spike in one window does not by itself tell you whether the server fell over—for that, you need to know the service rate, how many requests were already sitting in the queue when the window started, and the buffer size.</p>
-
             <div class="worked-section">
                 <div class="worked-title">Worked Scenario: The Analytics Gateway &amp; The 100ms Micro-Burst</div>
-                <p>Suppose someone builds a naive, stateless rate-limiter in front of our Multi-Tenant Analytics Gateway. The gateway averages a sleepy <strong>20 queries per second</strong> across all tenants, and the limiter counts arrivals in fixed, tumbling <strong>100ms windows</strong>. To keep the arithmetic transparent, assume this discrete window rule admits at most <strong>5 queries per 100ms window</strong> and resets cleanly at the boundary—with no carry-over backlog and no background worker draining slots mid-window. (A real continuous token bucket or worker queue drains continuously and carries state across boundaries; we are isolating pure discrete arrival clumping here.)</p>
-                <p>On a per-second dashboard, 20 queries/s looks tiny compared to a nominal capacity of 100 queries/s (5 queries per 100ms = 50 queries/s cap). Surely a 20 qps stream will never trip a 5-queries-per-100ms fuse? Let the Poisson PMF do the talking:</p>
+                <p>Suppose someone builds a naive, stateless rate-limiter in front of our Multi-Tenant Analytics Gateway. The gateway averages a sleepy <strong>20 queries per second</strong> across all tenants, and the limiter counts arrivals in fixed, tumbling <strong>100ms windows</strong>. Assume this discrete window rule admits at most <strong>5 queries per 100ms window</strong> and resets cleanly at the boundary—with no carry-over backlog and no background worker draining slots mid-window.</p>
+                <p>On a per-second dashboard, 20 queries/s looks tiny compared to a nominal cap of 50 queries/s (5 queries per 100ms). Surely a 20 QPS stream will never trip a 5-queries-per-100ms fuse? Let the Poisson PMF do the talking:</p>
                 <div class="worked-steps">
                     Expected arrivals per 100ms window: \(\lambda t = 20 \text{ queries/s} \times 0.1\text{ s} = 2.0\) arrivals<br>
                     Zero-arrival baseline: \(e^{-2.0} \approx 0.13534\)<br><br>
@@ -311,18 +322,11 @@
                     Cumulative Safe Windows: \(P(N(0.1) \le 5) = 0.983436\) (98.34%)<br>
                     <strong>Window-Overflow Probability: \(P(N(0.1) \ge 6) = 1 - 0.983436 = 0.016564\) (1.66%)</strong>
                 </div>
-                <p><strong>The punchline:</strong> Even though your 1-second Grafana chart shows a flat, harmless 20 queries/s, <strong>1.66% of all 100ms windows</strong> naturally pack 6 or more arrivals purely by Poisson clumping. Because there are 600 non-overlapping 100ms windows in a minute, your gateway trips that 5-query window cap an average of \(600 \times 0.016564 \approx \mathbf{9.94\text{ times every single minute}}\)! (Precision check: 9.94 is the expected number of <em>overflowing windows</em> per minute, not the exact count of dropped queries, since an overflowing window might contain 6, 7, or 8 arrivals. And if real tenant traffic is burstier than Poisson, the alarm will ring even harder.)</p>
+                <p><strong>The punchline:</strong> Even though your 1-second Grafana chart shows a flat, harmless 20 queries/s, <strong>1.66% of all 100ms windows</strong> naturally pack 6 or more arrivals purely by Poisson clumping. Because there are 600 non-overlapping 100ms windows in a minute, your gateway trips that 5-query window cap an average of \(600 \times 0.016564 \approx \mathbf{9.94\text{ times every single minute}}\)!</p>
             </div>
 
-            <div class="editorial-callout editorial-callout--math">
-                <div class="callout-eyebrow">Telemetry Check: The Dispersion Index (\(I = \operatorname{Var}(N(t)) / \mathbb{E}[N(t)]\))</div>
-                <div class="callout-content">
-                    <p>How do you test if your production traffic is actually Poisson instead of guessing? Bucket your arrival timestamps into fixed windows (say, 100ms and 1s) and divide the sample variance of the counts by the sample mean. For a true Poisson process, this <strong>Index of Dispersion</strong> (or Fano factor) is \(I = 1.0\). In real multi-tenant systems, you will routinely measure \(I = 3\), \(10\), or \(50\)—<strong>overdispersion</strong> driven by batch uploads, Herd-of-Thundering-Retries, or upstream lock convoys. Whenever \(I \gg 1\), any queue or rate-limit sized on textbook Poisson formulas will under-predict burst depth.</p>
-                </div>
-            </div>
-
-            <h3>Interactive Simulation</h3>
-            <p class="math-explanation"><strong>How to read it:</strong> Drag \(\lambda\) (expected arrivals per simulated interval) and hit <strong>Run</strong>. Knuth's exact Poisson sampler generates synthetic interval counts; the histogram and p50/p95/p99 readouts summarize up to 5,000 synthetic intervals. Notice how both the theoretical mean and variance equal \(\lambda\).</p>
+            <h3>Interactive Simulation: Poisson Arrival Clumping</h3>
+            <p class="math-explanation"><strong>How to read it:</strong> Drag \(\lambda\) (expected arrivals per simulated interval) and hit <strong>Run</strong>. Knuth's exact Poisson sampler generates synthetic interval counts; the histogram and p50/p95/p99 readouts summarize up to 5,000 intervals. Notice how the right tail stretches well past the mean \(\lambda\).</p>
             
             <div class="stage" data-sim-type="poisson">
                 <div class="sim-toolbar">
@@ -330,7 +334,7 @@
                         <div class="param-group">
                             <span>Avg Arrivals (λ):</span>
                             <input type="range" id="lam_poisson" aria-label="Average Poisson arrivals per interval lambda" min="0.5" max="40" step="0.5" value="12">
-                            <span id="v_lam_poisson">12</span>
+                            <span id="v_lam_poisson" class="val">12</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -339,7 +343,7 @@
                         <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated Poisson arrival counts"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
@@ -348,69 +352,236 @@
                 </div>
             </div>
 
+            <!-- ========================================================================= -->
+            <!-- 1.5 RATE LIMITING ENGINEERING: SIZING RATE (r) AND BURST (B) -->
+            <!-- ========================================================================= -->
+            <h2>2. Engineering Rate Limiters: How to Size Rate (\(r\)) and Burst (\(B\))</h2>
+
+            <p>Here is the practical question that every systems architect eventually asks: <em>"If Poisson is just a probability distribution, how do I actually configure my API Gateway's rate limiter? What concrete numbers do I type into `rate` and `burst`?"</em></p>
+
+            <p>If a tenant's SLA allows an average of \(\lambda = 100\text{ requests/sec (RPS)}\) and you configure a strict 1-second rate-limiter ceiling of \(100\), <strong>you will reject roughly 47.35% of their legitimate traffic windows</strong> (\(P(N(1) \gt 100) = 1 - \sum_{k=0}^{100} \frac{100^k e^{-100}}{k!} \approx 0.4735\)). Provisioning a rate limiter at the mean guarantees an avalanche of false-positive `HTTP 429 Too Many Requests` errors. To size a rate limiter properly, you must distinguish between <strong>Window Counters</strong> and <strong>Token Buckets</strong>.</p>
+
+            <h3>Method A: Sizing Fixed or Sliding Window Ceilings (\(C\))</h3>
+            <p>In a windowed rate limiter over duration \(T\), you first choose an acceptable <strong>false-rejection probability \(\epsilon\)</strong> for well-behaved traffic (for example, \(\epsilon = 10^{-3}\) for a 99.9% pass rate, or \(\epsilon = 10^{-4}\) for 99.99%). You then solve for the smallest integer ceiling \(C\) where the Poisson CDF satisfies \(P(N(T) \le C) \ge 1 - \epsilon\).</p>
+
+            <ul>
+                <li><strong>When \(\lambda T \ge 30\) (Gaussian / Normal Approximation):</strong> By the Central Limit Theorem, \(\operatorname{Poisson}(\lambda T)\) is well approximated by \(\mathcal{N}(\mu = \lambda T, \sigma^2 = \lambda T)\). Using the standard normal quantile \(z_{1-\epsilon}\) (\(z = 2.33\) for 99%, \(3.09\) for 99.9%, \(3.72\) for 99.99%) and a \(+0.5\) continuity correction:</li>
+            </ul>
+
+            <div class="math-display">
+                \[ C = \left\lceil \lambda T + z_{1-\epsilon}\sqrt{\lambda T} + 0.5 \right\rceil \]
+            </div>
+
+            <ul>
+                <li><strong>When \(\lambda T \lt 30\) (Exact Quantile or Chernoff Bound):</strong> At low expected counts, the Poisson distribution is heavily right-skewed and the Normal approximation under-predicts the tail. Compute the exact inverse CDF or bound the upper tail via the Chernoff inequality: \(P(N(T) \ge C) \le \exp\!\left(C - \lambda T - C \ln\frac{C}{\lambda T}\right) \le \epsilon\).</li>
+            </ul>
+
+            <div class="table-wrap">
+                <table class="editorial-table" aria-label="Poisson Window Rate Limit Sizing Table">
+                    <thead>
+                        <tr>
+                            <th>Avg Rate (\(\lambda\), 1s Window)</th>
+                            <th>Std Dev (\(\sqrt{\lambda}\))</th>
+                            <th>99% Ceiling (\(\epsilon = 10^{-2}\))</th>
+                            <th>99.9% Ceiling (\(\epsilon = 10^{-3}\))</th>
+                            <th>99.99% Ceiling (\(\epsilon = 10^{-4}\))</th>
+                            <th>Required Headroom (99.99%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>5 RPS</strong></td>
+                            <td>2.24</td>
+                            <td>11</td>
+                            <td>14</td>
+                            <td>16</td>
+                            <td class="warn">+220.0%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>20 RPS</strong></td>
+                            <td>4.47</td>
+                            <td>31</td>
+                            <td>36</td>
+                            <td>40</td>
+                            <td class="warn">+100.0%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>100 RPS</strong></td>
+                            <td>10.00</td>
+                            <td>124</td>
+                            <td>132</td>
+                            <td>138</td>
+                            <td><strong>+38.0%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>1,000 RPS</strong></td>
+                            <td>31.62</td>
+                            <td>1,075</td>
+                            <td>1,100</td>
+                            <td>1,119</td>
+                            <td class="good">+11.9%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>10,000 RPS</strong></td>
+                            <td>100.00</td>
+                            <td>10,234</td>
+                            <td>10,311</td>
+                            <td>10,373</td>
+                            <td class="good">+3.73%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>Look closely at the rightmost column: <strong>The Square-Root Scaling Law</strong> (\(\sigma / \mu = \sqrt{\lambda}/\lambda = 1/\sqrt{\lambda}\)). Low-volume tenant tiers (5 RPS) require massive percentage burst headroom (<strong>+220%</strong>) just to survive normal Poisson clumping, whereas high-volume system trunks (10,000 RPS) need less than <strong>+4%</strong>.</p>
+
+            <h3>Method B: Token Bucket Sizing &amp; Why Setting \(r = \lambda\) Breaks Everything</h3>
+            <p>Production gateways (Envoy, NGINX, AWS API Gateway, Redis GCRA) rarely use raw tumbling windows; they use a <strong>Token Bucket</strong> defined by two parameters: a continuous <strong>Refill Rate \(r\)</strong> (tokens added per second) and a maximum <strong>Burst Capacity \(B\)</strong> (maximum tokens the bucket can hold).</p>
+
+            <div class="editorial-callout editorial-callout--warning">
+                <div class="callout-eyebrow">The Asymmetry of "Lost Quiet Time" (Why \(r = \lambda\) Fails)</div>
+                <div class="callout-content">
+                    <p>Engineers almost universally set the token refill rate equal to the tenant's average arrival rate (\(r = \lambda = 100\text{ RPS}\)) and pick an arbitrary burst size like \(B = 20\), assuming: <em>"Average in equals average out, so the bucket will hover comfortably near full."</em> <strong>It will not.</strong></p>
+                    <p>Suppose the bucket starts completely full at \(B = 20\text{ tokens}\). In Second 1, traffic is unusually quiet: only <strong>85 requests</strong> arrive while 100 tokens are generated. The bucket wants to bank those \(+15\) surplus tokens to reach 35—but because the bucket has a <strong>hard ceiling at \(B = 20\)</strong>, all 15 extra tokens spill over the rim and vanish forever. In Second 2, traffic is equally busy in the opposite direction: <strong>115 requests</strong> arrive. The \(-15\) token deficit is <em>not</em> thrown away; it comes straight out of your reserve, dropping the bucket from 20 down to <strong>5 tokens</strong>.</p>
+                    <p>Now ask: <strong>How does the bucket ever climb back from 5 tokens to 20?</strong> Because \(r = \lambda = 100\), the expected net change in every future second is \(r - \lambda = 0\). There is zero upward drift to refill the reserve! Surpluses at the top are forgotten; deficits at the bottom accumulate until the bucket pins at \(0\) and starts spraying `HTTP 429` rejections.</p>
+                </div>
+            </div>
+
+            <p>To derive the exact formula for \(r\) and \(B\), invert your perspective from counting <em>available tokens</em> (\(T_t \in [0, B]\)) to counting <strong>missing tokens—the Token Deficit \(Q_t = B - T_t\)</strong>. A Token Bucket with refill rate \(r\) and capacity \(B\) fed by a \(\operatorname{Poisson}(\lambda)\) stream is <strong>mathematically dual to an \(M/D/1/B\) queue</strong>:</p>
+            <ul>
+                <li>Each Poisson request arrival (\(\lambda\)) consumes a token, adding <strong>\(+1\) job to the deficit queue \(Q_t\)</strong> (Markovian arrival \(M\)).</li>
+                <li>Every \(1/r\) seconds, a generated token removes <strong>\(-1\) job from the deficit queue \(Q_t\)</strong> (Deterministic service \(D\)).</li>
+                <li>When the bucket is full (\(T_t = B \implies Q_t = 0\)), the equivalent server sits idle and generated tokens are wasted. When the bucket is empty (\(T_t = 0 \implies Q_t = B\)), the deficit buffer is full and incoming requests overflow as `HTTP 429` drops.</li>
+            </ul>
+
+            <p>Let \(\rho = \lambda / r\) be the bucket's traffic intensity. In an unbuffered \(M/D/1\) system, the Pollaczek–Khinchine formula gives a mean token deficit of \(\mathbb{E}[Q] = \rho + \frac{\rho^2}{2(1-\rho)}\). As \(r \to \lambda\) (\(\rho \to 1\)), the denominator \(2(1-\rho)\) goes to zero and the unconfined deficit blows up to infinity because the net change per tick is a <strong>1D symmetric random walk with zero drift</strong>. Inside a finite bucket of size \(B\) at \(\rho = 1.0\), the steady-state distribution flattens across the entire cage and the exact asymptotic blocking probability decays at a painfully slow inverse-linear rate:</p>
+
+            <div class="math-display">
+                \[ P_{\text{drop}}(\rho = 1) \approx \frac{1}{2B + 1} \qquad \text{vs.} \qquad P_{\text{drop}}(\rho \lt 1) \approx (1 - \rho)\exp\!\left(-\frac{2(1-\rho)}{\rho}B\right) \]
+            </div>
+
+            <p>Look at the phase transition between those two formulas. If you set \(r = \lambda\) (\(\rho = 1.0\)) with a burst bucket of \(B = 50\text{ tokens}\), you still drop \(\frac{1}{101} \approx \mathbf{0.99\%}\) of all legitimate requests—and reaching a \(0.01\%\) drop target (\(\epsilon = 10^{-4}\)) requires an absurd \(B = 5{,}000\text{ tokens}\)! But if you give the refill rate \(r\) just a <strong>5% to 15% headroom margin above \(\lambda\)</strong> (\(\rho = \lambda / r \lt 1\)), you create negative drift on the deficit that actively pulls the bucket back toward full after every burst, switching the drop rate from polynomial decay to exponential decay. Solving the \(\rho \lt 1\) bound for \(B\) gives the architect's sizing equation for Token Buckets (including the telemetry <strong>Dispersion Index \(I = \operatorname{Var}/\text{Mean}\)</strong> when real traffic is burstier than pure Poisson):</p>
+
+            <div class="math-display">
+                \[ B = \left\lceil I \cdot \frac{\rho}{2(1 - \rho)} \ln\!\left( \frac{1 - \rho}{\epsilon} \right) \right\rceil \qquad \text{where } \rho = \frac{\lambda}{r} \lt 1 \]
+            </div>
+
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: Sizing a Tenant Token Bucket for 100 RPS at 99.99% Pass Rate (\(\epsilon = 10^{-4}\))</div>
+                <p>A tenant is contracted for an average rate of \(\lambda = 100\text{ RPS}\), and our gateway SLA promises fewer than \(0.01\%\) false-positive rate-limit drops (\(\epsilon = 10^{-4}\)) when the tenant stays at or below 100 RPS. Compare the required burst size \(B\) across four refill configurations (assuming pure Poisson \(I = 1\)):</p>
+                <div class="worked-steps">
+                    <strong>Option 0 (The Trap — Zero Margin):</strong> \(r = 100\text{ RPS}\) (\(\rho = 1.000\))<br>
+                    \(P_{\text{drop}} \approx \frac{1}{2B + 1} \le 10^{-4} \implies B = \mathbf{5{,}000\text{ tokens}}\) (Completely defeats short-burst protection!)<br><br>
+                    <strong>Option 1 (Tight 5% Margin):</strong> \(r = 105\text{ RPS}\) (\(\rho = 100/105 \approx 0.9524\))<br>
+                    \(B = \left\lceil \frac{0.9524}{2(0.0476)} \ln\!\left(\frac{0.0476}{0.0001}\right) \right\rceil = \lceil 10.0 \times \ln(476) \rceil = \mathbf{62\text{ tokens}}\)<br><br>
+                    <strong>Option 2 (Balanced 15% Margin):</strong> \(r = 115\text{ RPS}\) (\(\rho = 100/115 \approx 0.8696\))<br>
+                    \(B = \left\lceil \frac{0.8696}{2(0.1304)} \ln\!\left(\frac{0.1304}{0.0001}\right) \right\rceil = \lceil 3.33 \times \ln(1304) \rceil = \mathbf{24\text{ tokens}}\)<br><br>
+                    <strong>Option 3 (Generous 25% Margin):</strong> \(r = 125\text{ RPS}\) (\(\rho = 100/125 = 0.8000\))<br>
+                    \(B = \left\lceil \frac{0.8000}{2(0.2000)} \ln\!\left(\frac{0.2000}{0.0001}\right) \right\rceil = \lceil 2.00 \times \ln(2000) \rceil = \mathbf{16\text{ tokens}} \)
+                </div>
+                <p><strong>The engineering trade-off:</strong> Refill rate \(r\) and burst capacity \(B\) are <strong>hyperbolic substitutes</strong>. Adding a modest 15% refill margin (\(r = 115\text{ RPS}\)) slashes the required burst buffer from 5,000 tokens down to <strong>24 tokens</strong>—absorbing legitimate statistical clumping while still clamping down within milliseconds if the tenant launches a sustained 500 RPS flood. And if live telemetry shows your tenant's arrival stream has an Index of Dispersion \(I = 3.0\) (batchy uploads), simply scale \(B = 3.0 \times 24 = \mathbf{72\text{ tokens}}\).</p>
+            </div>
+
+            <h3>Interactive Simulation: Token Bucket Dynamics (\(M/D/1/B\) Duality)</h3>
+            <p class="math-explanation"><strong>Experiment with the \(\rho = 1\) trap:</strong> Set Arrival Rate \(\lambda = 100\) and Refill Rate \(r = 100\) (\(\rho = 1.00\)), then hit <strong>Run</strong>. Watch the live token reserve trace wander all the way down to \(0\) and stay pinned there, generating a high 429 drop rate. Next, nudge Refill Rate \(r\) up to <strong>115</strong> (\(\rho = 0.87\)) with \(B = 25\) and watch the upward drift keep the bucket healthy!</p>
+
+            <div class="stage" data-sim-type="tokenbucket">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group">
+                            <span>Arrival (λ):</span>
+                            <input type="range" id="lam_tb" aria-label="Poisson arrival rate lambda" min="20" max="150" step="5" value="100">
+                            <span id="v_lam_tb" class="val">100</span>
+                        </div>
+                        <div class="param-group">
+                            <span>Refill (r):</span>
+                            <input type="range" id="rate_tb" aria-label="Token refill rate r" min="20" max="150" step="5" value="100">
+                            <span id="v_rate_tb" class="val">100</span>
+                        </div>
+                        <div class="param-group">
+                            <span>Burst (B):</span>
+                            <input type="range" id="burst_tb" aria-label="Token bucket burst capacity B" min="5" max="100" step="5" value="25">
+                            <span id="v_burst_tb" class="val">25</span>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button type="button" class="sim-btn btn-run">▶ Run</button>
+                        <button type="button" class="sim-btn secondary btn-step">Step 50</button>
+                        <button type="button" class="sim-btn secondary btn-reset">Reset</button>
+                    </div>
+                </div>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Real-time trace of Token Bucket available tokens over time"></canvas>
+                <div class="readout" aria-live="polite">
+                    <div>Ticks: <span class="stat-n">0</span></div>
+                    <div>Avg Tokens Held: <span class="stat-mean">–</span></div>
+                    <div>Theory 429 Drop Rate: <span class="stat-theory">–</span></div>
+                    <div>Observed 429 Drop / Load (ρ): <span class="stat-quantiles">–</span></div>
+                </div>
+            </div>
+
             <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
                 <div class="scenario-title">The "43-Second Glitch, 24-Hour Hangover" <span class="scenario-tag">GitHub 2018</span></div>
-                <p>On October 21, 2018, a 43-second network partition between GitHub data-center facilities triggered an automated database failover while replication backlogs were still in flight. Restoring consistency, draining webhook queues, and rebuilding degraded topologies turned a 43-second wire blip into a <strong>24-hour, 11-minute degraded-service marathon</strong>. The lesson is brutal: incident duration is rarely governed by how long the hardware blipped; it is governed by the math of backlog accumulation and recovery drain rate.</p>
+                <p>On October 21, 2018, a 43-second network partition between GitHub data-center facilities triggered an automated database failover while replication backlogs were still in flight. Restoring consistency, draining webhook queues, and rebuilding degraded topologies turned a 43-second wire blip into a <strong>24-hour, 11-minute degraded-service marathon</strong>. Incident duration is rarely governed by how long the hardware blipped; it is governed by the math of backlog accumulation and recovery drain rate.</p>
                 <div class="scenario-ref">Reference: <a href="https://github.blog/2018-10-30-oct21-post-incident-analysis/" target="_blank" rel="noopener noreferrer">GitHub's October 21 Post-Incident Analysis</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The Self-Inflicted DDoS (`0 0 * * *`) <span class="scenario-tag">Scheduled Jobs</span></div>
-                <p>Synthetic illustration: 50,000 enterprise tenants schedule a daily compliance export at midnight (`0 0 * * *`). Averaged over 24 hours, that is a laughable \(50{,}000 / 86{,}400 \approx 0.58\text{ jobs/s}\). At 00:00:00.001, however, it is a 50,000-request cannonball that obliterates the Poisson independence assumption. Spreading job starts uniformly across a 15-minute jitter window drops the average launch rate during that window to \(50{,}000 / 900 \approx 55.6\text{ jobs/s}\)—a massive improvement, though jitter alone does not magically turn variable-duration batch jobs into a memoryless Poisson stream. Pair jitter with token-bucket admission and concurrency caps.</p>
+                <p>Synthetic illustration: 50,000 enterprise tenants schedule a daily compliance export at midnight (`0 0 * * *`). Averaged over 24 hours, that is a laughable \(50{,}000 / 86{,}400 \approx 0.58\text{ jobs/s}\). At 00:00:00.001, however, it is a 50,000-request cannonball (\(I \gg 1{,}000\)) that obliterates the Poisson independence assumption. Spreading job starts uniformly across a 15-minute jitter window drops the launch rate during that window to \(50{,}000 / 900 \approx 55.6\text{ jobs/s}\)—where a properly sized Token Bucket and concurrency cap can actually govern admission.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Adding Jitter to Scheduled Workloads</a></div>
             </div>
             <div class="scenario-card">
                 <div class="scenario-title">The "Load Balancer Tick" <span class="scenario-tag">Keep-Alive Synchronization</span></div>
-                <p>Synthetic scenario: an autoscaler spins up 40 fresh application pods at the exact same second behind an ingress controller configured with a fixed 300-second `keepalive_timeout` or a hard 1,000-request connection cap. Five minutes later, thousands of persistent connections hit their expiry cliff in unison, unleashing a synchronized wave of TCP teardowns and expensive TLS handshakes. Adding random jitter to connection max-age and max-requests breaks the phase-lock; always verify with TLS handshake and CPU flamegraph telemetry.</p>
+                <p>Synthetic scenario: an autoscaler spins up 40 fresh application pods at the exact same second behind an ingress controller configured with a fixed 300-second `keepalive_timeout` or a hard 1,000-request connection cap. Five minutes later, thousands of persistent connections hit their expiry cliff in unison, unleashing a synchronized wave of TCP teardowns and expensive TLS handshakes. Adding random jitter to connection max-age and max-requests breaks the phase-lock.</p>
                 <div class="scenario-ref">Reference: <a href="https://www.usenix.org/system/files/login/articles/login_1410_03_gregg.pdf" target="_blank" rel="noopener noreferrer">Brendan Gregg, "The Use of Performance Metrics"</a></div>
             </div>
 
             <!-- ========================================== -->
-            <!-- FINITE QUEUE: OVERLOAD AND BACKLOG GROWTH -->
+            <!-- 3. FINITE QUEUES: OVERLOAD AND BACKLOG GROWTH -->
             <!-- ========================================== -->
-            <h2>Finite Queues: When Arrival Rate Exceeds Capacity</h2>
-            <p>Counting arrivals is only half the story; queue stability is a tug-of-war between arrival rate \(\lambda\) and service rate \(\mu\). In a textbook infinite-buffer \(M/M/1\) queue—where arrivals are Poisson at rate \(\lambda\) and a single server completes work exponentially at rate \(\mu\) (mean service time \(1/\mu\))—the queue has a finite steady state <strong>if and only if \(\rho = \lambda/\mu < 1\)</strong>. When \(\rho < 1\), the probability an arriving request has to wait at all is \(P(\text{wait})=\rho\) (by the PASTA property: <em>Poisson Arrivals See Time Averages</em>), the mean number of requests in the system (waiting plus in service) is \(L=\rho/(1-\rho)\), and the mean waiting line is \(L_q=\rho^2/(1-\rho)\). Little’s Law then hands us the mean total time \(W=1/(\mu-\lambda)\) and mean queue wait \(W_q=\rho/(\mu-\lambda)\). Remember: these are long-run steady-state averages, not guarantees during a transient traffic spike.</p>
+            <h2>3. Finite Queues (\(M/M/1/K\)): When Arrivals Exceed Capacity</h2>
+            <p>Counting arrivals and shaping tokens at the door is only half the story; downstream queue stability is a tug-of-war between admitted arrival rate \(\lambda\) and worker service rate \(\mu\). In a textbook infinite-buffer \(M/M/1\) queue—where arrivals are Poisson at rate \(\lambda\) and a single server completes work exponentially at rate \(\mu\) (mean service time \(1/\mu\))—the queue has a finite steady state <strong>if and only if \(\rho = \lambda/\mu \lt 1\)</strong>. When \(\rho \lt 1\), the probability an arriving request has to wait at all is \(P(\text{wait})=\rho\) (by the PASTA property: <em>Poisson Arrivals See Time Averages</em>), the mean number of requests in the system is \(L=\rho/(1-\rho)\), and the mean waiting line is \(L_q=\rho^2/(1-\rho)\).</p>
 
-            <p>Real servers do not have infinite RAM, so production queues are finite. In queueing notation, an \(M/M/1/K\) loss system caps the <strong>entire system at \(K\) total slots—including the 1 request currently executing on the server plus \(K_q = K - 1\) waiting slots</strong>. Any arrival that finds all \(K\) places occupied is immediately rejected (blocked). For \(\rho = \lambda/\mu \ne 1\), the steady-state probability of finding \(n\) requests in the system (\(n = 0, \ldots, K\)) is:</p>
+            <p>Real servers do not have infinite RAM, so production queues are finite. In Kendall's notation, an \(M/M/1/K\) loss system caps the <strong>entire system at \(K\) total slots—including the 1 request currently executing on the server plus \(K_q = K - 1\) waiting slots</strong>. Any arrival that finds all \(K\) places occupied is immediately rejected (blocked). For \(\rho = \lambda/\mu \ne 1\), the steady-state probability of finding \(n\) requests in the system (\(n = 0, \ldots, K\)) is:</p>
 
             <div class="math-display">
                 \[ p_n = \frac{(1-\rho)\rho^n}{1-\rho^{K+1}}, \qquad P_{\text{block}} = p_K = \frac{(1-\rho)\rho^K}{1-\rho^{K+1}} \]
             </div>
 
-            <p>(At the exact knife-edge \(\rho = 1\), every state \(0, \ldots, K\) is equally likely with probability \(1/(K+1)\), so \(P_{\text{block}} = 1/(K+1)\).) Because the buffer is finite, an \(M/M/1/K\) queue never explodes to infinity even when \(\lambda \ge \mu\); instead, it trades unbounded memory growth for a rising rejection rate \(P_K\), admitting an effective throughput of \(\lambda_{\mathrm{eff}} = \lambda(1 - P_K)\).</p>
+            <p>(At the exact knife-edge \(\rho = 1\), every state \(0, \ldots, K\) is equally likely with probability \(1/(K+1)\), so \(P_{\text{block}} = 1/(K+1)\).) Because the buffer is finite, an \(M/M/1/K\) queue never explodes to infinity even when \(\lambda \ge \mu\); instead, it trades unbounded memory growth for a rising rejection rate \(p_K\), admitting an effective throughput of \(\lambda_{\mathrm{eff}} = \lambda(1 - p_K)\).</p>
 
-            <p>Watch the off-by-one trap when reading config files: if your thread-pool config says `maxQueueSize = 200` for a 1-thread worker, your waiting room is \(K_q = 200\) and your \(M/M/1/K\) system capacity is \(K = 201\). And remember that when a queue hits its ceiling, your code has to choose how to be rude: return `HTTP 429/503` immediately (tail drop), evict the oldest request in line (head drop / LIFO), or block the upstream socket (backpressure). Dropping a request saves your worker thread, but if the client immediately fires an unbudgeted retry, the load comes right back through the front door.</p>
+            <p>Watch the off-by-one trap when reading config files: if your thread-pool config says `maxQueueSize = 200` for a 1-thread worker, your waiting room is \(K_q = 200\) and your \(M/M/1/K\) system capacity is \(K = 201\). And remember that when a queue hits its ceiling, your code has to choose how to be rude: return `HTTP 429/503` immediately (tail drop), evict the oldest request in line (head drop / LIFO), or block the upstream socket (backpressure).</p>
             
             <div class="worked-section">
                 <div class="worked-title">Worked Scenario: Market-Open Consumer Lag in the Analytics Gateway</div>
-                <p>At 9:30 a.m. market open, an Azure Event Hubs consumer group feeding our Analytics Gateway gets hit with a sustained <strong>120 events/s</strong>. The assigned worker pool can drain at most <strong>100 events/s</strong>. The in-memory bounded work queue has <strong>200 waiting slots</strong> (beyond the slots currently executing). Starting from an empty queue with constant fluid rates and no autoscaling, how many seconds do you have before the buffer hits the wall? (Note: this is a deterministic fluid-balance calculation for an aggregate pool, not a stochastic \(M/M/1/K\) state distribution.)</p>
+                <p>At 9:30 a.m. market open, an Azure Event Hubs consumer group feeding our Analytics Gateway gets hit with a sustained <strong>120 events/s</strong>. The assigned worker pool can drain at most <strong>100 events/s</strong>. The in-memory bounded work queue has <strong>200 waiting slots</strong> (beyond the slots currently executing). Starting from an empty queue with constant fluid rates and no autoscaling, how many seconds do you have before the buffer hits the wall?</p>
                 <div class="worked-steps">
                     Net backlog accumulation rate = \(\lambda_{\text{in}} - \mu_{\text{out}} = 120 - 100 = 20\) events/s<br><br>
                     Time to saturate buffer = \(\frac{\text{Waiting Capacity}}{\text{Net Accumulation Rate}}\)<br>
                     \(t_{\mathrm{fill}} = \frac{200\text{ slots}}{120 - 100\text{ events/s}} = \mathbf{10\text{ seconds}}\)
                 </div>
-                <p>In <strong>10 flat seconds</strong>, the 200-slot buffer is 100% full. At second 10.01, every excess event must either be rejected, spilled to disk, or held back at the Event Hubs broker via consumer lag. Making the in-memory queue 10× larger (2,000 slots) does not add a single unit of processing capacity—it just delays the crash to 100 seconds while forcing every admitted event to sit in RAM for 20 seconds before a worker even looks at it.</p>
-                <p><strong>The hangover math (recovery drain time):</strong> Suppose the market-open burst lasts 10 seconds (filling all 200 slots) and then traffic drops to a calm <strong>60 events/s</strong> while worker capacity stays at <strong>100 events/s</strong>. Your net drain rate is only \(100 - 60 = 40\text{ events/s}\)—not 100 events/s, because new traffic is still arriving while you clean up the mess! Clearing the 200-event backlog takes \(200 / 40 = \mathbf{5\text{ seconds}}\). If traffic instead subsides to 95 events/s, the net drain rate is a trickle of 5 events/s, and that 10-second spike takes <strong>40 seconds</strong> to drain. Bound both queue depth and queue age (`max_wait_time`), shed stale work whose caller deadline has already expired, and never confuse a bigger buffer with faster throughput.</p>
-                <p><strong>The hot-partition trap:</strong> Those 120 and 100 events/s numbers are cluster aggregates. In partitioned brokers like Kafka or Event Hubs, ordering guarantees usually pin each partition to a single serial consumer thread. Your cluster can sit at a breezy 40% aggregate utilization while <strong>Partition 7</strong> gets hammered by one whale tenant at \(\lambda_7 > \mu_7\), building a 20-minute lag all by itself while 15 sibling partitions sit idle. Adding more consumer pods does nothing if a single partition cannot be split across threads.</p>
+                <p>In <strong>10 flat seconds</strong>, the 200-slot buffer is 100% full. Making the in-memory queue 10× larger (2,000 slots) does not add a single unit of processing capacity—it just delays buffer exhaustion to 100 seconds while forcing every admitted event to sit in RAM for 20 seconds before a worker even looks at it.</p>
+                <p><strong>The hangover math (recovery drain time):</strong> Suppose the market-open burst lasts 10 seconds (filling all 200 slots) and then traffic drops to a calm <strong>60 events/s</strong> while worker capacity stays at <strong>100 events/s</strong>. Your net drain rate is only \(100 - 60 = 40\text{ events/s}\)—not 100 events/s, because new traffic is still arriving while you clean up the mess! Clearing the 200-event backlog takes \(200 / 40 = \mathbf{5\text{ seconds}}\). If traffic instead subsides to 95 events/s, the net drain rate is a trickle of 5 events/s, and that 10-second spike takes <strong>40 seconds</strong> to drain.</p>
+                <p><strong>The hot-partition trap:</strong> Those 120 and 100 events/s numbers are cluster aggregates. In partitioned brokers like Kafka or Event Hubs, ordering guarantees pin each partition to a single serial consumer thread. Your cluster can sit at a breezy 40% aggregate utilization while <strong>Partition 7</strong> gets hammered by one whale tenant at \(\lambda_7 \gt \mu_7\), building a 20-minute lag all by itself while 15 sibling partitions sit idle.</p>
             </div>
 
             <!-- ========================================== -->
-            <!-- 2. EXPONENTIAL DISTRIBUTION -->
+            <!-- 4. EXPONENTIAL DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>2. The Exponential Distribution (Service Times)</h2>
+            <h2>4. The Exponential Distribution (Service Times)</h2>
 
             <div class="editorial-callout">
                 <div class="callout-eyebrow">The Intuition: The Memoryless Curse</div>
                 <div class="callout-content">
                     <p>When arrivals follow a Poisson process, the <strong>time gap between consecutive arrivals</strong> follows an <strong>Exponential distribution</strong>. Queueing theorists also use the exponential distribution as the standard baseline for <strong>service time</strong> (how long one worker takes to process one request) in an \(M/M/1\) model.</p>
-                    <p>Its strangest feature is the <strong>memoryless property</strong> (\(P(T > t + s \mid T > t) = P(T > s)\)): the process has zero memory of how long it has already been running. In a strictly exponential world, if a query has been crunching for 50ms, the probability that it needs <em>another</em> 20ms is identical to a brand-new query needing 20ms. The universe does not owe your request a quick completion just because it has already burned 50ms of CPU.</p>
+                    <p>Its strangest feature is the <strong>memoryless property</strong> (\(P(T \gt t + s \mid T \gt t) = P(T \gt s)\)): the process has zero memory of how long it has already been running. In a strictly exponential world, if a query has been crunching for 50ms, the probability that it needs <em>another</em> 20ms is identical to a brand-new query needing 20ms. The universe does not owe your request a quick completion just because it has already burned 50ms of CPU.</p>
                 </div>
             </div>
 
-            <p>For a single server whose service times are independent exponential random variables with completion rate \(\mu\) (completions per unit time), the mean service time is \(\mathbb{E}[S]=1/\mu\) and the standard deviation is also \(1/\mu\) (giving a coefficient of variation \(c_s = 1\)). Keep in mind: this describes raw service execution time in isolation—not queueing wait time, and not a universal law that all software execution is memoryless. Its probability density function (PDF) and survival function (complementary CDF) are:</p>
+            <p>For a single server whose service times are independent exponential random variables with completion rate \(\mu\) (completions per unit time), the mean service time is \(\mathbb{E}[S]=1/\mu\) and the standard deviation is also \(1/\mu\) (giving a coefficient of variation \(c_s = \sigma_S / \mathbb{E}[S] = 1\)). Its probability density function (PDF) and survival function (complementary CDF) are:</p>
             
             <div class="math-display">
-                \[ f(t) = \mu \cdot e^{-\mu t} \quad \Big| \quad P(T > t) = e^{-\mu t} \]
+                \[ f(t) = \mu \cdot e^{-\mu t} \quad \Big| \quad P(T \gt t) = e^{-\mu t} \]
             </div>
             
             <div class="math-explanation">
@@ -418,7 +589,7 @@
                 <ul>
                     <li><strong>\(\mu\) (Service Rate):</strong> Completions per unit time. If \(\mu=100\text{ req/s}\) (\(0.1\text{ req/ms}\)), the mean service time is \(1/\mu = 10\text{ ms}\).</li>
                     <li><strong>\(t\):</strong> The elapsed duration threshold under test (\(t \ge 0\)).</li>
-                    <li><strong>\(P(T > t) = e^{-\mu t}\):</strong> The <strong>Survival Function</strong>—the probability that raw execution takes <em>longer</em> than \(t\). Remember from Part 1 that an end-to-end caller deadline budgets for network transit + queue wait + service execution combined, and that a caller timeout does not stop backend work unless cancellation is propagated.</li>
+                    <li><strong>\(P(T \gt t) = e^{-\mu t}\):</strong> The <strong>Survival Function</strong>—the probability that raw execution takes <em>longer</em> than \(t\). Remember from Part 1 that an end-to-end caller deadline budgets for network transit + queue wait + service execution combined.</li>
                 </ul>
             </div>
 
@@ -429,24 +600,24 @@
                 <div class="worked-steps">
                     Mean Service Time: \(\mathbb{E}[S] = \frac{1}{\mu} = 10\text{ ms}\) (\(\mu = 0.1\text{ ms}^{-1}\))<br><br>
                     1. What fraction of requests take longer than the 10ms "average"?<br>
-                       \(P(T > 10\text{ ms}) = e^{-(0.1 \times 10)} = e^{-1} \approx \mathbf{36.79\%}\)<br>
+                       \(P(T \gt 10\text{ ms}) = e^{-(0.1 \times 10)} = e^{-1} \approx \mathbf{36.79\%}\)<br>
                        (Because the exponential tail is right-skewed, the median p50 is \(\frac{\ln(2)}{\mu} \approx \mathbf{6.93\text{ ms}}\), while 36.8% of requests exceed the mean!)<br><br>
                     2. What fraction of healthy executions exceed the 30ms gRPC timeout (\(3\times\) the mean)?<br>
-                       \(P(T > 30\text{ ms}) = e^{-(0.1 \times 30)} = e^{-3} \approx \mathbf{0.04979\ (4.98\%)}\)<br><br>
+                       \(P(T \gt 30\text{ ms}) = e^{-(0.1 \times 30)} = e^{-3} \approx \mathbf{0.04979\ (4.98\%)}\)<br><br>
                     3. Where does the true p99 execution time actually sit?<br>
                        \(0.01 = e^{-0.1 \times t} \implies t = \frac{-\ln(0.01)}{0.1} = \frac{4.60517}{0.1} = \mathbf{46.05\text{ ms}}\)
                 </div>
-                <p><strong>The punchline:</strong> "Three times the mean" sounds generous in a meeting room, but for an exponential distribution, \(e^{-3} \approx 4.98\%\). Setting a timeout at \(3\times\) the average assassinates <strong>nearly 1 in 20 legitimate service executions</strong> before we even add a single millisecond of network transit or queue wait! To cover just the p99 of raw execution time under this model, the budget needs at least \(4.6\times\) the mean (\(46.05\text{ ms}\)). Always size deadlines from empirical tail quantiles of total response time, and propagate cancellation so timed-out calls don't become zombies.</p>
+                <p><strong>The punchline:</strong> "Three times the mean" sounds generous in a meeting room, but for an exponential distribution, \(e^{-3} \approx 4.98\%\). Setting a timeout at \(3\times\) the average assassinates <strong>nearly 1 in 20 legitimate service executions</strong> before we even add a single millisecond of network transit or queue wait! And worse: if you pair that 30ms timeout with the immediate retry loops we dissected in Part 2, those 5% false timeouts immediately turn into self-inflicted retry amplification.</p>
             </div>
 
             <div class="editorial-callout editorial-callout--math">
                 <div class="callout-eyebrow">Telemetry Check: Coefficient of Variation (\(c_s = \sigma_S / \mathbb{E}[S]\))</div>
                 <div class="callout-content">
-                    <p>Before plugging an exponential assumption into a queueing equation, check the ratio of the standard deviation to the mean service time: \(c_s = \sigma_S / \mathbb{E}[S]\). An exponential distribution always has \(c_s = 1\) (\(c_s^2 = 1\)). Fixed, deterministic work has \(c_s = 0\). A bimodal workload mixture—say, 90% fast cache hits at 1ms and 10% heavy Iceberg scans at 80ms—or workloads with multi-megabyte payload skew will exhibit \(c_s^2 \gg 1\) (hyperexponential / heavy-tailed behavior). And watch out for JVM or Go stop-the-world GC pauses, which violate independence by stalling all in-flight requests at the exact same instant.</p>
+                    <p>Before plugging an exponential assumption into a queueing equation, check the ratio of the standard deviation to the mean service time: \(c_s = \sigma_S / \mathbb{E}[S]\). An exponential distribution always has \(c_s = 1\) (\(c_s^2 = 1\)). Fixed, deterministic work has \(c_s = 0\). A bimodal workload mixture—say, 90% fast cache hits at 1ms and 10% heavy Iceberg scans at 80ms—will exhibit \(c_s^2 \gg 1\) (hyperexponential behavior). And watch out for JVM or Go stop-the-world GC pauses, which violate independence by stalling all in-flight requests at the exact same instant.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Exponential Service Durations</h3>
             <p class="math-explanation">This simulator draws independent exponential service durations at rate \(\mu\) (per time unit), where the theoretical mean is \(1/\mu\) and the theoretical p99 is \(-\ln(0.01)/\mu \approx 4.605/\mu\). It models raw service time in isolation without queueing.</p>
             <div class="stage" data-sim-type="exponential">
                 <div class="sim-toolbar">
@@ -454,7 +625,7 @@
                         <div class="param-group">
                             <span>Service Rate (μ, per time unit):</span>
                             <input type="range" id="mu_exponential" aria-label="Exponential rate mu" min="0.1" max="5.0" step="0.1" value="1.0">
-                            <span id="v_mu_exponential">1.0</span>
+                            <span id="v_mu_exponential" class="val">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -463,7 +634,7 @@
                         <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated Exponential service durations"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
@@ -474,8 +645,8 @@
 
             <h3>Scenarios &amp; Case Studies</h3>
             <div class="scenario-card">
-                <div class="scenario-title">The "Bimodal Cold Start" <span class="scenario-tag">Illustrative serverless mixture</span></div>
-                <p>Illustrative mixture (not a universal AWS benchmark): 99% of warm function invocations finish in 15ms, while the 1% that trigger a cold container init and heavy dependency load take 1,800ms. Because that slow population sits right around the 99th percentile boundary, whether it shows up in p99 or p99.9 depends on exact traffic weights—and fitting a single memoryless exponential curve to the blended average will completely misrepresent both regimes.</p>
+                <div class="scenario-title">The "Bimodal Cold Start" <span class="scenario-tag">Serverless Mixture</span></div>
+                <p>Illustrative mixture: 99% of warm function invocations finish in 15ms, while the 1% that trigger a cold container init and heavy dependency load take 1,800ms. Because that slow population sits right around the 99th percentile boundary, fitting a single memoryless exponential curve to the blended average will completely misrepresent both regimes.</p>
                 <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/blogs/compute/operating-lambda-performance-optimization-part-1/" target="_blank" rel="noopener noreferrer">AWS Lambda Performance Optimization</a></div>
             </div>
             <div class="scenario-card">
@@ -490,22 +661,22 @@
             </div>
 
             <!-- ========================================== -->
-            <!-- 3. ERLANG DISTRIBUTION -->
+            <!-- 5. ERLANG DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>3. The Erlang Distribution (Sequential Pipelines)</h2>
+            <h2>5. The Erlang Distribution (Sequential Pipelines)</h2>
 
             <div class="editorial-callout">
                 <div class="callout-eyebrow">The Intuition: The Microservice Relay Race</div>
                 <div class="callout-content">
                     <p>What happens when a single API call has to run a synchronous relay race through \(k\) sequential stages—say, <strong>Ingress &rarr; Auth &rarr; Schema Validation &rarr; Enrichment &rarr; Storage Write</strong>—before returning a response? If each of those \(k\) sequential stages takes an independent, identically distributed exponential duration with the same rate \(\mu\), the total elapsed time is the sum of \(k\) exponentials: an <strong>Erlang-\(k\) distribution</strong>.</p>
-                    <p>Notice what happens to the shape as \(k\) grows: the mean total duration scales linearly as \(\mathbb{E}[T] = k/\mu\) and the variance scales as \(k/\mu^2\), which means the squared coefficient of variation shrinks to \(c^2 = 1/k\). Averaging effects make it unlikely that all \(k\) stages roll a worst-case tail simultaneously, so the histogram shifts right and becomes more bell-shaped. <strong>Read the fine print, though:</strong> the classical Erlang-\(k\) formula requires independent stages with the <em>exact same rate \(\mu\)</em>. If stages have different rates (\(\mu_1 \ne \mu_2\)), the sum is <em>hypoexponential</em>; if stages share a congested database or payload size, they are correlated; and this formula models execution duration only, not queueing wait before each hop. (Parallel fan-out, where you wait for the <em>slowest</em> of \(k\) branches, is a completely different order-statistic beast covered in Part 4.)</p>
+                    <p>Notice what happens to the shape as \(k\) grows: the mean total duration scales linearly as \(\mathbb{E}[T] = k/\mu\) and the variance scales as \(k/\mu^2\), which means the squared coefficient of variation shrinks to \(c^2 = 1/k\). Averaging effects make it unlikely that all \(k\) stages roll a worst-case tail simultaneously, so the histogram shifts right and becomes more bell-shaped. (Parallel fan-out, where you wait for the <em>slowest</em> of \(k\) branches, is a completely different order-statistic beast covered in Part 4.)</p>
                 </div>
             </div>
 
             <p>For \(k\) independent sequential exponential stages sharing a common rate \(\mu\), the Erlang-\(k\) probability density and survival function are:</p>
             
             <div class="math-display">
-                \[ f(x) = \frac{\mu^k \cdot x^{k-1} \cdot e^{-\mu x}}{(k-1)!} \quad \Big| \quad P(T > x) = e^{-\mu x} \sum_{n=0}^{k-1} \frac{(\mu x)^n}{n!} \]
+                \[ f(x) = \frac{\mu^k \cdot x^{k-1} \cdot e^{-\mu x}}{(k-1)!} \quad \Big| \quad P(T \gt x) = e^{-\mu x} \sum_{n=0}^{k-1} \frac{(\mu x)^n}{n!} \]
             </div>
             
             <div class="math-explanation">
@@ -514,7 +685,7 @@
                     <li><strong>\(k\) (Shape / Stage Count):</strong> The integer number of sequential hops (\(k = 1, 2, 3, \dots\)). When \(k=1\), Erlang-\(1\) reduces to the ordinary Exponential distribution.</li>
                     <li><strong>\(\mu\) (Per-Stage Rate):</strong> The exponential completion rate of <em>each individual stage</em>. Each stage has mean \(1/\mu\), so the \(k\)-stage pipeline has mean \(\mathbb{E}[T] = k/\mu\).</li>
                     <li><strong>\(x\) (Deadline Threshold):</strong> The total elapsed time budget (\(x \ge 0\)).</li>
-                    <li><strong>Why the survival function \(P(T > x)\) is a Poisson sum:</strong> Duality! A \(k\)-stage relay race takes longer than time \(x\) if and only if <em>fewer than \(k\) stage completions</em> (\(n = 0, 1, \dots, k-1\)) have occurred by time \(x\) in a Poisson process of rate \(\mu\).</li>
+                    <li><strong>Why the survival function \(P(T \gt x)\) is a Poisson sum:</strong> Duality! A \(k\)-stage relay race takes longer than time \(x\) if and only if <em>fewer than \(k\) stage completions</em> (\(n = 0, 1, \dots, k-1\)) have occurred by time \(x\) in a Poisson process of rate \(\mu\).</li>
                 </ul>
             </div>
 
@@ -531,12 +702,12 @@
                     \(n = 2\) stages finished: \(\frac{5^2}{2!} = \frac{25}{2} = 12.5\)<br>
                     ------------------------------------------------------------<br>
                     Series Sum = \(1.0 + 5.0 + 12.5 = 18.5\)<br><br>
-                    <strong>Budget Exceedance Probability: \(P(T > 50\text{ ms}) = 0.006738 \times 18.5 = 0.12465\) (12.47%)</strong>
+                    <strong>Budget Exceedance Probability: \(P(T \gt 50\text{ ms}) = 0.006738 \times 18.5 = 0.12465\) (12.47%)</strong>
                 </div>
-                <p><strong>The punchline:</strong> Even though the 30ms average sits well below the 50ms deadline, <strong>12.47% of all requests</strong>—nearly 1 in 8 calls!—exceed 50ms under this model. And that is before counting network serialization, TLS overhead, or queueing delay at each hop. When you chain sequential microservices, you don't just add their means; you convolve their distributions.</p>
+                <p><strong>The punchline:</strong> Even though the 30ms average sits well below the 50ms deadline, <strong>12.47% of all requests</strong>—nearly 1 in 8 calls!—exceed 50ms under this model. When you chain sequential microservices, you don't just add their means; you convolve their distributions.</p>
             </div>
 
-            <h3>Interactive Simulation</h3>
+            <h3>Interactive Simulation: Erlang-\(k\) Pipeline Sum</h3>
             <p class="math-explanation">This simulator sums \(k\) independent exponential stage durations, each with rate \(\mu\) per time unit (theoretical mean \(k/\mu\)). Increase \(k\) from 1 to 10 and watch how the histogram morphs from a ski-slope exponential (\(k=1\)) into a right-shifted bell curve.</p>
             <div class="stage" data-sim-type="erlang">
                 <div class="sim-toolbar">
@@ -544,12 +715,12 @@
                         <div class="param-group">
                             <span>Stages (k):</span>
                             <input type="range" id="k_erlang" aria-label="Number of Erlang stages k" min="1" max="10" step="1" value="3">
-                            <span id="v_k_erlang">3</span>
+                            <span id="v_k_erlang" class="val">3</span>
                         </div>
                         <div class="param-group">
-                            <span>Stage Rate (μ, per time unit):</span>
+                            <span>Stage Rate (μ):</span>
                             <input type="range" id="mu_erlang" aria-label="Erlang rate per stage mu" min="0.2" max="4.0" step="0.1" value="1.0">
-                            <span id="v_mu_erlang">1.0</span>
+                            <span id="v_mu_erlang" class="val">1.0</span>
                         </div>
                     </div>
                     <div class="controls">
@@ -558,30 +729,13 @@
                         <button type="button" class="sim-btn secondary btn-reset">Reset</button>
                     </div>
                 </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated distribution samples"></canvas>
+                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Interactive histogram of simulated Erlang stage durations"></canvas>
                 <div class="readout" aria-live="polite">
                     <div>Samples: <span class="stat-n">0</span></div>
                     <div>Observed Mean: <span class="stat-mean">–</span></div>
                     <div>Expected Mean (k/μ): <span class="stat-theory">–</span></div>
                     <div>Observed p50 / p95 / p99: <span class="stat-quantiles">–</span></div>
                 </div>
-            </div>
-
-            <h3>Scenarios &amp; Case Studies</h3>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Death by 20 Paper Cuts" <span class="scenario-tag">Microservice Chains</span></div>
-                <p>When a user request has to traverse 20 sequential microservice hops, every hop adds its execution time and queueing jitter directly onto the critical path. While an idealized Erlang-20 sum has lower relative variance (\(c^2 = 1/20\)) than a single hop, real microservice chains rarely share identical independent rates—one slow database hop or correlated GC pause dominates the sum. (And as we saw in Part 2, 20 mandatory independent hops at 99.9% availability each already drop workflow success to \(0.999^{20} \approx 98.0\%\).)</p>
-                <div class="scenario-ref">Reference: <a href="https://danluu.com/latency-pitfalls/" target="_blank" rel="noopener noreferrer">Dan Luu, "Latency Pitfalls in Distributed Systems"</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Synchronous Checkout Gauntlet" <span class="scenario-tag">Illustrative payment workflow</span></div>
-                <p>Illustrative e-commerce anti-pattern: a `/checkout` endpoint runs Cart Validation &rarr; Tax Calculation &rarr; Fraud Scoring &rarr; Card Auth &rarr; Ledger Write &rarr; Email Receipt synchronously on the caller's thread. You shrink the critical path by running genuinely independent steps in parallel (say, Tax and Fraud check) and moving non-blocking side effects (like receipt emails) onto a durable async event log—recognizing that async decoupling changes failure-recovery semantics, not just stage count \(k\).</p>
-                <div class="scenario-ref">Reference: <a href="https://stripe.com/blog/payment-api-design" target="_blank" rel="noopener noreferrer">Stripe Engineering: Designing Robust Payment APIs</a></div>
-            </div>
-            <div class="scenario-card">
-                <div class="scenario-title">The "Retry Multiplier" <span class="scenario-tag">Cascading Latency</span></div>
-                <p>Do not model a retry loop as an Erlang-\(k\) stage sum! Retries only fire conditionally after a failure, insert deterministic or jittered backoff sleeps, and hit a dependency whose failure probability is state-dependent. What retries <em>do</em> share with queueing physics is ruthless: every retry injects fresh arrival rate \(\lambda_{\text{retry}}\) into a struggling server, stealing capacity needed to drain the existing queue (full feedback math in Part 6).</p>
-                <div class="scenario-ref">Reference: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">AWS Builders' Library: Timeouts, Retries, and Backoff with Jitter</a></div>
             </div>
 
             <div class="worked-section">
@@ -598,38 +752,33 @@
                     \(L = 500 \times 0.040 = \mathbf{20\text{ concurrent queries in flight}}\)
                 </div>
                 <p>Notice the beauty of Little’s Law: it makes <strong>zero assumptions</strong> about whether arrivals are Poisson, whether service times are Exponential, or how many servers sit inside the box. As long as the system is in a conserved, stationary steady state over the window, \(L = \lambda_{\text{eff}} W\) holds.</p>
-                <p><strong>Three ways engineers misuse it:</strong> First, \(L = 20\) means 20 <em>logical queries in flight</em> inside the boundary you measured; it does <strong>not</strong> automatically mean 20 OS threads or 20 JDBC connections (an async event loop might hold 20 queries on 2 threads, while a fan-out query might open 8 S3 connections per query). Second, \(\lambda_{\text{eff}}\) must be the rate of <em>admitted, completed</em> work—if your gateway drops 300 req/s at the door, you cannot plug raw offered load into \(L = \lambda W\) without matching the boundary. Third, Little’s Law is a long-run conservation law; applying it to a 50ms exploding micro-burst where arrivals vastly exceed departures will give you garbage.</p>
+                <p><strong>Three ways engineers misuse it:</strong> First, \(L = 20\) means 20 <em>logical queries in flight</em> inside the boundary you measured; it does <strong>not</strong> automatically mean 20 OS threads or 20 JDBC connections (an async event loop might hold 20 queries on 2 threads, while a fan-out query might open 8 S3 connections per query). Second, \(\lambda_{\text{eff}}\) must be the rate of <em>admitted, completed</em> work—if your gateway drops 300 req/s at the door, you cannot plug raw offered load into \(L = \lambda W\). Third, Little’s Law is a long-run conservation law; applying it to a 50ms exploding micro-burst where arrivals vastly exceed departures will give you garbage.</p>
             </div>
 
             <!-- ========================================== -->
-            <!-- 4. KINGMAN'S FORMULA & FLAGSHIP CASE STUDY -->
+            <!-- 6. KINGMAN'S FORMULA & FLAGSHIP CASE STUDY -->
             <!-- ========================================== -->
-            <div class="editorial-callout editorial-callout--warning" style="margin-top: 4rem;">
-                <div class="callout-eyebrow">The Grand Unification: Kingman’s Approximation &amp; The Utilization Trap</div>
+            <h2>6. Kingman’s Approximation &amp; The Utilization Trap</h2>
+
+            <div class="editorial-callout editorial-callout--warning">
+                <div class="callout-eyebrow">The Grand Unification: Why 90% Utilization Detonates Latency</div>
                 <div class="callout-content">
                     <p>Now we can assemble all the pieces and answer the question that opened this chapter: <strong>Why does running a server near 90–95% utilization blow up latency when throughput hasn't exceeded capacity?</strong></p>
-                    <p>Consider a single serial processing lane—for instance, <strong>Event Hubs Partition 7</strong> in our Analytics Gateway, served by a single dedicated consumer thread. John Kingman’s heavy-traffic formula gives a <strong>mean queue-wait approximation</strong> (\(\mathbb{E}[W_q]\)) for a stable single-server \(GI/G/1\) queue (independent and identically distributed inter-arrival times with finite mean and variance, independent of i.i.d. service times with finite mean and variance, operating at \(\rho < 1\)). Keep its scope honest: Kingman estimates the <em>mean</em> wait of a single server, not the p99 tail, and not a multi-server \(G/G/c\) pool (where Erlang-C or multi-server heavy-traffic approximations apply).</p>
-                    
-                    <ul>
-                        <li><strong>1. The crime scene (Illustrative scenario):</strong> During peak market hours, consumer lag alerts fire on Partition 7. Yet when the on-call engineer checks Kubernetes, the consumer pod's overall CPU gauge reads a relaxed 45%. Somebody says, <em>"Even Partition 7's thread is only 90% busy—it still has 10% spare capacity! Why is there a queue?"</em></li>
-                        <li><strong>2. The deterministic fallacy:</strong> In a world of robotic, zero-variance clocks, 90% utilization means 0ms of queue wait. In a stochastic world, that remaining 10% idle fraction is the <em>only</em> shock absorber the thread has to drain random clumps of arrivals and heavy payloads.</li>
-                        <li><strong>3. The physical mechanism:</strong> Partition 7 sees its own arrival rate \(\lambda_7\) and processes events at effective rate \(\mu_7 = 1/\mathbb{E}[S]\). Bursty market ticks inflate arrival variability \(c_a^2 = \operatorname{Var}(A)/\mathbb{E}[A]^2\); variable Iceberg metadata lookups and payload sizes inflate service-time variability \(c_s^2 = \operatorname{Var}(S)/\mathbb{E}[S]^2\).</li>
-                        <li><strong>4. The mathematical anatomy:</strong> Kingman’s equation factors mean waiting time into three multiplicative terms: <strong>Utilization</strong> \(\times\) <strong>Variability</strong> \(\times\) <strong>Base Service Time</strong>:</li>
-                    </ul>
+                    <p>Consider a single serial processing lane—for instance, <strong>Event Hubs Partition 7</strong> in our Analytics Gateway, served by a single dedicated consumer thread. John Kingman’s heavy-traffic formula gives a <strong>mean queue-wait approximation</strong> (\(\mathbb{E}[W_q]\)) for a stable single-server \(GI/G/1\) queue operating at \(\rho \lt 1\). It factors mean waiting time into three multiplicative terms: <strong>Utilization Congestion</strong> \(\times\) <strong>Arrival &amp; Service Jitter</strong> \(\times\) <strong>Mean Service Time</strong>.</p>
                 </div>
             </div>
             
-          <div class="math-display">
-    \[ \mathbb{E}[W_q] \approx \underbrace{\left(\frac{\rho}{1 - \rho}\right)}_{\text{Utilization Congestion}} \cdot \underbrace{\left(\frac{c_a^2 + c_s^2}{2}\right)}_{\text{Arrival \& Service Jitter}} \cdot \underbrace{\mathbb{E}[S]}_{\text{Mean Service Time}} \]
-</div>
+            <div class="math-display">
+                \[ \mathbb{E}[W_q] \approx \underbrace{\left(\frac{\rho}{1 - \rho}\right)}_{\text{Utilization Congestion}} \cdot \underbrace{\left(\frac{c_a^2 + c_s^2}{2}\right)}_{\text{Arrival \& Service Jitter}} \cdot \underbrace{\mathbb{E}[S]}_{\text{Mean Service Time}} \]
+            </div>
 
-            <p><strong>5. Watch the \((1 - \rho)\) denominator detonate:</strong> Suppose Partition 7's consumer thread has a brisk mean service time of \(\mathbb{E}[S]=10\text{ ms}\), exponential-like arrival and service variability (\(c_a = c_s = 1\), so the variability factor is \((1+1)/2 = 1\)), and runs at \(\rho = 0.90\) (90% busy):</p>
+            <p><strong>Watch the \((1 - \rho)\) denominator detonate:</strong> Suppose Partition 7's consumer thread has a brisk mean service time of \(\mathbb{E}[S]=10\text{ ms}\), exponential-like arrival and service variability (\(c_a = c_s = 1\), so the variability factor is \((1+1)/2 = 1\)), and runs at \(\rho = 0.90\) (90% busy):</p>
 
             <div class="math-display">
                 \[ \begin{aligned} \mathbb{E}[W_q] &\approx \left(\frac{0.90}{1 - 0.90}\right) \left(\frac{1^2 + 1^2}{2}\right) (10\text{ ms}) \\ &= 9 \times 1 \times 10\text{ ms} = \mathbf{90\text{ ms}} \end{aligned} \]
             </div>
             
-            <p>At 90% utilization, an event that takes 10ms of actual work spends an average of <strong>90ms sitting in line</strong> (100ms total time). Now watch what happens when a tiny 5% nudge in traffic pushes that lane from \(\rho = 0.90\) to \(\rho = 0.95\):</p>
+            <p>At 90% utilization, an event that takes 10ms of actual CPU work spends an average of <strong>90ms sitting in line</strong> (100ms total time). Now watch what happens when a tiny 5.5% nudge in traffic pushes that lane from \(\rho = 0.90\) to \(\rho = 0.95\):</p>
             
             <div class="math-display">
                 \[ \mathbb{E}[W_q] \approx \left(\frac{0.95}{1 - 0.95}\right) \cdot 1 \cdot 10\text{ ms} = 19 \times 10\text{ ms} = \mathbf{190\text{ ms}} \]
@@ -637,31 +786,26 @@
 
             <p>A <strong>5.5% increase in traffic</strong> (\(\rho\) from 0.90 to 0.95) <strong>more than doubles the mean queue wait</strong> from 90ms to 190ms! And what if the workload is burstier than Poisson/Exponential—say, micro-batched arrivals (\(c_a^2 = 3\)) and skewed query sizes (\(c_s^2 = 5\)), giving a variability multiplier of \((3+5)/2 = 4\)? Then at 90% utilization, the mean wait isn't 90ms—it is \(9 \times 4 \times 10\text{ ms} = \mathbf{360\text{ ms}}\)!</p>
 
-            <p>Notice the two levers Kingman hands you as an architect. For the same 10ms service time at \(c_a=c_s=1\), mean wait is 23.3ms at 70% utilization, 40ms at 80%, 90ms at 90%, and 190ms at 95%. You can buy down queue wait in only two ways: <strong>lower \(\rho\)</strong> (add capacity, split hot partitions, or shed load so \((1-\rho)\) stays large) or <strong>crush \(c_a^2 + c_s^2\)</strong> (pace arrivals, cap payload sizes, and eliminate bimodal stalls so the variability numerator shrinks). No single utilization percentage is a universal magic number—your safe operating ceiling is a function of your variance and your latency budget.</p>
-
-            <p><strong>6. Architectural controls for Partition 7:</strong> First, stop looking at pod-wide average CPU when debugging a partitioned stream—alert on <em>per-partition lag and oldest-message age</em>. Second, break up hot partitions by salting partition keys (where ordering rules allow) or decoupling heavy query execution from the serial partition reader into a bounded worker pool. Third, clamp \(c_s^2\) by enforcing strict payload/row-group limits and separating fast point lookups from slow analytical scans. Finally, cap queue depth and age so a transient spike triggers fast backpressure or load shedding rather than a silent 30-minute backlog.</p>
-
-            <p><strong>7. Production verification:</strong> Instrument per-partition inter-arrival deltas and pure execution durations separately from queue wait time. Compute empirical \(c_a^2\) and \(c_s^2\) across 1-minute and 5-minute windows, and plot measured mean queue wait against utilization \(\rho\). Use Kingman to reason about mean heavy-traffic leverage, and use empirical quantiles or discrete-event simulation to verify p95/p99 SLO compliance.</p>
+            <p>Notice the two levers Kingman hands you as an architect. You can buy down queue wait in only two ways: <strong>lower \(\rho\)</strong> (add capacity, split hot partitions, or shed load at the token bucket so \((1-\rho)\) stays large) or <strong>crush \(c_a^2 + c_s^2\)</strong> (pace arrivals with a leaky bucket, cap payload sizes, and isolate slow analytical scans from fast point lookups so the variability numerator shrinks).</p>
 
             <section class="editorial-callout editorial-callout--math" aria-labelledby="model-validation-title">
                 <div class="callout-eyebrow" id="model-validation-title">Production Checklist: Validate Before You Size</div>
                 <div class="callout-content">
                     <p>Queueing equations are x-ray glasses for system mechanics, not crystal balls. Before betting a production capacity plan on a formula, run these five checks against live telemetry:</p>
                     <ul>
-                        <li><strong>Check arrival dispersion across timescales:</strong> Compute \(I = \operatorname{Var}(N(t))/\mathbb{E}[N(t)]\) at 100ms, 1s, and 10s windows. If \(I \gg 1\), cron bursts or retry waves are clumping your arrivals beyond Poisson assumptions.</li>
+                        <li><strong>Check arrival dispersion across timescales:</strong> Compute \(I = \operatorname{Var}(N(t))/\mathbb{E}[N(t)]\) at 100ms, 1s, and 10s windows. If \(I \gg 1\), multiply your Token Bucket burst capacity \(B\) by \(I\).</li>
+                        <li><strong>Never set Token Bucket refill \(r = \lambda\):</strong> Provision a \(5\%\text{–}15\%\) refill margin (\(\rho = \lambda/r \le 0.90\)) so the bucket drains deficits exponentially instead of wandering into the \(\frac{1}{2B+1}\) random-walk trap.</li>
                         <li><strong>Measure service variability \(c_s^2\) directly:</strong> Never assume \(c_s^2 = 1\) (Exponential) without checking. Cache mixtures, big tenants, and GC pauses routinely push \(c_s^2\) into double digits.</li>
                         <li><strong>Instrument queue age, not just CPU gauges:</strong> Track point-in-time queue depth, time spent waiting in queue (\(W_q\)) vs. executing (\(S\)), and admission-rejection counters per partition/lane.</li>
-                        <li><strong>Validate under stress, not just Tuesday afternoon:</strong> A model that fits at \(\rho = 0.30\) can fail spectacularly at \(\rho = 0.85\) when lock contention and connection pools start degrading service rate \(\mu\).</li>
-                        <li><strong>Test the safety valves:</strong> Verify under load injection that bounded queues, deadline propagation, cooperative cancellation, and drain recovery actually work when \(\lambda > \mu\).</li>
+                        <li><strong>Test the safety valves:</strong> Verify under load injection that bounded queues, deadline propagation, cooperative cancellation, and drain recovery actually work when \(\lambda \gt \mu\).</li>
                     </ul>
-                    <p><strong>The architect's rule:</strong> Pick the simplest model that captures the physical bottleneck, falsify its assumptions against tail telemetry, and wire hard bounds so the service survives when the traffic refuses to read your textbook.</p>
                 </div>
             </section>
             
-            <p>Queueing physics explains why a server with "spare average capacity" can still drown in waiting time—and why aggregate cluster metrics hide single-partition meltdowns. Up to this point, however, we have focused on single servers and sequential pipelines where durations <em>add</em>. What happens when a query fans out across 100 parallel storage nodes and cannot finish until the <em>slowest</em> node responds? That shifts the math from sums to <strong>maxima, order statistics, and Extreme Value Theory</strong>—the subject of Part 4.</p>
+            <p>Queueing physics explains why a server with "spare average capacity" can still drown in waiting time—and why a rate limiter set to your average traffic rate rejects half your users. Up to this point, however, we have focused on single servers and sequential pipelines where durations <em>add</em>. What happens when a query fans out across 100 parallel storage nodes and cannot finish until the <em>slowest</em> node responds? That shifts the math from sums to <strong>maxima, order statistics, and Extreme Value Theory</strong>—the subject of Part 4.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
-                <a href="part-2-mathematics-of-reliability-and-retries.html">← Part 2: The Mathematics of Reliability and Retries</a>
+                <a href="part-2-mathematics-of-reliability-and-retries.html">← Part 2: Reliability, Redundancy, and the Independence Delusion</a>
                 <a href="part-4-aggregation-and-the-extreme-tail.html">Part 4: Aggregation and the Extreme Tail →</a>
             </nav>
         </main>
@@ -703,7 +847,7 @@
                     root.setAttribute('data-theme', newTheme);
                     root.classList.add(newTheme, 'theme-' + newTheme);
                     themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
-                    try { localStorage.setItem('theme', newTheme); } catch (e) { /* Ignore privacy mode errors */ }
+                    try { localStorage.setItem('theme', newTheme); } catch (e) {}
 
                     document.querySelectorAll('.sim-canvas').forEach(canvas => {
                         const sim = canvasToSim.get(canvas);
@@ -721,9 +865,9 @@
                 return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
             }
 
-            // Knuth's exact Poisson sampler. The UI caps lambda at 40, so the
-            // expected loop count is small enough for this interactive demo.
+            // Knuth's exact Poisson sampler
             function randPoisson(lambda) {
+                if (lambda <= 0) return 0;
                 const limit = Math.exp(-lambda);
                 let product = 1;
                 let count = 0;
@@ -743,6 +887,12 @@
                     this.running = false;
                     this.timer = null;
                     this.params = {};
+
+                    // Token Bucket specific state
+                    this.tbTokens = 0;
+                    this.tbTotalArrivals = 0;
+                    this.tbTotalDropped = 0;
+                    this.tbTokenSum = 0;
 
                     this.statN = stageElement.querySelector('.stat-n');
                     this.statMean = stageElement.querySelector('.stat-mean');
@@ -797,6 +947,22 @@
 
                         inputK.oninput = (e) => { this.params.k = parseInt(e.target.value, 10); labelK.textContent = this.params.k; this.reset(); };
                         inputMu.oninput = (e) => { this.params.mu = parseFloat(e.target.value); labelMu.textContent = this.params.mu.toFixed(1); this.reset(); };
+                    } else if (this.type === 'tokenbucket') {
+                        const inLam = stage.querySelector('#lam_tb');
+                        const lblLam = stage.querySelector('#v_lam_tb');
+                        const inRate = stage.querySelector('#rate_tb');
+                        const lblRate = stage.querySelector('#v_rate_tb');
+                        const inBurst = stage.querySelector('#burst_tb');
+                        const lblBurst = stage.querySelector('#v_burst_tb');
+
+                        this.params.lam = parseFloat(inLam.value);
+                        this.params.rate = parseFloat(inRate.value);
+                        this.params.burst = parseInt(inBurst.value, 10);
+                        this.tbTokens = this.params.burst;
+
+                        inLam.oninput = (e) => { this.params.lam = parseFloat(e.target.value); lblLam.textContent = this.params.lam; this.reset(); };
+                        inRate.oninput = (e) => { this.params.rate = parseFloat(e.target.value); lblRate.textContent = this.params.rate; this.reset(); };
+                        inBurst.oninput = (e) => { this.params.burst = parseInt(e.target.value, 10); lblBurst.textContent = this.params.burst; this.reset(); };
                     }
                 }
 
@@ -832,6 +998,20 @@
                             s += -Math.log(1 - stageU) / this.params.mu;
                         }
                         return s;
+                    } else if (this.type === 'tokenbucket') {
+                        // Simulate 1 deterministic token tick (dt = 1 / rate)
+                        const expectedArrivalsPerTick = this.params.lam / this.params.rate;
+                        const arrivals = randPoisson(expectedArrivalsPerTick);
+                        // Refill 1 token up to burst ceiling B
+                        this.tbTokens = Math.min(this.params.burst, this.tbTokens + 1);
+                        const admitted = Math.min(this.tbTokens, arrivals);
+                        const dropped = arrivals - admitted;
+                        this.tbTokens -= admitted;
+
+                        this.tbTotalArrivals += arrivals;
+                        this.tbTotalDropped += dropped;
+                        this.tbTokenSum += this.tbTokens;
+                        return this.tbTokens;
                     }
                 }
 
@@ -839,14 +1019,121 @@
                     if (this.type === 'poisson') return [0, Math.ceil(this.params.lam * 3 + 10)];
                     if (this.type === 'exponential') return [0, Math.max(6 / this.params.mu, 1)];
                     if (this.type === 'erlang') return [0, Math.max((this.params.k / this.params.mu) * 4 + 2, 1)];
+                    if (this.type === 'tokenbucket') return [0, this.params.burst];
                 }
 
                 isDiscrete() {
                     return this.type === 'poisson';
                 }
 
+                drawTokenBucket() {
+                    const ctx = this.ctx;
+                    const W = this.logicalW;
+                    const H = this.logicalH;
+                    ctx.clearRect(0, 0, W, H);
+
+                    const light = isLightMode();
+                    const gridColor = light ? '#cbd5e1' : '#2a323e';
+                    const labelColor = light ? '#475569' : '#8b93a3';
+                    const tealColor = getCssVar('--teal');
+                    const badColor = getCssVar('--bad');
+                    const amberColor = getCssVar('--amber');
+
+                    const pad = { l: 42, r: 20, t: 22, b: 30 };
+                    const plotW = W - pad.l - pad.r;
+                    const plotH = H - pad.t - pad.b;
+
+                    // Axes
+                    ctx.strokeStyle = gridColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(pad.l, H - pad.b);
+                    ctx.lineTo(W - pad.r, H - pad.b);
+                    ctx.stroke();
+
+                    // Ceiling line at B
+                    ctx.save();
+                    ctx.strokeStyle = amberColor;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, pad.t);
+                    ctx.lineTo(W - pad.r, pad.t);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    ctx.fillStyle = labelColor;
+                    ctx.font = '10px "IBM Plex Mono", monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('Tokens (B=' + this.params.burst + ')', 4, 13);
+                    ctx.textAlign = 'right';
+                    ctx.fillText('0', pad.l - 6, H - pad.b + 3);
+                    ctx.fillText(String(this.params.burst), pad.l - 6, pad.t + 4);
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Recent Token Refill Ticks (Time →)', W / 2, H - 6);
+
+                    // Theoretical drop rate calculation
+                    const rho = this.params.lam / this.params.rate;
+                    const B = this.params.burst;
+                    let theoryDrop = 0;
+                    if (Math.abs(rho - 1.0) < 1e-4) {
+                        theoryDrop = 1 / (2 * B + 1);
+                    } else if (rho < 1.0) {
+                        theoryDrop = (1 - rho) * Math.exp((-2 * (1 - rho) / rho) * B);
+                    } else {
+                        theoryDrop = (rho - 1) / rho;
+                    }
+                    this.statTheory.textContent = (theoryDrop * 100).toFixed(2) + '%';
+
+                    if (this.samples.length === 0) {
+                        ctx.fillStyle = labelColor;
+                        ctx.font = '12px "IBM Plex Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Click "Run" or "Step 50" to simulate Token Bucket trace', W / 2, H / 2);
+                        this.statN.textContent = '0';
+                        this.statMean.textContent = '–';
+                        this.statQuantiles.textContent = `– / ρ=${rho.toFixed(2)}`;
+                        return;
+                    }
+
+                    // Plot rolling time series of last 250 ticks
+                    const trace = this.samples.slice(-250);
+                    ctx.beginPath();
+                    ctx.strokeStyle = tealColor;
+                    ctx.lineWidth = 1.75;
+                    trace.forEach((val, idx) => {
+                        const x = pad.l + (idx / Math.max(1, trace.length - 1)) * plotW;
+                        const y = (H - pad.b) - (val / B) * plotH;
+                        if (idx === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke();
+
+                    // Highlight zero-token exhaustion points in red
+                    ctx.fillStyle = badColor;
+                    trace.forEach((val, idx) => {
+                        if (val === 0) {
+                            const x = pad.l + (idx / Math.max(1, trace.length - 1)) * plotW;
+                            const y = H - pad.b;
+                            ctx.fillRect(x - 1.5, y - 4, 3, 4);
+                        }
+                    });
+
+                    const avgTokens = this.tbTokenSum / this.samples.length;
+                    const obsDropRate = this.tbTotalArrivals > 0 ? (this.tbTotalDropped / this.tbTotalArrivals) * 100 : 0;
+
+                    this.statN.textContent = this.samples.length;
+                    this.statMean.textContent = avgTokens.toFixed(1) + ' / ' + B;
+                    this.statQuantiles.textContent = `${obsDropRate.toFixed(2)}% / ρ=${rho.toFixed(2)}`;
+                }
+
                 draw() {
                     if (!this.ctx) return;
+                    if (this.type === 'tokenbucket') {
+                        this.drawTokenBucket();
+                        return;
+                    }
+
                     const ctx = this.ctx;
                     const W = this.logicalW;
                     const H = this.logicalH;
@@ -872,8 +1159,6 @@
                     ctx.lineTo(W - pad.r, H - pad.b);
                     ctx.stroke();
 
-                    // Axis labels and range endpoints make the histogram interpretable
-                    // without relying on colour or surrounding prose.
                     ctx.fillStyle = labelColor;
                     ctx.font = '10px "IBM Plex Mono", monospace';
                     ctx.textAlign = 'left';
@@ -1006,6 +1291,10 @@
 
                 reset() {
                     this.samples = [];
+                    this.tbTokens = this.params.burst || 0;
+                    this.tbTotalArrivals = 0;
+                    this.tbTotalDropped = 0;
+                    this.tbTokenSum = 0;
                     if (this.running) {
                         this.running = false;
                         this.btnRun.textContent = '▶ Run';
