@@ -92,6 +92,9 @@
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0 1.5rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
+        /* --- Worked Calculation Steps --- */
+        .worked-steps { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; background: var(--panel-2); padding: 1rem 1.25rem; border-radius: 6px; border: 1px solid var(--line-soft); margin: 1rem 0; line-height: 1.65; color: var(--text); overflow-x: auto; }
+
         /* --- Simulation Stage (Tight Toolbar) --- */
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
@@ -137,17 +140,30 @@
         /* --- Forensic & Architecture Sections (Properly Aligned Tables) --- */
         .table-wrap { overflow-x: auto; margin: 1.5rem 0 2.25rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
         .table-wrap caption { padding: 0.85rem 1rem 0.4rem; caption-side: top; text-align: left; color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-        table { width: 100%; min-width: 720px; border-collapse: collapse; margin: 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; table-layout: fixed; }
+        table { width: 100%; min-width: 680px; border-collapse: collapse; margin: 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; table-layout: fixed; }
         th, td { border-top: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); padding: 0.75rem 0.85rem; text-align: left; vertical-align: top; line-height: 1.55; word-break: normal; overflow-wrap: break-word; }
         th:last-child, td:last-child { border-right: none; }
         thead th { border-top: 1px solid var(--line); border-bottom: 2px solid var(--line); color: var(--text); background: var(--panel-2); font-weight: 600; font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; }
-        th:first-child, td:first-child { width: 19%; min-width: 145px; }
-        th:nth-child(2), td:nth-child(2) { width: 19%; }
-        th:nth-child(3), td:nth-child(3) { width: 20%; }
-        th:nth-child(4), td:nth-child(4) { width: 22%; }
-        th:nth-child(5), td:nth-child(5) { width: 20%; }
         td { color: var(--muted); }
         td strong { color: var(--text); }
+
+        /* 5-Column Taxonomy Table Widths */
+        table.table-5col th:first-child, table.table-5col td:first-child { width: 19%; min-width: 145px; }
+        table.table-5col th:nth-child(2), table.table-5col td:nth-child(2) { width: 19%; }
+        table.table-5col th:nth-child(3), table.table-5col td:nth-child(3) { width: 20%; }
+        table.table-5col th:nth-child(4), table.table-5col td:nth-child(4) { width: 22%; }
+        table.table-5col th:nth-child(5), table.table-5col td:nth-child(5) { width: 20%; }
+
+        /* 4-Column Decision Matrix Widths */
+        table.table-4col th:first-child, table.table-4col td:first-child { width: 22%; min-width: 150px; }
+        table.table-4col th:nth-child(2), table.table-4col td:nth-child(2) { width: 26%; }
+        table.table-4col th:nth-child(3), table.table-4col td:nth-child(3) { width: 26%; }
+        table.table-4col th:nth-child(4), table.table-4col td:nth-child(4) { width: 26%; }
+
+        /* 3-Column Checklist Widths */
+        table.table-3col th:first-child, table.table-3col td:first-child { width: 24%; min-width: 150px; }
+        table.table-3col th:nth-child(2), table.table-3col td:nth-child(2) { width: 38%; }
+        table.table-3col th:nth-child(3), table.table-3col td:nth-child(3) { width: 38%; }
 
         .forensic-grid { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.35rem 1.5rem; margin: 1.5rem 0 2rem; }
         .forensic-item { margin-bottom: 1.15rem; padding-bottom: 1.15rem; border-bottom: 1px dashed var(--line-soft); }
@@ -246,7 +262,7 @@
             <p>Hash partitioning makes a very specific bet: hashing <code>murmur3(key)</code> will spread <em>distinct key strings</em> evenly across buckets. What a hash function cannot do is make those keys equally popular or equally cheap to process. A balanced hash ring is therefore never proof of balanced work. This chapter dissects two distinct species of skew: <strong>discrete popularity skew</strong> (which keys receive all the traffic) and <strong>continuous cost skew</strong> (how much CPU, memory, and I/O each request or tenant devours). Zipf and Pareto are cousins in the power-law family, but they answer different questions: Zipf assigns probabilities to discrete ranked items (<code>1st, 2nd, 3rd...</code>), whereas Pareto models a positive continuous magnitude (such as bytes scanned or CPU-milliseconds). And keep the modeling contract honest: one giant query does not prove a workload is Pareto, just as one hot key does not prove the entire keyspace follows Zipf's law.</p>
 
             <div class="table-wrap">
-                <table>
+                <table class="table-5col">
                     <caption>Table 1: Heavy-Tailed &amp; Extreme Regimes in Distributed Systems</caption>
                     <thead>
                         <tr>
@@ -316,18 +332,66 @@
                 </div>
             </div>
 
-            <div class="math-explanation">
-                <strong>Strict Skew Metrics Taxonomy (Stop Calling Everything a Gini Coefficient):</strong>
-                <p>Architecture reviews routinely muddle three completely different skew metrics. Keep their definitions sharp:</p>
-                <ul>
-                    <li><strong>Peak-to-Average (Max-to-Mean) Ratio:</strong> \( \frac{\max_i L_i}{\bar{L}} \). The simplest operational signal: how many times hotter is your worst shard compared to the cluster average? This is the number that tells you when Shard 7 is about to melt.</li>
-                    <li><strong>Coefficient of Variation (CV):</strong> \( \frac{\sigma_L}{\mu_L} \). Standard deviation divided by the mean across shards—a measure of overall relative spread.</li>
-                    <li><strong>Gini Coefficient (\( G \in [0, 1] \)):</strong> The normalized area between the Lorenz curve and perfect equality across all \(M\) shards: \( G = \frac{\sum_{i=1}^{M}\sum_{j=1}^{M} |L_i - L_j|}{2 M^2 \bar{L}} \). Notice that if 15 shards sit at 1,000 RPS and 1 shard sits at 3,000 RPS, the Peak-to-Average ratio is a painful \(2.67\times\), while the Gini coefficient across all 16 shards is a sleepy \(G \approx 0.078\)! For single-shard hot-spotting, always track <strong>Peak-to-Average</strong> alongside max shard utilization.</li>
-                </ul>
+            <h3>Choosing Your Skew Detector: Peak-to-Average vs. CV vs. Gini</h3>
+            <p>Saying "our cluster has a skew problem" is like saying "our patient has a temperature." You need to know whether one organ is on fire or the whole body is mildly warm. Engineers frequently grab a fancy-sounding term like the <strong>Gini Coefficient</strong> and paste it onto a Grafana dashboard, only to watch Shard 7 melt to the ground without firing a single alert. That happens because these three metrics measure completely different geometric properties of how load \(L = \{L_1, L_2, \dots, L_M\}\) is distributed across \(M\) shards:</p>
+
+            <ul>
+                <li><strong>1. Peak-to-Average (Max-to-Mean) Ratio — The "Melting Shard" Detector:</strong>
+                    <div class="equation-flow">
+                        \[ \text{Peak-to-Average} = \frac{\max_i L_i}{\bar{L}}, \quad \text{where } \bar{L} = \frac{1}{M}\sum_{i=1}^{M} L_i \]
+                    </div>
+                    <em>What it measures:</em> The worst-case outlier relative to the cluster average. It ignores the other \(M - 1\) shards entirely and asks one ruthless operational question: <em>"How badly is the single unluckiest node getting hammered compared to a perfectly balanced world?"</em> Because hardware fails at the margin rather than on average, this is your primary real-time paging metric. If your router exhibits a Peak-to-Average ratio of \(1.6\times\), you cannot safely run your cluster above \(1 / 1.6 = 62.5\%\) average utilization without the hottest shard breaching 100% capacity.
+                </li>
+                <li><strong>2. Coefficient of Variation (\(CV\)) — The "Noisy Ring &amp; Queue Jitter" Detector:</strong>
+                    <div class="equation-flow">
+                        \[ CV = \frac{\sigma_L}{\bar{L}} = \frac{\sqrt{\frac{1}{M}\sum_{i=1}^{M}(L_i - \bar{L})^2}}{\bar{L}} \]
+                    </div>
+                    <em>What it measures:</em> Overall relative dispersion (wobbliness) across all shards, normalized into a dimensionless ratio. Because it squares deviations \((L_i - \bar{L})^2\), it is sensitive to outliers while still accounting for the whole ring. Better yet, a healthy consistent-hash ring with \(V\) virtual nodes per physical host has a known theoretical placement baseline of \(CV \approx \frac{1}{\sqrt{V}}\) (for example, \(V = 100\) vnodes implies a structural baseline of \(CV \approx 0.10\)). When your live load \(CV\) jumps from \(0.10\) to \(0.45\), you know immediately that the imbalance is coming from <em>workload skew</em> (popular keys or heavy queries), not bad hash placement. And in queueing theory (Part 3), \(C_S^2 = CV^2\) is the exact multiplier that drives Pollaczek–Khinchine waiting times.
+                </li>
+                <li><strong>3. Gini Coefficient (\(G \in [0, 1]\)) — The "Macro FinOps Inequality" Detector:</strong>
+                    <div class="equation-flow">
+                        \[ G = \frac{\sum_{i=1}^{M}\sum_{j=1}^{M} |L_i - L_j|}{2 M^2 \bar{L}} \]
+                    </div>
+                    <em>What it measures:</em> The average absolute difference between <em>every possible pair of shards</em> (\(M^2\) pairs), normalized by the mean (\(G = 0\) is perfect equality; \(G \to 1\) is total monopoly). <em>Why it fools on-call SREs:</em> Because the denominator contains \(M^2\), a single runaway shard gets diluted by the \((M-1)^2\) pairs of normal shards that agree with each other! Gini is an economic tool for macro population inequality (e.g., <em>"Do 5% of our tenants drive 85% of our S3 storage bill?"</em> or <em>"Does Ceph/Cassandra need a background disk rebalance?"</em>)—never use it to page an on-call engineer for a hot partition.
+                </li>
+            </ul>
+
+            <div class="table-wrap">
+                <table class="table-4col">
+                    <caption>Table 2: Skew Detection Decision Matrix — Which Metric Should You Use?</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Metric</th>
+                            <th scope="col">When to Use It (Primary Use Case)</th>
+                            <th scope="col">Operational Blind Spot</th>
+                            <th scope="col">Production Rule of Thumb</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Peak-to-Average</strong><br>\(\max L_i / \bar{L}\)</td>
+                            <td><strong>Real-time hot-shard alerting</strong>, hot-key detection, and setting cluster utilization ceilings.</td>
+                            <td>Only sees Rank #1. Cannot distinguish <em>1 hot + 15 cold shards</em> from <em>8 hot + 8 cold shards</em>.</td>
+                            <td>Page when \(\text{Peak-to-Avg} \times \bar{\rho}_{\text{cluster}} &gt; 0.85\) (hottest shard approaching saturation).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coeff. of Variation</strong><br>\(CV = \sigma_L / \bar{L}\)</td>
+                            <td><strong>Evaluating load balancers / vnode counts</strong> and predicting \(M/G/1\) queue delay (\(C_S^2 = CV^2\)).</td>
+                            <td>In massive fleets (\(M = 500\) nodes), a single runaway node is diluted by \(\sqrt{M}\).</td>
+                            <td>Compare shard load against vnode baseline \(1/\sqrt{V}\); isolate worker pools when service-time \(CV &gt; 1.0\).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Gini Coefficient</strong><br>\(G \in [0, 1]\)</td>
+                            <td><strong>Macro FinOps attribution</strong>, multi-tenant cost tiering, and background storage rebalancing.</td>
+                            <td><strong>Sleeps through single-shard fires!</strong> \(O(M^2)\) pairwise denominator masks isolated hot spots.</td>
+                            <td>Use for quarterly tiering (\(G &gt; 0.60\) signals strong Pareto tenant concentration); <strong>ban from paging alerts</strong>.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <h3>Illustrative Engineering Scenario: The Global Config Key vs. The 16-Shard Cache</h3>
-            <p><strong>Evidence classification:</strong> Reproducible analytical stress scenario illustrating how a single Zipfian hot key overloads one shard while the cluster-wide dashboard stays green.</p>
+            <p><strong>Evidence classification:</strong> Reproducible analytical stress scenario illustrating how a single Zipfian hot key overloads one shard while the cluster-wide dashboard—and the Gini coefficient—stay deceptively calm.</p>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
@@ -355,16 +419,20 @@
                     <p>The remaining \(20{,}000 - 2{,}044 = 17{,}956\text{ RPS}\) (\(89.78\%\)) spreads evenly across the 16 shards at \(17{,}956 / 16 = \mathbf{1{,}122.25\text{ RPS per shard}}\).</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">4. Boundary Failure Mechanism (Shard Pinning)</div>
+                    <div class="forensic-label">4. Boundary Failure Mechanism &amp; Skew Metric Showdown</div>
                     <p>Because <code>CRC16(key) % 16384</code> is deterministic, every single request for key \( k = 1 \) lands on the exact same physical node—<strong>Shard 7</strong>. Shard 7 must swallow all 2,044 RPS of the hot key <em>plus</em> its 1,122.25 RPS share of background traffic:</p>
                     <div class="equation-flow">
                         \[ \lambda_{\text{Shard } 7} = 2{,}044 + 1{,}122.25 = \mathbf{3{,}166.25 \text{ RPS}} \]
                     </div>
-                    <p>Shard 7 is hit with an offered load equal to <strong>211% of its 1,500 RPS ceiling</strong> (\(\rho_7 = 3{,}166.25 / 1{,}500 = 2.11\)), while Shards 0–6 and 8–15 cruise along at \(1{,}122.25 / 1{,}500 = \mathbf{74.8\%}\) capacity! The <strong>Peak-to-Average Ratio</strong> across the ring is:</p>
-                    <div class="equation-flow">
-                        \[ \text{Peak-to-Average} = \frac{\max_i \lambda_i}{\bar{\lambda}} = \frac{3{,}166.25}{1{,}250} = \mathbf{2.53\times} \]
+                    <p>Shard 7 is hit with an offered load equal to <strong>211% of its 1,500 RPS ceiling</strong> (\(\rho_7 = 3{,}166.25 / 1{,}500 = 2.11\)), while Shards 0–6 and 8–15 cruise along at \(1{,}122.25 / 1{,}500 = \mathbf{74.8\%}\) capacity! Now watch how our three skew metrics score this exact same outage:</p>
+                    <div class="worked-steps">
+                        Cluster Mean (\(\bar{\lambda}\)): \(\frac{15(1{,}122.25) + 1(3{,}166.25)}{16} = \frac{20{,}000}{16} = \mathbf{1{,}250\text{ RPS}}\)<br><br>
+                        1. <strong>Peak-to-Average Ratio:</strong> \(\frac{\max_i \lambda_i}{\bar{\lambda}} = \frac{3{,}166.25}{1{,}250} = \mathbf{2.53\times}\) &nbsp;&rarr;&nbsp; <strong>SCREAMS FIRE!</strong> (Implied max shard load = \(2.53 \times 83.3\% = 211\%\))<br>
+                        2. <strong>Coefficient of Variation (\(CV\)):</strong> \(\sigma_\lambda = \sqrt{\frac{15(-127.75)^2 + 1(1{,}916.25)^2}{16}} \approx 479.06\text{ RPS} \implies CV = \frac{479.06}{1{,}250} \approx \mathbf{0.383}\) &nbsp;&rarr;&nbsp; <strong>ELEVATED</strong><br>
+                        3. <strong>Gini Coefficient (\(G\)):</strong> Only the \(2 \times 15 = 30\) ordered pairs involving Shard 7 have a non-zero difference (\(|3{,}166.25 - 1{,}122.25| = 2{,}044\)); the other 226 pairs have difference \(0\):<br>
+                        &nbsp;&nbsp;&nbsp;\(G = \frac{30 \times 2{,}044}{2 \times 16^2 \times 1{,}250} = \frac{61{,}320}{640{,}000} \approx \mathbf{0.0958}\) &nbsp;&rarr;&nbsp; <strong>SLEEPS THROUGH THE OUTAGE!</strong> (Reports ~90% equality!)
                     </div>
-                    <p>Notice the trap: if a well-meaning SRE sees timeouts and "scales out the Redis cluster from 16 shards to 32 shards," what happens to key \(k=1\)? Nothing! All 2,044 RPS of <code>key_1</code> <em>still</em> hash to a single shard (which still melts at 1,500 RPS). You cannot fix single-key pinning by adding more buckets to a deterministic hash ring.</p>
+                    <p>Notice the double lesson: first, if your dashboard alerts on Gini (\(G = 0.096\)), you will never get paged while Shard 7 burns. Second, if a well-meaning SRE "scales out the Redis cluster from 16 shards to 32 shards," all 2,044 RPS of <code>key_1</code> <em>still</em> hash to a single shard (which still melts at 1,500 RPS). You cannot fix single-key pinning by adding more buckets to a deterministic hash ring.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">5. Architectural Controls</div>
@@ -434,11 +502,11 @@
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">2. Mathematical Model: The Poisson Illusion vs. Phase-Locked Reality</div>
-                    <p>In the original capacity spreadsheet, the team divided \(N\) by \(T\) and assumed refreshes arrived as a stationary, memoryless Poisson stream:</p>
+                    <p>In the original capacity spreadsheet, the team divided \(N\) by \(T\) and assumed refreshes arrived as a stationary, memoryless Poisson stream (Dispersion Index \(I = \sigma^2/\mu = 1.0\)):</p>
                     <div class="equation-flow">
                         \[ \bar{\lambda} = \frac{120{,}000 \text{ clients}}{900 \text{ seconds}} \approx 133.33 \text{ RPS} \]
                     </div>
-                    <p>Provisioning the Token Service + HSM fleet for <strong>1,500 RPS</strong> looked like a luxurious \(11.25\times\) safety margin. Then the network blip phase-locked the fleet, compressing 15 minutes of arrivals into \(\Delta t = 30\) seconds:</p>
+                    <p>Provisioning the Token Service + HSM fleet for <strong>1,500 RPS</strong> looked like a luxurious \(11.25\times\) safety margin. Then the network blip phase-locked the fleet, compressing 15 minutes of arrivals into \(\Delta t = 30\) seconds (driving the window Dispersion Index \(I \gg 1{,}000\)):</p>
                     <div class="equation-flow">
                         \[ \lambda_{\text{burst}} = \frac{120{,}000}{30 \text{ s}} = \mathbf{4{,}000 \text{ RPS}} \quad \text{(2.67} \times \text{ total cluster capacity)} \]
                     </div>
@@ -560,7 +628,7 @@
 
             <div class="scenario-card">
                 <div class="scenario-title">1. Consistent Hashing, Virtual Nodes, and the Hot-Key Limit</div>
-                <p>Consistent hashing maps both nodes and keys onto a unit ring so adding or removing a node only remaps a \(1/M\) fraction of keys instead of reshuffling the entire cluster. Virtual nodes (vnodes) assign each physical host 100–256 positions around the ring so key-count variance across hosts shrinks to a few percent.</p>
+                <p>Consistent hashing maps both nodes and keys onto a unit ring so adding or removing a node only remaps a \(1/M\) fraction of keys instead of reshuffling the entire cluster. Virtual nodes (vnodes) assign each physical host 100–256 positions around the ring so key-count variance across hosts shrinks to \(CV \approx 1/\sqrt{V}\).</p>
                 <p><strong>What vnodes cannot fix:</strong> Vnodes smooth out <em>key-count</em> imbalance, but they do zero to split traffic for a <em>single logical hot key</em>. All 2,044 RPS for <code>key_1</code> still land on whichever vnode owns that point on the ring. Splitting a single hot key requires L1 caching, read-replica fan-out, or salted key splitting (<code>key_1#0..7</code>).</p>
             </div>
 
@@ -701,6 +769,59 @@
                     <div>Median (p50): <span class="stat-p50 teal-val">–</span></div>
                     <div>p99 Value: <span class="stat-p99">–</span></div>
                     <div>Max Outlier: <span class="stat-tail bad-val">–</span></div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 6. PRODUCTION CHECKLIST (SERIES ALIGNED)   -->
+            <!-- ========================================== -->
+            <h2>6. The Principal Architect's Skew &amp; Routing Checklist</h2>
+            <p>Use this verification matrix before signing off on any sharded cache, partitioned event stream, or multi-tenant worker pool. The question is never "Is our hash function uniform?" It is "What happens to the cluster when key popularity, query cost, or client clocks refuse to be uniform?"</p>
+
+            <div class="table-wrap">
+                <table class="table-3col">
+                    <caption>Table 3: Verification Matrix for Sharding, Routing, and Multi-Tenant Isolation</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Skew Dimension</th>
+                            <th scope="col">Diagnostic Question &amp; Metric</th>
+                            <th scope="col">Architectural Control</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Spatial Key Skew</strong><br><em>(Zipfian Hot Keys)</em></td>
+                            <td>Does a single hot key drive \(\text{Peak-to-Average} = \max L_i / \bar{L} &gt; 1.5\times\) while Gini stays low?</td>
+                            <td>Enable proxy <code>singleflight</code> coalescing, add 50–200 ms L1 micro-caches with jittered TTLs, or salt hot writes (<code>key#0..K</code>).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Temporal Arrival Skew</strong><br><em>(Phase-Locked Herds)</em></td>
+                            <td>Does the window Dispersion Index \(I = \operatorname{Var}(N(t))/\mathbb{E}[N(t)]\) spike \(\gg 1\) after blips or on cron boundaries?</td>
+                            <td>Stamp server-issued TTLs with \(\pm 20\%\) uniform random jitter, persist client refresh schedules across restarts, and cap concurrency via Little's Law.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Payload Cost Skew</strong><br><em>(Pareto Whale Queries)</em></td>
+                            <td>Is worker occupancy variance \(C_S^2 = \operatorname{Var}(S_{\mathrm{occ}})/\mathbb{E}[S_{\mathrm{occ}}]^2 \gg 1\) causing HoL blocking on shared lanes?</td>
+                            <td>Split Fast/Heavy worker pools via pre-admission manifest byte estimates (SITA-E) and replace request-count limits with byte-second token buckets.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Multi-Tenant Blast Radius</strong><br><em>(Noisy Neighbors)</em></td>
+                            <td>Can one poison-pill tenant walk across all \(N\) nodes via least-connection routing and retries?</td>
+                            <td>Isolate tenants into \(k\)-of-\(N\) Combinatorial Shuffle Shards and score P2C candidates by queued byte-work + RAM pressure rather than connection count.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Observability Ratios</strong><br><em>(Cauchy Instability)</em></td>
+                            <td>Are autoscalers or PagerDuty rules evaluating <code>AVG(A/B)</code> or <code>mean ± 3*stddev</code> on heavy-tailed metrics?</td>
+                            <td>Compute ratios of sums (<code>SUM(A)/SUM(B)</code>) over floored denominators, and alert on mergeable histogram quantiles (\(P_{50}, P_{99}\)) and MAD.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tldr-box tldr-box--warning">
+                <div class="tldr-eyebrow">Final engineering rule</div>
+                <div class="tldr-content">
+                    <p>Hash rings distribute <em>keys</em>; they do not distribute <em>work</em>. Whenever you see a cluster failing at 40% aggregate CPU, stop looking at cluster-wide averages and stop trusting the Gini coefficient to page you. Measure the <strong>Peak-to-Average ratio</strong> across shards, measure the <strong>second-moment variability (\(C_S^2\))</strong> of worker occupancy, and build hard isolation bulkheads (Shuffle Sharding, Fast/Heavy lanes, and cost-weighted P2C) so a single whale cannot sink the ship.</p>
                 </div>
             </div>
             
