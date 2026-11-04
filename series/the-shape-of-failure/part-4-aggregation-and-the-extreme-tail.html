@@ -92,6 +92,13 @@
         .math-explanation { font-size: 0.95rem; color: var(--muted); margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); }
         .math-explanation strong { color: var(--text); }
 
+        /* --- Worked Scenarios (Clean Editorial Format) --- */
+        .worked-section { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 1.5rem 0; margin: 2rem 0; }
+        .worked-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--teal); font-weight: 600; margin-bottom: 0.85rem; }
+        .worked-section p { font-size: 1rem; margin-bottom: 0.85rem; }
+        .worked-section p:last-child { margin-bottom: 0; }
+        .worked-steps { font-family: 'IBM Plex Mono', monospace; font-size: 0.84rem; background: var(--panel-2); padding: 1rem 1.25rem; border-radius: 4px; border: 1px solid var(--line-soft); margin: 1rem 0; line-height: 1.65; color: var(--text); overflow-x: auto; }
+
         /* --- Simulation Stage --- */
         .stage { background: var(--panel); border: 1px solid var(--line); padding: 1.35rem 1.5rem; margin: 2rem 0; border-radius: 8px; }
         
@@ -601,41 +608,76 @@
 
             <h2>7. Extreme Value Theory: peering into the far tail without fooling yourself</h2>
 
-            <p>What happens when a financial regulator or a hyperscale SLA asks you to reason about \(P_{99.99}\) or \(P_{99.999}\), where your sample only has a handful of observations—or where a naive histogram runs out of data? <strong>Extreme Value Theory (EVT)</strong> is the branch of probability that studies the asymptotic behavior of extreme tails. Notice the word <em>asymptotic</em>: EVT provides principled mathematical structure for the tail above a high threshold, but <strong>it cannot manufacture empirical certainty out of thin air</strong>.</p>
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Intuition: Why 99.9% of your data is useless for predicting the 99.99th percentile</div>
+                <div class="tldr-content">
+                    <p>Suppose a Tier-1 enterprise customer demands a \(P_{99.99}\) latency SLA (no more than 1 in 10,000 queries exceeding a deadline), or you need to size a storage bulkhead timeout so it only aborts genuinely runaway queries. If you fit a standard distribution (Normal, Exponential, or even Log-Normal) to your entire dataset, the fit will be overwhelmingly dominated by the 99.9% of boring, fast cache hits between 5 ms and 50 ms. Letting 10 ms cache hits vote on what happens at 900 ms is like predicting a 100-year Himalayan flood by averaging sunny Tuesday afternoons.</p>
+                    <p><strong>Extreme Value Theory (EVT)</strong> solves this by throwing away the bulk of the data and modelling <em>only</em> the extreme tail. Just remember the golden rule: EVT gives you a principled magnifying glass for the tail you have observed, but <strong>it cannot manufacture empirical evidence out of thin air</strong>. Extrapolating three orders of magnitude past your sample size is astrology with LaTeX formatting.</p>
+                </div>
+            </div>
 
-            <p>In the <strong>Peaks Over Threshold (POT)</strong> framework, we pick a high latency threshold \(u\) and inspect only the <em>excesses</em> above that threshold: \(Y = T - u \mid T > u\). By the Pickands–Balkema–de Haan theorem, under suitable regularity conditions and as \(u\) approaches the upper endpoint of the distribution, the conditional excess distribution converges to the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
+            <h3>The Peaks Over Threshold (POT) Engineering Method</h3>
+            <p>Rather than fitting a curve to all traffic, the <strong>Peaks Over Threshold (POT)</strong> method draws a line in the sand at a high latency threshold \(u\) (say, \(u = 500\text{ ms}\), your empirical \(P_{99.9}\)). We ignore every request faster than \(u\), and inspect only the <strong>excesses</strong> above that threshold: \(Y = T - u \mid T > u\) (for example, a 620 ms query has an excess of \(y = 620 - 500 = 120\text{ ms}\)).</p>
+            <p>Why do this? Because of a remarkable theorem by Pickands, Balkema, and de Haan (the tail equivalent of the Central Limit Theorem): across almost any continuous textbook distribution you start with, as your threshold \(u\) moves higher into the tail, the distribution of those conditional excesses \(Y\) converges to a single universal family—the <strong>Generalized Pareto Distribution (GPD)</strong>:</p>
 
             <div class="equation-flow">
                 \[ G_{\xi,\beta}(y)=1-\left(1+\xi\frac{y}{\beta}\right)^{-1/\xi},\quad y\ge0,\quad 1+\xi y/\beta>0,\quad \xi\ne0 \]
                 \[ G_{0,\beta}(y)=1-e^{-y/\beta},\quad y\ge0. \]
             </div>
 
-            <p>Here \(\beta > 0\) is the GPD scale parameter, and \(\xi\) (xi) is the <strong>shape parameter</strong> (or tail index), which sorts the universe of tail behavior into three <strong>Maximum Domains of Attraction (MDA)</strong>:</p>
+            <p>Here \(\beta > 0\) is the GPD scale parameter (measured in milliseconds, setting the baseline spread of excesses just above \(u\)), and \(\xi\) (xi) is the dimensionless <strong>tail shape index</strong>. In an architecture review, \(\xi\) is the single most important number on the page because it tells you which of three physical universes your tail lives in:</p>
             <div class="math-explanation">
                 <ul>
-                    <li><strong>Weibull / Bounded-tail domain (\(\xi < 0\)):</strong> The tail has a hard, finite upper ceiling at \(y_{\max} = u - \beta/\xi\). <em>Warning:</em> Do not blindly conclude your system has \(\xi < 0\) just because your metrics stop at 5,000 ms! An application <code>5000ms</code> timeout <strong>right-censors</strong> the observation; it does not mean the underlying database query finished or hit a physical law of nature.</li>
-                    <li><strong>Gumbel / Light-tail domain (\(\xi = 0\)):</strong> The excess tail decays exponentially like \(e^{-y/\beta}\). Exponential, Normal, Gamma, and Log-Normal distributions all belong to the Gumbel maximum domain of attraction asymptotically (though at finite thresholds, a Log-Normal sample often looks like a positive-\(\xi\) fit).</li>
-                    <li><strong>Fréchet / Heavy-tail domain (\(\xi > 0\)):</strong> The tail decays as a power law (\(y^{-1/\xi}\)), as seen in Pareto and Cauchy distributions. When \(\xi \ge 0.5\), the variance of the tail is infinite; when \(\xi \ge 1\), even the mean is infinite! Variable payload sizes, unindexed scans, and heavy-tailed file transfers can push latencies into this regime—though queueing delay alone is not automatically Fréchet unless the arrival or service inputs drive it there.</li>
+                    <li><strong>Weibull / Bounded-tail domain (\(\xi < 0\)):</strong> The tail hits a hard mathematical wall at \(y_{\max} = u - \beta/\xi\). <em>SRE trap:</em> Never celebrate a negative \(\xi\) fit before checking your timeout config! If your HTTP client kills requests at <code>5000ms</code>, your telemetry is artificially <strong>right-censored</strong> at 5,000 ms. A GPD fit will dutifully report \(\xi < 0\), mistaking an arbitrary software guillotine for a law of physics.</li>
+                    <li><strong>Gumbel / Light-tail domain (\(\xi = 0\)):</strong> Excesses above \(u\) decay exponentially like \(e^{-y/\beta}\). Every extra \(\beta\cdot\ln(10) \approx 2.3\beta\) milliseconds of latency buys you another "nine" of rarity. Normal, Exponential, Gamma, and Log-Normal tails all live in the Gumbel domain asymptotically (though at finite sample sizes, a Log-Normal tail often masquerades as \(\xi > 0\)).</li>
+                    <li><strong>Fréchet / Heavy-tail domain (\(\xi > 0\)):</strong> Excesses decay as a stubborn power law (\(y^{-1/\xi}\)), characteristic of Pareto and Cauchy processes. Each additional "nine" of rarity costs <em>multiplicatively more</em> latency than the last! When \(\xi \ge 0.5\), tail variance is infinite; when \(\xi \ge 1.0\), even the tail mean is infinite. Unbounded payload skew, unindexed Iceberg manifest scans, and lock convoys live here.</li>
                 </ul>
             </div>
 
-            <p>Let \(q_u = P(T > u)\) be the empirical fraction of requests that exceed threshold \(u\), and let \(p\) be the high target percentile you want to estimate (with \(p > 1 - q_u\)). Inverting the tail identity \(1 - p = q_u [1 - G_{\xi,\beta}(Q_p - u)]\) yields the <strong>POT quantile estimator</strong>:</p>
+            <h3>Turning the GPD into a Latency Quantile (\(Q_p\))</h3>
+            <p>Suppose a fraction \(q_u = P(T > u)\) of your total traffic exceeds the threshold \(u\), and you want to estimate a higher percentile \(p\) (for instance, \(p = 0.9999\) for \(P_{99.99}\), where \(1 - p < q_u\)). For a request to exceed \(Q_p\), it must first exceed \(u\) (probability \(q_u\)) and then its excess must exceed \(Q_p - u\) (conditional probability \(1 - G_{\xi,\beta}(Q_p - u)\)). Setting \(1 - p = q_u [1 - G_{\xi,\beta}(Q_p - u)]\) and solving for \(Q_p\) hands us the <strong>POT quantile estimator</strong>:</p>
             <div class="equation-flow">
                 \[ Q_p=u+\frac{\beta}{\xi}\left[\left(\frac{q_u}{1-p}\right)^\xi-1\right],\quad \xi\ne0 \]
                 \[ Q_p=u+\beta\ln\left(\frac{q_u}{1-p}\right),\quad \xi=0. \]
             </div>
-            <p>Look closely at the ratio \(\frac{q_u}{1 - p}\): it measures how far into the tail you are extrapolating beyond your threshold \(u\). When \(\xi > 0\), that ratio is raised to the power \(\xi\); even a tiny estimation error in \(\hat{\xi}\) gets amplified exponentially as \(p \to 1\). Remember that \(Q_p\) is a <strong>model-based point estimate</strong>, never an automatic SLA guarantee.</p>
+            <p>Look at the ratio \(\frac{q_u}{1 - p}\) inside the brackets: that is your <strong>tail extrapolation factor</strong>—how many times rarer the target percentile is than your threshold \(u\). When \(\xi > 0\), that ratio is raised to the power \(\xi\), which is why heavy tails punish optimistic timeout settings.</p>
 
-            <p>To use EVT in production without fooling yourself, enforce four guardrails:</p>
+            <div class="worked-section">
+                <div class="worked-title">Worked Scenario: Sizing a Storage Bulkhead Timeout at p99.99</div>
+                <p><strong>Evidence label:</strong> Illustrative engineering walkthrough (using the exact default parameters loaded in Workbench Lab 3 below so you can test the sensitivity live).</p>
+                <p>Our Multi-Tenant Analytics Gateway processes \(N = 10{,}000{,}000\) storage read requests over a week. We want to set an intelligent circuit-breaker timeout at the \(P_{99.99}\) boundary (\(p = 0.9999\), or 1 in 10,000 requests) so we can abort legitimately wedged storage calls and trigger a cross-AZ hedge without assassinating healthy heavy queries.</p>
+                <p>We set our POT threshold at \(u = 500\text{ ms}\). Out of 10 million requests, exactly \(N_u = 10{,}000\) requests exceed 500 ms, giving an empirical threshold exceedance rate of \(q_u = 10{,}000 / 10{,}000{,}000 = 0.001\) (so \(u = 500\text{ ms}\) is our empirical \(P_{99.9}\)). Fitting a declustered GPD to those 10,000 excesses yields scale \(\beta = 120\text{ ms}\) and shape \(\xi = 0.25\) (a moderate Fréchet heavy tail). Where does \(P_{99.99}\) land?</p>
+                <div class="worked-steps">
+                    <strong>Given inputs:</strong><br>
+                    Threshold: \(u = 500\text{ ms}\) &nbsp;|&nbsp; Exceedance rate: \(q_u = 0.001\) (\(P_{99.9}\))<br>
+                    Target: \(p = 0.9999\) (\(P_{99.99}\), so tail probability \(1 - p = 0.0001\))<br>
+                    Fitted GPD parameters: \(\beta = 120\text{ ms}\), &nbsp;\(\xi = 0.25\)<br><br>
+                    <strong>Step 1 — Compute the tail extrapolation factor (\(\frac{q_u}{1 - p}\)):</strong><br>
+                    \(\frac{q_u}{1 - p} = \frac{0.001}{0.0001} = \mathbf{10}\) &nbsp;(we are stepping \(10\times\) deeper into the tail, from \(P_{99.9}\) to \(P_{99.99}\))<br><br>
+                    <strong>Step 2 — Apply the heavy-tail power (\(\xi = 0.25\)):</strong><br>
+                    \(10^{0.25} = \sqrt{\sqrt{10}} \approx \mathbf{1.77828}\)<br><br>
+                    <strong>Step 3 — Compute the expected excess above the 500 ms threshold:</strong><br>
+                    \(\text{Excess} = \frac{\beta}{\xi}\left(10^{\xi} - 1\right) = \frac{120}{0.25} \times (1.77828 - 1) = 480 \times 0.77828 \approx \mathbf{373.57\text{ ms}}\)<br><br>
+                    <strong>Step 4 — Add the base threshold \(u = 500\text{ ms}\):</strong><br>
+                    \(Q_{0.9999} = 500 + 373.57 = \mathbf{873.57\text{ ms}}\)<br>
+                    ------------------------------------------------------------<br>
+                    <strong>Comparison — What if we had assumed an exponential Gumbel tail (\(\xi = 0\))?</strong><br>
+                    \(Q_{0.9999}^{(\xi=0)} = 500 + 120 \cdot \ln(10) = 500 + 120(2.30259) = \mathbf{776.31\text{ ms}}\)
+                </div>
+                <p><strong>The engineering takeaway:</strong> Look at the difference between the two models. Even though both models start at the exact same \(P_{99.9} = 500\text{ ms}\) threshold with the same \(\beta = 120\text{ ms}\) scale, ignoring the heavy-tail shape (\(\xi = 0.25\) vs. \(\xi = 0\)) underpredicts \(P_{99.99}\) by nearly <strong>100 milliseconds</strong> (\(776.3\text{ ms}\) vs. \(873.6\text{ ms}\))—and if you step one nine further to \(P_{99.999}\), the \(\xi = 0\) model guesses \(1{,}052.6\text{ ms}\) while the \(\xi = 0.25\) heavy tail sits at \(1{,}537.9\text{ ms}\)! Setting a hard timeout at 775 ms based on light-tail intuition would prematurely kill more than double the intended query volume. With the GPD estimate in hand (plus its bootstrap confidence interval), we size our storage bulkhead cutoff around <strong>900–950 ms</strong> and pair it with a token-bucket hedge.</p>
+            </div>
+
+            <h3>Four Ways Engineers Shoot Themselves in the Foot with EVT</h3>
+            <p>EVT is a sharp scalpel; if you use it carelessly, you will cut your own fingers off. Enforce these four operational rules before putting a GPD number into a config file:</p>
             <ol>
-                <li><strong>Validate threshold stability:</strong> If \(u\) is too low, you violate the asymptotic GPD theorem and bias the fit with bulk traffic; if \(u\) is too high, you have 12 data points and massive variance. Inspect Mean Residual Life (MRL) plots and parameter-stability plots across a range of candidate thresholds \(u\).</li>
-                <li><strong>Decluster temporal bursts:</strong> Standard POT assumes exceedances are independent. In production, a single 2-second GC pause or network micro-burst will generate 400 consecutive exceedances above \(u\). Fitting all 400 as "independent extreme events" corrupts your standard errors. Decluster bursts into independent cluster maxima (or use block maxima / block bootstrap) before estimating uncertainty.</li>
-                <li><strong>Report confidence intervals, not naked numbers:</strong> Always compute profile-likelihood or block-bootstrap confidence intervals for \(Q_p\), and report the number of observed exceedances \(N_u = N q_u\). Extrapolating from 50 exceedances to a 1-in-100-million event produces confidence intervals wide enough to drive a truck through.</li>
-                <li><strong>Never extrapolate across a physical phase change:</strong> A GPD curve fitted to smooth queueing jitter at 600 ms has zero ability to predict what happens at 1,200 ms when the kernel OOM-killer wakes up or a connection pool hits a hard mutex deadlock.</li>
+                <li><strong>Pick \(u\) by stability, not convenience (The Bias–Variance Trade-off):</strong> If you set \(u\) too low (say, at \(P_{75}\)), you violate the asymptotic theorem and contaminate the tail fit with normal cache-hit traffic (high bias). If you set \(u\) too high (say, with only 12 requests above \(u\)), your \(\hat{\xi}\) parameter estimate will swing wildly with every new log file (high variance). Plot the <strong>Mean Residual Life</strong> (average excess vs. \(u\)) and check that \(\hat{\xi}\) stays roughly stable across a range of candidate thresholds.</li>
+                <li><strong>Decluster bursty incidents before fitting:</strong> Standard POT likelihood assumes exceedances are independent draws. In production, a single 1.5-second NVMe controller stall or GC pause will cause 350 consecutive requests in the same second to exceed \(u = 500\text{ ms}\). Feeding all 350 correlated points into a naive GPD fitter treats <em>one physical incident</em> as 350 independent data points, giving you fake precision and corrupted tail estimates. Group back-to-back exceedances into temporal clusters and fit only the <strong>cluster maxima</strong> (or use block bootstrap).</li>
+                <li><strong>Respect the 10× extrapolation speed limit:</strong> Look at the ratio of observed exceedances \(N_u = N q_u\) to expected events beyond your target \(N(1 - p)\). In our worked example, we had \(10{,}000\) exceedances above \(u\) and estimated a target with \(1{,}000\) expected events—an extrapolation ratio of \(10\times\). If you try to use 50 exceedances from a 10-minute load test to predict a \(P_{99.9999}\) event (extrapolating \(1{,}000\times\) past your data), your profile-likelihood confidence interval for \(Q_p\) will span from 800 ms to 45 seconds. Report the confidence interval, never just the point estimate.</li>
+                <li><strong>Never extrapolate across a physical phase boundary:</strong> A GPD curve fitted to smooth queueing delays between 500 ms and 900 ms knows nothing about the cliff waiting at 1,200 ms where the Linux kernel OOM-killer shoots the worker process, a TCP retransmission timer hits a 1-second backoff wall, or an upstream load balancer slams the socket shut. Math models a regime; it cannot predict a phase transition into a new failure mode.</li>
             </ol>
 
             <h2>Interactive workbench: turn the math into an engineering decision</h2>
-            <p>These three interactive labs are separated by the exact architectural question they answer: Lab 1 exposes how a tiny slow-path mixture breaks a unimodal Normal fit; Lab 2 separates benchmark mean uncertainty from canary error-escape risk; and Lab 3 shows how GPD tail extrapolation behaves—and when it raises red flags.</p>
+            <p>These three interactive labs are separated by the exact architectural question they answer: Lab 1 exposes how a tiny slow-path mixture breaks a unimodal Normal fit; Lab 2 separates benchmark mean uncertainty from canary error-escape risk; and Lab 3 lets you test the exact EVT/GPD calculation from our worked walkthrough above.</p>
 
             <div class="scenario-card workbench-card" id="mixture-workbench">
                 <div class="scenario-title">1. Normal vs. slow-path mixture <span class="scenario-tag">Latency diagnostics</span></div>
@@ -668,7 +710,7 @@
 
             <div class="scenario-card workbench-card" id="evt-workbench">
                 <div class="scenario-title">3. EVT / GPD tail explorer <span class="scenario-tag">Extrapolation warning</span></div>
-                <p>Explore how the Generalized Pareto POT formula estimates a high quantile \(Q_p\) above threshold \(u\). Slide the shape parameter \(\xi\) from negative (bounded) through zero (exponential) to positive (heavy-tailed power law), and watch how the point estimate and the <strong>tail extrapolation ratio</strong> respond.</p>
+                <p>Initialized to our worked walkthrough (\(u = 500\text{ ms}\), \(q_u = 0.1\%\), \(\beta = 120\text{ ms}\), \(\xi = 0.25\), target \(P_{99.99} \implies \mathbf{873.57\text{ ms}}\)). Slide \(\xi\) down to \(0.00\) to see the Gumbel estimate (\(776.31\text{ ms}\)), or push Target Percentile to <code>p99.999</code> to trigger the \(>10\times\) extrapolation warning.</p>
                 <div class="wb-grid">
                     <div class="param-group"><label for="evt-u">Threshold u (ms): <strong id="evt-u-v">500</strong></label><input id="evt-u" type="range" min="100" max="2000" step="50" value="500"></div>
                     <div class="param-group"><label for="evt-rate">Exceedance rate: <strong id="evt-rate-v">0.1%</strong></label><input id="evt-rate" type="range" min="0.01" max="5" step="0.01" value="0.1"></div>
