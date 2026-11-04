@@ -36,9 +36,9 @@
     </script>
 
     <!-- KaTeX CSS and JS for Mathematical Rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [{left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}] });"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body, { delimiters: [{left: '\\[', right: '\\]', display: true}, {left: '\\(', right: '\\)', display: false}], throwOnError: false });"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -134,11 +134,18 @@
         .scenario-ref a { color: var(--teal); text-decoration: none; }
         .scenario-ref a:hover { text-decoration: underline; }
 
-        /* --- Forensic & Architecture Sections --- */
-        table { width: 100%; border-collapse: collapse; margin: 1.5rem 0 2.25rem; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; overflow-wrap: anywhere; }
-        caption { caption-side: top; text-align: left; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 0.6rem; }
-        th, td { border: 1px solid var(--line); padding: 0.7rem 0.8rem; text-align: left; vertical-align: top; line-height: 1.5; }
-        th { color: var(--text); background: var(--panel-2); font-weight: 600; font-family: 'Libre Franklin', sans-serif; }
+        /* --- Forensic & Architecture Sections (Properly Aligned Tables) --- */
+        .table-wrap { overflow-x: auto; margin: 1.5rem 0 2.25rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+        .table-wrap caption { padding: 0.85rem 1rem 0.4rem; caption-side: top; text-align: left; color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+        table { width: 100%; min-width: 720px; border-collapse: collapse; margin: 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.88rem; table-layout: fixed; }
+        th, td { border-top: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); padding: 0.75rem 0.85rem; text-align: left; vertical-align: top; line-height: 1.55; word-break: normal; overflow-wrap: break-word; }
+        th:last-child, td:last-child { border-right: none; }
+        thead th { border-top: 1px solid var(--line); border-bottom: 2px solid var(--line); color: var(--text); background: var(--panel-2); font-weight: 600; font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        th:first-child, td:first-child { width: 19%; min-width: 145px; }
+        th:nth-child(2), td:nth-child(2) { width: 19%; }
+        th:nth-child(3), td:nth-child(3) { width: 20%; }
+        th:nth-child(4), td:nth-child(4) { width: 22%; }
+        th:nth-child(5), td:nth-child(5) { width: 20%; }
         td { color: var(--muted); }
         td strong { color: var(--text); }
 
@@ -148,7 +155,7 @@
         .forensic-label { display: inline-block; color: var(--amber); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.35rem; }
         .forensic-item p { margin-bottom: 0.6rem; font-size: 0.96rem; }
         .forensic-item p:last-child { margin-bottom: 0; }
-        .forensic-item ul { margin: 0.4rem 0 0.2rem 0; padding-left: 1.25rem; }
+        .forensic-item ul, .forensic-item ol { margin: 0.4rem 0 0.2rem 0; padding-left: 1.25rem; }
         .forensic-item li { font-size: 0.95rem; margin-bottom: 0.3rem; }
 
         .architecture-flow { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; line-height: 1.6; margin: 1.5rem 0 2rem; overflow-x: auto; padding: 1.25rem; white-space: pre; }
@@ -170,7 +177,6 @@
             .sim-params { flex-direction: column; width: 100%; }
             .param-group { width: 100%; }
             .controls { justify-content: flex-start; margin-top: 0.5rem; flex-wrap: wrap; }
-            table { display: block; overflow-x: auto; }
         }
     </style>
 </head>
@@ -222,11 +228,11 @@
                 <p class="snarky-quote-author">— Adapted from <strong><em>Nassim Nicholas Taleb</em></strong>, The Black Swan</p>
             </blockquote>
 
-            <p>Every distributed-systems architecture diagram looks magnificent in PowerPoint. Boxes are symmetrically aligned, arrows flow peacefully from left to right, and the word <em>stateless</em> is sprinkled around like holy water to ward off capacity-planning questions.</p>
+            <p>Every distributed-systems architecture diagram looks magnificent in PowerPoint. Boxes are symmetrically aligned, arrows flow peacefully from left to right, and the word <em>stateless</em> is sprinkled around like holy water to ward off awkward capacity-planning questions.</p>
 
-            <p>In the comforting fantasy of Gaussian land, traffic arrives in polite uniform waves, every tenant consumes an average slice of CPU, and deterministic hash partitioning spreads load across shards like warm butter on toast. Then production happens. The toast lands face-down on the datacenter floor, and one whale tenant, one unindexed partition scan, or one synchronized token refresh turns Shard 7 into molten slag while the other 15 shards operate at roughly 75% of their sustainable throughput. The cluster still has spare aggregate capacity, but that capacity is stranded on the wrong shards.</p>
+            <p>In the comforting fantasy of Gaussian land, traffic arrives in polite uniform waves, every tenant consumes an average slice of CPU, and deterministic hash partitioning spreads load across shards like warm butter on toast. Then production happens. The toast lands face-down on the datacenter floor, and one whale tenant, one unindexed partition scan, or one synchronized token refresh turns Shard 7 into molten slag while the other 15 shards sit around at 75% of their sustainable throughput. Your cluster still has plenty of spare aggregate capacity on the executive FinOps dashboard—it is just stranded on the wrong machines.</p>
 
-            <p>A probability distribution does not cause an outage on its own; it is an empirical description of workload geometry. Outages happen when a heavy-tailed workload collides with a rigid boundary—a deterministic hash ring, a shared FIFO worker pool, or a poorly sized buffer.</p>
+            <p>A probability distribution does not cause an outage on its own; it is an empirical description of workload geometry. Outages happen when a heavy-tailed workload collides with a rigid architectural boundary—a deterministic hash ring, a shared FIFO worker queue, or a naive rate limiter that counts requests instead of bytes.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">Architectural Thesis</div>
@@ -237,140 +243,141 @@
 
             <h2>The Architect's Taxonomy of Skew &amp; Extremes</h2>
 
-            <p>Hash partitioning makes a bet about key placement: hashing can spread distinct keys across partitions, but it cannot make those keys equally popular or equally expensive. A balanced hash ring is therefore not proof of balanced work. This chapter focuses on two different forms of skew: <em>discrete popularity skew</em> (which keys receive requests) and <em>continuous cost skew</em> (how much work each request or tenant creates). Zipf and Pareto are related power-law families, but they are not interchangeable: Zipf assigns probabilities to discrete ranks; Pareto models a positive continuous magnitude such as bytes or service demand. A Pareto-like size distribution does not follow merely because a workload contains one very large example.</p>
+            <p>Hash partitioning makes a very specific bet: hashing <code>murmur3(key)</code> will spread <em>distinct key strings</em> evenly across buckets. What a hash function cannot do is make those keys equally popular or equally cheap to process. A balanced hash ring is therefore never proof of balanced work. This chapter dissects two distinct species of skew: <strong>discrete popularity skew</strong> (which keys receive all the traffic) and <strong>continuous cost skew</strong> (how much CPU, memory, and I/O each request or tenant devours). Zipf and Pareto are cousins in the power-law family, but they answer different questions: Zipf assigns probabilities to discrete ranked items (<code>1st, 2nd, 3rd...</code>), whereas Pareto models a positive continuous magnitude (such as bytes scanned or CPU-milliseconds). And keep the modeling contract honest: one giant query does not prove a workload is Pareto, just as one hot key does not prove the entire keyspace follows Zipf's law.</p>
 
-            <table>
-                <caption>Table 1: Heavy-Tailed &amp; Extreme Regimes in Distributed Systems</caption>
-                <thead>
-                    <tr>
-                        <th>Distribution / Regime</th>
-                        <th>What It Models in Production</th>
-                        <th>Moment Behavior (Mean / Variance)</th>
-                        <th>Boundary Failure Mechanism</th>
-                        <th>Primary Control Plane Defense</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Zipf</strong><br>(Discrete Power Law)</td>
-                        <td>Key access frequency, Auth cache key popularity, global config records.</td>
-                        <td>All moments are finite for finite \(N\). The top \(m\) ranks carry share \(H_{m,s}/H_{N,s}\); the top 1% exceed 50% only for particular \(s\) and \(N\) (for example, \(N=10{,}000, s=1\) gives about 53%).</td>
-                        <td><strong>Shard Pinning &amp; Stampedes:</strong> Deterministic routing maps the #1 rank key to one physical node; TTL expiry triggers simultaneous miss storms.</td>
-                        <td><code>singleflight</code> request coalescing, jittered local micro-caches, salted write-sharding (<code>key#0..K</code>).</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Synchronized Burst</strong><br>(Non-Stationary Arrival)</td>
-                        <td>Phase-locked OAuth token refreshes, BGP reconnect storms, cron-aligned ETL jobs.</td>
-                        <td>Dispersion index \( D = \sigma^2/\mu \gg 1 \); instantaneous arrival rate spikes 20&times;–50&times;.</td>
-                        <td><strong>Admission Collapse:</strong> Queue fill rate exceeds drain rate by an order of magnitude; crypto/HSM thread pools lock up.</td>
-                        <td>Client-side refresh jitter, Little's Law concurrency limiters, hierarchical per-tenant token buckets.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Pareto</strong><br>(Continuous Power Law)</td>
-                        <td>Multi-tenant batch sizes, analytical scan byte-counts, Iceberg/Parquet file skew.</td>
-                        <td>Variance is <strong>infinite</strong> for \( \alpha \le 2 \); Mean is <strong>infinite</strong> for \( \alpha \le 1 \).</td>
-                        <td><strong>Head-of-Line (HoL) Blocking:</strong> If service time truly has an unbounded Pareto tail with \(1<\alpha\le2\), its second moment is infinite and the ideal M/G/1 mean-wait formula diverges. Operational admission limits and cancellation may bound worker occupancy, so measure that distribution rather than assume the ideal tail.</td>
-                        <td>Admission cost estimation, fast/heavy-lane pool isolation, byte-second tenant quotas, fair scheduling.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Cauchy Regime</strong><br>(Undefined Averages)</td>
-                        <td>Unstable ratio metrics (success/capacity during brownouts).</td>
-                        <td>Both Mean (\( \mathbb{E}[X] \)) and Variance (\( \text{Var}(X) \)) are <strong>undefined</strong>. Law of Large Numbers fails.</td>
-                        <td><strong>Observability Blindness:</strong> Sample averages never converge and jump wildly; \( \mu \pm 3\sigma \) anomaly alerts lose statistical meaning.</td>
-                        <td>Abandon mean/stddev alerts; enforce HDR Histograms, high-res quantiles (\( P_{99} \), \( P_{99.9} \)), and Median Absolute Deviation (MAD).</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Extreme Value Theory</strong><br>(GEV / POT)</td>
-                        <td>Maximum daily queue depth, peak 1-second arrival storms.</td>
-                        <td>Distribution of block maxima \( M_n \) or peaks over threshold. Three domains: Weibull (\( \xi<0 \)), Gumbel (\( \xi=0 \)), Fréchet (\( \xi>0 \)).</td>
-                        <td><strong>Ceiling Breach:</strong> Sizing memory or connection pools for the 99th percentile fails when maxima over millions of windows exceed static buffers.</td>
-                        <td>Return-level capacity sizing, hard memory circuit breakers.</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-wrap">
+                <table>
+                    <caption>Table 1: Heavy-Tailed &amp; Extreme Regimes in Distributed Systems</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Distribution / Regime</th>
+                            <th scope="col">What It Models in Production</th>
+                            <th scope="col">Moment Behavior (Mean / Variance)</th>
+                            <th scope="col">Boundary Failure Mechanism</th>
+                            <th scope="col">Primary Control Plane Defense</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Zipf</strong><br><em>(Discrete Power Law)</em></td>
+                            <td>Key access frequency, Auth cache key popularity, global config records.</td>
+                            <td>All moments are finite for finite \(N\). Top \(m\) ranks carry share \(H_{m,s}/H_{N,s}\) (e.g., for \(N=10{,}000, s=1\), top 1% of keys drive ~53% of requests).</td>
+                            <td><strong>Shard Pinning &amp; Stampedes:</strong> Deterministic routing pins the #1 rank key to one physical node; TTL expiry triggers simultaneous miss storms.</td>
+                            <td><code>singleflight</code> request coalescing, jittered L1 micro-caches, salted write-sharding (<code>key#0..K</code>).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Synchronized Burst</strong><br><em>(Temporal Skew)</em></td>
+                            <td>Phase-locked OAuth token refreshes, BGP reconnect storms, cron-aligned ETL jobs.</td>
+                            <td>Dispersion index \( I = \sigma^2/\mu \gg 1 \); instantaneous arrival rate spikes 20&times;–50&times; above the daily average.</td>
+                            <td><strong>Admission Collapse:</strong> Queue fill rate exceeds drain rate by an order of magnitude; crypto/HSM thread pools lock up.</td>
+                            <td>Client-side refresh jitter persisted across restarts, concurrency limiters, hierarchical token buckets.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Pareto</strong><br><em>(Continuous Power Law)</em></td>
+                            <td>Multi-tenant batch sizes, analytical scan byte-counts, Iceberg/Parquet file skew.</td>
+                            <td>Theoretical variance is <strong>infinite</strong> for \( \alpha \le 2 \); theoretical mean is <strong>infinite</strong> for \( \alpha \le 1 \).</td>
+                            <td><strong>Head-of-Line (HoL) Blocking:</strong> One multi-GB scan occupies a shared FIFO worker lane, exploding \(C_S^2\) and starving hundreds of 2 ms lookups behind it.</td>
+                            <td>Pre-admission manifest cost estimation, Fast/Heavy lane isolation, byte-second tenant quotas, DRR scheduling.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cauchy Regime</strong><br><em>(Undefined Averages)</em></td>
+                            <td>Unstable ratio metrics (e.g., throughput / available capacity during brownouts).</td>
+                            <td>Both Mean (\( \mathbb{E}[X] \)) and Variance (\( \text{Var}(X) \)) are <strong>undefined</strong>. Law of Large Numbers fails completely.</td>
+                            <td><strong>Observability Blindness:</strong> Sample averages never converge and teleport wildly; \( \mu \pm 3\sigma \) anomaly alerts lose all statistical meaning.</td>
+                            <td>Ban mean/stddev alerts on ratios; enforce HDR Histograms, high-res quantiles (\( P_{99} \)), and Median Absolute Deviation (MAD).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Extreme Value (EVT)</strong><br><em>(GEV / POT Tails)</em></td>
+                            <td>Maximum daily queue depth, peak 1-second arrival storms, \(P_{99.99}\) latency.</td>
+                            <td>Governs block maxima \( M_n \) or excesses above threshold \(u\): Weibull (\( \xi &lt; 0 \)), Gumbel (\( \xi = 0 \)), Fréchet (\( \xi &gt; 0 \)).</td>
+                            <td><strong>Ceiling Breach:</strong> Sizing memory or connection pools for \(P_{99}\) fails when maxima over millions of windows breach static buffers.</td>
+                            <td>POT return-level capacity sizing, declustered tail validation, hard memory circuit breakers.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
             <!-- ========================================== -->
             <!-- 1. ZIPF DISTRIBUTION                       -->
             <!-- ========================================== -->
             <h2>1. Zipf's Law: Hot Keys, Shard Pinning, and Cache Stampedes</h2>
 
-            <p>In an egalitarian universe, all database keys are created equal. In our Multi-Tenant Analytics Gateway, a single global configuration row or a VIP tenant's auth token mapped through a deterministic partitioning boundary turns a horizontally scaled cluster into a localized smoking crater.</p>
+            <p>In a democratic universe, all database keys are created equal. In our Multi-Tenant Analytics Gateway, a single global schema-registry row, a viral ticker symbol, or a whale tenant's master OAuth token mapped through <code>hash(key) % 16</code> turns one shard of a horizontally scaled cluster into a localized smoking crater while the other 15 shards nap.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
                 <div class="tldr-content">
-                    <p>Zipf's Law models discrete rank-frequency skew. If \( N \) distinct keys are ranked by access frequency (\( k \in \{1, 2, \dots, N\} \)), the probability that a random request targets the key at rank \( k \) is inversely proportional to a power \( s > 0 \) of its rank:</p>
+                    <p>Zipf's Law models discrete rank-frequency skew. If \( N \) distinct keys are ranked by access popularity (\( k \in \{1, 2, \dots, N\} \), where \(k=1\) is the hottest key), the probability that a random request targets the key at rank \( k \) is inversely proportional to a power \( s &gt; 0 \) of its rank:</p>
                     <div class="equation-flow">
                         \[ P(K = k) = \frac{k^{-s}}{H_{N,s}}, \quad \text{where } H_{N,s} = \sum_{i=1}^{N} i^{-s} \]
                     </div>
-                    <p>Here \(H_{N,s}\) is the generalized harmonic number. For \(s=1\), \(H_{N,1}\approx\ln N+\gamma\) for large \(N\); for \(s>1\), it converges to \(\zeta(s)\) as \(N\to\infty\). If a service applies a cost that depends on the key, request frequency alone is not enough: measure both request share and resource share.</p>
-                    <p><strong>How much does the top 1% receive?</strong> For a finite Zipf population, the share of requests directed to the top \(m=\lceil0.01N\rceil\) keys is \(H_{m,s}/H_{N,s}\). With \(N=10{,}000\) and \(s=1\), this is approximately \(H_{100,1}/H_{10{,}000,1}=5.1874/9.7876\approx53.0\%\). A flatter exponent or a different finite keyspace produces a different share; “top 1% means over half the traffic” is not a universal Zipf property.</p>
+                    <p>Here \(H_{N,s}\) is the generalized harmonic number. For \(s=1\), \(H_{N,1} \approx \ln N + \gamma\) (where \(\gamma \approx 0.5772\) is the Euler–Mascheroni constant); for \(s &gt; 1\), \(H_{N,s}\) converges to the Riemann zeta function \(\zeta(s)\) as \(N \to \infty\). And remember: if different keys also have different payload sizes, request frequency alone is only half the crime scene—you must measure <em>key frequency &times; per-key cost</em>.</p>
+                    <p><strong>How much traffic does the top 1% of keys command?</strong> In a finite Zipf population of size \(N\), the cumulative share of the top \(m = \lceil 0.01 N \rceil\) keys is \(H_{m,s} / H_{N,s}\). With \(N = 10{,}000\) keys and \(s = 1.0\), the top 100 keys (1%) command \(H_{100,1} / H_{10{,}000,1} = 5.1874 / 9.7876 \approx \mathbf{53.0\%}\) of all requests! Change \(s\) or \(N\) and that percentage shifts—so calculate it from your actual key histogram rather than quoting "80/20" like a proverb.</p>
                 </div>
             </div>
 
             <div class="math-explanation">
-                <strong>Strict Skew Metrics Taxonomy:</strong>
-                <p>Engineers frequently misuse terminology when describing skewed load. We must distinguish:</p>
+                <strong>Strict Skew Metrics Taxonomy (Stop Calling Everything a Gini Coefficient):</strong>
+                <p>Architecture reviews routinely muddle three completely different skew metrics. Keep their definitions sharp:</p>
                 <ul>
-                    <li><strong>Peak-to-Average (Max-to-Mean) Ratio:</strong> \( \frac{\max_i L_i}{\bar{L}} \). Simply how much hotter the worst shard is compared to the average.</li>
-                    <li><strong>Coefficient of Variation (CV):</strong> \( \frac{\sigma_L}{\mu_L} \). A measure of relative dispersion.</li>
-                    <li><strong>Gini Coefficient (\( G \in [0, 1] \)):</strong> A strict measure of inequality across all shards: \( G = \frac{\sum_{i=1}^{M}\sum_{j=1}^{M} |L_i - L_j|}{2 M^2 \bar{L}} \). Never label a simple peak-to-average ratio as a "Gini coefficient."</li>
+                    <li><strong>Peak-to-Average (Max-to-Mean) Ratio:</strong> \( \frac{\max_i L_i}{\bar{L}} \). The simplest operational signal: how many times hotter is your worst shard compared to the cluster average? This is the number that tells you when Shard 7 is about to melt.</li>
+                    <li><strong>Coefficient of Variation (CV):</strong> \( \frac{\sigma_L}{\mu_L} \). Standard deviation divided by the mean across shards—a measure of overall relative spread.</li>
+                    <li><strong>Gini Coefficient (\( G \in [0, 1] \)):</strong> The normalized area between the Lorenz curve and perfect equality across all \(M\) shards: \( G = \frac{\sum_{i=1}^{M}\sum_{j=1}^{M} |L_i - L_j|}{2 M^2 \bar{L}} \). Notice that if 15 shards sit at 1,000 RPS and 1 shard sits at 3,000 RPS, the Peak-to-Average ratio is a painful \(2.67\times\), while the Gini coefficient across all 16 shards is a sleepy \(G \approx 0.078\)! For single-shard hot-spotting, always track <strong>Peak-to-Average</strong> alongside max shard utilization.</li>
                 </ul>
             </div>
 
-            <h3>Illustrative Engineering Scenario: The Config Key vs. The Sharded Cache</h3>
-            <p><strong>Evidence classification:</strong> This is a reproducible hypothetical capacity scenario, not a report of measured production telemetry. Its numbers illustrate how a hot key can overload one shard while aggregate capacity remains available.</p>
+            <h3>Illustrative Engineering Scenario: The Global Config Key vs. The 16-Shard Cache</h3>
+            <p><strong>Evidence classification:</strong> Reproducible analytical stress scenario illustrating how a single Zipfian hot key overloads one shard while the cluster-wide dashboard stays green.</p>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
                     <div class="forensic-label">1. Observed Problem</div>
-                    <p>The Analytics Gateway relies on a 16-shard Redis cluster for metadata lookups, certified for an aggregate capacity of <strong>24,000 RPS</strong> (1,500 RPS per shard). At 10:15 AM, aggregate cluster traffic reaches only <strong>20,000 RPS</strong> (83% of cluster capacity), yet upstream Gateway nodes begin throwing massive waves of <code>RedisTimeoutExceptions</code>.</p>
+                    <p>Our Analytics Gateway fronts a 16-shard Redis cluster for catalog metadata lookups, certified at <strong>24,000 RPS aggregate capacity</strong> (1,500 RPS per shard). At 10:15 AM, total cluster traffic is only <strong>20,000 RPS</strong> (83.3% of aggregate capacity; average \(\bar{\lambda} = 1{,}250\text{ RPS/shard}\)). The cluster-wide CPU graph looks fine—yet upstream Gateway pods are drowning in <code>RedisTimeoutExceptions</code>.</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">2. Evidence &amp; Telemetry Assumptions (Piecewise Mixture)</div>
-                    <p>The cache contains \(N=10{,}000\) active logical keys. For a Zipf rank-frequency model with \(s=1.0\), the hottest rank has share \(1/H_{10{,}000,1}\approx10.22\%\). To make the routing arithmetic transparent, this is a <strong>simplified two-component stress model</strong>: retain that Zipf-derived hot-key share, then assume the remaining 89.78% background traffic is split evenly across the 16 shards. The even background split is an explicit scenario assumption, not a consequence guaranteed by hashing or by the Zipf model.</p>
+                    <div class="forensic-label">2. Workload Geometry &amp; Piecewise Mixture Assumptions</div>
+                    <p>The cache holds \(N = 10{,}000\) active logical keys following a Zipf rank-frequency curve with \(s = 1.0\). To make the shard arithmetic crystal clear without hiding behind a black-box simulation, we use a transparent two-component model: Rank #1 (\(k=1\), a global tenant routing table) takes its exact Zipf share \(1 / H_{10{,}000,1} \approx 10.22\%\), and we assume the remaining \(89.78\%\) of traffic across ranks \(k = 2 \dots 10{,}000\) hashes evenly across all 16 shards.</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">3. Mathematical Model &amp; Derivation</div>
-                    <p>For \( N = 10,000 \) and \( s = 1.0 \), the normalizing constant is:</p>
+                    <div class="forensic-label">3. Mathematical Derivation</div>
+                    <p>For \( N = 10{,}000 \) and \( s = 1.0 \), the harmonic normalizer is:</p>
                     <div class="equation-flow">
-                        \[ H_{10,000,1} \approx 9.7876 \]
+                        \[ H_{10{,}000,1} = \sum_{i=1}^{10{,}000} \frac{1}{i} \approx 9.7876 \]
                     </div>
-                    <p>The single hottest key (\( k = 1 \)) therefore commands a global traffic share of:</p>
+                    <p>The single hottest key (\( k = 1 \)) commands a global request share of:</p>
                     <div class="equation-flow">
-                        \[ P(K = 1) = \frac{1^{-1}}{9.7875} \approx 0.1022 \quad \text{(10.22\% of all cluster traffic)} \]
+                        \[ P(K = 1) = \frac{1^{-1}}{9.7876} \approx 0.10217 \quad \text{(10.22\% of all cluster traffic)} \]
                     </div>
-                    <p>At an aggregate arrival rate of \( \Lambda = 20,000 \) RPS, key \( k = 1 \) alone generates:</p>
+                    <p>At an aggregate cluster arrival rate of \( \Lambda = 20{,}000 \) RPS, that one key generates:</p>
                     <div class="equation-flow">
-                        \[ \lambda_{k=1} = 20,000 \times 0.1022 = 2,044 \text{ RPS} \]
+                        \[ \lambda_{k=1} = 20{,}000 \times 0.1022 = \mathbf{2{,}044 \text{ RPS}} \]
                     </div>
-                    <p>The background traffic hitting the cluster minus this hot key is \( 20,000 - 2,044 = 17,956 \) RPS, distributed uniformly as \( 17,956 / 16 = 1,122.25 \) RPS per shard. (Note: 10.22% + 89.78% = 100% of workload accounted for).</p>
+                    <p>The remaining \(20{,}000 - 2{,}044 = 17{,}956\text{ RPS}\) (\(89.78\%\)) spreads evenly across the 16 shards at \(17{,}956 / 16 = \mathbf{1{,}122.25\text{ RPS per shard}}\).</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">4. Failure Mechanism (The Peak-to-Average Ratio)</div>
-                    <p>Key \( k = 1 \) maps deterministically to a specific physical node, let's call it <strong>Shard 7</strong>. Shard 7 receives all 2,044 RPS from the hot key, plus its 1,122.25 RPS of background traffic:</p>
+                    <div class="forensic-label">4. Boundary Failure Mechanism (Shard Pinning)</div>
+                    <p>Because <code>CRC16(key) % 16384</code> is deterministic, every single request for key \( k = 1 \) lands on the exact same physical node—<strong>Shard 7</strong>. Shard 7 must swallow all 2,044 RPS of the hot key <em>plus</em> its 1,122.25 RPS share of background traffic:</p>
                     <div class="equation-flow">
-                        \[ \lambda_{\text{Shard } 7} \approx 2,044 + 1,122.25 = 3,166.25 \text{ RPS} \]
+                        \[ \lambda_{\text{Shard } 7} = 2{,}044 + 1{,}122.25 = \mathbf{3{,}166.25 \text{ RPS}} \]
                     </div>
-                    <p>Shard 7 receives an offered load equal to <strong>2.11 times its 1,500 RPS capacity</strong>. This is an overload ratio, not stable utilization: if the shard can serve at most 1,500 RPS, its queue grows while 3,166.25 RPS continue to arrive. Each other shard receives about \(1{,}122.25/1{,}500=74.8\%\) of its nominal capacity. The <strong>Peak-to-Average Ratio</strong> is:</p>
+                    <p>Shard 7 is hit with an offered load equal to <strong>211% of its 1,500 RPS ceiling</strong> (\(\rho_7 = 3{,}166.25 / 1{,}500 = 2.11\)), while Shards 0–6 and 8–15 cruise along at \(1{,}122.25 / 1{,}500 = \mathbf{74.8\%}\) capacity! The <strong>Peak-to-Average Ratio</strong> across the ring is:</p>
                     <div class="equation-flow">
-                        \[ \frac{\max_i \lambda_i}{\bar{\lambda}} = \frac{3,166.25}{1,250} = 2.53 \]
+                        \[ \text{Peak-to-Average} = \frac{\max_i \lambda_i}{\bar{\lambda}} = \frac{3{,}166.25}{1{,}250} = \mathbf{2.53\times} \]
                     </div>
-                    <p>A low cluster-wide CPU metric effortlessly coexists with a completely saturated shard. Shard 7's connection pool saturates, and any multi-key query touching Shard 7 hangs until timeout.</p>
+                    <p>Notice the trap: if a well-meaning SRE sees timeouts and "scales out the Redis cluster from 16 shards to 32 shards," what happens to key \(k=1\)? Nothing! All 2,044 RPS of <code>key_1</code> <em>still</em> hash to a single shard (which still melts at 1,500 RPS). You cannot fix single-key pinning by adding more buckets to a deterministic hash ring.</p>
                 </div>
                 <div class="forensic-item">
                     <div class="forensic-label">5. Architectural Controls</div>
                     <ul>
-                        <li><strong>In-Flight Request Coalescing (<code>singleflight</code>):</strong> Deduplicate concurrent cache misses for identical key reads at the proxy tier. However, <code>singleflight</code> only coalesces <em>concurrent</em> requests; it does not eliminate sustained demand <em>after</em> the coalescing window completes.</li>
-                        <li><strong>Local Micro-Caches with Jittered TTLs:</strong> Cache hot reads in gateway L1 memory for 50–200ms with uniform TTL jitter to prevent synchronized cache stampedes across proxy nodes.</li>
-                        <li><strong>Salted Write Sharding:</strong> Distributing hot writes introduces ordering problems. Append a random suffix <code>key_1#0 .. key_1#7</code> to spread hot writes across 8 shards, accepting an 8-way aggregation penalty on reads. Adding cluster shards does NOT split traffic for a single unsalted hot key.</li>
+                        <li><strong>In-Flight Request Coalescing (<code>singleflight</code>):</strong> Deduplicate concurrent identical reads inside each Gateway proxy pod so 50 simultaneous threads waiting on <code>key_1</code> send only 1 wire request to Shard 7. (Caveat: <code>singleflight</code> collapses <em>concurrent</em> overlap during a flight; once that 2 ms flight returns, the next millisecond's arrival still fires unless paired with a local cache.)</li>
+                        <li><strong>L1 Local Micro-Caches with Jittered TTLs:</strong> Cache hot immutable/semi-static metadata in Gateway process memory for 50–200 ms with uniform random TTL jitter (\(\text{TTL} \sim U(150, 250)\text{ ms}\)) so all 40 Gateway pods never expire <code>key_1</code> at the exact same millisecond.</li>
+                        <li><strong>Salted Key Replication / Write Splitting:</strong> If a hot key cannot be cached locally (e.g., a high-frequency counter), split writes across \(K=8\) salted sub-keys (<code>key_1#0</code> .. <code>key_1#7</code>) so the hash ring spreads the 2,044 RPS across 8 shards (\(255.5\text{ RPS}\) each), trading write hot-spotting for an 8-key scatter-gather on read.</li>
                     </ul>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Zipf Key Skew &amp; Shard Pinning</h3>
-            <p><strong>Simulation note:</strong> These are synthetic draws from the finite Zipf model above. The simulator displays the most recent 5,000 samples; its sample statistics are illustrative and are not production measurements.</p>
-            <p>Adjust the Zipf exponent (\(s\)) and keyspace size (\(N\)). Increasing \(s\) concentrates more request probability in the highest-ranked keys; for a finite keyspace, Rank 1's share approaches but does not automatically equal the entire workload.</p>
+            <p><strong>Simulation note:</strong> Synthetic draws from the exact finite Zipf distribution over \(N\) ranks (retaining up to 5,000 rolling samples). Crank the skew exponent \(s\) above \(1.0\) and watch Rank #1 devour the histogram.</p>
 
             <div class="stage" data-sim-type="zipf">
                 <div class="sim-toolbar">
@@ -406,131 +413,114 @@
             <!-- ========================================== -->
             <h2>2. Synchronized Token Refresh: Temporal Skew</h2>
 
-            <p>Popularity skew across keys is spatial. Control-plane systems suffer from a second, equally lethal geometry: <strong>temporal arrival skew</strong>, where hundreds of thousands of otherwise well-behaved clients phase-lock into a synchronized thundering herd.</p>
+            <p>Zipfian key skew is a <em>spatial</em> concentration problem. Control-plane services regularly die from a second, equally lethal geometry: <strong>temporal arrival skew</strong>, where an external blip phase-locks 100,000 polite background daemons into a single synchronized battering ram.</p>
 
-            <div class="architecture-flow">[120,000 Gateway Clients]
-       │  Regional network blip heals / Coordinated deployment restart
+            <div class="architecture-flow">[120,000 Gateway Daemons]
+       │  5-second regional network blip heals / Coordinated fleet restart
        ▼
 [Regional API Gateway / Edge]
-       │  Independent Admission Rate Limits &amp; Throttling
+       │  Phase-locked OAuth / mTLS token refresh wave
        ▼
-[Token Service Fleet]
-       │  Instantaneous 4,000 RPS spike (vs. 133.3 RPS Poisson average)
+[Token Service Fleet (1,500 RPS capacity)]
+       │  Instantaneous 4,000 RPS spike (vs. 133.3 RPS stationary average)
        ▼
 [HSM / Credential Store]
-       │  Row-lock contention + Cryptographic signing queue exhaustion</div>
+       │  Row-lock contention + RSA/ECDSA signing queue exhaustion</div>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
                     <div class="forensic-label">1. Illustrative Scenario</div>
-                    <p>An enterprise identity control plane serves \( N = 120,000 \) connected daemon clients. Access tokens have a fixed TTL of \( T = 900 \) seconds (15 minutes). Following a brief 5-second BGP route flap, all 120,000 clients reconnect and request token refreshes within a <strong>30-second window</strong>, collapsing the Token Service.</p>
+                    <p>An enterprise identity control plane issues short-lived tokens to \( N = 120{,}000 \) connected worker daemons. Each token has a fixed TTL of \( T = 900 \) seconds (15 minutes). After a 5-second BGP route flap heals, all 120,000 daemons reconnect and request fresh tokens within a <strong>30-second window</strong>, knocking the Token Service flat on its back.</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">2. Mathematical Model: Poisson Illusion vs. Phase-Locked Reality</div>
-                    <p>During capacity planning, the team modeled token refreshes as a stationary Poisson process:</p>
+                    <div class="forensic-label">2. Mathematical Model: The Poisson Illusion vs. Phase-Locked Reality</div>
+                    <p>In the original capacity spreadsheet, the team divided \(N\) by \(T\) and assumed refreshes arrived as a stationary, memoryless Poisson stream:</p>
                     <div class="equation-flow">
-                        \[ \bar{\lambda} = \frac{120,000 \text{ clients}}{900 \text{ seconds}} \approx 133.33 \text{ RPS} \]
+                        \[ \bar{\lambda} = \frac{120{,}000 \text{ clients}}{900 \text{ seconds}} \approx 133.33 \text{ RPS} \]
                     </div>
-                    <p>Provisioning the cluster for <strong>1,500 RPS</strong> looked like a conservative 10&times; safety margin. However, phase-locking compresses all \( N \) arrivals into \( \Delta t = 30 \) seconds:</p>
+                    <p>Provisioning the Token Service + HSM fleet for <strong>1,500 RPS</strong> looked like a luxurious \(11.25\times\) safety margin. Then the network blip phase-locked the fleet, compressing 15 minutes of arrivals into \(\Delta t = 30\) seconds:</p>
                     <div class="equation-flow">
-                        \[ \lambda_{\text{burst}} = \frac{120,000}{30 \text{ s}} = 4,000 \text{ RPS} \quad \text{(2.67} \times \text{ total cluster capacity)} \]
+                        \[ \lambda_{\text{burst}} = \frac{120{,}000}{30 \text{ s}} = \mathbf{4{,}000 \text{ RPS}} \quad \text{(2.67} \times \text{ total cluster capacity)} \]
                     </div>
-                    <p><strong>The Follow-On Avalanche:</strong> When clients refresh at a fixed fraction of their token lifetime, synchronized issuance creates synchronized future refresh cohorts. Without randomized TTL jitter, the system repeatedly reproduces a concentrated arrival pattern.</p>
+                    <p><strong>The 15-Minute Echo Wave:</strong> Even if the Token Service survives the initial 30-second storm and issues 45,000 tokens before the rest time out, what happens when every issued token has a hard-coded <code>expires_in = 900</code> seconds and every client SDK refreshes at <code>0.8 * TTL</code> (720 seconds)? Exactly 12 minutes later, all 45,000 clients wake up in unison and fire a <strong>second synchronized cannonball</strong>! Deterministic TTLs turn a one-time network blip into a standing wave.</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">3. Little's Law Admission Control &amp; Damping Math</div>
-                    <p>To break the cohort synchronization and protect downstream systems, consider two separate controls:</p>
+                    <div class="forensic-label">3. Little's Law Concurrency Bounding &amp; Phase-Breaking Controls</div>
+                    <p>To survive temporal skew and dissolve the standing wave, pair edge rate-limiting with randomized phase-breaking:</p>
                     <ul>
-                        <li><strong>Admission Rate:</strong> Hard limit of 1,200 requests/second at the edge.</li>
-                        <li><strong>Concurrency planning (Little's Law):</strong> Little's Law (\(L=\lambda W\)) gives <em>average</em> in-system concurrency in a stable system. At an admitted rate of \(1{,}200\) RPS and a mean time in system of \(50\) ms:
-                            <div class="equation-flow">\[ L = 1{,}200\;\text{s}^{-1}\times0.050\;\text{s}=60 \text{ requests on average} \]</div>
-                            Sixty is expected average occupancy, not a safe hard concurrency ceiling. A configured limit needs headroom for service-time variability and must be validated against downstream capacity, queueing delay, and deadlines.
+                        <li><strong>Edge Admission Cap:</strong> Enforce a hard token-bucket limit of \(1{,}200\text{ RPS}\) at the API Gateway edge (80% of the HSM's 1,500 RPS ceiling), shedding excess reconnects fast with an explicit <code>Retry-After</code> header rather than queueing them inside the crypto pool.</li>
+                        <li><strong>Concurrency Sizing via Little's Law:</strong> By Little's Law (\(L = \lambda_{\mathrm{eff}} W\)), an admitted throughput of \(\lambda_{\mathrm{eff}} = 1{,}200\text{ RPS}\) with a mean HSM signing duration of \(W = 50\text{ ms}\) (\(0.050\text{ s}\)) holds an average of:
+                            <div class="equation-flow">\[ L = 1{,}200\;\text{s}^{-1}\times0.050\;\text{s} = \mathbf{60 \text{ concurrent requests in flight}} \]</div>
+                            Remember that \(L = 60\) is the <em>average</em> in-flight occupancy, not a hard thread cap—size your semaphore ceiling with headroom for \(P_{99}\) signing jitter (e.g., 120–150 concurrent permits) so normal variance doesn't trip false rejections.
                         </li>
+                        <li><strong>Server-Side &amp; Client-Side TTL Jitter:</strong> Never issue a cohort of tokens with identical <code>expires_in = 900</code>. Stamp each token's server-side lifetime with uniform random jitter \(\text{TTL}_i \sim U(720, 1080)\text{ s}\) (\(\pm 20\%\)), and have clients schedule background proactive refreshes across a randomized window before expiry, persisting the jittered schedule to disk so process restarts don't re-align the herd.</li>
                     </ul>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">4. Boundary with Retry Feedback</div>
-                    <p>Randomized refresh scheduling and hierarchical per-tenant admission buckets reduce synchronized arrivals. A delayed retry can simply move a burst into a later window if clients reconverge; retry budgets, backoff, and state-dependent feedback are treated in Part 6 rather than developed here. Persist refresh jitter across restarts so a process restart does not recreate the same cohort.</p>
                 </div>
             </div>
 
             <!-- ========================================== -->
             <!-- 3. PARETO DISTRIBUTION                     -->
             <!-- ========================================== -->
-            <h2>3. Pareto Distribution: Tenant Skew and HoL Blocking</h2>
+            <h2>3. The Pareto Distribution: Whale Tenants and Head-of-Line Blocking</h2>
 
-            <p>The "80/20 rule" is not a workload model. Consider a deliberately extreme <strong>99/1 hypothetical stress scenario</strong>: 99 tenants each submit a 50 KB incremental query, while one "Whale" tenant submits a 40 GB cross-partition reconciliation query into the same execution pool. This is a two-point workload example—not evidence of a fitted Pareto distribution. It demonstrates why request counts and tenant counts can conceal enormous differences in resource demand.</p>
+            <p>Counting "requests per second" assumes every request costs roughly the same amount of silicon. In a multi-tenant data lakehouse, that assumption is hilarious. Consider a <strong>99/1 stress scenario</strong>: 99 interactive tenants each fire a 50 KB point lookup (taking 2 ms), while 1 "Whale" tenant submits a 40 GB cross-partition reconciliation scan into the exact same worker pool. By request count, the whale is only 1% of traffic. By byte volume (\(40\text{ GB} / [40\text{ GB} + 99 \times 50\text{ KB}]\)), that single request is <strong>99.988% of the physical work</strong>!</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematical Hypothesis</div>
                 <div class="tldr-content">
-                    <p>A positive continuous random variable \(X\) (for example, an idealized query-byte demand) follows a Type-I Pareto distribution with minimum scale \(x_m>0\) and tail index \(\alpha>0\) when its survival function and density are:</p>
+                    <p>A positive continuous random variable \(X\) (such as bytes scanned or CPU-ms per query) follows a Type-I Pareto distribution with minimum scale \(x_m &gt; 0\) and tail index \(\alpha &gt; 0\) when its survival function and density are:</p>
                     <div class="equation-flow">
-                        \[ P(X > x) = \left(\frac{x_m}{x}\right)^\alpha, \quad f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}} \quad \text{for } x \ge x_m \]
+                        \[ P(X &gt; x) = \left(\frac{x_m}{x}\right)^\alpha, \quad f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}} \quad \text{for } x \ge x_m \]
                     </div>
-                    <p>For this <em>ideal unbounded</em> model, the moments depend on the tail index:</p>
+                    <p>In this ideal unbounded power-law model, the moments are governed entirely by the tail exponent \(\alpha\):</p>
                     <ul>
-                        <li><strong>First Moment (Mean):</strong> \( \mathbb{E}[X] = \frac{\alpha x_m}{\alpha - 1} \) for \( \alpha > 1 \). If \( \alpha \le 1 \), the mean is <strong>infinite</strong>.</li>
-                        <li><strong>Second Moment &amp; Variance:</strong> \( \text{Var}(X) = \frac{\alpha x_m^2}{(\alpha - 1)^2(\alpha - 2)} \) for \( \alpha > 2 \). If <strong>\( \alpha \le 2 \), the variance is infinite (\( \sigma^2 \to \infty \))</strong>.</li>
+                        <li><strong>First Moment (Mean):</strong> \( \mathbb{E}[X] = \frac{\alpha x_m}{\alpha - 1} \) for \( \alpha &gt; 1 \). If \( \alpha \le 1 \), the theoretical mean is <strong>infinite (\(\infty\))</strong>.</li>
+                        <li><strong>Second Moment &amp; Variance:</strong> \( \text{Var}(X) = \frac{\alpha x_m^2}{(\alpha - 1)^2(\alpha - 2)} \) for \( \alpha &gt; 2 \). Whenever <strong>\( 1 &lt; \alpha \le 2 \), the mean is finite, but the theoretical variance is infinite (\( \sigma^2 \to \infty \))!</strong></li>
                     </ul>
                 </div>
             </div>
 
-            <h3>Queueing Case Study: Why Service-Time Variability Delays Small Jobs</h3>
-            <p><strong>Evidence classification:</strong> The following is an illustrative single-server queueing model with assumed empirical inputs. It is not a claim that a production trace was fitted to an unbounded Pareto distribution.</p>
+            <h3>Queueing Case Study: How One Heavy Scan Ruins a 50%-Utilized Worker</h3>
+            <p><strong>Evidence classification:</strong> Illustrative single-server \(M/G/1\) queueing calculation demonstrating how high service-time variance (\(C_S^2 \gg 1\)) destroys latency even at a relaxed 50% utilization.</p>
 
             <div class="forensic-grid">
                 <div class="forensic-item">
-                    <div class="forensic-label">1. Queueing Scenario</div>
-                    <p>Consider one serialized FIFO worker lane with mean worker occupancy \(E[S_{\mathrm{occ}}]=25\) ms and utilization \(\rho=0.50\). Small lookups can wait behind a long scan even though the lane is busy only half the time on average. This single-server utilization is not the same metric as fleet-wide CPU utilization.</p>
+                    <div class="forensic-label">1. The Crime Scene</div>
+                    <p>Consider a single serialized FIFO query worker lane operating at a comfortable-looking <strong>50% average utilization</strong> (\(\rho = 0.50\)) with a mean worker occupancy time of \(\mathbb{E}[S_{\mathrm{occ}}] = 25\text{ ms}\). On paper, the worker is idle half the time. Yet 2 ms point-lookup queries routed to this lane are routinely waiting nearly <strong>2 full seconds</strong> in the queue!</p>
                 </div>
                 <div class="forensic-item">
-                    <div class="forensic-label">2. Ideal Tail vs. Operational Workload</div>
-                    <p>Suppose scan-byte demand \(B\) resembles an ideal Pareto tail with \(\alpha=1.6\) over the observed range. If service demand were an unbounded affine transform \(S_{\mathrm{latent}}=S_0+B/R_{\mathrm{effective}}\), with a fixed positive effective rate, it would retain that tail index: its mean would be finite but its second moment and variance would be infinite. The ideal unbounded model therefore cannot supply a finite \(C_S^2\) for the ordinary M/G/1 mean-wait calculation.</p>
-                    <p>A real gateway is not that ideal model. Admission limits, maximum scan sizes, execution deadlines, and effective cancellation can bound the <em>operational</em> work a worker actually performs. The resulting workload is bounded or otherwise operationally constrained; its moments are finite when the measured occupancy distribution has a finite second moment. We do not infer this finite distribution merely from \(\alpha=1.6\).</p>
-                    <p>Keep five quantities separate:</p>
+                    <div class="forensic-label">2. Ideal Power-Law Tail vs. Operational Worker Occupancy</div>
+                    <p>Why? Because of <strong>Head-of-Line (HoL) blocking</strong> driven by second-moment variance. Suppose the underlying query byte sizes follow a heavy-tailed distribution with power-law behavior (\(\alpha \approx 1.6\)) up to a hard gateway admission ceiling. In an <em>unbounded</em> mathematical Pareto distribution with \(\alpha = 1.6\), the second moment \(\mathbb{E}[S^2]\) is literally infinite, which would make the theoretical \(M/G/1\) queue wait infinite.</p>
+                    <p>In real production code, worker occupancy is bounded by statement timeouts, memory caps, and max scan limits—so the <em>operational</em> occupancy \(S_{\mathrm{occ}}\) (the actual wall-clock time a job holds the worker slot from start until completion or cancellation cleanup) has a finite, measurable variance, but an enormous <strong>squared coefficient of variation</strong> \(C_S^2 = \operatorname{Var}(S_{\mathrm{occ}}) / \mathbb{E}[S_{\mathrm{occ}}]^2\). (Always measure \(S_{\mathrm{occ}}\) across <em>all</em> jobs that touch the worker, including timed-out queries that took 3 seconds to abort—filtering only <code>status=SUCCESS</code> hides the worst offenders!)</p>
+                    <p>Suppose our empirical trace of worker occupancy shows \(\mathbb{E}[S_{\mathrm{occ}}] = 25\text{ ms}\) (\(0.025\text{ s}\)) and a heavy-tailed \(C_S^2 = 140\) (caused by mixing 2 ms cache lookups with multi-second Parquet scans).</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. The Pollaczek–Khinchine Math</div>
+                    <p>For a single-server \(M/G/1\) FIFO queue with Poisson arrivals at rate \(\lambda\) and utilization \(\rho = \lambda \mathbb{E}[S_{\mathrm{occ}}] &lt; 1\), the exact <strong>Pollaczek–Khinchine (P-K) formula</strong> for mean queue waiting time \(W_q\) is:</p>
+                    <div class="equation-flow">
+                        \[ W_q = \frac{\lambda \mathbb{E}[S_{\mathrm{occ}}^2]}{2(1-\rho)} = \left(\frac{\rho}{1-\rho}\right)\left(\frac{1 + C_S^2}{2}\right)\mathbb{E}[S_{\mathrm{occ}}] \]
+                    </div>
+                    <p>At \(\rho = 0.50\) and \(\mathbb{E}[S_{\mathrm{occ}}] = 25\text{ ms}\) (\(\lambda = 20\text{ jobs/s}\)), compare a low-variance deterministic workload (\(C_S^2 = 0\)) against our heavy-tailed mixed workload (\(C_S^2 = 140\)):</p>
+                    <div class="equation-flow">
+                        \[ W_q^{(\text{Deterministic}, \, C_S^2=0)} = \left(\frac{0.50}{1 - 0.50}\right)\left(\frac{1 + 0}{2}\right)(25\text{ ms}) = 1 \times 0.5 \times 25\text{ ms} = \mathbf{12.5\text{ ms}} \]
+                    </div>
+                    <div class="equation-flow">
+                        \[ W_q^{(\text{Heavy-Tailed}, \, C_S^2=140)} = \left(\frac{0.50}{1 - 0.50}\right)\left(\frac{1 + 140}{2}\right)(25\text{ ms}) = 1 \times 70.5 \times 25\text{ ms} = \mathbf{1{,}762.5\text{ ms}} \]
+                    </div>
+                    <p>Same 20 jobs/s arrival rate. Same 25 ms average execution time. Same 50% server utilization. Yet the heavy-tailed mixture inflates mean queue waiting time <strong>141&times;</strong>—from <strong>12.5 ms to 1.76 seconds</strong>! Why? Because whenever a 5-second whale scan lands on the worker, fifty 2 ms point lookups pile up behind it waiting for the whale to vacate the lane.</p>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">4. Architectural Controls (SITA-E &amp; Cost Quotas)</div>
                     <ul>
-                        <li><strong>Latent service requirement \(S_{\mathrm{latent}}\):</strong> work the query would demand if it ran to completion without cancellation.</li>
-                        <li><strong>Operational worker occupancy \(S_{\mathrm{occ}}\):</strong> elapsed time from acquiring the serialized worker slot until the worker releases it, including cancellation and cleanup time. This is the service-time variable used below.</li>
-                        <li><strong>Observed occupancy distribution:</strong> the empirical distribution of \(S_{\mathrm{occ}}\) for <em>all</em> jobs that occupy the lane, including jobs canceled after starting—not just successfully completed queries.</li>
-                        <li><strong>Client-observed latency:</strong> queue wait plus execution/cleanup and network or gateway overhead; for canceled requests, the client may observe a deadline or timeout rather than completion latency.</li>
-                        <li><strong>Cancellation censoring:</strong> when a query is canceled before its latent work finishes, its uncanceled service requirement is right-censored. Completed-query-only samples suffer survivorship bias and cannot be substituted for worker occupancy measurements.</li>
-                    </ul>
-                    <p>A client timeout bounds worker occupancy only if cancellation reaches the execution engine and the worker actually releases its resources. If cancellation is delayed, non-cooperative, or followed by unbounded cleanup, the timeout is not a service-time cap. If queued jobs abandon before service, the simple M/G/1 model also needs an abandonment extension.</p>
-                    <p>For the numerical illustration, assume a representative empirical sample of actual worker occupancy durations (including started-and-canceled jobs) has \(E[S_{\mathrm{occ}}]=25\) ms and squared coefficient of variation \(C_{S_{\mathrm{occ}}}^2=140\). Treat these as finite empirical inputs, not as moments of the ideal Pareto law. In a real system, stratify by query class and time window, check stationarity and sample representativeness, and quantify uncertainty in the second-moment estimate.</p>
-                    <p><strong>Resource vs. request skew:</strong> if 1% of requests each consume 150 times the mean cost of the other 99%, their share of total resource use is \(0.01\times150/(0.01\times150+0.99)\approx60.2\%\). Here 150 is relative to the cost of a background request—not the overall mean including the whale. This is a separate illustrative cost-mixture calculation, not a fit to the 99-tenant/one-whale example above.</p>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">3. Pollaczek–Khinchine Calculation</div>
-                    <p>For an M/G/1, FCFS, single-server queue with stationary Poisson arrivals, i.i.d. service times independent of the arrival process, no queue abandonment, and \(\rho=\lambda E[S_{\mathrm{occ}}]<1\), the Pollaczek–Khinchine mean queue-wait formula is:</p>
-                    <div class="equation-flow">
-                        \[ W_q=\frac{\lambda E[S_{\mathrm{occ}}^2]}{2(1-\rho)}=\frac{\lambda\left(\operatorname{Var}(S_{\mathrm{occ}})+E[S_{\mathrm{occ}}]^2\right)}{2(1-\rho)} \]
-                    </div>
-                    <p>Given \(E[S_{\mathrm{occ}}]=0.025\) s and \(\rho=0.50\), the arrival rate implied by utilization is \(\lambda=\rho/E[S]=20\) jobs/s. Since \(C_S^2=\operatorname{Var}(S)/E[S]^2=140\), the second moment is \(E[S^2]=(1+C_S^2)E[S]^2=141(0.025)^2=0.088125\) s\(^2\).</p>
-                    <div class="equation-flow">
-                        \[ W_q=\frac{20\times0.088125}{2(1-0.50)}=1.7625\text{ s}\approx1{,}763\text{ ms} \]
-                    </div>
-                    <p>For deterministic service at the same mean and utilization, \(C_S^2=0\), so \(E[S^2]=(0.025)^2=0.000625\) s\(^2\) and:</p>
-                    <div class="equation-flow">
-                        \[ W_q=\frac{20\times0.000625}{2(1-0.50)}=0.0125\text{ s}=12.5\text{ ms} \]
-                    </div>
-                    <p>Under these assumptions, the empirical high-variability lane produces a mean queue wait about \(141\) times the deterministic-service result at the same mean service time and utilization. This is a queueing-model result, not a universal prediction from the Pareto exponent. The ideal unbounded \(\alpha=1.6\) service model would instead have \(E[S^2]=\infty\), making the ideal M/G/1 mean wait infinite; it cannot be combined with the finite empirical \(C_S^2=140\).</p>
-                    <p>The approximation is deliberately narrow. Bursty or non-Poisson arrivals, tenant-correlated service times, time-varying rates, multiple servers, non-FCFS scheduling, or abandonment can invalidate the M/G/1 estimate. Use the equation to expose the effect of measured service variability, then validate with queue telemetry or a workload-specific simulation.</p>
-                </div>
-                <div class="forensic-item">
-                    <div class="forensic-label">3. Architectural Controls (SITA-E Workload Isolation)</div>
-                    <p>The M/G/1 example exposes the mechanism: long worker occupancy blocks short jobs in a shared FIFO lane. Reduce the variance presented to each lane and account for resource consumption rather than request count:</p>
-                    <ul>
-                        <li><strong>Fast Lane / Heavy Lane Isolation:</strong> Estimate query cost from metadata manifests before execution. Route sub-10MB interactive queries to a Fast Lane and multi-GB analytical scans to a dedicated Heavy Lane worker pool.</li>
-                        <li><strong>Resource-weighted fairness:</strong> Deficit Round Robin can schedule estimated cost quanta, not merely one turn per request. Charge tenants in measured or estimated units such as CPU-ms, bytes read, I/O operations, and memory byte-seconds; enforce per-tenant concurrency and resource budgets. A request-count quota treats a 50 KB lookup and a 40 GB scan as equal and is therefore not a fairness policy.</li>
-                        <li><strong>Deadline-aware cancellation:</strong> Cancel running execution graphs when the caller's deadline expires, and verify that workers release CPU, memory, I/O, and concurrency permits. Cancellation reduces operational occupancy only when it is effective.</li>
-                        <li><strong>Cost-based admission:</strong> Replace naive request-count rate limiters (<code>100 req/min</code>) with per-tenant CPU-millisecond, bytes-read, and memory-byte-second budgets. Estimates need conservative bounds and post-execution reconciliation because manifest estimates can be wrong.</li>
+                        <li><strong>Size-Interval Task Assignment (Fast Lane / Heavy Lane Isolation):</strong> Inspect the Iceberg metadata manifest <em>before</em> dispatching the query. Route queries scanning \(&lt; 10\text{ MB}\) to a dedicated <strong>Fast Lane</strong> worker pool (keeping \(C_S^2 \approx 1\) so point lookups never wait behind a batch scan), and route multi-GB scans to an isolated <strong>Heavy Lane</strong> pool.</li>
+                        <li><strong>Cost-Weighted Admission &amp; Deficit Round Robin (DRR):</strong> Throw away <code>100 queries/min</code> rate limiters. Charge tenant token buckets in <strong>estimated byte-seconds and CPU-milliseconds</strong>, reconciled against actual post-execution consumption, and use Deficit Round Robin to schedule work quanta fairly across tenants.</li>
+                        <li><strong>Cooperative Engine Preemption:</strong> Wire query deadlines directly into the C++ execution engine (<code>duckdb_interrupt</code>) so an aborted whale query releases its thread and memory buffers within milliseconds.</li>
                     </ul>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Pareto Tail Index (\( \alpha \)) Explorer</h3>
-            <p>This simulator draws synthetic samples from the <em>ideal unbounded Pareto distribution</em>, not from the bounded worker-occupancy distribution used in the M/G/1 example. For \(1<\alpha<2\), the theoretical mean is finite but variance is infinite; for \(\alpha\le1\), the theoretical mean is also infinite. The red overflow bar counts draws beyond the plotted range. The displayed sample mean is a finite, noisy sample statistic—not a stable estimate of an infinite moment.</p>
+            <p>This simulator samples from an ideal unbounded Pareto distribution. Slide \(\alpha\) below \(2.0\) (infinite variance) or below \(1.0\) (infinite mean) and watch how occasional massive "Whale" draws (collected in the red <code>TAIL&gt;</code> overflow bar) yank the observed sample mean around while the median (<code>p50</code>) barely moves.</p>
 
             <div class="stage" data-sim-type="pareto">
                 <div class="sim-toolbar">
@@ -566,34 +556,75 @@
             <!-- ========================================== -->
             <h2>4. Spatial Routing and Combinatorial Isolation</h2>
             
-            <p>Hash partitioning is rigid. To dynamically route around hot shards and isolate noisy neighbors, distributed systems employ randomized algorithms that explicitly manipulate workload geometry.</p>
+            <p>If naive hashing pins hot keys and shared FIFO pools suffer Head-of-Line blocking, how do we route around skew and contain noisy neighbors mathematically? Modern control planes rely on four routing primitives:</p>
 
             <div class="scenario-card">
-                <div class="scenario-title">Consistent Hashing, Virtual Nodes, and the Hot-Key Limit</div>
-                <p>Consistent hashing places keys on a ring and assigns each key to its successor node. Adding or removing a node generally remaps only a portion of the keyspace rather than reshuffling every key. Virtual nodes (vnodes) give each physical node multiple ring positions; they smooth placement imbalance, allow heterogeneous node weights, and make incremental rebalancing easier.</p>
-                <p>Neither a ring nor vnodes divide demand for one logical hot key: all requests for that key still resolve to its owner unless the data model adds another level of indirection. Virtual partitions can be moved, split, or assigned to different workers, but splitting a hot key requires a safe read/write strategy. Replicating a hot read key and distributing reads across replicas can reduce its per-node load; trade-offs include replication lag, cache invalidation, consistency semantics, and extra storage. Hot writes may need salted write partitions plus read-time aggregation or a serialized ordering mechanism.</p>
+                <div class="scenario-title">1. Consistent Hashing, Virtual Nodes, and the Hot-Key Limit</div>
+                <p>Consistent hashing maps both nodes and keys onto a unit ring so adding or removing a node only remaps a \(1/M\) fraction of keys instead of reshuffling the entire cluster. Virtual nodes (vnodes) assign each physical host 100–256 positions around the ring so key-count variance across hosts shrinks to a few percent.</p>
+                <p><strong>What vnodes cannot fix:</strong> Vnodes smooth out <em>key-count</em> imbalance, but they do zero to split traffic for a <em>single logical hot key</em>. All 2,044 RPS for <code>key_1</code> still land on whichever vnode owns that point on the ring. Splitting a single hot key requires L1 caching, read-replica fan-out, or salted key splitting (<code>key_1#0..7</code>).</p>
             </div>
 
             <div class="scenario-card">
-                <div class="scenario-title">The Power of Two Random Choices (P2C)</div>
-                <p>In the classic balls-into-bins result, place \(N\) equal-size jobs sequentially into \(N\) initially empty workers. Uniform random placement gives a maximum load of order \(\log N/\log\log N\) with high probability. If each job independently samples two workers uniformly and chooses the less-loaded one (with ties broken consistently), the maximum number of jobs per worker falls to order \(\log\log N\), up to constant terms.</p>
-                <p><strong>Assumptions and production boundary:</strong> This result assumes comparable unit-size jobs, independent uniform choices, sequential placement, and an accurate view of current load. It is not a universal maximum-query-size or latency guarantee. With heterogeneous queries, queue length can rank a worker incorrectly: one queued 40 GB scan may cost more than many small lookups. Use estimated remaining work or normalized resource pressure (CPU, memory, I/O), account for worker capacity differences, and recognize that stale telemetry can send simultaneous arrivals to the same apparently idle worker.</p>
+                <div class="scenario-title">2. The Power of Two Random Choices (P2C)</div>
+                <p>In the classic Mitzenmacher balls-into-bins theorem, throwing \(N\) equal-sized jobs uniformly at random into \(N\) workers produces a maximum worker load of \(\Theta(\frac{\log N}{\log \log N})\). If the router instead picks <strong>two random workers</strong> and sends the job to whichever of the two has the smaller load, the maximum load drops exponentially to \(\Theta(\log \log N)\)!</p>
+                <p><strong>The production trap (Queue Length \(\ne\) Queued Work):</strong> Standard P2C assumes every ball weighs the same. In our Analytics Gateway, Worker A might have <strong>1 job</strong> in its queue (a 40 GB whale scan with 12,000 ms of remaining work), while Worker B has <strong>4 jobs</strong> in its queue (four 2 ms cache lookups = 8 ms total work). A naive P2C router that compares <em>connection count</em> (<code>active_requests</code>) will cheerfully route the next query to Worker A—straight into a 12-second brick wall! Under Pareto cost skew, P2C must compare <strong>estimated in-flight work</strong> (queued bytes or CPU-ms) plus real-time memory pressure, never raw request count.</p>
             </div>
 
             <div class="scenario-card">
-                <div class="scenario-title">Combinatorial Shuffle Sharding</div>
-                <p>In standard shared multi-tenancy, one rogue tenant submitting a "poison-pill" query exhausts workers and cascades failures globally. Shuffle sharding resolves this combinatorially. In a fleet of \( N = 100 \) nodes, assign each tenant a virtual shard of \( k = 4 \) nodes. The probability that two tenants share the exact same 4 nodes is:</p>
+                <div class="scenario-title">3. Combinatorial Shuffle Sharding</div>
+                <p>In a flat 100-node worker pool, a single rogue tenant submitting a poison-pill query batch can saturate all 100 nodes and take down every customer on the platform. <strong>Shuffle sharding</strong> uses combinatorics to build virtual bulkheads without paying for dedicated per-tenant hardware. Out of a fleet of \( N = 100 \) nodes, assign each tenant a deterministic pseudo-random subset (a "shuffle shard") of \( k = 4 \) nodes. How many distinct 4-node combinations exist?</p>
                 <div class="equation-flow">
-                    \[ P(\text{complete overlap}) = \frac{1}{\binom{N}{k}} = \frac{k!(N-k)!}{N!} = \frac{1}{3,921,225} \]
+                    \[ \binom{100}{4} = \frac{100!}{4!\,96!} = \mathbf{3{,}921{,}225 \text{ unique virtual shards}} \]
                 </div>
-                <p>For independently chosen, uniformly random four-node subsets, the intersection size follows a hypergeometric distribution: \(P(X=j)=\binom{4}{j}\binom{96}{4-j}/\binom{100}{4}\). Exact overlap is rare, but partial overlap is not. Shuffle sharding reduces the number of tenants exposed to one noisy neighbor; it does not guarantee that the other three nodes are unaffected or have spare capacity. Its isolation benefit depends on independent placement, balanced node capacity, and routing that keeps each tenant within its assigned subset.</p>
+                <p>If a whale tenant (<code>Tenant_Omega</code>) completely bricks all 4 of its assigned nodes, what happens to another random tenant (<code>Tenant_Alpha</code>)? The number of overlapping nodes \(X\) between two independent 4-node subsets follows a <strong>Hypergeometric distribution</strong>, \(P(X = j) = \frac{\binom{4}{j}\binom{96}{4-j}}{\binom{100}{4}}\). Even when <code>Tenant_Omega</code> destroys its entire 4-node slice, <code>Tenant_Alpha</code> has only a \(1 / 3{,}921{,}225 \approx 0.0000255\%\) chance of sharing all 4 nodes!</p>
             </div>
 
             <div class="scenario-card">
-                <div class="scenario-title">Cost-Aware Scheduling and Resource-Weighted Fairness</div>
-                <p>Fairness cannot be measured by request count when requests have radically different costs. A tenant issuing 100 tiny metadata lookups is not equivalent to a tenant issuing 100 multi-gigabyte scans. Track a resource vector per tenant—such as CPU-ms, bytes read, memory byte-seconds, and I/O operations—and enforce weighted budgets and concurrency limits against those dimensions.</p>
-                <p>For a single schedulable cost unit, Deficit Round Robin can allocate weighted quanta and carry unused deficit forward. For multiple constrained resources, a dominant-resource policy compares each tenant's largest normalized share (usage of a resource divided by that resource's capacity). Neither mechanism is automatically fair if cost estimates are inaccurate or resource dimensions are omitted; reconcile estimates with measured consumption and prevent a tenant from accumulating unbounded concurrent work.</p>
-                <p><strong>Operational checks:</strong> measure per-tenant resource share, queue wait, running and queued concurrency, cancellation effectiveness, and starvation. Test both noisy-neighbor isolation and aggregate utilization; strict isolation can leave capacity idle when a tenant's assigned slice is underused.</p>
+                <div class="scenario-title">4. Cost-Aware Scheduling and Dominant Resource Fairness (DRF)</div>
+                <p>Because queries consume multiple resources (CPU cores, RAM buffers, network I/O), fairness cannot be enforced with a single request counter. Track a resource vector per tenant (CPU-ms, memory byte-seconds, scanned bytes) and schedule via <strong>Deficit Round Robin (DRR)</strong> or <strong>Dominant Resource Fairness (DRF)</strong>—ensuring that a tenant hogging 80% of cluster RAM cannot starve tenants that only need 5% RAM and 10% CPU.</p>
+            </div>
+
+            <h3>Worked Engineering Case Study: Containing a Whale Tenant on a 100-Node DuckDB Gateway</h3>
+            <p><strong>Evidence classification:</strong> End-to-end architectural design walkthrough showing how Shuffle Sharding + Cost-Weighted P2C + Fast/Heavy Lane routing combine to survive a multi-tenant noisy-neighbor storm.</p>
+
+            <div class="forensic-grid">
+                <div class="forensic-item">
+                    <div class="forensic-label">1. The Production Scenario &amp; Workload Skew</div>
+                    <p>Our Multi-Tenant Analytics Gateway runs a fleet of <strong>\(N = 100\) stateless DuckDB/Arrow worker nodes</strong> serving <strong>500 active enterprise tenants</strong>. Each worker node has <strong>64 GB of working RAM</strong> and 16 vCPUs.</p>
+                    <ul>
+                        <li><strong>499 Normal Tenants:</strong> Issue interactive dashboard queries scanning \(10\text{ MB}\)–\(100\text{ MB}\) of Parquet data (consuming ~\(0.5\text{ GB}\) RAM for \(40\text{ ms}\)).</li>
+                        <li><strong>1 Whale Tenant (<code>Tenant_Omega</code>):</strong> At 09:00 AM, an analyst at <code>Tenant_Omega</code> kicks off an unindexed 50-query reconciliation loop. Each query scans 40 GB of unpartitioned Iceberg manifests, demanding <strong>24 GB of working memory for 12,000 ms</strong> (12 seconds) per query.</li>
+                    </ul>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">2. Why Naive "Least-Connections" Routing Causes a Total Fleet Outage</div>
+                    <p>Suppose all 500 tenants share all 100 nodes in a flat pool, and the Gateway load balancer uses standard <strong>Power of Two Choices (P2C) by active connection count</strong>:</p>
+                    <ol>
+                        <li><code>Tenant_Omega</code> fires 50 heavy queries. Because each runs for 12 seconds, they spread across 50 of the 100 nodes (1–2 whale queries per node, pinning 24–48 GB of RAM).</li>
+                        <li>A normal tenant sends a 40 ms dashboard query. The router samples two nodes: Node #12 (currently running <strong>2 whale queries</strong> = 48 GB RAM pinned, 11 seconds remaining) and Node #19 (currently running <strong>5 tiny queries</strong> = 2.5 GB RAM, 15 ms remaining).</li>
+                        <li>Because \(2 &lt; 5\), <strong>naive connection-count P2C routes the interactive query to Node #12</strong>—straight onto a thrashing node! Worse, when 3 whale queries land on the same node (\(3 \times 24\text{ GB} = 72\text{ GB} &gt; 64\text{ GB}\)), the node triggers an OOM crash, the client SDK retries on a new node, and within 30 seconds <code>Tenant_Omega</code>'s retries walk across the entire 100-node fleet like a lawnmower, taking down all 499 innocent tenants.</li>
+                    </ol>
+                </div>
+                <div class="forensic-item">
+                    <div class="forensic-label">3. Step-by-Step Combinatorial Defense (Shuffle Sharding + Cost-Weighted P2C)</div>
+                    <p>Now let's re-architect the Gateway router using three mathematical controls and calculate the exact blast radius:</p>
+                    <p><strong>Control A — \(k = 4\) Shuffle Sharding:</strong> We hash each <code>tenant_id</code> to a deterministic 4-node subset out of the \(N = 100\) workers. When <code>Tenant_Omega</code> goes berserk, its queries can <em>only</em> ever be routed to its assigned 4 nodes (say, Nodes <code>{7, 23, 58, 91}</code>). Even if <code>Tenant_Omega</code> completely saturates or OOM-kills all 4 of those nodes, <strong>96% of the cluster remains untouched</strong>.</p>
+                    <p>What is the exact probability distribution of overlap \(X\) between <code>Tenant_Omega</code>'s 4 dead nodes and any other innocent tenant's 4-node shuffle shard? By the Hypergeometric formula:</p>
+                    <div class="equation-flow">
+                        \[ \begin{aligned}
+                        P(X = 0\text{ shared nodes}) &amp;= \frac{\binom{4}{0}\binom{96}{4}}{\binom{100}{4}} = \frac{3{,}321{,}960}{3{,}921{,}225} \approx \mathbf{84.72\%} \\[6pt]
+                        P(X = 1\text{ shared node})  &amp;= \frac{\binom{4}{1}\binom{96}{3}}{\binom{100}{4}} = \frac{571{,}776}{3{,}921{,}225} \approx \mathbf{14.58\%} \\[6pt]
+                        P(X = 2\text{ shared nodes}) &amp;= \frac{\binom{4}{2}\binom{96}{2}}{\binom{100}{4}} = \frac{27{,}360}{3{,}921{,}225} \approx \mathbf{0.70\%} \\[6pt]
+                        P(X = 4\text{ complete overlap}) &amp;= \frac{1}{3{,}921{,}225} \approx \mathbf{0.0000255\%}
+                        \end{aligned} \]
+                    </div>
+                    <p><strong>Control B — Cost-Weighted P2C Within the Shuffle Shard:</strong> Look at the hypergeometric probabilities above: <strong>84.72%</strong> of innocent tenants (~423 tenants) share <strong>zero nodes</strong> with the whale and never even know an incident happened. Another <strong>14.58%</strong> (~73 tenants) share <strong>only 1 node</strong> out of their 4 assigned nodes. For each query, our router runs <strong>Power of Two Choices inside the tenant's 4-node shard</strong>, scoring each candidate node \(i\) not by connection count, but by <strong>Estimated Queued Byte-Work</strong>:</p>
+                    <div class="equation-flow">
+                        \[ \text{LoadScore}(i) = \sum_{q \in \text{Active}(i)} \widehat{\text{Bytes}}_{\text{remaining}}(q) \;+\; \gamma \cdot \frac{\text{RAM}_{\text{used}}(i)}{\text{RAM}_{\text{max}}(i)} \]
+                    </div>
+                    <p>Because the 1 shared node has a massive \(\text{LoadScore}\) from <code>Tenant_Omega</code>'s 40 GB scan, Cost-Weighted P2C automatically routes the 73 partially overlapping tenants onto their <strong>3 healthy nodes</strong>! Thus, \(84.72\% + 14.58\% = \mathbf{99.30\%}\) of tenants experience zero degradation without spinning up a single extra VM.</p>
+                    <p><strong>Control C — Pre-Admission Manifest Gate:</strong> Finally, when the Gateway planner inspects the Iceberg snapshot metadata before execution and sees <code>estimated_scan_bytes &gt; 5 GB</code>, it refuses to admit the query onto the interactive Fast-Lane pool at all—routing it instead to an elastic, spot-backed asynchronous batch queue capped by per-tenant byte-second quotas.</p>
+                </div>
             </div>
 
             <!-- ========================================== -->
@@ -601,48 +632,48 @@
             <!-- ========================================== -->
             <h2>5. The Cauchy Regime: Ratio Metrics &amp; Undefined Averages</h2>
 
-            <p>Every engineer is taught that if you take enough samples (\( N \to \infty \)), the sample mean converges to the true population average. That theorem requires the distribution's absolute first moment to be finite. In Cauchy-like regimes, that condition fails, and your monitoring dashboards hallucinate.</p>
+            <p>Every engineer is taught in university that if you average enough observations (\( N \to \infty \)), the sample mean \(\bar{X}_N\) converges to the true population average. That is the Law of Large Numbers—and its fine print requires the distribution's first absolute moment \(\mathbb{E}[|X|]\) to be finite. In <strong>Cauchy-like regimes</strong>, that condition fails, the Law of Large Numbers goes on strike, and your monitoring dashboards hallucinate.</p>
 
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Mathematical Counterexample</div>
                 <div class="tldr-content">
-                    <p>A Cauchy distribution with location peak \( x_0 \) and scale \( \gamma > 0 \) has probability density:</p>
+                    <p>A Cauchy distribution centered at location peak \( x_0 \) with scale \( \gamma &gt; 0 \) has probability density:</p>
                     <div class="equation-flow">
                         \[ f(x; x_0, \gamma) = \frac{1}{\pi\gamma \left[1 + \left(\frac{x - x_0}{\gamma}\right)^2\right]} \]
                     </div>
-                    <p>The tails decay slowly as \( x^{-2} \). Therefore, the integral defining expected value diverges:</p>
+                    <p>Its tails decay as \( x^{-2} \) (corresponding to a power-law exponent \(\alpha = 1\)). When you try to compute the expected value by integrating \(x \cdot f(x)\), the integral diverges to infinity:</p>
                     <div class="equation-flow">
-                        \[ \mathbb{E}[|X|] = \frac{2}{\pi} \int_{0}^{\infty} \frac{x}{1 + x^2} dx = \infty \]
+                        \[ \mathbb{E}[|X|] = \frac{2}{\pi} \int_{0}^{\infty} \frac{x}{1 + x^2} \, dx = \infty \]
                     </div>
                 </div>
             </div>
 
-            <h3>Operational Relevance: When Averages Lie</h3>
+            <h3>Operational Relevance: Why Ratio Alerts Page You at 3 A.M.</h3>
 
-            <p>API latency itself is strictly nonnegative and bounded by timeouts, so it never literally spans \( -\infty \) to \( +\infty \) like a true Cauchy variable. However, engineers encounter the \( x^{-2} \) Cauchy-like decay in two critical scenarios:</p>
+            <p>Raw request latency is strictly positive and truncated by client timeouts, so it never literally spans \(-\infty\) to \(+\infty\) like a textbook Cauchy variable. Why, then, do SREs run into Cauchy behavior constantly? <strong>Because of ratio metrics!</strong></p>
             <ol>
-                <li><strong>Heavy-Tailed Power Laws</strong> exhibiting \( \alpha = 1 \) behavior over an observed range.</li>
-                <li><strong>Unstable Ratio Metrics:</strong> Calculating throughput efficiency \( R = \text{Successful Requests} / \text{Available Capacity} \) during a brownout where the denominator oscillates near zero. This creates enormous, volatile outliers.</li>
+                <li><strong>The Ratio of Two Noisy Signals:</strong> In mathematical statistics, if \(U\) and \(V\) are two independent zero-mean Normal random variables, their ratio \(U / V\) follows an <strong>exact Cauchy distribution</strong>! Whenever you build a Grafana query or autoscaler metric that divides two noisy quantities—such as <code>Cost_Per_Successful_Query = ΔCPU_Usage / ΔCompleted_Requests</code>, <code>Retry_Amplification = Retries / Completions</code>, or <code>Throughput_Efficiency = Goodput / Available_Headroom</code>—and the denominator briefly dips near zero during a brownout or quiet window, the ratio explodes by 4 orders of magnitude.</li>
+                <li><strong>Power-Law Workloads Near \(\alpha = 1\):</strong> Unbounded multi-tenant batch sizes or file-size distributions with \(\alpha \approx 1\) exhibit the exact same \(x^{-2}\) density decay over their active range.</li>
             </ol>
 
-            <p>By the stability property of the Cauchy distribution, if \(X_i\) are independent and identically distributed \(\operatorname{Cauchy}(x_0,\gamma)\), their sample average has the <strong>same distribution</strong>:</p>
+            <p>By the stability property of the Cauchy distribution, the average of \(N\) independent \(\operatorname{Cauchy}(x_0, \gamma)\) observations has the <strong>exact same distribution as a single observation</strong>:</p>
 
             <div class="equation-flow">
                 \[ \bar{X}_N = \frac{1}{N} \sum_{i=1}^{N} X_i \sim \text{Cauchy}(x_0, \gamma) \]
             </div>
 
-            <p>The Cauchy distribution has no finite population mean or variance, so the usual finite-mean law of large numbers does not apply; the sample average remains Cauchy-distributed at every sample size. The population median is \(x_0\), and its interquartile range is \(2\gamma\). Sample medians and quantiles can still be useful robust summaries, but their uncertainty should be estimated from the data rather than described as universally “rapid.”</p>
+            <p>Averaging 10,000 samples gives you <strong>zero noise reduction</strong> over taking 1 sample! Every few minutes, a single small denominator produces a massive spike that teleports the rolling average across the chart. Yet notice what remains rock-solid: the <strong>population median</strong> is strictly \(x_0\), and the <strong>Interquartile Range (IQR)</strong> from \(P_{25}\) to \(P_{75}\) is strictly \(2\gamma\).</p>
 
             <div class="tldr-box tldr-box--math">
-                <div class="tldr-eyebrow">The Observability Rule</div>
+                <div class="tldr-eyebrow">The Observability Rule for Ratios &amp; Heavy Tails</div>
                 <div class="tldr-content">
-                    <p>Never trigger auto-scalers or PagerDuty alerts using <code>avg(ratio) + 3 * stddev(ratio)</code>. In heavy-tailed regimes, a single outlier inflates the sample <code>stddev</code> so severely that the threshold becomes unstable and loses statistical meaning. Instead, alert on <strong>high-resolution histogram-derived quantiles (\( P_{99}, P_{99.9} \))</strong> combined with the robust <strong>Median Absolute Deviation (MAD)</strong>.</p>
+                    <p><strong>1. Aggregate before you divide:</strong> Never compute <code>AVG(A_i / B_i)</code> across time buckets or pods; compute <code>SUM(A_i) / SUM(B_i)</code> over a well-populated window (or guard the denominator with a minimum floor).</p>
+                    <p><strong>2. Ban <code>mean ± 3*stddev</code> anomaly detectors on skewed metrics:</strong> In heavy-tailed or ratio regimes, a single outlier inflates the sample standard deviation so violently that \(\mu + 3\sigma\) becomes meaningless. Alert on <strong>high-resolution quantiles (\( P_{50}, P_{99} \))</strong> and <strong>Median Absolute Deviation (\(\text{MAD} = \text{median}(|X - \text{median}(X)|)\))</strong>.</p>
                 </div>
             </div>
 
-            <h3>Interactive Simulation: Watch the Mean Fail to Converge</h3>
-            <p><strong>Simulation note:</strong> This is a synthetic true-Cauchy sample. The display uses a rolling window of at most 5,000 draws, so the observed mean can move as extreme observations enter or leave that window; it is not a latency model or production telemetry.</p>
-            <p>Click <strong>Run</strong>. The Median stays locked near \( x_0 \) while a single extreme ratio outlier teleports the Observed Mean across the screen repeatedly.</p>
+            <h3>Interactive Simulation: Watch the Sample Mean Fail to Converge</h3>
+            <p>Click <strong>▶ Run</strong> below to draw synthetic samples from a true \(\operatorname{Cauchy}(x_0, \gamma)\) process. Watch the green <strong>Median (p50)</strong> lock tightly onto \(x_0\), while the red <strong>Observed Mean</strong> jumps erratically across the screen every time a tail outlier lands—refusing to converge even after thousands of samples.</p>
 
             <div class="stage" data-sim-type="cauchy">
                 <div class="sim-toolbar">
@@ -673,7 +704,7 @@
                 </div>
             </div>
             
-            <p>We have seen how popularity skew pins hot keys to partitions, how cost skew makes request counts a poor proxy for work, and how routing and isolation can limit the blast radius. These controls shape the workload presented to the system; they do not make it static. When clients react to timeouts by retrying, demand becomes state-dependent and can amplify the original imbalance. Part 6 takes up that feedback mechanism: retries, jitter, and the probability of failure changing as the system degrades.</p>
+            <p>We have seen how Zipfian popularity pins hot keys to single shards, how temporal phase-locking turns sleepy averages into 30-second avalanches, how Pareto cost skew causes a single whale query to block fifty fast lookups in a shared lane, and how Shuffle Sharding + Cost-Weighted P2C contain the blast radius. Up to this point, however, our workload was still generated by external demand. What happens when a shard slows down and your own clients react by firing retries, creating a closed-loop feedback amplifier that locks the cluster into <strong>metastable failure</strong>? That is the subject of Part 6.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-4-aggregation-and-the-extreme-tail.html">← Part 4: Aggregation and the Extreme Tail</a>
@@ -734,11 +765,6 @@
             
             // --- Safe PRNG ---
             const safeRand = () => Math.min(1 - 1e-12, Math.max(1e-12, Math.random()));
-
-            function randNormal() {
-                let u = safeRand(), v = safeRand();
-                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-            }
 
             function calcQuantile(sortedArr, q) {
                 if (sortedArr.length === 0) return 0;
