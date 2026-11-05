@@ -26,7 +26,7 @@
     <meta property="og:title" content="Part 6: State, Empiricism, and the Simulation Fallacy | The Shape of Failure">
     <meta property="og:description" content="Bounded retries, state-dependent failure probabilities, retry budgets, Negative Binomial overdispersion, Bayesian Beta inference, and Beta-PERT simulation.">
     <meta property="og:url" content="https://saurav-sana.github.io/blog/series/the-shape-of-failure/part-6-state-empiricism-and-simulation.html">
-    <meta property="article:published_time" content="2026-11-14T00:00:00Z">
+    <meta property="article:published_time" content="2026-11-04T00:00:00Z">
     <meta property="article:author" content="Saurav Sana">
 
     <!-- Early Theme Initialization -->
@@ -209,7 +209,7 @@
                 <h1>State, Empiricism, and the Simulation Fallacy</h1>
             </div>
             <div class="post-meta" style="margin-bottom: 1.25rem;">
-                <time datetime="2026-11-14">November 4, 2026</time> · Part 6 of 8
+                <time datetime="2026-11-04">November 4, 2026</time> · Part 6 of 8
             </div>
 
             <blockquote class="snarky-quote">
@@ -223,7 +223,7 @@
 
             <p>Worse, we almost never know our true system parameters when making high-stakes calls. A canary pod serving 50 requests with <code>0.0% errors</code> is treated as proof of perfection. A bursty multi-tenant queue is sized as if arrivals were smooth. And a six-month migration roadmap is built by summing the "most likely" duration of twenty dependent Jira tickets, blissfully ignoring right-skew and parallel merge penalties. Wrapping a 10,000-run Monte Carlo loop around bad assumptions does not launder them into truth—it just gives your blind spots four decimal places of precision.</p>
 
-            <p>Part 6 tackles <strong>retry feedback loops</strong>, <strong>overdispersed failure counts</strong>, <strong>small-sample Bayesian inference</strong>, and <strong>the mathematics of estimation skew</strong>. The governing law is simple: a probability distribution tells you how a model behaves under its assumptions; it never guarantees that production shares those assumptions.</p>
+            <p>Part 6 follows one practical chain: <strong>physical mechanism → random variable → candidate model → assumptions → validation → architectural control</strong>. We will use four models to reason about retries, bursty counts, canary evidence, and uncertain delivery plans. The governing rule is simple: a distribution describes what follows from its assumptions; it does not guarantee that production follows them.</p>
 
             <!-- ========================================== -->
             <!-- 1. GEOMETRIC DISTRIBUTION -->
@@ -234,7 +234,7 @@
                 <div class="tldr-eyebrow">The Intuition: Flipping a Coin Until It Lands Heads</div>
                 <div class="tldr-content">
                     <p>Picture reconnecting to a flaky upstream API. Attempt 1 times out. Attempt 2 times out. Attempt 3 finally gets through. The <strong>Geometric distribution</strong> is the baseline model for how many Bernoulli attempts you will burn through before your first success, assuming every attempt faces the exact same independent probability \( p \).</p>
-                    <p>In production, treat this constant-\( p \) math as your best-case floor. The moment retries start competing for scarce worker threads or connection slots, each failure degrades the system and drags the next attempt's success probability down with it.</p>
+                    <p>In production, treat constant-\(p\) math as a reference baseline. It is not automatically a best-case bound: real retries may encounter recovery, worsening congestion, or changing request mixes. The moment retries compete for scarce worker threads or connection slots, the system state can change the next attempt's success probability.</p>
                 </div>
             </div>
 
@@ -355,8 +355,8 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Counting the Bodies Before \( r \) Victories</div>
                 <div class="tldr-content">
-                    <p>If the Geometric distribution asks, <em>"How many tries until my first success?"</em>, the <strong>Negative Binomial distribution</strong> asks the broader operational question: <em>"How many failures (\( k \)) will I accumulate before I finally collect \( r \) successes?"</em></p>
-                    <p>More importantly for capacity planners, the Negative Binomial is what happens to a Poisson process when the arrival rate \(\Lambda\) refuses to sit still. Whenever traffic arrives in clumpy, correlated bursts across time windows, the variance explodes past the mean (\(\operatorname{Var}(X) \gt \mathbb{E}[X]\)), and Poisson queue sizing falls apart.</p>
+                    <p>In its trial-count interpretation, the <strong>Negative Binomial distribution</strong> asks: <em>"How many failures (\(k\)) occur before the \(r\)-th success?"</em> In capacity engineering, the same family of distributions also appears when a Poisson count has a Gamma-distributed, uncertain rate.</p>
+                    <p>That second interpretation is useful when the arrival intensity changes between observation windows. It produces <strong>overdispersion</strong>—variance greater than the mean. But be precise: overdispersion alone does not prove that adjacent windows are correlated. Temporal correlation requires a rate process whose latent intensity persists or evolves across time.</p>
                 </div>
             </div>
 
@@ -373,7 +373,7 @@
 \end{aligned}\]
             </div>
 
-            <p>Dividing the variance by the mean cancels everything except \(\text{VMR} = \operatorname{Var}(X)/\mathbb{E}[X] = 1/p \gt 1\). While a smooth Poisson process always has \(\text{VMR} = 1\), the Negative Binomial distribution naturally models <strong>overdispersed</strong> count data where bursts push the variance far above the average.</p>
+            <p>For this failure-count parameterization, \(\text{VMR}=\operatorname{Var}(X)/\mathbb{E}[X]=1/p>1\). A Poisson count has VMR 1, while the Negative Binomial accommodates overdispersed counts. A high VMR is evidence that the Poisson variance assumption is inadequate for that window definition; it does not, by itself, identify the physical cause of the extra variation.</p>
 
             <h4>1. The Superposition Trap: Why "Whale + Minnows" Does Not Cause Bursts</h4>
             <div class="math-explanation">
@@ -385,9 +385,9 @@
                 <p>Because both the mean and variance of independent streams add linearly, \(\mu = 1{,}000\), \(\operatorname{Var}(X) = 1{,}000\), and \(\mathbf{\text{VMR} = 1.0}\). Mixing big tenants and small tenants on the same server <strong>never</strong> creates a Negative Binomial distribution—as long as each tenant's arrival rate \(\lambda_i\) stays constant over time.</p>
             </div>
 
-            <h4>2. The Gamma-Poisson Mixture (Cox Process): What Actually Causes Bursts</h4>
+            <h4>2. The Gamma-Poisson Mixture: Modeling Variable-Rate Counts</h4>
             <div class="math-explanation">
-                <p>Overdispersion appears when the arrival rate \(\Lambda(t)\) refuses to sit still—like top-of-the-hour enterprise cron jobs at <code>09:00:00</code>, market-open trading bursts, or a batch webhook retry wave. When the underlying arrival rate fluctuates across time windows according to \(\Lambda \sim \operatorname{Gamma}(r, \theta)\) with mean \(\mu = r\theta\) and variance \(\operatorname{Var}(\Lambda) = r\theta^2 = \mu^2/r\), a \(\operatorname{Poisson}(\Lambda)\) count process becomes <strong>Negative Binomial</strong>.</p>
+                <p>Overdispersion appears when the rate is uncertain across the observation windows being pooled. For a window, let \(\Lambda \sim \operatorname{Gamma}(r, \theta)\), with mean \(\mu = r\theta\) and variance \(\operatorname{Var}(\Lambda) = r\theta^2 = \mu^2/r\), then draw \(X \mid \Lambda \sim \operatorname{Poisson}(\Lambda)\). The marginal count is Negative Binomial. This is a useful count model for variable-intensity windows such as cron bursts or webhook retry waves. A Cox process is the continuous-time generalization in which the Poisson intensity itself is a stochastic process. If that latent rate persists from one window to the next, the process also has temporal dependence; estimate and model that dependence separately.</p>
                 <p>By the <strong>Law of Total Variance</strong>, total noise is the sum of ordinary Poisson randomness plus the variance of the fluctuating rate itself:</p>
                 <div class="equation-flow">
                     \[ \operatorname{Var}(X) = \mathbb{E}\big[\operatorname{Var}(X \mid \Lambda)\big] + \operatorname{Var}\big(\mathbb{E}[X \mid \Lambda]\big) = \underbrace{\mu}_{\text{Baseline Poisson}} + \underbrace{\frac{\mu^2}{r}}_{\text{Burst Penalty}} \]
@@ -412,38 +412,39 @@
                     <tbody>
                         <tr>
                             <td><strong>\(r \to \infty\)</strong></td>
-                            <td>Arrival rate \(\Lambda\) never fluctuates (\(\operatorname{Var}(\Lambda) \to 0\)).</td>
-                            <td>\(1{,}000 + 0 = \mathbf{1{,}000}\)</td>
+                            <td>Rate uncertainty vanishes; the Gamma-Poisson mixture approaches Poisson.</td>
+                            <td>\(\mathbf{1{,}000}\)</td>
                             <td><strong>\(1.0\)</strong></td>
-                            <td><strong>Pure Poisson:</strong> Smooth, steady hum around \(1{,}000\) RPS.</td>
+                            <td><strong>Poisson baseline:</strong> one-second P95 is approximately \(1{,}052\) requests.</td>
                         </tr>
                         <tr>
                             <td><strong>\(r = 10\)</strong></td>
-                            <td>Moderate rate wobble across windows.</td>
-                            <td>\(1{,}000 + \frac{1{,}000{,}000}{10} = \mathbf{101{,}000}\)</td>
+                            <td>Moderate rate variation between windows.</td>
+                            <td>\(\mathbf{101{,}000}\)</td>
                             <td><strong>\(101\)</strong></td>
-                            <td><strong>Noticeably Bursty:</strong> Frequent swells to \(1{,}500+\) RPS.</td>
+                            <td><strong>Overdispersed:</strong> one-second P95 is approximately \(1{,}573\) requests.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>\(r = 2\)</strong></td>
+                            <td>Substantial rate variation between windows.</td>
+                            <td>\(\mathbf{501{,}000}\)</td>
+                            <td><strong>\(501\)</strong></td>
+                            <td><strong>Heavy count tail:</strong> one-second P95 is approximately \(2{,}373\) requests.</td>
                         </tr>
                         <tr>
                             <td><strong>\(r = 1\)</strong></td>
-                            <td>Exponentially distributed rate spikes.</td>
-                            <td>\(1{,}000 + \frac{1{,}000{,}000}{1} = \mathbf{1{,}001{,}000}\)</td>
+                            <td>Highly variable rate; the Gamma rate itself is exponential.</td>
+                            <td>\(\mathbf{1{,}001{,}000}\)</td>
                             <td><strong>\(1{,}001\)</strong></td>
-                            <td><strong>Violent Clumping:</strong> Long stretches of near-silence punctuated by massive \(3{,}000+\) RPS megaspikes.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>\(r \to 0\)</strong></td>
-                            <td>Extreme synchronized herd behavior.</td>
-                            <td>\(\to \infty\)</td>
-                            <td><strong>\(\to \infty\)</strong></td>
-                            <td><strong>All-or-Nothing:</strong> Dead silence for 59 seconds, followed by the entire minute's traffic arriving in 1 second.</td>
+                            <td><strong>Very wide count spread:</strong> one-second P95 is approximately \(2{,}997\) requests.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="math-explanation">
-                <p><strong>Why This Matters for Queue Sizing:</strong> If you size a Kafka partition buffer or worker pool using average RPS (\(\mu = 1{,}000\)) and assume Poisson arrivals (\(\text{VMR} = 1, \sigma \approx 31.6\)), you will provision headroom for \(\approx 1{,}052\) RPS. If the traffic actually comes from enterprise cron jobs or webhook retry waves with \(r = 2\), the 5-minute average on Grafana still looks calm at \(1{,}000\) RPS—but the 1-second variance is \(501{,}000\) (\(\sigma \approx 708\) RPS), meaning 95th-percentile bursts regularly slam the queue past <strong>\(2{,}400\) RPS</strong> and trigger <code>503 Service Unavailable</code> drops.</p>
+                <p><strong>Why This Matters for Queue Sizing:</strong> Suppose the mean is \(1{,}000\) requests per one-second window. Under a Poisson model, the one-second P95 is approximately \(1{,}052\). Under the Gamma-Poisson model with \(r=2\), the exact Negative Binomial P95 is approximately \(2{,}373\), with standard deviation about \(708\). A five-minute dashboard average can conceal these short-window peaks if the alerting and capacity model only inspect long aggregation windows. The queue must be sized against the arrival process at the timescale that drives buffer occupancy and service latency—not just the five-minute mean. The P95 is a quantile, not a guarantee that all bursts stay below it.</p>
+                <p><strong>Important:</strong> These calculations describe one-second <em>counts</em>. They do not tell you whether high-count windows arrive consecutively. To model runs of adjacent bursts, estimate the temporal dependence of \(\Lambda(t)\) from telemetry or use a time-series/Cox-process model.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -454,7 +455,7 @@
             </div>
 
             <h3>Interactive Simulation: Overdispersion vs. The Poisson Illusion</h3>
-            <p>Set \( r = 5 \) and \( p = 0.20 \). The expected failure count is \( \mu = 20 \), but the variance is \( 100 \) (\(\text{VMR} = 5.0\)). Compare the cyan <strong>POISSON P95</strong> reference line (what a naive capacity planner provisions for assuming smooth arrivals of mean 20) against the purple <strong>P95</strong> line of the actual Negative Binomial tail.</p>
+            <p>Set \(r=5\) and \(p=0.20\). The expected failure count is \(\mu=20\), the variance is \(100\), and the variance-to-mean ratio is \(5\). Compare the approximate Poisson P95 reference with the simulated Negative Binomial P95. This experiment uses the trial-count parameterization; it illustrates overdispersed counts, not a complete time-correlated arrival process.</p>
             <div class="stage" data-sim-type="negbinomial">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -463,8 +464,8 @@
                             <input type="range" id="r_negbinomial" aria-label="Target number of successes r" min="1" max="20" step="1" value="5">
                         </div>
                         <div class="param-group">
-                            <div>Success Prob (p): <span id="v_p_negbinomial">0.30</span></div>
-                            <input type="range" id="p_negbinomial" aria-label="Negative binomial success probability p" min="0.05" max="0.90" step="0.01" value="0.30">
+                            <div>Success Prob (p): <span id="v_p_negbinomial">0.20</span></div>
+                            <input type="range" id="p_negbinomial" aria-label="Negative binomial success probability p" min="0.05" max="0.90" step="0.01" value="0.20">
                         </div>
                     </div>
                     <div class="controls">
@@ -618,18 +619,18 @@
                 <div class="equation-flow">
                     \[ n \ge \frac{\ln(0.05)}{\ln(1 - 0.001)} = 2{,}995 \approx \frac{3}{0.001} = \mathbf{3{,}000\text{ requests}} \]
                 </div>
-                <p><strong>Watch out for correlated samples:</strong> Those 3,000 requests only count if they represent independent trials across realistic production state. If all 3,000 canary calls are synthetic <code>/healthz</code> pings or come from a single cached tenant session, your effective sample size is closer to 1 than 3,000.</p>
+                <p><strong>Watch out for correlated or unrepresentative samples:</strong> The calculation assumes independent Bernoulli trials with a stable failure probability. Three thousand synthetic <code>/healthz</code> pings do not provide three thousand independent observations about real query execution, tenant isolation, cache misses, or downstream saturation. Repeated requests from one cached session may carry far less information than their raw count suggests. Measure coverage across relevant tenants, request classes, regions, and operating states; do not mechanically replace the raw sample count with an assumed effective sample size.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">Architectural Application: Taming the "Half-Open" Circuit Breaker</div>
                 <div class="tldr-content">
-                    <p>Standard circuit breakers are notoriously binary: after sleeping for 30 seconds in the <code>Open</code> state, they flip to <code>Half-Open</code>, let 1 test request through, and—if that single request succeeds—slam the breaker <code>Closed</code> and dump 100% of production traffic back onto a cold, freshly restarted node. One success (\(\operatorname{Beta}(2,1)\)) is statistically worthless evidence of full capacity. Instead, require a statistically meaningful sequence of probe successes, ramp admission weight gradually in proportion to the Beta posterior's lower credible bound, and enforce a hard concurrency cap during warmup.</p>
+                    <p>A circuit breaker that admits one half-open probe and then immediately restores 100% traffic is treating one observation as proof of recovered capacity. One success is weak evidence, and it says little about throughput under load. Track probe outcomes by representative request class; require the posterior upper credible bound on the failure probability to fall below an explicitly chosen threshold; then increase admission in bounded steps while enforcing concurrency, queue-depth, and latency limits. The statistical gate is evidence about failure probability—not a substitute for a capacity ramp test.</p>
                 </div>
             </div>
 
             <h3>Interactive Simulation: Small-Sample Hubris vs. Posterior Certainty</h3>
-            <p>Compare <code>α = 2, β = 4</code> (equivalent to seeing 1 failure and 3 successes—mean error rate <code>0.33</code>, but wide enough that P95 stretches past <code>0.68</code>) against <code>α = 20, β = 40</code> (same <code>0.33</code> mean, but tightly pinned by 10× more evidence). Adjust \(\alpha\) and \(\beta\) to watch the epistemic uncertainty shrink as sample size grows.</p>
+            <p>Compare <code>α = 2, β = 4</code> (equivalent to a uniform prior updated with 1 failure and 3 successes; posterior mean error rate <code>0.33</code> and P95 about <code>0.657</code>) against <code>α = 20, β = 40</code> (same mean, with ten times the total shape mass and a P95 about <code>0.436</code>). Adjust \(\alpha\) and \(\beta\) to watch posterior uncertainty shrink as evidence accumulates. Shape parameters are not always literal observed counts: here they include the prior's pseudo-counts.</p>
             <div class="stage" data-sim-type="beta">
                 <div class="sim-toolbar">
                     <div class="sim-params">
@@ -660,13 +661,13 @@
             <!-- ========================================== -->
             <!-- 4. BETA-PERT DISTRIBUTION -->
             <!-- ========================================== -->
-            <h2>4. The Beta-PERT Distribution (The Simulation Fallacy & Jensen's Inequality)</h2>
+            <h2>4. The Beta-PERT Distribution (Three-Point Estimates, Skew, and Parallel Joins)</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Why Summing "Most Likely" Estimates Always Blows the Deadline</div>
+                <div class="tldr-eyebrow">The Intuition: Three Estimates Are a Model, Not a Promise</div>
                 <div class="tldr-content">
-                    <p>Ask a Staff Engineer how long it will take to decommission a legacy database. You will get three numbers: <em>"If the scripts run clean, <strong>1 day</strong> (\( a \)). Most likely, <strong>2.5 days</strong> (\( m \)). If we uncover undocumented stored procedures written in 2011, <strong>9 days</strong> (\( b \))."</em></p>
-                    <p>Now watch what happens in sprint planning: a project manager takes 10 of those tasks, grabs the "Most Likely" number (\( m = 2.5 \) days), multiplies by 10, and promises leadership a 25-day delivery. The <strong>Beta-PERT distribution</strong> shows why that project is mathematically doomed on Day 1: software tasks have bounded upside (you can't finish in negative time) and heavy right-skewed downside, meaning the <strong>expected mean is systematically higher than the mode</strong>.</p>
+                    <p>Ask an engineer how long a legacy database migration might take and you may get three estimates: <em>optimistic: <strong>1 day</strong> (\(a\)); most likely: <strong>2.5 days</strong> (\(m\)); pessimistic: <strong>9 days</strong> (\(b\)).</em> These are judgments about a plausible range, not measurements of a known physical limit.</p>
+                    <p><strong>Beta-PERT</strong> turns those three judgments into a bounded probability model. For this particular set of estimates, the longer downside interval pulls the mean above the mode. That is not a universal property: depending on where the mode sits between \(a\) and \(b\), the mean can be above, below, or equal to the mode. And if the real task can exceed \(b\), the model cannot represent that overrun unless we add an explicit overrun mechanism or choose a different model.</p>
                 </div>
             </div>
 
@@ -686,131 +687,223 @@
                 <div class="equation-flow">
                     \[ \mathbb{E}[T] = \frac{1 + 4(2.5) + 9}{6} = \frac{20}{6} = \mathbf{3.33\text{ days}} \]
                 </div>
-                <p>Even though the most frequent outcome is \(2.5\) days, the heavy downside tail pulls the <em>true expected average</em> up by \(+33\%\). If a manager takes 10 such tasks and multiplies the mode by 10 (\(25\) days), they are planning for a best-case peak; the true expected duration is <strong>\(33.3\) days</strong>.</p>
+                <p>For this example, the mean is about \(33\%\) above the mode because the pessimistic side of the elicited interval extends farther. Ten independent tasks with these same estimates would have an expected total of \(33.3\) days, but that expectation is not a delivery percentile and does not say how often a 25-day deadline will be missed. We calculate that probability from the distribution of the <em>sum</em>, not by comparing the sum of modes with the sum of means.</p>
             </div>
 
             <h4>2. Exact Variance vs. The 1958 Slide-Rule Approximation</h4>
             <div class="math-explanation">
-                <p>Classic textbooks claim standard deviation is always \(\sigma \approx (b-a)/6\) regardless of where \(m\) sits—a 1958 U.S. Navy slide-rule shortcut designed to avoid calculus. For asymmetric tasks like \(a = 2, m = 4, b = 12\) (\(\alpha = 1.8, \beta = 4.2\)):</p>
+                <p>A common planning shortcut uses \(\sigma \approx (b-a)/6\). It is convenient, but it is an approximation—not the exact variance of every Beta-PERT curve. For \(a=2, m=4, b=12\), the shape parameters are \(\alpha=1.8\) and \(\beta=4.2\):</p>
                 <ul>
-                    <li><strong>Textbook Heuristic:</strong> \(\sigma^2 \approx \left(\frac{10}{6}\right)^2 = \mathbf{2.78\text{ days}^2}\).</li>
-                    <li><strong>Exact Beta-PERT Variance:</strong> \(\frac{100 \times 7.56}{36 \times 7} = \mathbf{3.00\text{ days}^2}\) (\(\sigma = 1.732\text{ days}\)). Using the slide-rule shortcut understates uncertainty and yields dangerously tight confidence intervals.</li>
+                    <li><strong>Range-based heuristic:</strong> \(\sigma^2 \approx (10/6)^2 = 2.78\text{ days}^2\).</li>
+                    <li><strong>Exact Beta-PERT variance:</strong> \(\operatorname{Var}(T)=3.00\text{ days}^2\), so \(\sigma=1.732\) days. In this example the shortcut understates variance by about \(7.4\%\). For other mode positions it can overstate or understate variance; calculate the exact variance when the decision depends on the tail.</li>
                 </ul>
             </div>
 
             <h4>3. Jensen's Inequality and the Parallel Merge Penalty</h4>
             <div class="math-explanation">
                 <p>Suppose you split a migration across <strong>5 parallel microservice teams</strong> (or fan out a query across 5 database shards), where each branch has an expected duration of \(\mathbb{E}[T_i] = 5.0\) days (\(a=2, m=4, b=12\)).</p>
-                <p>Because a parallel pipeline cannot proceed until the <em>slowest</em> branch finishes, total execution time is governed by the maximum function: \(T_{\text{join}} = \max(T_1, T_2, T_3, T_4, T_5)\).</p>
-                <p>Because the \(\max\) operator is strictly convex, <strong>Jensen's Inequality</strong> mathematically guarantees that the expected value of the maximum is greater than the maximum of the individual averages:</p>
+                <p>Because a parallel pipeline cannot proceed until the <em>slowest</em> branch finishes, the join time is \(T_{\text{join}}=\max(T_1,\ldots,T_5)\). The maximum function is <strong>convex</strong> (not strictly convex everywhere), so Jensen's inequality gives:</p>
                 <div class="equation-flow">
-                    \[ \mathbb{E}[\max(T_1, \dots, T_n)] \gt \max(\mathbb{E}[T_1], \dots, \mathbb{E}[T_n]) \]
+                    \[ \mathbb{E}[\max(T_1, \dots, T_n)] \geq \max(\mathbb{E}[T_1], \dots, \mathbb{E}[T_n]). \]
                 </div>
+                <p>The inequality is strict in this non-degenerate example, but strictness is not guaranteed for every possible set of random variables. Also keep the comparison straight: parallel execution may be faster than doing all branches serially, while the join is still slower on average than the expected duration of the slowest individual branch.</p>
                 <ul>
                     <li><strong>The Odds of Hitting the Mode:</strong> An individual team hits their 4-day mode with probability \(F_T(4) \approx 33.16\%\). The chance that <em>all five</em> independent teams finish by Day 4 is \((0.3316)^5 \approx \mathbf{0.40\%}\) (less than 1 in 200!).</li>
-                    <li><strong>The Delayed Join Latency:</strong> Integrating the 5-way maximum distribution (\(\int_a^b [1 - F_T(t)^5]\,dt\)) pushes the expected completion date of the parallel join from \(5.0\) days out to <strong>\(7.17\) days</strong>—nearly <strong>80% slower</strong> than the 4-day mode individual engineers promised in standup.</li>
+                    <li><strong>The delayed join:</strong> For five independent, identically distributed branches, \(P(T_{\text{join}}\leq t)=F_T(t)^5\). Integrating the survival function gives \(\mathbb{E}[T_{\text{join}}]\approx 7.17\) days. That is about \(43\%\) above one branch's 5-day mean and about \(79\%\) above its 4-day mode. These figures depend on independence and the stated Beta-PERT estimates; shared teams or common dependencies change the result.</li>
                 </ul>
             </div>
 
             <!-- ========================================== -->
             <!-- 5. CASE STUDY: SEQUENTIAL VS. PARALLEL EPICS -->
             <!-- ========================================== -->
-            <h2>5. Case Study: Sequential vs. Parallel Epics (PERT in Practice)</h2>
+            <h2>5. Monte Carlo Case Study: From Task Estimates to Delivery Risk</h2>
 
-            <p>To see why mathematical estimation matters in the real world, let's contrast two epics: <strong>Epic A (100% Sequential Stories)</strong> handled by a single developer, and <strong>Epic B (Mixed Parallel Fan-In)</strong> where tasks run concurrently across multiple teams before hitting a join barrier.</p>
+            <p>Monte Carlo is useful here because the delivery date is a function of several uncertain task durations and a dependency graph. We do not need to pretend that the sum of three skewed variables is normal, and we do not need to approximate a parallel join with a single point estimate. We can sample the task models, execute the dependency logic, and inspect the resulting distribution of completion times.</p>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Baseline: Three-Point Estimates for 3 Core Stories</div>
+                <div class="tldr-eyebrow">The Experiment: A Three-Workstream Gateway Migration</div>
                 <div class="tldr-content">
-                    <p>Suppose both epics consist of the exact same three underlying subsystems, evaluated by engineers using optimistic (\(a\)), most-likely mode (\(m\)), and pessimistic (\(b\)) bounds in days:</p>
+                    <p>Assume three workstreams, each estimated in days using optimistic (\(a\)), most-likely (\(m\)), and pessimistic (\(b\)) values:</p>
                     <ul>
-                        <li><strong>Story 1 (API Schema):</strong> \(a = 1, m = 2.5, b = 7\) \(\implies \mathbb{E}[T_1] = 3.00\text{ days}, \sigma_1^2 = 1.00\)</li>
-                        <li><strong>Story 2 (Data Pipeline):</strong> \(a = 2, m = 4.0, b = 10\) \(\implies \mathbb{E}[T_2] = 4.67\text{ days}, \sigma_2^2 = 1.78\)</li>
-                        <li><strong>Story 3 (Auth & Gateway):</strong> \(a = 1, m = 3.0, b = 11\) \(\implies \mathbb{E}[T_3] = 4.33\text{ days}, \sigma_3^2 = 2.78\)</li>
+                        <li><strong>Workstream 1 — API schema:</strong> \(a=1, m=2.5, b=7\). Beta-PERT mean \(3.00\) days; exact variance \(1.143\) days\(^2\).</li>
+                        <li><strong>Workstream 2 — Data pipeline:</strong> \(a=2, m=4, b=10\). Mean \(4.667\) days; exact variance \(2.032\) days\(^2\).</li>
+                        <li><strong>Workstream 3 — Authentication and gateway:</strong> \(a=1, m=3, b=11\). Mean \(4.00\) days; exact variance \(3.00\) days\(^2\).</li>
                     </ul>
+                    <p> Under an independence assumption, the sequential total has mean \(11.667\) days and variance \(6.175\) days\(^2\). Those moments describe the total, but they do not by themselves establish its P95.</p>
                 </div>
             </div>
 
-            <h3>Epic A: Full Sequential Stories (The Central Limit Theorem Approach)</h3>
+            <h3>Define the workflow before sampling</h3>
             <div class="math-explanation">
-                <p><strong>Scenario:</strong> Stories 1, 2, and 3 must be executed strictly one after another by a single team.</p>
+                <p><strong>Epic A — sequential:</strong> one workstream starts after the previous one completes.</p>
+                <div class="equation-flow">\[T_A=T_1+T_2+T_3.\]</div>
+                <p><strong>Epic B — parallel fan-out, then join:</strong> API schema and data pipeline run concurrently; authentication/gateway integration starts only after both complete.</p>
+                <div class="equation-flow">\[T_B=\max(T_1,T_2)+T_3.\]</div>
+                <p>This is the dependency graph. Monte Carlo must sample task durations and then apply this execution logic on every iteration. Sampling each task independently is an explicit assumption—not a fact about the organization.</p>
+            </div>
+
+            <h3>What one Monte Carlo iteration actually does</h3>
+            <ol>
+                <li>Sample one duration from each workstream's Beta-PERT distribution.</li>
+                <li>Calculate the sequential completion time \(T_A\).</li>
+                <li>Calculate the parallel-join completion time \(T_B\).</li>
+                <li>Store both outcomes, then repeat many times.</li>
+                <li>Sort the simulated outcomes to estimate P50, P85, P95, and the probability of missing a chosen deadline.</li>
+            </ol>
+            <p>For the stated independent task models, an illustrative 2,000,000-iteration run gives approximately:</p>
+            <div class="arch-table-wrap">
+                <table class="arch-table">
+                    <thead><tr><th>Measure</th><th>Epic A: sequential</th><th>Epic B: parallel fan-in</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Expected completion</strong></td><td>11.67 days</td><td>8.82 days</td></tr>
+                        <tr><td><strong>P50</strong></td><td>11.52 days</td><td>8.65 days</td></tr>
+                        <tr><td><strong>P85</strong></td><td>14.30 days</td><td>11.16 days</td></tr>
+                        <tr><td><strong>P95</strong></td><td>16.01 days</td><td>12.69 days</td></tr>
+                        <tr><td><strong>Chance of exceeding the sum/max of modes</strong></td><td>About 79.9% beyond 9.5 days</td><td>About 78.4% beyond 7 days</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p><em>These are approximate Monte Carlo estimates from the stated Beta-PERT inputs under independent task durations; simulation estimates vary slightly with the random sample. The 9.5-day and 7-day thresholds are the naive mode-based plans, not statistically justified commitments. The numbers are not universal delivery forecasts.</em></p>
+
+            <div class="stage" id="project-mc-stage">
+                <div class="sim-toolbar">
+                    <div class="sim-params">
+                        <div class="param-group" style="width:auto; min-width:220px;">
+                            <label style="display:flex; gap:0.55rem; align-items:flex-start; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:0.85rem;">
+                                <input type="checkbox" id="mc_common_shock" style="accent-color:var(--teal); margin-top:0.2rem;">
+                                <span>Include shared dependency shock<br><small style="color:var(--muted);">15% chance; adds 2 days to workstreams 2 and 3</small></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="sim-btn" id="run_project_mc">Run 100,000 simulations</button>
+                    </div>
+                </div>
+                <p class="sim-note">The optional shock is a deliberately simple common-cause scenario (for example, a shared vendor or platform dependency). It makes two task durations move together. It is not a universal correlation model.</p>
+                <div class="arch-table-wrap" style="margin-bottom:0;">
+                    <table class="arch-table">
+                        <thead><tr><th>Output</th><th>Epic A: sequential</th><th>Epic B: parallel fan-in</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Simulated mean</strong></td><td id="mc_a_mean">—</td><td id="mc_b_mean">—</td></tr>
+                            <tr><td><strong>P50</strong></td><td id="mc_a_p50">—</td><td id="mc_b_p50">—</td></tr>
+                            <tr><td><strong>P85</strong></td><td id="mc_a_p85">—</td><td id="mc_b_p85">—</td></tr>
+                            <tr><td><strong>P95</strong></td><td id="mc_a_p95">—</td><td id="mc_b_p95">—</td></tr>
+                            <tr><td><strong>Probability of missing mode-based plan</strong></td><td id="mc_a_miss">—</td><td id="mc_b_miss">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="sim-note" id="mc_run_note" aria-live="polite">Run the experiment to generate a fresh sample. The estimates will move slightly between runs.</p>
+            </div>
+
+            <h3>Why three tasks do not justify a casual CLT shortcut</h3>
+            <p>For independent sequential tasks, means and variances add:</p>
+            <div class="equation-flow">\[\mathbb{E}[T_A]=\sum_i\mathbb{E}[T_i],\qquad \operatorname{Var}(T_A)=\sum_i\operatorname{Var}(T_i).\]</div>
+            <p>That gives the mean and variance, but it does not make the sum normally distributed. With only three skewed Beta-PERT variables, using \(\mu+1.645\sigma\) as a P95 is an unvalidated normal approximation. Use the simulated quantile (or numerical convolution) unless you have evidence that a normal approximation is adequate. With many independent, similarly scaled components, a normal approximation may become useful—but check it rather than invoking the Central Limit Theorem as a magic wand.</p>
+
+            <h3>Correlation and common-cause risk</h3>
+            <p>Independence is often the most consequential assumption in a delivery model. Workstreams may share a vendor, data contract, security review, platform team, test environment, or architectural unknown. A common event can delay several tasks together. The checkbox above demonstrates one explicit shared-shock model. In a real plan, estimate common risks from historical work, use conditional scenarios or a dependence model such as a copula where justified, and compare independent and correlated cases. Do not simply add independent variances when task durations are correlated:</p>
+            <div class="equation-flow">\[\operatorname{Var}(T_1+T_2)=\operatorname{Var}(T_1)+\operatorname{Var}(T_2)+2\operatorname{Cov}(T_1,T_2).\]</div>
+
+            <h3>Monte Carlo is an engine, not an oracle</h3>
+            <p>Monte Carlo repeatedly samples from the model you gave it. It does not discover missing dependencies, infer a correct distribution from three estimates, or manufacture evidence for a pessimistic bound that was guessed too optimistically. More iterations reduce simulation noise at roughly the rate \(1/\sqrt{N}\); they do not remove model risk. For a simulated probability \(\hat p\), a rough Monte Carlo standard error is \(\sqrt{\hat p(1-\hat p)/N}\). Quantile uncertainty can be assessed with repeated runs or bootstrap resampling.</p>
+            <ul>
+                <li><strong>Distribution risk:</strong> the Beta-PERT interval may not contain real overruns. Add an explicit overrun scenario or use a model with a credible unbounded tail when that mechanism exists.</li>
+                <li><strong>Dependency risk:</strong> a wrong workflow graph gives a wrong completion distribution, even if every task distribution is perfect.</li>
+                <li><strong>Dependence risk:</strong> treating shared blockers as independent usually understates joint delay risk.</li>
+                <li><strong>Parameter risk:</strong> optimistic, most-likely, and pessimistic estimates are expert judgments. Record who supplied them, the evidence, and how they are updated.</li>
+                <li><strong>Validation risk:</strong> compare forecasts with completed work, inspect calibration by workstream, and revise the model when actual durations systematically exceed predicted quantiles.</li>
+            </ul>
+
+            <h3>The same method applies to FinOps</h3>
+            <p>For a multi-tenant analytics gateway, monthly cost is not one fixed number. Simulate workload drivers such as query volume, bytes scanned, cache-miss rate, object-store requests, compute time, and egress. Then calculate the cost for each simulated workload:</p>
+            <div class="equation-flow">\[C_{month}=C_{fixed}+C_{compute}+C_{storage}+C_{requests}+C_{egress}.\]</div>
+            <p>Preserve shared drivers: a workload surge can increase scanned bytes, CPU time, cache misses, storage requests, and egress together. The decision question becomes \(P(C_{month}>C_{budget})\), not merely the expected bill. Use the result to set budget buffers, admission limits, workload tiers, and cost alerts. A simulation that samples each cost component independently would erase precisely the common workload shock the architect needs to understand.</p>
+            
+            <!-- ========================================== -->
+            <!-- 6. WHY MONTE CARLO -->
+            <!-- ========================================== -->
+            <h2>6. Beyond the Whiteboard: Why We Abandon Analytical Math for Monte Carlo</h2>
+
+            <p>Why do Principal Architects and Staff Engineers rarely use them for massive, multi-quarter migrations? Because analytical mathematics breaks down the moment it collides with the messy reality of a 50-ticket Jira backlog.</p>
+
+            <div class="tldr-box tldr-box--warning">
+                <div class="tldr-eyebrow">The Core Problem: Mathematical Elegance vs. Engineering Reality</div>
+                <div class="tldr-content">
+                    <p>The formulas we used earlier—adding variances (\(\sum \sigma^2\)) and taking the integral of a joint survival function (\(\int [1 - F_1 F_2] dt\))—are brilliant for small, isolated whiteboard examples. But they rely on three dangerous assumptions that completely fail in real software projects: <strong>assuming normal distributions too early</strong>, <strong>assuming trivial dependency graphs</strong>, and <strong>assuming 100% task independence</strong>.</p>
+                    <p><strong>Monte Carlo simulation</strong> is preferred because it drops the theoretical calculus. Instead, it plays out your project 100,000 times as a brute-force board game, explicitly simulating the correlated disasters and complex blockers that mathematical shortcuts erase.</p>
+                </div>
+            </div>
+
+            <h3>1. The Central Limit Theorem Fails for Small Backlogs</h3>
+            <div class="math-explanation">
+                <p>In the sequential Epic example, we calculated the P95 deadline using the classic Z-score formula: \(\text{P95} = \mu + 1.645\sigma\). This relies on the <strong>Central Limit Theorem (CLT)</strong>, which dictates that if you add up enough independent random variables, their sum forms a perfectly symmetric normal distribution (a bell curve).</p>
                 <ul>
-                    <li><strong>The Naive Agile Approach (Sum of Modes):</strong> Management adds up the most-likely estimates: \(2.5 + 4.0 + 3.0 = \mathbf{9.5\text{ days}}\). 
-                    <br><em>The Flaw:</em> This plan assumes zero friction and ignores the right-skewed tail. A team committing to 9.5 days will miss its deadline roughly 50% of the time.</li>
-                    <li><strong>The PERT Statistical Approach (Sum of Means & Central Limit Theorem):</strong> 
-                        <div class="equation-flow">
-                            \[ \mu_{\text{total}} = 3.00 + 4.67 + 4.33 = \mathbf{12.00\text{ days}} \]
-                        </div>
-                        Because variances add across independent sequential tasks, total standard deviation is \(\sigma_{\text{total}} = \sqrt{1.00 + 1.78 + 2.78} = \sqrt{5.56} = 2.36\text{ days}\).
-                    </li>
-                    <li><strong>The P95 Safe Commitment:</strong> To achieve 95% delivery confidence, we commit to the P95 threshold (\(\mu + 1.645\sigma\)):
-                        <div class="equation-flow">
-                            \[ \text{P95 Deadline} = 12.00 + (1.645 \times 2.36) = \mathbf{15.88\text{ days}}\ (\approx 16\text{ days}) \]
-                        </div>
-                    </li>
+                    <li><strong>The Reality:</strong> The CLT only kicks in reliably when you sum \(n \ge 30\) tasks. If you add up just 3 or 5 heavily right-skewed Beta-PERT tasks, the resulting sum is <em>still right-skewed</em>.</li>
+                    <li><strong>The Monte Carlo Fix:</strong> By blindly using the symmetric \(\mu + 1.645\sigma\) shortcut, you under-predict the true P95 tail. Monte Carlo doesn't use the normal approximation. It rolls the skewed dice 100,000 times and looks at the exact 95,000th worst outcome, naturally preserving the exact shape of the skewed tail.</li>
                 </ul>
             </div>
 
-<h3>Epic B: Mixed Parallel Fan-In Stories (Jensen's Inequality in Action)</h3>
+            <h3>2. Calculus Cannot Solve a 20-Node Dependency Graph</h3>
             <div class="math-explanation">
-                <p><strong>Scenario:</strong> Stories 1 (\(\mathbb{E}=3.0\)) and 2 (\(\mathbb{E}=4.67\)) run concurrently in parallel, while Story 3 (\(\mathbb{E}=4.33\)) depends on their completion via a merge join barrier (\(T_{\text{join}} = \max(T_1, T_2) + T_3\)).</p>
+                <p>To calculate the true expected delay of two parallel tasks, we used a beautiful integral: \(\mathbb{E}[\max(T_1, T_2)] = a + \int_{a}^{b} [1 - F_1(t)F_2(t)] dt\).</p>
                 <ul>
-                    <li><strong>The Naive Agile Approach (Max of Modes):</strong> Looking at the longest parallel branch mode (\(4.0\) days) plus Story 3's mode (\(3.0\) days), management assumes the epic takes \(4.0 + 3.0 = \mathbf{7.0\text{ days}}\). 
-                    <br><em>The Flaw:</em> This ignores <strong>Jensen's Inequality</strong> and outlier spread. Rolling two probabilistic dice simultaneously dramatically increases the chance that at least one branch hits its pessimistic right tail.</li>
-                    <li><strong>How the PERT Numbers Are Calculated:</strong>
-                        <ul>
-                            <li><strong>Parallel Phase Join (\(\sim 6.2\text{ days}\)):</strong> 
-                                To find the expected maximum of two independent tasks (\(M = \max(T_1, T_2)\)), we integrate the joint survival probability across their time bounds using order statistics:
-                                <div class="equation-flow">
-                                    \[ \mathbb{E}[\max(T_1, T_2)] = a + \int_{a}^{b} \left[1 - F_1(t)F_2(t)\right] dt \]
-                                </div>
-                                Because both branches possess right-skewed tails, the joint probability pulls the expected join completion time past Story 2's individual mean (\(4.67\) days) out to <strong>\(6.20\text{ days}\)</strong>.
-                            </li>
-                            <li><strong>Total Expected Mean (\(10.53\text{ days}\)):</strong> Adding Story 3's sequential mean (\(4.33\) days) to the join latency yields \(6.20 + 4.33 = \mathbf{10.53\text{ days}}\).</li>
-                            <li><strong>P95 Delivery Date (\(14.2\text{ days}\)):</strong> Combining the aggregate variance (\(\sigma_{\text{total}} \approx 2.01\) days) with a 95% confidence Z-score pushes the safe commitment out to \(\mathbf{14.2\text{ days}}\).</li>
-                        </ul>
-                    </li>
+                    <li><strong>The Reality:</strong> That integral works perfectly for <em>exactly two</em> independent tasks joining together. Now imagine a real project: Task D waits on A and B, Task E waits on C, and Task F waits on D and E. Writing the analytical multi-dimensional calculus for that dependency graph (a Directed Acyclic Graph, or DAG) is virtually impossible for a human.</li>
+                    <li><strong>The Monte Carlo Fix:</strong> Monte Carlo ignores calculus. On each of the 100,000 iterations, it generates a random duration for every task, and then simply pushes those numbers through your dependency logic (e.g., <code>Start_F = max(End_D, End_E)</code>). It solves massive parallel topology through brute-force execution.</li>
                 </ul>
             </div>
 
-            <h3>Why Applying the Beta-PERT Model Matters</h3>
-            <p>If you don't apply statistical PERT modeling and variance aggregation, your engineering organization suffers from three systemic failures:</p>
+            <h3>3. The Independence Trap (Correlated Shocks)</h3>
+            <div class="math-explanation">
+                <p>The most fatal flaw of the analytical formulas is that they strictly assume <strong>100% independence</strong>. If Task 1 runs late, the math assumes it has absolutely zero effect on Task 2.</p>
+                <ul>
+                    <li><strong>The Reality:</strong> Software tasks are highly correlated. If Task 1 and Task 2 both require the Platform Engineering team to provision AWS infrastructure, and the Platform team gets pulled into a Sev-1 incident, <em>both tasks will slip simultaneously</em>. This is called <strong>Common-Cause Risk</strong>.</li>
+                    <li><strong>The Math Breakdown:</strong> When variables are correlated, their combined variance explodes: 
+                        <div class="equation-flow">
+                            \[ \operatorname{Var}(T_1+T_2) = \operatorname{Var}(T_1) + \operatorname{Var}(T_2) + \mathbf{2\operatorname{Cov}(T_1,T_2)} \]
+                        </div>
+                        By just adding independent variances (\(\sigma_1^2 + \sigma_2^2\)), the analytical method dangerously pretends the covariance is zero.
+                    </li>
+                    <li><strong>The Monte Carlo Fix:</strong> A Monte Carlo model can easily inject shared shocks. You can tell the simulator: <em>"On 15% of the iterations, trigger a 'Platform Team Blocked' event that adds +3 days to ALL infrastructure tasks simultaneously."</em> This models real-world systemic risk that simple equations cannot capture.</li>
+                </ul>
+            </div>
 
             <div class="arch-table-wrap">
                 <table class="arch-table">
                     <thead>
                         <tr>
-                            <th>Estimation Strategy</th>
-                            <th>What It Measures</th>
-                            <th>The Production Outcome</th>
+                            <th>Capability</th>
+                            <th>Analytical Math (Beta-PERT Formulas)</th>
+                            <th>Monte Carlo Simulation</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>Naive Agile Point Summing</strong><br>(Summing Modes)</td>
-                            <td>The peak of a best-case probability curve.</td>
-                            <td><strong>50% Failure Rate:</strong> Guarantees you will miss half your deadlines when right-skewed tasks hit roadblocks.</td>
+                            <td><strong>Small-Sample Skew</strong></td>
+                            <td>Erased. Relies on the Central Limit Theorem (\(\mu + 1.645\sigma\)) which falsely assumes symmetry.</td>
+                            <td><strong>Preserved.</strong> Exact right-skew is maintained regardless of how few tasks are summed.</td>
                         </tr>
                         <tr>
-                            <td><strong>Max-Mode Assumption</strong><br>(Guessing the Longest Task)</td>
-                            <td>The single longest expected path without variance.</td>
-                            <td><strong>Ignorance of Fan-In Skew:</strong> Underestimates parallel join delays by ignoring Jensen's Inequality and outlier spread.</td>
+                            <td><strong>Parallel Dependencies</strong></td>
+                            <td>Requires complex custom integration of CDFs for every single parallel join barrier.</td>
+                            <td><strong>Native.</strong> Simply runs <code>max(branch1, branch2)</code> on each iteration across any arbitrary graph.</td>
                         </tr>
                         <tr>
-                            <td><strong>Beta-PERT + CLT Aggregation</strong><br>(P85 / P95 Commitments)</td>
-                            <td>The true statistical center of gravity plus aggregate uncertainty.</td>
-                            <td><strong>Predictable Delivery:</strong> Safely absorbs right-tail surprises, protects team credibility, and provides defensible SLAs to leadership.</td>
+                            <td><strong>Correlated Risks</strong></td>
+                            <td>Requires estimating abstract mathematical covariance matrices between every pair of tasks.</td>
+                            <td><strong>Explicit.</strong> Easily injects shared "if-this-happens" shock events that impact multiple tasks at once.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Best Used For</strong></td>
+                            <td>Quick whiteboard estimates, sizing a single Epic, understanding the theory of schedule failure.</td>
+                            <td>Defending high-stakes, multi-team, multi-month migration roadmaps to executive leadership.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-
-            <p>The importance of using this method is simple: <strong>it replaces hope with math</strong>. By eliciting three bounds instead of a single point, calculating the true mean, and summing variances, you stop treating software delivery like a coin flip and start managing it like an engineering discipline.</p>
-
             <!-- ========================================== -->
-            <!-- 6. ARCHITECT'S SYNTHESIS -->
+            <!-- 7. ARCHITECT'S SYNTHESIS -->
             <!-- ========================================== -->
-            <h2>6. The Principal Architect's Synthesis</h2>
+            <h2>7. The Principal Architect's Synthesis</h2>
 
             <p>Most high-severity outages and blown engineering roadmaps trace back to the same root error: substituting a static, memoryless point estimate for a stateful, skewed distribution. Keep this diagnostic matrix on hand during design reviews:</p>
 
@@ -834,7 +927,7 @@
                         <tr>
                             <td><strong>Negative Binomial</strong><br><code>Var(X) = μ + μ²/r</code></td>
                             <td>Event counts follow a smooth Poisson process where \(\operatorname{Var}(X) = \mu\).</td>
-                            <td>While fixed-rate Poisson superposition stays Poisson, time-varying or bursty intensity (\(\Lambda \sim \operatorname{Gamma}\)) inflates variance by \(\mu^2/r\).</td>
+                            <td>Fixed-rate Poisson superposition stays Poisson. A Gamma-mixed rate inflates count variance by \(\mu^2/r\); temporal correlation still requires a time-dependent rate model.</td>
                             <td><strong>Per-record DLQs</strong> to prevent batch poison-pill amplification, failure-streak anomaly scoring, and queue headroom sized for \(\text{VMR} \gt 1\).</td>
                         </tr>
                         <tr>
@@ -846,14 +939,14 @@
                         <tr>
                             <td><strong>Beta-PERT</strong><br><code>(a + 4m + b) / 6</code></td>
                             <td>The "most likely" mode \( m \) equals the expected completion time.</td>
-                            <td>Right-skew pushes \(\mathbb{E}[T] \gt m\), and parallel fan-in barriers suffer from <strong>Jensen's Inequality</strong> (\(\mathbb{E}[\max T_i] \gg \mathbb{E}[T_i]\)).</td>
-                            <td><strong>Three-point estimation</strong>, explicit modeling of correlated bottlenecks, and committing to P85/P95 quantiles rather than sums of modes.</td>
+                            <td>The mean may differ from the mode; the direction depends on the three estimates. Parallel joins satisfy \(\mathbb{E}[\max T_i]\geq\max_i\mathbb{E}[T_i]\).</td>
+                            <td><strong>Three-point estimation</strong>, explicit dependency and common-cause modeling, Monte Carlo or numerical convolution, and commitments based on validated P85/P95 quantiles.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             
-            <p>The takeaway is not to abandon probability models—it is to stop mistaking a clean whiteboard baseline for a faithful contract with production. In <strong>Part 7</strong>, we move from constructing models to stress-testing them against live telemetry: non-stationarity, regime drift, Goodhart's Law, and the diagnostic checks that tell you when your mathematical map no longer matches the territory.</p>
+            <p>The takeaway is not to abandon probability models. It is to make the assumptions visible, test the model against telemetry, and choose controls that remain safe when the model is imperfect. In <strong>Part 7</strong>, we move from constructing candidate models to stress-testing them against live evidence: non-stationarity, regime drift, residual diagnostics, calibration, and the checks that tell you when the mathematical map no longer matches the territory.</p>
 
             <nav class="post-pager" aria-label="Series pagination">
                 <a href="part-5-routing-sharding-and-data-skew.html">← Part 5: Routing, Sharding, and Data Skew</a>
@@ -1299,7 +1392,7 @@
                     const scaleMax = discrete ? (rmax + 0.5) : rmax;
                     const scaleMin = discrete ? (rmin - 0.5) : rmin;
 
-                    // Negative Binomial Poisson Equidispersion Reference Line
+                    // Approximate Poisson P95 reference: mean + 1.645 standard deviations (normal approximation).
                     if (this.type === 'negbinomial' && theoreticalMean !== null && theoreticalMean > 0) {
                         const poissonSd = Math.sqrt(theoreticalMean);
                         const poissonRef = theoreticalMean + 1.645 * poissonSd; // 95th percentile Poisson marker
@@ -1317,7 +1410,7 @@
                             ctx.fillStyle = '#00f2fe';
                             ctx.font = 'bold 9px "IBM Plex Mono", monospace';
                             ctx.textAlign = 'center';
-                            ctx.fillText('POISSON P95', pX, pad.t + 12);
+                            ctx.fillText('POISSON P95 ~', pX, pad.t + 12);
                         }
                     }
 
@@ -1434,9 +1527,63 @@
             }
 
             const simulators = [];
-            document.querySelectorAll('.stage').forEach(stage => {
+            document.querySelectorAll('.stage[data-sim-type]').forEach(stage => {
                 simulators.push(new Simulator(stage));
             });
+
+            // Dependency-aware Monte Carlo: Beta-PERT task durations, then workflow logic.
+            const projectRunButton = document.getElementById('run_project_mc');
+            if (projectRunButton) {
+                const commonShockToggle = document.getElementById('mc_common_shock');
+                const fmtDays = value => value.toFixed(2) + ' days';
+                const fmtPct = value => (100 * value).toFixed(2) + '%';
+                const quantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+                const samplePert = (a, m, b) => {
+                    const alpha = 1 + 4 * (m - a) / (b - a);
+                    const beta = 1 + 4 * (b - m) / (b - a);
+                    return a + randBeta(alpha, beta) * (b - a);
+                };
+                const summarize = (values, deadline) => {
+                    values.sort((x, y) => x - y);
+                    const mean = values.reduce((sum, x) => sum + x, 0) / values.length;
+                    let misses = 0;
+                    for (const x of values) if (x > deadline) misses++;
+                    return { mean, p50: quantile(values, 0.50), p85: quantile(values, 0.85), p95: quantile(values, 0.95), miss: misses / values.length };
+                };
+                projectRunButton.addEventListener('click', () => {
+                    projectRunButton.disabled = true;
+                    projectRunButton.textContent = 'Running…';
+                    // Yield once so the disabled state is painted before the bounded calculation.
+                    setTimeout(() => {
+                        const N = 100000;
+                        const sequential = new Array(N);
+                        const parallel = new Array(N);
+                        const includeShock = commonShockToggle && commonShockToggle.checked;
+                        for (let i = 0; i < N; i++) {
+                            const t1 = samplePert(1, 2.5, 7);
+                            let t2 = samplePert(2, 4, 10);
+                            let t3 = samplePert(1, 3, 11);
+                            if (includeShock && Math.random() < 0.15) {
+                                t2 += 2;
+                                t3 += 2;
+                            }
+                            sequential[i] = t1 + t2 + t3;
+                            parallel[i] = Math.max(t1, t2) + t3;
+                        }
+                        const a = summarize(sequential, 9.5);
+                        const b = summarize(parallel, 7.0);
+                        const write = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+                        write('mc_a_mean', fmtDays(a.mean)); write('mc_a_p50', fmtDays(a.p50));
+                        write('mc_a_p85', fmtDays(a.p85)); write('mc_a_p95', fmtDays(a.p95)); write('mc_a_miss', fmtPct(a.miss));
+                        write('mc_b_mean', fmtDays(b.mean)); write('mc_b_p50', fmtDays(b.p50));
+                        write('mc_b_p85', fmtDays(b.p85)); write('mc_b_p95', fmtDays(b.p95)); write('mc_b_miss', fmtPct(b.miss));
+                        const note = document.getElementById('mc_run_note');
+                        if (note) note.textContent = `Completed ${N.toLocaleString()} iterations. ${includeShock ? 'Shared shock enabled (15% chance; +2 days to workstreams 2 and 3).' : 'Independent task-duration baseline; no shared shock.'} Estimates are simulation results, not guarantees.`;
+                        projectRunButton.disabled = false;
+                        projectRunButton.textContent = 'Run 100,000 simulations';
+                    }, 20);
+                });
+            }
 
             // Automatically pause continuous execution when switching tabs to prevent main-thread throttling
             document.addEventListener('visibilitychange', () => {
