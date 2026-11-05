@@ -360,7 +360,7 @@
                 </div>
             </div>
 
-            <h3>The Math & The Multi-Tenant Superposition Trap</h3>
+<h3>The Math &amp; The Multi-Tenant Superposition Trap</h3>
             <p>Let \( X \) count the number of <strong>failures observed before the \( r \)-th success</strong> across independent Bernoulli trials with success probability \( p \). (If you instead track total trials \( T = X + r \), the mean shifts up by \( r \), while the variance remains identical):</p>
             
             <div class="equation-flow">
@@ -372,16 +372,78 @@
 \mathbb{E}[T]&=\frac{r}{p}, & \operatorname{Var}(T)&=\frac{r(1-p)}{p^2}.
 \end{aligned}\]
             </div>
-            
+
+            <p>Dividing the variance by the mean cancels everything except \(\text{VMR} = \operatorname{Var}(X)/\mathbb{E}[X] = 1/p \gt 1\). While a smooth Poisson process always has \(\text{VMR} = 1\), the Negative Binomial distribution naturally models <strong>overdispersed</strong> count data where bursts push the variance far above the average.</p>
+
+            <h4>1. The Superposition Trap: Why "Whale + Minnows" Does Not Cause Bursts</h4>
             <div class="math-explanation">
-                <strong>Fixed-Rate Superposition vs. Stochastic Intensity (Why Variance Explodes):</strong>
-                <ul>
-                    <li><strong>The Superposition Trap:</strong> Engineers often assume that mixing one "whale" tenant (500 RPS) with a thousand tiny tenants (0.5 RPS each) automatically creates an overdispersed Negative Binomial distribution. <em>It does not.</em> By the Poisson Superposition Theorem, the sum of independent Poisson processes with fixed rates \(\lambda_i\) is still a pure Poisson process with rate \(\lambda = \sum \lambda_i\) and Variance-to-Mean Ratio \(\text{VMR} = 1\).</li>
-                    <li><strong>The Gamma-Poisson Mixture (Cox Process):</strong> Overdispersion appears when the arrival rate \(\Lambda(t)\) is itself a random variable fluctuating across time windows—like top-of-the-hour enterprise cron jobs, market-open trading bursts, or a webhook retry wave. When \(\Lambda \sim \operatorname{Gamma}(r, \theta)\) with shape \( r \) and scale \(\theta\), a \(\operatorname{Poisson}(\Lambda)\) count process becomes <strong>Negative Binomial</strong> with mean \(\mu = r\theta\) and variance:
-                    \[ \operatorname{Var}(X) = \mu + \frac{\mu^2}{r} \]
-                    Matching parameters via \( p = 1/(1+\theta) \) gives a Variance-to-Mean Ratio of \(\text{VMR} = \operatorname{Var}(X)/\mathbb{E}[X] = 1/p \gt 1\).</li>
-                    <li><strong>The Dispersion Knob (\( r \)):</strong> As \( r \to \infty \) at fixed mean \(\mu\), the quadratic penalty \(\mu^2/r\) vanishes and the distribution converges back to a smooth Poisson process. As \( r \to 0 \), the traffic clumps into violent spikes separated by dead silence.</li>
-                </ul>
+                <p>When engineers see wild traffic spikes on a multi-tenant platform, they often blame <strong>tenant size skew</strong>: <em>"We have one massive 'whale' tenant sending 500 RPS and 1,000 tiny tenants sending 0.5 RPS each! That mix is why our traffic variance is huge!"</em></p>
+                <p>Mathematically, that is false. By the <strong>Poisson Superposition Theorem</strong>, adding together independent Poisson streams with fixed rates \(\lambda_i\) yields a pure Poisson process with combined rate \(\lambda = \sum \lambda_i\):</p>
+                <div class="equation-flow">
+                    \[ X_{\text{total}} \sim \operatorname{Poisson}(500 + 1000 \times 0.5) = \operatorname{Poisson}(1000) \]
+                </div>
+                <p>Because both the mean and variance of independent streams add linearly, \(\mu = 1{,}000\), \(\operatorname{Var}(X) = 1{,}000\), and \(\mathbf{\text{VMR} = 1.0}\). Mixing big tenants and small tenants on the same server <strong>never</strong> creates a Negative Binomial distribution—as long as each tenant's arrival rate \(\lambda_i\) stays constant over time.</p>
+            </div>
+
+            <h4>2. The Gamma-Poisson Mixture (Cox Process): What Actually Causes Bursts</h4>
+            <div class="math-explanation">
+                <p>Overdispersion appears when the arrival rate \(\Lambda(t)\) refuses to sit still—like top-of-the-hour enterprise cron jobs at <code>09:00:00</code>, market-open trading bursts, or a batch webhook retry wave. When the underlying arrival rate fluctuates across time windows according to \(\Lambda \sim \operatorname{Gamma}(r, \theta)\) with mean \(\mu = r\theta\) and variance \(\operatorname{Var}(\Lambda) = r\theta^2 = \mu^2/r\), a \(\operatorname{Poisson}(\Lambda)\) count process becomes <strong>Negative Binomial</strong>.</p>
+                <p>By the <strong>Law of Total Variance</strong>, total noise is the sum of ordinary Poisson randomness plus the variance of the fluctuating rate itself:</p>
+                <div class="equation-flow">
+                    \[ \operatorname{Var}(X) = \mathbb{E}\big[\operatorname{Var}(X \mid \Lambda)\big] + \operatorname{Var}\big(\mathbb{E}[X \mid \Lambda]\big) = \underbrace{\mu}_{\text{Baseline Poisson}} + \underbrace{\frac{\mu^2}{r}}_{\text{Burst Penalty}} \]
+                </div>
+                <p>Notice that the burst penalty \(+\mu^2/r\) scales <strong>quadratically</strong> with your average traffic \(\mu\): if your average traffic doubles under a fluctuating rate, the burst variance quadruples. (Matching parameters via \(p = 1/(1+\theta)\) gives \(\text{VMR} = 1 + \theta = 1/p \gt 1\).)</p>
+            </div>
+
+            <h4>3. The Dispersion Knob (\(r\)): How to Read Clumpiness</h4>
+            <p>In the Gamma-Poisson view, the parameter \(r\) is no longer "target number of successes"—it acts as a continuous <strong>smoothness / dispersion knob</strong> while holding your average traffic \(\mu = 1{,}000\) RPS constant:</p>
+
+            <div class="arch-table-wrap">
+                <table class="arch-table">
+                    <thead>
+                        <tr>
+                            <th>Value of \(r\)</th>
+                            <th>Physical Meaning in Production</th>
+                            <th>Variance \(\operatorname{Var}(X) = \mu + \frac{\mu^2}{r}\)<br>(at \(\mu = 1{,}000\))</th>
+                            <th>VMR</th>
+                            <th>What the Traffic Looks Like</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>\(r \to \infty\)</strong></td>
+                            <td>Arrival rate \(\Lambda\) never fluctuates (\(\operatorname{Var}(\Lambda) \to 0\)).</td>
+                            <td>\(1{,}000 + 0 = \mathbf{1{,}000}\)</td>
+                            <td><strong>\(1.0\)</strong></td>
+                            <td><strong>Pure Poisson:</strong> Smooth, steady hum around \(1{,}000\) RPS.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>\(r = 10\)</strong></td>
+                            <td>Moderate rate wobble across windows.</td>
+                            <td>\(1{,}000 + \frac{1{,}000{,}000}{10} = \mathbf{101{,}000}\)</td>
+                            <td><strong>\(101\)</strong></td>
+                            <td><strong>Noticeably Bursty:</strong> Frequent swells to \(1{,}500+\) RPS.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>\(r = 1\)</strong></td>
+                            <td>Exponentially distributed rate spikes.</td>
+                            <td>\(1{,}000 + \frac{1{,}000{,}000}{1} = \mathbf{1{,}001{,}000}\)</td>
+                            <td><strong>\(1{,}001\)</strong></td>
+                            <td><strong>Violent Clumping:</strong> Long stretches of near-silence punctuated by massive \(3{,}000+\) RPS megaspikes.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>\(r \to 0\)</strong></td>
+                            <td>Extreme synchronized herd behavior.</td>
+                            <td>\(\to \infty\)</td>
+                            <td><strong>\(\to \infty\)</strong></td>
+                            <td><strong>All-or-Nothing:</strong> Dead silence for 59 seconds, followed by the entire minute's traffic arriving in 1 second.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="math-explanation">
+                <p><strong>Why This Matters for Queue Sizing:</strong> If you size a Kafka partition buffer or worker pool using average RPS (\(\mu = 1{,}000\)) and assume Poisson arrivals (\(\text{VMR} = 1, \sigma \approx 31.6\)), you will provision headroom for \(\approx 1{,}052\) RPS. If the traffic actually comes from enterprise cron jobs or webhook retry waves with \(r = 2\), the 5-minute average on Grafana still looks calm at \(1{,}000\) RPS—but the 1-second variance is \(501{,}000\) (\(\sigma \approx 708\) RPS), meaning 95th-percentile bursts regularly slam the queue past <strong>\(2{,}400\) RPS</strong> and trigger <code>503 Service Unavailable</code> drops.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
@@ -446,28 +508,117 @@
                 </div>
             </div>
 
-            <h3>The Math: Bayesian Credible Bounds vs. The Rule of Three</h3>
-            <p>Supported on the interval \([0,1]\) with positive shape parameters \(\alpha\) and \(\beta\), the Beta distribution is the conjugate prior for Bernoulli trials. If we model the unknown <strong>failure probability</strong> \( p \) starting from a flat uniform prior \(\operatorname{Beta}(\alpha_0=1, \beta_0=1)\), observing \( f \) failures and \( s \) successes updates our posterior belief directly to \(\operatorname{Beta}(1 + f, 1 + s)\):</p>
-            
+<h3>The Math: Bayesian Credible Bounds vs. The Rule of Three</h3>
+            <p>Supported on the interval \([0,1]\) with positive shape parameters \(\alpha\) and \(\beta\), the Beta distribution is the conjugate prior for Bernoulli trials. Instead of taking a known failure rate \(p\) to predict failures, the Beta distribution flips the question around: given that we observed \(f\) failures and \(s\) successes in production, where could the true unknown failure rate \(p\) plausibly be hiding?</p>
+
             <div class="equation-flow">
-                \[ f(x; \alpha, \beta) = \frac{x^{\alpha-1}(1-x)^{\beta-1}}{\operatorname{B}(\alpha, \beta)} \qquad \text{and} \qquad \operatorname{Var}(X) = \frac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)} \]
+                \[ f(x; \alpha, \beta) = \frac{x^{\alpha-1}(1-x)^{\beta-1}}{\operatorname{B}(\alpha, \beta)}, \qquad \operatorname{Var}(X) = \frac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)} \]
             </div>
             <div class="equation-flow">
-                \[ \mathbb{E}[X] = \frac{\alpha}{\alpha + \beta} \qquad \text{and} \qquad p_{\text{upper},95\%}(f=0) \approx \frac{3}{n} \]
+                \[ \mathbb{E}[X] = \frac{\alpha}{\alpha + \beta}, \qquad p_{\text{upper},95\%}(f=0) \approx \frac{3}{n} \]
             </div>
-            
+
+            <h4>1. The Core Problem: "How Bad Could This Build Secretly Be?"</h4>
+            <p>Suppose your new canary build actually has a catastrophic hidden bug that causes \(5\%\) of all requests to fail (\(p = 0.05\)), meaning \(95\%\) succeed (\(1 - p = 0.95\)). If you send \(n = 50\) independent requests to that broken pod, what is the probability that—purely by dumb luck—all 50 requests succeed and you see <strong>zero errors</strong>?</p>
+
+            <div class="equation-flow">
+                \[ P(\text{0 failures} \mid p = 0.05) = (0.95)^{50} \approx \mathbf{7.69\%} \]
+            </div>
+
+            <p>Read that number twice: <strong>even if your code has a massive 5% failure rate, a 50-request canary will pass with 0 errors almost 8% of the time.</strong></p>
+            <p>In engineering statistics, we usually demand 95% confidence (a \(\le 5\%\) chance of being fooled by a lucky run, i.e., \(\alpha = 0.05\)). So we ask the inverse question:</p>
+            <blockquote style="border-left: 3px solid var(--teal); padding-left: 1rem; margin: 1.25rem 0; color: var(--muted); font-style: italic;">
+                "Given that we observed \(0\) failures in \(n = 50\) trials, what is the worst-case failure rate \(p_{95}\) that could still produce a clean 50-for-50 run at least 5% of the time?"
+            </blockquote>
+            <p>We can answer that question using three mathematical lenses that all converge on the same uncomfortable truth: around \(5.7\%\) to \(6.0\%\).</p>
+
+            <h4>2. The Three Lenses Explained Step-by-Step</h4>
+
             <div class="math-explanation">
-                <strong>Zero Failures in \( n = 50 \) Canary Trials (\( f = 0, s = 50 \)): Three Lenses</strong>
-                <ul>
-                    <li><strong>Bayesian 95% Credible Upper Bound (Uniform Prior \(\operatorname{Beta}(1,1)\)):</strong> Updating with \( f = 0 \) failures and \( s = 50 \) successes yields a \(\operatorname{Beta}(1, 51)\) posterior for the error rate. Setting the CDF \( F(p) = 1 - (1-p)^{51} = 0.95 \) gives \( p_{95} = 1 - (0.05)^{1/51} = \mathbf{5.70\%} \).</li>
-                    <li><strong>Frequentist Exact One-Sided 95% Clopper-Pearson Bound:</strong> Finding the largest failure rate \( p \) where the probability of seeing zero errors \((1-p)^{50}\) is at least \( 0.05 \) yields \( 1 - (0.05)^{1/50} = \mathbf{5.82\%} \).</li>
-                    <li><strong>The Rule of Three (Fast Mental Math):</strong> Since \(-\ln(0.05) \approx 2.9957 \approx 3\), the 95% upper bound on a zero-failure run of size \( n \) is simply \( 3/n \). At \( n = 50 \), your true failure rate can easily be as high as \( 3/50 = \mathbf{6.00\%} \).</li>
-                </ul>
-                <p><strong>The Canary Gate Formula:</strong> Suppose your SLO demands that a canary's failure rate is below \( p_0 = 0.1\% \) (\(0.001\)) with 95% confidence before global rollout. Observing 0 errors in 50 requests proves almost nothing. By the exact condition \((1-p_0)^n \le 0.05\), you need at least:</p>
+                <p><strong>Lens 1: The Bayesian 95% Credible Upper Bound (\(\mathbf{5.70\%}\))</strong></p>
+                <p>In Bayesian inference, the unknown failure probability \(p \in [0,1]\) is treated as a random variable modeled by \(\operatorname{Beta}(\alpha, \beta)\).</p>
+                <ol>
+                    <li><strong>Start with a Uniform Prior (\(\operatorname{Beta}(1, 1)\)):</strong> Before sending any traffic, every failure rate between \(0\%\) and \(100\%\) is equally plausible, which corresponds to a flat \(\operatorname{Beta}(\alpha_0=1, \beta_0=1)\) prior.</li>
+                    <li><strong>Update with Evidence (\(f = 0, s = 50\)):</strong> Because the Beta distribution is conjugate to Bernoulli trials, updating requires zero calculus—just add failures to \(\alpha_0\) and successes to \(\beta_0\):
+                        <div class="equation-flow">
+                            \[ \alpha' = 1 + 0 = 1, \qquad \beta' = 1 + 50 = 51 \implies \operatorname{Beta}(1, 51) \]
+                        </div>
+                    </li>
+                    <li><strong>Integrate the PDF to get the CDF:</strong> Since \(\operatorname{B}(1, \beta) = 1/\beta\), the PDF is \(f(p; 1, 51) = 51(1 - p)^{50}\). Integrating from \(0\) to \(p\) gives the cumulative probability that the true error rate is at most \(p\):
+                        <div class="equation-flow">
+                            \[ F(p) = \int_0^p 51(1 - x)^{50}\,dx = 1 - (1 - p)^{51} \]
+                        </div>
+                    </li>
+                    <li><strong>Solve for 95% Credibility (\(F(p_{95}) = 0.95\)):</strong>
+                        <div class="equation-flow">
+                            \[ 1 - (1 - p_{95})^{51} = 0.95 \implies p_{95} = 1 - (0.05)^{1/51} = \mathbf{5.70\%} \]
+                        </div>
+                    </li>
+                </ol>
+            </div>
+
+            <div class="math-explanation">
+                <p><strong>Lens 2: The Frequentist Exact Clopper-Pearson Bound (\(\mathbf{5.82\%}\))</strong></p>
+                <p>A frequentist statistician skips the prior and asks: <em>"For what threshold \(p\) would the probability of observing \(X = 0\) errors in \(n = 50\) Binomial trials equal \(\alpha = 0.05\)?"</em></p>
+                <ol>
+                    <li><strong>Probability of Zero Failures:</strong> \(P(X = 0 \mid p) = (1 - p)^{50}\).</li>
+                    <li><strong>Solve at the \(\alpha = 0.05\) Cutoff:</strong>
+                        <div class="equation-flow">
+                            \[ (1 - p_{95})^{50} = 0.05 \implies p_{95} = 1 - (0.05)^{1/50} = \mathbf{5.82\%} \]
+                        </div>
+                    </li>
+                </ol>
+                <p>Notice the tiny difference between the Bayesian bound (\(1 - 0.05^{1/51} = 5.70\%\)) and the Frequentist bound (\(1 - 0.05^{1/50} = 5.82\%\)): the uniform \(\operatorname{Beta}(1,1)\) prior acts like "one phantom prior observation," shifting the exponent from \(n=50\) to \(n+1=51\).</p>
+            </div>
+
+            <div class="math-explanation">
+                <p><strong>Lens 3: The "Rule of Three" — Fast 3:00 AM Mental Math (\(\mathbf{6.00\%}\))</strong></p>
+                <p>During an incident review, nobody is calculating \((0.05)^{1/50}\) in their head. Taking the natural log of \((1 - p)^n = 0.05\) gives \(n \ln(1 - p) = \ln(0.05)\). Using \(\ln(0.05) \approx -3\) and the small-\(p\) Taylor approximation \(\ln(1 - p) \approx -p\):</p>
                 <div class="equation-flow">
-                    \[ n \ge \frac{\ln(0.05)}{\ln(1 - 0.001)} = 2{,}995 \text{ independent, representative requests (or } \approx \frac{3}{0.001} = 3{,}000\text{).} \]
+                    \[ -np \approx -3 \implies p_{95} \approx \frac{3}{n} = \frac{3}{50} = \mathbf{6.00\%} \]
                 </div>
-                <p><strong>Watch out for correlated samples:</strong> Those 3,000 requests only count if they represent independent trials across realistic production state. If all 3,000 canary calls are synthetic `/healthz` pings or come from a single cached tenant session, your effective sample size is closer to 1 than 3,000.</p>
+            </div>
+
+            <div class="arch-table-wrap">
+                <table class="arch-table">
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>Formula (\(f=0\))</th>
+                            <th>At \(n=50\)</th>
+                            <th>When to Use It</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Bayesian (\(\operatorname{Beta}(1,1)\) prior)</strong></td>
+                            <td>\(1 - (0.05)^{1/(n+1)}\)</td>
+                            <td><strong>\(5.70\%\)</strong></td>
+                            <td>Automated canary scoring &amp; Thompson sampling</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Frequentist (Clopper-Pearson)</strong></td>
+                            <td>\(1 - (0.05)^{1/n}\)</td>
+                            <td><strong>\(5.82\%\)</strong></td>
+                            <td>Formal compliance / exact binomial test gates</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rule of Three (Asymptotic)</strong></td>
+                            <td>\(3 / n\)</td>
+                            <td><strong>\(6.00\%\)</strong></td>
+                            <td>Instant mental math in design reviews (\(n \ge 30\))</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="math-explanation">
+                <p><strong>The Canary Gate Formula (Sizing \(n\) for Your Target SLO):</strong></p>
+                <p>Suppose your SLO demands a failure rate below \(p_0 = 0.1\%\) (\(0.001\)) with 95% confidence before global rollout. By \((1-p_0)^n \le 0.05\), the minimum independent sample size is:</p>
+                <div class="equation-flow">
+                    \[ n \ge \frac{\ln(0.05)}{\ln(1 - 0.001)} = 2{,}995 \approx \frac{3}{0.001} = \mathbf{3{,}000\text{ requests}} \]
+                </div>
+                <p><strong>Watch out for correlated samples:</strong> Those 3,000 requests only count if they represent independent trials across realistic production state. If all 3,000 canary calls are synthetic <code>/healthz</code> pings or come from a single cached tenant session, your effective sample size is closer to 1 than 3,000.</p>
             </div>
 
             <div class="tldr-box tldr-box--math">
