@@ -670,75 +670,147 @@
                 </div>
             </div>
 
-            <h3>The Math, Exact Variance & Parallel Merge Penalties</h3>
-            <p>While the standard Beta distribution lives on \([0,1]\), <strong>Beta-PERT</strong> rescales a Beta curve across an elicited duration or cost interval \([a, b]\), weighting the most-likely mode \( m \) four times as heavily as the extremes:</p>
+<h3>The Math, Exact Variance &amp; Parallel Merge Penalties</h3>
+            <p>While the standard Beta distribution lives on \([0,1]\), <strong>Beta-PERT</strong> rescales a Beta curve across an elicited duration interval \([a, b]\), weighting the most-likely mode \(m\) four times as heavily as the extremes:</p>
             
             <div class="equation-flow">
-                \[ \alpha = 1 + \frac{4(m - a)}{b - a} \qquad \text{and} \qquad \beta = 1 + \frac{4(b - m)}{b - a} \]
+                \[ \alpha = 1 + \frac{4(m - a)}{b - a}, \qquad \beta = 1 + \frac{4(b - m)}{b - a} \]
             </div>
             <div class="equation-flow">
-                \[ \mathbb{E}[T] = \frac{a + 4m + b}{6} \qquad \text{and} \qquad \operatorname{Var}(T) = (b - a)^2 \frac{\alpha\beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)} \]
+                \[ \mathbb{E}[T] = \frac{a + 4m + b}{6}, \qquad \operatorname{Var}(T) = (b - a)^2 \frac{\alpha\beta}{(\alpha + \beta)^2 (\alpha + \beta + 1)} \]
             </div>
-            
+
+            <h4>1. Single-Task Skew: Why the "Most Likely" Estimate is a Trap</h4>
             <div class="math-explanation">
-                <strong>Rigorous Calculations: Single-Task Skew vs. The 5-Way Parallel Fan-In</strong>
+                <p><strong>The Center of Gravity (\(\mathbb{E}[T]\)):</strong> The PERT formula weighs the mode 4 times: \(\frac{a + 4m + b}{6}\). For a task where \(a = 1, m = 2.5, b = 9\) days, the expected average is:</p>
+                <div class="equation-flow">
+                    \[ \mathbb{E}[T] = \frac{1 + 4(2.5) + 9}{6} = \frac{20}{6} = \mathbf{3.33\text{ days}} \]
+                </div>
+                <p>Even though the most frequent outcome is \(2.5\) days, the heavy downside tail pulls the <em>true expected average</em> up by \(+33\%\). If a manager takes 10 such tasks and multiplies the mode by 10 (\(25\) days), they are planning for a best-case peak; the true expected duration is <strong>\(33.3\) days</strong>.</p>
+            </div>
+
+            <h4>2. Exact Variance vs. The 1958 Slide-Rule Approximation</h4>
+            <div class="math-explanation">
+                <p>Classic textbooks claim standard deviation is always \(\sigma \approx (b-a)/6\) regardless of where \(m\) sits—a 1958 U.S. Navy slide-rule shortcut designed to avoid calculus. For asymmetric tasks like \(a = 2, m = 4, b = 12\) (\(\alpha = 1.8, \beta = 4.2\)):</p>
                 <ul>
-                    <li><strong>Single-Task Skew (\( a = 1, m = 2.5, b = 9 \)):</strong> Plugging in the bounds gives shape parameters \(\alpha = 1.75\) and \(\beta = 4.25\). Even though the most likely outcome is \( m = 2.5 \) days, the right tail pulls the expected duration up to \(\mathbb{E}[T] = (1 + 10 + 9)/6 = \mathbf{3.33\text{ days}}\) (+33% over the mode), and the exact inverse-CDF places the 95th percentile at \( P_{95} = \mathbf{5.90\text{ days}} \). Summing 10 such independent tasks gives an expected duration of <strong>33.3 days</strong>, not 25.</li>
-                    <li><strong>Exact Variance vs. The 1958 Slide-Rule Approximation:</strong> Classic project-management textbooks claim \(\sigma \approx (b-a)/6\) regardless of where the mode \( m \) sits. That was a 1958 Navy slide-rule shortcut. For \( a = 2, m = 4, b = 12 \) (\(\alpha = 1.8, \beta = 4.2\)), the textbook heuristic guesses \(\operatorname{Var}(T) \approx (10/6)^2 = 2.78\text{ days}^2\), whereas the exact Beta formula yields \( 100 \times (7.56)/(36 \times 7) = \mathbf{3.00\text{ days}^2} \) (\(\sigma = 1.732\text{ days}\)).</li>
-                    <li><strong>Jensen's Inequality and the Parallel Merge Penalty:</strong> Suppose an orchestrator fans out a scatter-gather query—or an engineering org splits a migration across 5 parallel microservice teams—where each branch follows \( a = 2, m = 4, b = 12 \) (\(\mathbb{E}[T_i] = 5.0\text{ days}\)). The join barrier cannot proceed until the <em>slowest</em> branch finishes: \( T_{\text{join}} = \max(T_1, \dots, T_5) \). Because the \(\max\) operator is convex, <strong>Jensen's Inequality</strong> guarantees:
+                    <li><strong>Textbook Heuristic:</strong> \(\sigma^2 \approx \left(\frac{10}{6}\right)^2 = \mathbf{2.78\text{ days}^2}\).</li>
+                    <li><strong>Exact Beta-PERT Variance:</strong> \(\frac{100 \times 7.56}{36 \times 7} = \mathbf{3.00\text{ days}^2}\) (\(\sigma = 1.732\text{ days}\)). Using the slide-rule shortcut understates uncertainty and yields dangerously tight confidence intervals.</li>
+                </ul>
+            </div>
+
+            <h4>3. Jensen's Inequality and the Parallel Merge Penalty</h4>
+            <div class="math-explanation">
+                <p>Suppose you split a migration across <strong>5 parallel microservice teams</strong> (or fan out a query across 5 database shards), where each branch has an expected duration of \(\mathbb{E}[T_i] = 5.0\) days (\(a=2, m=4, b=12\)).</p>
+                <p>Because a parallel pipeline cannot proceed until the <em>slowest</em> branch finishes, total execution time is governed by the maximum function: \(T_{\text{join}} = \max(T_1, T_2, T_3, T_4, T_5)\).</p>
+                <p>Because the \(\max\) operator is strictly convex, <strong>Jensen's Inequality</strong> mathematically guarantees that the expected value of the maximum is greater than the maximum of the individual averages:</p>
+                <div class="equation-flow">
                     \[ \mathbb{E}[\max(T_1, \dots, T_n)] \gt \max(\mathbb{E}[T_1], \dots, \mathbb{E}[T_n]) \]
+                </div>
+                <ul>
+                    <li><strong>The Odds of Hitting the Mode:</strong> An individual team hits their 4-day mode with probability \(F_T(4) \approx 33.16\%\). The chance that <em>all five</em> independent teams finish by Day 4 is \((0.3316)^5 \approx \mathbf{0.40\%}\) (less than 1 in 200!).</li>
+                    <li><strong>The Delayed Join Latency:</strong> Integrating the 5-way maximum distribution (\(\int_a^b [1 - F_T(t)^5]\,dt\)) pushes the expected completion date of the parallel join from \(5.0\) days out to <strong>\(7.17\) days</strong>—nearly <strong>80% slower</strong> than the 4-day mode individual engineers promised in standup.</li>
+                </ul>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 5. CASE STUDY: SEQUENTIAL VS. PARALLEL EPICS -->
+            <!-- ========================================== -->
+            <h2>5. Case Study: Sequential vs. Parallel Epics (PERT in Practice)</h2>
+
+            <p>To see why mathematical estimation matters in the real world, let's contrast two epics: <strong>Epic A (100% Sequential Stories)</strong> handled by a single developer, and <strong>Epic B (Mixed Parallel Fan-In)</strong> where tasks run concurrently across multiple teams before hitting a join barrier.</p>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Baseline: Three-Point Estimates for 3 Core Stories</div>
+                <div class="tldr-content">
+                    <p>Suppose both epics consist of the exact same three underlying subsystems, evaluated by engineers using optimistic (\(a\)), most-likely mode (\(m\)), and pessimistic (\(b\)) bounds in days:</p>
+                    <ul>
+                        <li><strong>Story 1 (API Schema):</strong> \(a = 1, m = 2.5, b = 7\) \(\implies \mathbb{E}[T_1] = 3.00\text{ days}, \sigma_1^2 = 1.00\)</li>
+                        <li><strong>Story 2 (Data Pipeline):</strong> \(a = 2, m = 4.0, b = 10\) \(\implies \mathbb{E}[T_2] = 4.67\text{ days}, \sigma_2^2 = 1.78\)</li>
+                        <li><strong>Story 3 (Auth & Gateway):</strong> \(a = 1, m = 3.0, b = 11\) \(\implies \mathbb{E}[T_3] = 4.33\text{ days}, \sigma_3^2 = 2.78\)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Epic A: Full Sequential Stories (The Central Limit Theorem Approach)</h3>
+            <div class="math-explanation">
+                <p><strong>Scenario:</strong> Stories 1, 2, and 3 must be executed strictly one after another by a single team.</p>
+                <ul>
+                    <li><strong>The Naive Agile Approach (Sum of Modes):</strong> Management adds up the most-likely estimates: \(2.5 + 4.0 + 3.0 = \mathbf{9.5\text{ days}}\). 
+                    <br><em>The Flaw:</em> This plan assumes zero friction and ignores the right-skewed tail. A team committing to 9.5 days will miss its deadline roughly 50% of the time.</li>
+                    <li><strong>The PERT Statistical Approach (Sum of Means & Central Limit Theorem):</strong> 
+                        <div class="equation-flow">
+                            \[ \mu_{\text{total}} = 3.00 + 4.67 + 4.33 = \mathbf{12.00\text{ days}} \]
+                        </div>
+                        Because variances add across independent sequential tasks, total standard deviation is \(\sigma_{\text{total}} = \sqrt{1.00 + 1.78 + 2.78} = \sqrt{5.56} = 2.36\text{ days}\).
+                    </li>
+                    <li><strong>The P95 Safe Commitment:</strong> To achieve 95% delivery confidence, we commit to the P95 threshold (\(\mu + 1.645\sigma\)):
+                        <div class="equation-flow">
+                            \[ \text{P95 Deadline} = 12.00 + (1.645 \times 2.36) = \mathbf{15.88\text{ days}}\ (\approx 16\text{ days}) \]
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+<h3>Epic B: Mixed Parallel Fan-In Stories (Jensen's Inequality in Action)</h3>
+            <div class="math-explanation">
+                <p><strong>Scenario:</strong> Stories 1 (\(\mathbb{E}=3.0\)) and 2 (\(\mathbb{E}=4.67\)) run concurrently in parallel, while Story 3 (\(\mathbb{E}=4.33\)) depends on their completion via a merge join barrier (\(T_{\text{join}} = \max(T_1, T_2) + T_3\)).</p>
+                <ul>
+                    <li><strong>The Naive Agile Approach (Max of Modes):</strong> Looking at the longest parallel branch mode (\(4.0\) days) plus Story 3's mode (\(3.0\) days), management assumes the epic takes \(4.0 + 3.0 = \mathbf{7.0\text{ days}}\). 
+                    <br><em>The Flaw:</em> This ignores <strong>Jensen's Inequality</strong> and outlier spread. Rolling two probabilistic dice simultaneously dramatically increases the chance that at least one branch hits its pessimistic right tail.</li>
+                    <li><strong>How the PERT Numbers Are Calculated:</strong>
                         <ul>
-                            <li><strong>Probability of hitting the mode (\( T = 4 \) days):</strong> A single branch finishes by Day 4 with probability \( F_T(4) \approx 0.3316 \). Assuming independent branches, the probability that <em>all five</em> finish by Day 4 is \((0.3316)^5 \approx \mathbf{0.40\%}\).</li>
-                            <li><strong>Expected Join Latency:</strong> Integrating \(\mathbb{E}[T_{\max}] = \int_a^b [1 - F_T(t)^5]\,dt\) pushes the expected completion of the 5-way parallel join from 5.0 days to <strong>7.17 days</strong>—nearly 80% longer than the 4-day mode each individual team promised in standup.</li>
+                            <li><strong>Parallel Phase Join (\(\sim 6.2\text{ days}\)):</strong> 
+                                To find the expected maximum of two independent tasks (\(M = \max(T_1, T_2)\)), we integrate the joint survival probability across their time bounds using order statistics:
+                                <div class="equation-flow">
+                                    \[ \mathbb{E}[\max(T_1, T_2)] = a + \int_{a}^{b} \left[1 - F_1(t)F_2(t)\right] dt \]
+                                </div>
+                                Because both branches possess right-skewed tails, the joint probability pulls the expected join completion time past Story 2's individual mean (\(4.67\) days) out to <strong>\(6.20\text{ days}\)</strong>.
+                            </li>
+                            <li><strong>Total Expected Mean (\(10.53\text{ days}\)):</strong> Adding Story 3's sequential mean (\(4.33\) days) to the join latency yields \(6.20 + 4.33 = \mathbf{10.53\text{ days}}\).</li>
+                            <li><strong>P95 Delivery Date (\(14.2\text{ days}\)):</strong> Combining the aggregate variance (\(\sigma_{\text{total}} \approx 2.01\) days) with a 95% confidence Z-score pushes the safe commitment out to \(\mathbf{14.2\text{ days}}\).</li>
                         </ul>
                     </li>
                 </ul>
             </div>
 
-            <div class="tldr-box tldr-box--warning">
-                <div class="tldr-eyebrow">The Simulation Fallacy: Why Monte Carlo Cannot Fix Bad Assumptions</div>
-                <div class="tldr-content">
-                    <p>Running 50,000 Monte Carlo iterations over Beta-PERT tasks feels deeply scientific, but it harbors a classic trap: <strong>assuming task durations are independent</strong>. If five microservice teams all depend on the same understaffed DBA team, the same flaky staging environment, or the same misunderstood legacy schema, their delays are positively correlated. Sampling them independently underestimates the tail of sums and misstates the distribution of joins. Never present a single point estimate for RTOs, cloud FinOps budgets, or migration dates: elicit three-point bounds \((a, m, b)\), model shared bottlenecks explicitly as common shock factors, and commit to the <strong>P85 or P95 quantile</strong>—never the sum of modes.</p>
-                </div>
+            <h3>Why Applying the Beta-PERT Model Matters</h3>
+            <p>If you don't apply statistical PERT modeling and variance aggregation, your engineering organization suffers from three systemic failures:</p>
+
+            <div class="arch-table-wrap">
+                <table class="arch-table">
+                    <thead>
+                        <tr>
+                            <th>Estimation Strategy</th>
+                            <th>What It Measures</th>
+                            <th>The Production Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Naive Agile Point Summing</strong><br>(Summing Modes)</td>
+                            <td>The peak of a best-case probability curve.</td>
+                            <td><strong>50% Failure Rate:</strong> Guarantees you will miss half your deadlines when right-skewed tasks hit roadblocks.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Max-Mode Assumption</strong><br>(Guessing the Longest Task)</td>
+                            <td>The single longest expected path without variance.</td>
+                            <td><strong>Ignorance of Fan-In Skew:</strong> Underestimates parallel join delays by ignoring Jensen's Inequality and outlier spread.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Beta-PERT + CLT Aggregation</strong><br>(P85 / P95 Commitments)</td>
+                            <td>The true statistical center of gravity plus aggregate uncertainty.</td>
+                            <td><strong>Predictable Delivery:</strong> Safely absorbs right-tail surprises, protects team credibility, and provides defensible SLAs to leadership.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <h3>Interactive Simulation: Coupled Three-Point Bounds</h3>
-            <p>With the default \( a = 1.0, m = 2.5, b = 9.0 \), observe the gap between the slider mode (<code>2.50</code>), the dashed amber <strong>EXPECTED</strong> mean (<code>3.33</code>), and the purple <strong>P95</strong> tail (<code>~5.90</code>). Try dragging \( a \) above \( m \) to see the sliders enforce the invariant \( a \le m \le b \).</p>
-            <div class="stage" data-sim-type="pert">
-                <div class="sim-toolbar">
-                    <div class="sim-params">
-                        <div class="param-group">
-                            <div>Optimistic (a): <span id="v_a_pert">1.0</span></div>
-                            <input type="range" id="a_pert" aria-label="PERT optimistic estimate a" min="0" max="10.0" step="0.1" value="1.0">
-                        </div>
-                        <div class="param-group">
-                            <div>Most Likely (m): <span id="v_m_pert">2.5</span></div>
-                            <input type="range" id="m_pert" aria-label="PERT most likely estimate m" min="0.1" max="15.0" step="0.1" value="2.5">
-                        </div>
-                        <div class="param-group">
-                            <div>Pessimistic (b): <span id="v_b_pert">9.0</span></div>
-                            <input type="range" id="b_pert" aria-label="PERT pessimistic estimate b" min="0.2" max="20.0" step="0.1" value="9.0">
-                        </div>
-                    </div>
-                    <div class="controls">
-                        <button class="sim-btn btn-run">▶ Run</button>
-                        <button class="sim-btn secondary btn-step">Step 50</button>
-                        <button class="sim-btn secondary btn-reset">Reset</button>
-                    </div>
-                </div>
-                <canvas class="sim-canvas" width="800" height="220" role="img" aria-label="Histogram of simulated PERT distribution"></canvas>
-                <div class="readout" aria-live="polite">
-                    <div>Samples: <span class="stat-n">0</span></div>
-                    <div>Observed Mean: <span class="stat-mean">–</span></div>
-                    <div>Expected Mean: <span class="stat-theory">–</span></div>
-                    <div>Observed P95 Tail: <span class="stat-tail">–</span></div>
-                </div>
-            </div>
+            <p>The importance of using this method is simple: <strong>it replaces hope with math</strong>. By eliciting three bounds instead of a single point, calculating the true mean, and summing variances, you stop treating software delivery like a coin flip and start managing it like an engineering discipline.</p>
 
             <!-- ========================================== -->
-            <!-- 5. ARCHITECT'S SYNTHESIS -->
+            <!-- 6. ARCHITECT'S SYNTHESIS -->
             <!-- ========================================== -->
-            <h2>5. The Principal Architect's Synthesis</h2>
+            <h2>6. The Principal Architect's Synthesis</h2>
 
             <p>Most high-severity outages and blown engineering roadmaps trace back to the same root error: substituting a static, memoryless point estimate for a stateful, skewed distribution. Keep this diagnostic matrix on hand during design reviews:</p>
 
