@@ -369,7 +369,7 @@
                     <span>Gateway Showdown: KS vs. AD on the Exact Same 1,000 Traces</span>
                     <span class="scenario-tag">\( n = 1,000 \) Traces</span>
                 </div>
-                <p>We pull \( 1,000 \) query traces from the Multi-Tenant Analytics Gateway (seed <code>20261007</code>) where two regimes coexist:</p>
+                <p>We pull \( 1,000 \) query traces from the Multi-Tenant Analytics Gateway where two regimes coexist:</p>
                 <ul>
                     <li><strong>\( 98.8\% \) Warm Arrow Cache Hits (\( 988 \) queries):</strong> Follow our baseline Lognormal model (\(\text{median} = 100\text{ ms}\), theoretical \( P_{99.9} = 1,120.8\text{ ms}\)).</li>
                     <li><strong>\( 1.2\% \) Iceberg Compaction Stalls (\( 12 \) queries):</strong> Contend on object-store metadata locks and stall between \( 3,210\text{ ms} \) and \( 7,900\text{ ms} \).</li>
@@ -681,75 +681,107 @@
                 </div>
             </div>
 
-            <h3>3.1 Exact Hypergeometric Auditing & The Finite Population Correction (FPC)</h3>
+          
+<h3>3.1 Exact Hypergeometric Auditing & The Finite Population Correction (FPC)</h3>
 
-            <p>Suppose our gateway hosts \( N = 50 \) enterprise tenant Iceberg catalogs, and a buggy schema migration silently corrupts \( K = 5 \) of them (a \( 10\% \) defect rate, \( p = \frac{K}{N} = 0.10 \)). Because deep-scanning a catalog's Parquet footers is expensive, our audit script randomly selects \( n = 20 \) distinct catalogs without replacement.</p>
+<p>Suppose our gateway hosts \( N = 50 \) enterprise tenant Iceberg catalogs. For this worked example, assume that exactly \( K = 5 \) catalogs are corrupted, giving a fleet defect rate of \( p = K/N = 0.10 \). Because deep-scanning every catalog's Parquet footers is expensive, our audit script randomly selects \( n = 20 \) distinct catalogs <strong>without replacement</strong>.</p>
 
-            <p>On Draw 1, the probability of picking a corrupted catalog is \( \frac{5}{50} = 10\% \). If the first 5 catalogs we check all turn out to be corrupted, how many corrupted catalogs remain in the other 45 tenants? <strong>Zero!</strong> The probability of finding a 6th corrupted catalog is strictly \( 0\% \). The exact probability of finding \( k \) corrupted units in an \( n \)-unit audit drawn without replacement from a fleet of size \( N \) containing \( K \) total defects is given by the <strong>Hypergeometric Distribution</strong>, and its variance shrinks by the <strong>Finite Population Correction (FPC)</strong>:</p>
+<p>The important detail is that an inspected catalog does not go back into the pool. If the first catalog is corrupted, the remaining fleet contains 4 corrupted catalogs among 49. If it is healthy, the remaining fleet contains 5 corrupted catalogs among 49. The probability changes after every inspection.</p>
 
-            <div class="equation-flow">
-                \[ P(X = k) = \frac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}}, \qquad \text{Var}_{\text{hyp}}(X) = \underbrace{np(1 - p)}_{\text{Binomial Variance}} \times \underbrace{\left(\frac{N - n}{N - 1}\right)}_{\text{Finite Population Correction (FPC)}} \]
-            </div>
+<p>Let \( X \) be the number of corrupted catalogs found in the sample. The exact probability of finding \( k \) defects is given by the <strong>Hypergeometric Distribution</strong>:</p>
 
-            <p>Look at why the FPC factor \( \frac{N - n}{N - 1} \) is a sanity check every systems engineer should memorize:</p>
-            <ul>
-                <li><strong>Spot-checking 1 unit (\( n = 1 \)):</strong> \( \text{FPC} = \frac{N-1}{N-1} = 1.0 \). Your first draw has the exact same variance as a Binomial coin flip.</li>
-                <li><strong>Auditing \( 40\% \) of the fleet (\( n = 20 \) of \( N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 20}{50 - 1} = \frac{30}{49} \approx 0.612 \). Inspecting \( 40\% \) of the cluster cuts variance by \( 38.8\% \)!</li>
-                <li><strong>Auditing the entire fleet (\( n = N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 50}{49} = 0.0 \). Once you inspect all 50 tenants, sampling uncertainty drops to <strong>zero</strong>—you have an exact census, whereas Binomial math absurdly claims you still have \( \pm 1.34 \) tenants of random sampling error!</li>
-            </ul>
+<div class="equation-flow">
+    \[
+    P(X=k)=
+    \frac{\binom{K}{k}\binom{N-K}{n-k}}
+         {\binom{N}{n}}
+    \]
+</div>
 
-            <div class="scenario-card">
-                <div class="scenario-title">
-                    <span>Worked Audit: Inspecting \( n = 20 \) of \( N = 50 \) Tenant Catalogs (\( K = 5 \) Corrupted)</span>
-                    <span class="scenario-tag">Binomial Error vs. Hypergeometric Reality</span>
-                </div>
-                <p>Compare what a naive Binomial formula tells your incident commander versus exact Hypergeometric reality on our \( 50 \)-tenant gateway:</p>
-                <div class="table-wrap" style="margin: 0.75rem 0; overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                <th style="padding: 0.45rem;">Audit Metric</th>
-                                <th style="padding: 0.45rem;">Naive Binomial (With Replacement)</th>
-                                <th style="padding: 0.45rem;">Exact Hypergeometric (Without Replacement)</th>
-                                <th style="padding: 0.45rem;">Why It Matters in Production</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Expected Defects \( \mathbb{E}[X] = np \)</td>
-                                <td style="padding: 0.45rem;">\( 2.00\text{ catalogs} \)</td>
-                                <td style="padding: 0.45rem;">\( 2.00\text{ catalogs} \)</td>
-                                <td style="padding: 0.45rem;">Unbiased mean in both models</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Variance \( \text{Var}(X) \) & Std Error</td>
-                                <td style="padding: 0.45rem;">\( 1.800 \) (\(\text{SE} = \pm 1.342\))</td>
-                                <td style="padding: 0.45rem;"><strong>\( 1.102 \) (\(\text{SE} = \pm 1.050\))</strong></td>
-                                <td style="padding: 0.45rem;">Binomial inflates variance by <strong>\(+63.3\%\)</strong> (\(\text{SE}\) by \(+27.8\%\))</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Chance of Missing All 5 (\( P(X = 0) \))</td>
-                                <td style="padding: 0.45rem;">\( 12.16\% \)</td>
-                                <td style="padding: 0.45rem;"><strong>\( 10.00\% \)</strong></td>
-                                <td style="padding: 0.45rem;">Without replacement, a clean 20-tenant audit gives stronger assurance</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Chance of Catching All 5 (\( P(X = 5) \))</td>
-                                <td style="padding: 0.45rem;">\( 3.19\% \)</td>
-                                <td style="padding: 0.45rem;"><strong>\( 0.73\% \)</strong></td>
-                                <td style="padding: 0.45rem;">Binomial overstates \( k=5 \) probability by <strong>\( 4.4\times \)</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 0.45rem;">Chance of \( \ge 6 \) Defects (\( P(X \ge 6) \))</td>
-                                <td style="padding: 0.45rem;">\( 1.13\% \)</td>
-                                <td style="padding: 0.45rem;"><strong>\( 0.00\% \) (Impossible!)</strong></td>
-                                <td style="padding: 0.45rem;">Only 5 corrupted catalogs exist in the entire 50-tenant fleet</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p><strong>Rule of Thumb:</strong> Whenever your audit sample covers more than <strong>\( 5\%\text{–}10\% \) of a finite population</strong> (\( n/N > 0.05 \))—whether worker nodes, Kafka partitions, or enterprise tenants—always apply the Finite Population Correction and Hypergeometric bounds.</p>
-            </div>
+<p>Its expected value is the same as the Binomial model, but its variance is smaller because sampling without replacement reduces uncertainty:</p>
+
+<div class="equation-flow">
+    \[
+    \mathbb{E}[X]=np
+    \]
+
+    \[
+    \operatorname{Var}_{\text{hyp}}(X)
+    =
+    np(1-p)
+    \times
+    \underbrace{\frac{N-n}{N-1}}_{\text{Finite Population Correction (FPC)}}
+    \]
+</div>
+
+<p>The Finite Population Correction (FPC) tells us how much the variance should shrink when our sample is a meaningful fraction of the entire population:</p>
+
+<ul>
+    <li><strong>Inspecting one catalog (\(n=1\)):</strong> The FPC is \(1\). The first draw has the same variance as a Binomial draw.</li>
+    <li><strong>Inspecting 40% of the fleet (\(n=20\), \(N=50\)):</strong> The FPC is \(30/49 \approx 0.612\). The variance is approximately 38.8% lower than the Binomial approximation.</li>
+    <li><strong>Inspecting the entire fleet (\(n=N=50\)):</strong> The FPC is \(0\). There is no sampling uncertainty because every catalog has been inspected. The result is a census, not an estimate.</li>
+</ul>
+
+<div class="scenario-card">
+    <div class="scenario-title">
+        <span>Worked Audit: Inspecting \(n=20\) of \(N=50\) Tenant Catalogs (\(K=5\) Corrupted)</span>
+        <span class="scenario-tag">Binomial Approximation vs. Hypergeometric Reality</span>
+    </div>
+
+    <p>Compare the two probability models for the same fleet and sample size. The Binomial model approximates sampling with replacement; the Hypergeometric model describes the actual sampling process without replacement.</p>
+
+    <div class="table-wrap" style="margin: 0.75rem 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
+                    <th style="padding: 0.45rem;">Audit Metric</th>
+                    <th style="padding: 0.45rem;">Binomial Approximation</th>
+                    <th style="padding: 0.45rem;">Exact Hypergeometric</th>
+                    <th style="padding: 0.45rem;">Engineering Interpretation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.45rem;">Expected defects \(E[X]\)</td>
+                    <td style="padding: 0.45rem;">\(2.00\)</td>
+                    <td style="padding: 0.45rem;">\(2.00\)</td>
+                    <td style="padding: 0.45rem;">Both models have the same expected count.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.45rem;">Variance and standard deviation</td>
+                    <td style="padding: 0.45rem;">\(1.800\), SD \(=1.342\)</td>
+                    <td style="padding: 0.45rem;"><strong>\(1.102\), SD \(=1.050\)</strong></td>
+                    <td style="padding: 0.45rem;">The Binomial approximation overstates variance by approximately 63.3%.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.45rem;">Probability of missing all 5 defects \(P(X=0)\)</td>
+                    <td style="padding: 0.45rem;">\(12.16\%\)</td>
+                    <td style="padding: 0.45rem;"><strong>\(6.73\%\)</strong></td>
+                    <td style="padding: 0.45rem;">The exact model gives a lower probability of finding zero defects in this sample.</td>
+                </tr>
+                <tr style="padding: 0.45rem; border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.45rem;">Probability of finding all 5 defects \(P(X=5)\)</td>
+                    <td style="padding: 0.45rem;">\(3.19\%\)</td>
+                    <td style="padding: 0.45rem;"><strong>\(0.73\%\)</strong></td>
+                    <td style="padding: 0.45rem;">The Binomial approximation overstates this probability by approximately 4.4 times.</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.45rem;">Probability of finding 6 or more defects \(P(X\geq6)\)</td>
+                    <td style="padding: 0.45rem;">\(1.13\%\)</td>
+                    <td style="padding: 0.45rem;"><strong>\(0\%\)</strong></td>
+                    <td style="padding: 0.45rem;">Finding 6 defects is impossible when only 5 exist in the entire fleet.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p><strong>What does this mean operationally?</strong> The Binomial approximation ignores the fact that inspecting a catalog changes the composition of the remaining fleet. The Hypergeometric model respects that constraint. It is therefore the appropriate model for a simple random sample drawn without replacement from a finite population with a fixed defect count.</p>
+
+    <p><strong>Important distinction:</strong> In this worked example, \(K=5\) is assumed known so that we can compare the two distributions. In a real audit, the total number of corrupted catalogs is usually unknown. The observed sample can help estimate the defect rate and quantify uncertainty, but a sample containing zero defects does not establish that the remaining fleet is clean.</p>
+
+    <p><strong>Rule of Thumb:</strong> When sampling without replacement from a finite population, calculate the sampling fraction \(n/N\). As that fraction grows, the Binomial approximation becomes less appropriate and the FPC becomes more important. For exact finite-fleet defect counts, use the Hypergeometric distribution.</p>
+</div>
+
  <!-- ========================================== -->
             <!-- 4. TELEMETRY CENSORING -->
             <!-- ========================================== -->
