@@ -225,15 +225,15 @@
                 <p class="snarky-quote-author">— <strong><em>Jan L. A. van de Snepscheut</em></strong>, Computer Scientist</p>
             </blockquote>
 
-            <p>Over the first six parts of this series, we treated distributed systems as stochastic processes driven by physical mechanisms. We modeled workload mixtures (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>), correlated survival hazards (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>), queueing saturation (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>), fan-out order statistics (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>), Zipfian tenant skew (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>), and state-dependent retry amplification (<a href="part-6-state-empiricism-and-simulation.html" style="color:var(--teal);">Part 6</a>).</p>
+            <p>Across the first six parts of this series, we built a mathematical toolkit for our <strong>Multi-Tenant Analytics Gateway</strong>—modeling bimodal cache-vs-storage mixtures (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>), correlated rack failures (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>), queueing saturation (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>), fan-out stragglers (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>), Zipfian tenant hot keys (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>), and retry storms (<a href="part-6-state-empiricism-and-simulation.html" style="color:var(--teal);">Part 6</a>).</p>
 
-            <p>Every one of those mathematical models rests on a foundational premise: <strong>a distribution is a model, not an invariant.</strong> Even if our Multi-Tenant Analytics Gateway genuinely followed a Lognormal latency profile with scale parameter \( \sigma = 0.8 \) last month, a minor kernel upgrade, a shifted tenant query mix, or a subtle memory leak in the Arrow buffer pool can invalidate that model overnight.</p>
+            <p>Every one of those equations shares a quiet vulnerability: <strong>a probability distribution is a snapshot hypothesis, not a law of nature.</strong> Even if our gateway's query latency genuinely followed a Lognormal curve with scale parameter \( \sigma = 0.8 \) last month, a minor Linux kernel upgrade, an enterprise tenant shifting their SQL join patterns, or a subtle fragmentation bug in our Arrow buffer pool can invalidate that curve overnight.</p>
 
-            <p>How do we determine whether a mathematical model still represents production reality? Why can a distribution test report a "good fit" while extreme tail latencies breach our design envelope? Why do static \( P_{99} \) threshold alerts remain silent for weeks while cache degradation slowly boils the cluster? And how can our observability pipeline itself falsify the data through timeout censoring and percentile averaging?</p>
+            <p>How do you prove whether your math still matches production reality? Why can a standard statistical test give your model a "passing grade" while \( P_{99.9} \) latencies blow past your SLA by \( 4\times \)? Why do static threshold alerts stay silent for days while a bad canary build slowly cooks your cluster? And how do common dashboard habits—like filtering for `HTTP 200` or averaging \( P_{99} \) across Kubernetes pods—actively lie to you during an outage?</p>
 
-            <p>In Part 7, we establish the empirical validation pipeline that bridges probability theory and production engineering: <strong>Empirical Goodness-of-Fit, Quantile Diagnostics, Residual Autocorrelation, Standardized Drift Detection, Finite-Fleet Auditing, Telemetry Hygiene, and Runtime Conformance.</strong></p>
+            <p>In Part 7, we turn probability theory into an operational verification pipeline for the Multi-Tenant Analytics Gateway: <strong>Goodness-of-Fit testing, Q-Q visual diagnostics, residual drift detection with Page's CUSUM, finite-fleet auditing, telemetry hygiene, and physical resource guardrails.</strong></p>
 
-<!-- ========================================== -->
+            <!-- ========================================== -->
             <!-- 1. GOODNESS OF FIT -->
             <!-- ========================================== -->
             <h2>1. Empirical Goodness-of-Fit: KS vs. Anderson-Darling and Q-Q Diagnostics</h2>
@@ -241,30 +241,30 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: Vertical Probability vs. Horizontal Latency</div>
                 <div class="tldr-content">
-                    <p>Suppose we collect \( 10,000 \) request latencies from our Multi-Tenant Analytics Gateway and want to verify whether they follow a Lognormal distribution. If our mathematical model is accurate, we can reliably estimate \( P_{95} \), \( P_{99} \), and \( P_{99.9} \) latencies, calculate the probability of exceeding a timeout, and price SLA violation risk. Goodness-of-Fit testing compares two things: <strong>what actually happened in production</strong> versus <strong>what our mathematical model predicts should happen</strong>.</p>
-                    <p>Engineers frequently rely on a passing Kolmogorov-Smirnov (KS) test to certify latency models. However, KS measures the maximum <em>vertical</em> difference in cumulative probability \( |\hat{F}_n(x) - F(x)| \). Beyond \( P_{99} \), both curves are already above \( 99\% \)—leaving less than \( 1\% \) of vertical room to \( 100\% \). Even if production \( P_{99.9} \) explodes horizontally from a predicted \( 1,120\text{ ms} \) out to \( 4,800\text{ ms} \), the vertical probability gap stays tiny. A passing KS test does <em>not</em> certify that your tail latency model is safe.</p>
+                    <p>Suppose we pull \( 10,000 \) request traces from our Multi-Tenant Analytics Gateway to verify whether query latency follows a Lognormal distribution. Goodness-of-Fit testing compares two curves: <strong>what actually happened in production</strong> versus <strong>what our mathematical model predicted would happen</strong>.</p>
+                    <p>Engineers frequently run a Kolmogorov-Smirnov (KS) test, see a passing \( p \)-value, and sign off on capacity plans. That is a trap. KS measures the maximum <em>vertical</em> gap in cumulative probability \( |\hat{F}_n(x) - F(x)| \). Once you pass \( P_{99} \), both curves are already above \( 99\% \)—leaving less than \( 1\% \) of vertical room up to \( 100\% \). Even if production \( P_{99.9} \) explodes horizontally from a predicted \( 1,120\text{ ms} \) out to \( 4,800\text{ ms} \), the vertical gap is tiny (\( < 0.01 \)) and completely invisible to KS.</p>
                 </div>
             </div>
 
-            <h3>1.1 First Understand the ECDF (What Actually Happened)</h3>
+            <h3>1.1 First, Build the ECDF (What Actually Happened)</h3>
 
-            <p><strong>ECDF</strong> stands for <strong>Empirical Cumulative Distribution Function</strong>. Despite the intimidating name, it is simply a running percentage of how many requests finished within a given latency budget. Imagine we collect five request latencies from the gateway: \( 10\text{ ms}, 20\text{ ms}, 30\text{ ms}, 40\text{ ms}, \) and \( 100\text{ ms} \).</p>
+            <p><strong>ECDF</strong> stands for <strong>Empirical Cumulative Distribution Function</strong>. Strip away the jargon and it is just a sorted running percentage: for any latency budget \( x \), what fraction of requests finished in \( x \) milliseconds or less? Suppose we grab five DuckDB query latencies from the gateway: \( 10\text{ ms}, 20\text{ ms}, 30\text{ ms}, 40\text{ ms}, \) and \( 100\text{ ms} \).</p>
 
-            <p>If we ask: <em>"What percentage of requests completed within \( 30\text{ ms} \)?"</em>—three out of five requests finished on or before \( 30\text{ ms} \), so:</p>
+            <p>If a tenant asks, <em>"What fraction of my queries finished within \( 30\text{ ms} \)?"</em>—three out of five queries finished at or below \( 30\text{ ms} \):</p>
 
             <div class="equation-flow">
-                \[ \text{ECDF}(30) = \hat{F}_5(30) = \frac{3}{5} = 0.60 \quad (60\%) \]
+                \[ \hat{F}_n(x) = \frac{1}{n}\sum_{i=1}^{n} \mathbb{I}(X_i \le x) \implies \hat{F}_5(30) = \frac{3}{5} = 0.60 \quad (60\%) \]
             </div>
 
-            <p>Stepping through all five sorted observations produces a staircase table representing what actually happened in production:</p>
+            <p>Sorting our production traces from fastest to slowest turns raw logs into a staircase function \( \hat{F}_n(x) \) that steps up by \( \frac{1}{n} \) at every observed latency:</p>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.92rem;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                            <th style="padding: 0.5rem;">Request Order</th>
-                            <th style="padding: 0.5rem;">Latency Threshold (\( x \))</th>
-                            <th style="padding: 0.5rem;">Requests Completed (\( \le x \))</th>
+                            <th style="padding: 0.5rem;">Sorted Rank (\( i \))</th>
+                            <th style="padding: 0.5rem;">Query Latency (\( X_{(i)} \))</th>
+                            <th style="padding: 0.5rem;">Queries Completed (\( \le x \))</th>
                             <th style="padding: 0.5rem;">Empirical CDF \( \hat{F}_n(x) \)</th>
                         </tr>
                     </thead>
@@ -303,23 +303,17 @@
                 </table>
             </div>
 
-            <p>While the empirical staircase \( \hat{F}_n(x) \) describes what actually happened, the smooth mathematical CDF \( F(x) \) describes what our theoretical distribution predicts. Goodness-of-fit tests measure the discrepancy between these two curves.</p>
+            <p>While the staircase \( \hat{F}_n(x) \) shows what actually happened on the gateway, the smooth curve \( F(x) \) shows what our theoretical distribution predicts. Goodness-of-Fit tests measure the distance between the staircase and the smooth curve.</p>
 
             <h3>1.2 Kolmogorov-Smirnov (KS) vs. Anderson-Darling (AD)</h3>
 
-            <p>The <strong>Kolmogorov-Smirnov (KS) test</strong> measures the single largest vertical distance between the actual ECDF and the theoretical CDF anywhere along the curve:</p>
+            <p>The <strong>Kolmogorov-Smirnov (KS) test</strong> scans across all latencies from \( 0\text{ ms} \) to infinity and finds the single largest vertical gap between the empirical staircase and the theoretical curve:</p>
 
             <div class="equation-flow">
                 \[ D_n = \sup_x \left|\hat{F}_n(x) - F(x)\right| \]
             </div>
 
-            <p>To translate the symbols into plain engineering terms:</p>
-            <ul>
-                <li>\( \hat{F}_n(x) \): Actual percentage of requests completed by latency \( x \).</li>
-                <li>\( F(x) \): Percentage predicted by our mathematical distribution at latency \( x \).</li>
-                <li>\( |\hat{F}_n(x) - F(x)| \): How wrong our model is at that specific latency.</li>
-                <li>\( \sup_x \) (Supremum): Scan across all latencies and pick the single worst vertical gap.</li>
-            </ul>
+            <p>Because \(\hat{F}_n(x)\) jumps by \(1/n\) at each sorted observation \(X_{(i)}\), you compute \(D_n\) in code by checking the vertical gap just before and just after each step: \(D_n = \max_{1 \le i \le n} \max\!\left(\left|\frac{i-1}{n} - F(X_{(i)})\right|, \left|\frac{i}{n} - F(X_{(i)})\right|\right)\). Look at what happens when we compare our gateway's actual latencies against a Lognormal model:</p>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.92rem;">
@@ -328,15 +322,15 @@
                             <th style="padding: 0.5rem;">Latency (\( x \))</th>
                             <th style="padding: 0.5rem;">Actual ECDF \( \hat{F}_n(x) \)</th>
                             <th style="padding: 0.5rem;">Model CDF \( F(x) \)</th>
-                            <th style="padding: 0.5rem;">Vertical Difference \( |\hat{F}_n(x) - F(x)| \)</th>
+                            <th style="padding: 0.5rem;">Vertical Probability Gap \( |\hat{F}_n(x) - F(x)| \)</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;">\( 50\text{ ms} \)</td>
+                            <td style="padding: 0.5rem;">\( 50\text{ ms} \) (Near Median)</td>
                             <td style="padding: 0.5rem;">\( 40.0\% \)</td>
                             <td style="padding: 0.5rem;">\( 42.0\% \)</td>
-                            <td style="padding: 0.5rem;"><strong>\( 2.0\% \) (\( 0.020 \))</strong></td>
+                            <td style="padding: 0.5rem;"><strong>\( 2.0\% \) (\( 0.020 \)) — Sets \( D_n \)</strong></td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                             <td style="padding: 0.5rem;">\( 100\text{ ms} \)</td>
@@ -345,155 +339,104 @@
                             <td style="padding: 0.5rem;"><strong>\( 2.0\% \) (\( 0.020 \))</strong></td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;">\( 200\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;">\( 90.0\% \)</td>
-                            <td style="padding: 0.5rem;">\( 91.0\% \)</td>
-                            <td style="padding: 0.5rem;">\( 1.0\% \) (\( 0.010 \))</td>
+                            <td style="padding: 0.5rem;">\( 500\text{ ms} \) (\( P_{99} \))</td>
+                            <td style="padding: 0.5rem;">\( 98.8\% \)</td>
+                            <td style="padding: 0.5rem;">\( 99.0\% \)</td>
+                            <td style="padding: 0.5rem;">\( 0.2\% \) (\( 0.002 \))</td>
                         </tr>
                         <tr>
-                            <td style="padding: 0.5rem;">\( 500\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;">\( 99.0\% \)</td>
-                            <td style="padding: 0.5rem;">\( 99.2\% \)</td>
-                            <td style="padding: 0.5rem;">\( 0.2\% \) (\( 0.002 \))</td>
+                            <td style="padding: 0.5rem;">\( 4,800\text{ ms} \) (\( P_{99.9} \) Blowout)</td>
+                            <td style="padding: 0.5rem;">\( 99.9\% \)</td>
+                            <td style="padding: 0.5rem;">\( 99.999\% \)</td>
+                            <td style="padding: 0.5rem;">\( 0.099\% \) (\( 0.00099 \)) — Invisible to KS!</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p>Here, the largest vertical discrepancy is \( 2.0\% \), so \( D_n = 0.02 \). Why is this dangerous for distributed systems? Because at \( P_{99.9} \), both the theoretical and empirical CDFs are already pinned near \( 100\% \). If our model predicts \( P_{99.9} = 1,120\text{ ms} \) but production hits \( 4,800\text{ ms} \), the <em>horizontal</em> latency error is catastrophic for our SLA, yet the <em>vertical</em> probability discrepancy is tiny (a fraction of a percent) and stays completely hidden behind normal \( 2\% \) noise near the median.</p>
+            <p>See the architectural blind spot? Near the median (\( 50\text{ ms} \)), a harmless \( 2\text{ ms} \) jitter creates a \( 2.0\% \) vertical shift. Out at \( P_{99.9} \), a background Iceberg manifest compaction stalls queries for \( 4,800\text{ ms} \) instead of the predicted \( 1,120\text{ ms} \). That horizontal latency error destroys our SLA, yet the vertical probability gap is less than \( 0.1\% \)—completely dwarfed by normal noise in the middle of the curve.</p>
 
-            <p>To catch tail divergence, we need a test that amplifies errors near the boundaries. That is where the <strong>Anderson-Darling (AD) test</strong> comes in:</p>
+            <p>To catch tail blowouts, we need a test that penalizes errors near \( F(x) \to 1 \) and \( F(x) \to 0 \). That is the <strong>Anderson-Darling (AD) test</strong>, which divides the squared vertical error by the tail weight \( F(x)(1 - F(x)) \) and evaluates directly over your sorted sample \( X_{(1)} \le \dots \le X_{(n)} \):</p>
 
             <div class="equation-flow">
-                \[ A^2 = n \int_{-\infty}^{\infty} \frac{\left[\hat{F}_n(x) - F(x)\right]^2}{F(x)\left(1 - F(x)\right)} \, dF(x) \]
+                \[ A^2 = n \int_{-\infty}^{\infty} \frac{\left[\hat{F}_n(x) - F(x)\right]^2}{F(x)\left(1 - F(x)\right)} \, dF(x) = -n - \frac{1}{n}\sum_{i=1}^{n} (2i - 1)\left[\ln F(X_{(i)}) + \ln\!\left(1 - F(X_{(n+1-i)})\right)\right] \]
             </div>
 
-            <p>The secret to Anderson-Darling is the weighting term \( \frac{1}{F(x)(1 - F(x))} \):</p>
-            <ul>
-                <li>In the lower tail (\( F(x) \to 0 \)) and upper tail (\( F(x) \to 1 \)), the denominator approaches zero, multiplying tail discrepancies by a massive penalty factor.</li>
-                <li><strong>In plain language:</strong> KS asks, <em>"Where is my model most wrong vertically?"</em> AD asks, <em>"How wrong is my model across the entire distribution, giving heavy extra weight to the tails?"</em></li>
-            </ul>
+            <p>Look at the denominator \( F(x)(1 - F(x)) \): at the median (\( F = 0.5 \)), the weight is \( \frac{1}{0.25} = 4 \). At \( P_{99.9} \) (\( F = 0.999 \)), the weight jumps to \( \frac{1}{0.999 \times 0.001} \approx 1,001 \)—amplifying tail mismatches by \( 250\times \) compared to the median!</p>
 
             <div class="scenario-card">
                 <div class="scenario-title">
-                    <span>Production Comparison: KS vs. AD on the Same Gateway Dataset</span>
+                    <span>Gateway Showdown: KS vs. AD on the Exact Same 1,000 Traces</span>
                     <span class="scenario-tag">\( n = 1,000 \) Traces</span>
                 </div>
-                <p>Suppose our Analytics Gateway has two distinct latency populations in a \( 1,000 \)-request sample (seed <code>20261007</code>):</p>
+                <p>We pull \( 1,000 \) query traces from the Multi-Tenant Analytics Gateway (seed <code>20261007</code>) where two regimes coexist:</p>
                 <ul>
-                    <li><strong>\( 98.8\% \) Normal Queries (\( 988 \) requests):</strong> Warm Arrow cache hits following a baseline Lognormal model (\(\text{median} = 100\text{ ms}\), theoretical \( P_{99.9} = 1,120.8\text{ ms}\)).</li>
-                    <li><strong>\( 1.2\% \) Compaction Stalls (\( 12 \) requests):</strong> Queries that hit background Iceberg manifest compaction and stall between \( 3,210\text{ ms} \) and \( 7,900\text{ ms} \).</li>
+                    <li><strong>\( 98.8\% \) Warm Arrow Cache Hits (\( 988 \) queries):</strong> Follow our baseline Lognormal model (\(\text{median} = 100\text{ ms}\), theoretical \( P_{99.9} = 1,120.8\text{ ms}\)).</li>
+                    <li><strong>\( 1.2\% \) Iceberg Compaction Stalls (\( 12 \) queries):</strong> Contend on object-store metadata locks and stall between \( 3,210\text{ ms} \) and \( 7,900\text{ ms} \).</li>
                 </ul>
-                <p>When we evaluate both tests against the unimodal Lognormal baseline on this exact same \( 1,000 \)-request dataset, we get opposite verdicts:</p>
+                <p>Running both tests against our fixed unimodal Lognormal baseline produces opposite verdicts:</p>
                 <div class="table-wrap" style="margin: 0.75rem 0; overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
                             <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                <th style="padding: 0.45rem;">Measurement</th>
-                                <th style="padding: 0.45rem;">Observed Result</th>
-                                <th style="padding: 0.45rem;">Engineering Meaning</th>
+                                <th style="padding: 0.45rem;">Diagnostic Metric</th>
+                                <th style="padding: 0.45rem;">Observed Value</th>
+                                <th style="padding: 0.45rem;">Engineering Verdict</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Theoretical \( P_{99.9} \)</td>
-                                <td style="padding: 0.45rem;">\( 1,120.8\text{ ms} \)</td>
-                                <td style="padding: 0.45rem;">What the single Lognormal model predicts</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Empirical \( P_{99.9} \) (\( X_{(999)} \))</td>
-                                <td style="padding: 0.45rem;"><strong>\( 4,800.0\text{ ms} \)</strong></td>
-                                <td style="padding: 0.45rem;">\( 4.28\times \) worse than predicted SLA</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Sample Maximum (\( X_{(1000)} \))</td>
-                                <td style="padding: 0.45rem;"><strong>\( 7,900.0\text{ ms} \)</strong></td>
-                                <td style="padding: 0.45rem;">Worst compaction stall in the sample</td>
+                                <td style="padding: 0.45rem;">Predicted vs. Actual \( P_{99.9} \)</td>
+                                <td style="padding: 0.45rem;">\( 1,120.8\text{ ms} \) vs. <strong>\( 4,800.0\text{ ms} \)</strong></td>
+                                <td style="padding: 0.45rem;">\( 4.28\times \) horizontal SLA breach (\( X_{(1000)} = 7,900\text{ ms} \))</td>
                             </tr>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                                 <td style="padding: 0.45rem;"><strong>KS Statistic (\( D_n \))</strong></td>
-                                <td style="padding: 0.45rem;">\( 0.0294 \) (Crit: \( 0.0429 \))</td>
-                                <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">PASS (Fails to reject!)</span> — Blind to the \( 1.2\% \) tail stall</td>
+                                <td style="padding: 0.45rem;">\( 0.0294 \) (Crit \( \alpha=0.05 \): \( 0.0429 \))</td>
+                                <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">PASS (Fails to reject!)</span> — Completely blind to the \( 1.2\% \) stall</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.45rem;"><strong>AD Statistic (\( A^2 \))</strong></td>
-                                <td style="padding: 0.45rem;">\( 3.142 \) (Crit: \( 2.492 \))</td>
-                                <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">REJECT</span> — Tail weighting catches the compaction regime</td>
+                                <td style="padding: 0.45rem;">\( 3.142 \) (Crit \( \alpha=0.05 \): \( 2.492 \))</td>
+                                <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">REJECT</span> — Tail weighting catches the compaction stalls</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p><strong>Crucial Caveat:</strong> Even Anderson-Darling is not a silver bullet. If only \( 1 \) or \( 2 \) isolated outliers occur in \( 1,000 \) requests, their individual sample weights are too small to push \( A^2 \) over the threshold. That is why numerical tests must be paired with Q-Q visual diagnostics and proper sample sizing.</p>
+                <p><strong>Reality Check on AD:</strong> Even Anderson-Darling is not magic. If only \( 1 \) or \( 2 \) isolated requests stall in a \( 1,000 \)-trace sample, their weight isn't enough to push \( A^2 \) across \( 2.492 \). Conversely, if you feed \( n = 1,000,000 \) traces into AD, it will reject your model over a meaningless \( 0.3\text{ ms} \) serialization jitter. Always pair numerical tests with Q-Q plots and horizontal millisecond error checks.</p>
             </div>
 
             <h3>1.3 Visual Diagnosis First: Quantile-Quantile (Q-Q) Plots</h3>
 
-            <p>Before trusting any single scalar test statistic, plot a <strong>Quantile-Quantile (Q-Q) graph</strong>. A Q-Q plot places <strong>Theoretical Latency Quantiles</strong> on the horizontal X-axis against <strong>Actual Production Latency Quantiles</strong> on the vertical Y-axis:</p>
+            <p>Before trusting any \( p \)-value, plot a <strong>Quantile-Quantile (Q-Q) graph</strong>. Sort your \( n \) production latencies \( X_{(1)} \le \dots \le X_{(n)} \) on the vertical Y-axis against the theoretical latencies \( F^{-1}(p_i) \) (using plotting positions \( p_i = \frac{i - 0.5}{n} \)) on the horizontal X-axis:</p>
 
             <ul>
-                <li><strong>Points hugging the \( 45^\circ \) diagonal line:</strong> Your theoretical distribution matches production reality across those percentiles.</li>
-                <li><strong>Points bending sharply upward on the right:</strong> Actual upper-tail latencies are much heavier than your model predicts (e.g., cold Iceberg object-storage scans stalling way beyond warm cache hits).</li>
-                <li><strong>Points bending downward on the right:</strong> Actual tail latencies are lighter/shorter than predicted (often caused by hard timeout truncation).</li>
-                <li><strong>Multiple distinct bends or kinks:</strong> Clear visual proof of a <strong>mixture population</strong>—multiple execution paths (cache hit vs. disk scan vs. compaction stall) combined into one metric stream (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>).</li>
+                <li><strong>Points hug the \( 45^\circ \) line (\( y = x \)):</strong> Your model accurately predicts production reality across those percentiles.</li>
+                <li><strong>Right tail bends sharply upward above the line:</strong> Production tail latencies are heavier than your model predicts (e.g., cold Parquet scans or GC pauses kicking in above \( P_{98} \)).</li>
+                <li><strong>Right tail flattens horizontally into a ceiling:</strong> Hard timeout clipping (e.g., requests killed at \( 30,000\text{ ms} \)).</li>
+                <li><strong>Distinct knee or S-curve kink:</strong> Proof that your metric stream is a <strong>mixture distribution</strong> (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>)—you are lumping warm cache hits and cold storage scans into a single curve instead of stratifying them.</li>
             </ul>
 
-            <h3>1.4 Why Sample Size & Parametric Bootstrap Matter</h3>
+            <h3>1.4 Sample Sizing, Parametric Bootstrap, and Beyond Point Estimates</h3>
 
             <div class="math-explanation">
-                <strong>Three Operational Foundations for Tail Validation:</strong>
+                <strong>Two Operational Rules Before You Trust a Tail Fit:</strong>
                 <ul>
-                    <li><strong>1. Why Sample Size Matters for \( P_{99.9} \):</strong> At \( P_{99.9} \) (\( q = 0.999 \)), only \( 1 - q = 0.001 \) (\( 0.1\% \)) of requests exceed the threshold. If you collect \( n = 1,000 \) requests, you expect on average only \( 1000 \times 0.001 = 1 \) observation beyond \( P_{99.9} \)—and basic probability (\( 0.999^{1000} \approx 36.8\% \)) means <strong>there is a \( 36.8\% \) chance you will observe zero requests beyond the true \( P_{99.9} \)!</strong> The relative standard error (RSE) of the tail count is:
-                        \[ \text{RSE} \approx \frac{1}{\sqrt{n(1 - q)}} \]
-                        <div class="table-wrap" style="margin: 0.5rem 0; overflow-x: auto;">
-                            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
-                                <thead>
-                                    <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                        <th style="padding: 0.35rem;">Sample Size (\( n \))</th>
-                                        <th style="padding: 0.35rem;">Expected Exceedances (\( > P_{99.9} \))</th>
-                                        <th style="padding: 0.35rem;">Relative Standard Error (RSE)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                        <td style="padding: 0.35rem;">\( 1,000 \)</td>
-                                        <td style="padding: 0.35rem;">\( 1 \)</td>
-                                        <td style="padding: 0.35rem;">\( 100.0\% \) (Unusable)</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                        <td style="padding: 0.35rem;">\( 10,000 \)</td>
-                                        <td style="padding: 0.35rem;">\( 10 \)</td>
-                                        <td style="padding: 0.35rem;">\( 31.6\% \)</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                        <td style="padding: 0.35rem;">\( 25,000 \)</td>
-                                        <td style="padding: 0.35rem;">\( 25 \)</td>
-                                        <td style="padding: 0.35rem;">\( 20.0\% \) (Minimum Recommended)</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                        <td style="padding: 0.35rem;">\( 50,000 \)</td>
-                                        <td style="padding: 0.35rem;">\( 50 \)</td>
-                                        <td style="padding: 0.35rem;">\( 14.1\% \)</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 0.35rem;">\( 100,000 \)</td>
-                                        <td style="padding: 0.35rem;">\( 100 \)</td>
-                                        <td style="padding: 0.35rem;">\( 10.0\% \) (High Confidence)</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <li><strong>1. Sample Size Rule for \( P_{99.9} \):</strong> At \( P_{99.9} \) (\( q = 0.999 \)), only \( 0.1\% \) of traffic exceeds the threshold. If you grab \( n = 1,000 \) traces, you expect only \( 1 \) trace above \( P_{99.9} \), and basic probability (\( 0.999^{1000} \approx 36.8\% \)) says <strong>there is a \( 36.8\% \) chance your sample contains zero requests above the true \( P_{99.9} \)!</strong> Because the relative standard error of the exceedance count is \( \text{RSE} = \sqrt{\frac{q}{n(1-q)}} \approx \frac{1}{\sqrt{n(1-q)}} \), achieving a bare-minimum \( 20\% \) RSE (at least \( 25 \) tail events) requires:
+                        \[ n \ge \frac{25}{1 - q} \implies \text{At } P_{99}: n \ge 2,500 \quad \big| \quad \text{At } P_{99.9}: n \ge 25,000 \text{ independent traces} \]
                     </li>
-                    <li><strong>2. Parametric Bootstrap (When You Fit Parameters from Data):</strong> Standard textbook critical values (\( D_{\text{crit}} = 0.0429, A^2_{\text{crit}} = 2.492 \)) assume your model parameters were fixed <em>before</em> looking at the data. If you estimate \( \hat{\theta} = (\hat{\mu}, \hat{\sigma}) \) directly from production traces, the fitted curve is pulled toward your sample. Instead of trusting textbook tables, run a <strong>Parametric Bootstrap</strong>:
+                    <li><strong>2. The Parameter-Fitting Trap (Parametric Bootstrap):</strong> Standard critical values (\( D_{\text{crit}} = \frac{1.358}{\sqrt{n}} \) and \( A^2_{\text{crit}} = 2.492 \)) strictly assume a <em>fully specified</em> null model—meaning you fixed \( \mu_0 \) and \( \sigma_0 \) from last month's baseline or an SLA contract <em>before</em> looking at today's sample. If you estimate \( (\hat{\mu}, \hat{\sigma}) \) from today's sample and test against that same sample (the composite-null / Lilliefors setting), the fitted curve hugs the data's quirks and shrinks \( D_n \) and \( A^2 \), causing false passes. To get an honest threshold when fitting parameters from data, run a 4-step <strong>Parametric Bootstrap</strong>:
                         <ol style="margin-top:0.35rem; margin-bottom:0.35rem;">
-                            <li>Fit the Lognormal parameters \( \hat{\theta} = (\hat{\mu}, \hat{\sigma}) \) to your production data and record the observed statistic (e.g., \( A^2_{\text{obs}} = 3.1 \)).</li>
-                            <li>Generate a synthetic dataset of size \( n \) from that fitted \( \text{Lognormal}(\hat{\mu}, \hat{\sigma}) \).</li>
-                            <li><strong>Crucial step:</strong> Re-fit the parameters \( (\hat{\mu}^*, \hat{\sigma}^*) \) on the synthetic dataset and calculate its synthetic \( A^{2*} \).</li>
-                            <li>Repeat \( 2,000 \) times. If only \( 10 \) out of \( 2,000 \) synthetic runs produce an \( A^{2*} \ge 3.1 \), your calibrated \( p \)-value is \( p \approx \frac{10}{2000} = 0.005 \), proving the mismatch is genuine.</li>
+                            <li>Fit \( \hat{\theta} = (\hat{\mu}, \hat{\sigma}) \) to your production sample of size \( n \) and compute \( A^2_{\text{obs}} \).</li>
+                            <li>Simulate \( B = 2,000 \) synthetic datasets of size \( n \) drawn from \( \text{Lognormal}(\hat{\mu}, \hat{\sigma}) \).</li>
+                            <li><strong>Re-fit</strong> \( (\hat{\mu}^*_b, \hat{\sigma}^*_b) \) on each synthetic dataset and compute its synthetic statistic \( A^{2*}_b \).</li>
+                            <li>Reject the model if \( A^2_{\text{obs}} \) exceeds the \( 95\text{th} \) percentile of your synthetic \( A^{2*}_b \) values.</li>
                         </ol>
                     </li>
-                    <li><strong>3. Architectural Takeaway:</strong> Use <strong>KS</strong> for broad central-distribution screening, <strong>AD</strong> for amplified tail sensitivity, <strong>Q-Q plots</strong> for visual diagnosis of mixture regimes, and <strong>horizontal quantile error</strong> (in milliseconds) for actual engineering capacity decisions.</li>
                 </ul>
             </div>
+
+            <p>When our Multi-Tenant Analytics Gateway outgrows single-distribution fits—such as when we need to propagate parameter uncertainty across coupled mixture weights, noisy diurnal arrival rates, and state-dependent queueing transitions simultaneously—we step beyond point-estimate bootstrapping into <strong>Monte Carlo simulation</strong> and <strong>Markov Chain Monte Carlo (MCMC)</strong>. While forward Monte Carlo pushes synthetic random draws through a fixed system model (like our interactive simulators below and the parametric bootstrap above) to map out tail risk, MCMC flips the problem around: given noisy, right-censored production traces, it constructs a Markov chain that explores the joint probability landscape of all unknown system parameters at once, yielding full posterior uncertainty bounds for capacity planning rather than a single fragile best-fit curve. We will dedicate an entire upcoming system-engineering deep dive to building practical Monte Carlo and MCMC inference engines for production architectures.</p>
 
             <h3>Interactive Simulation: ECDF vs. Theoretical CDF (KS & AD Diagnostics)</h3>
 
@@ -546,217 +489,113 @@
             <h2>2. Stationarity, Residual Diagnostics, and Calibrated CUSUM Drift Detection</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: What If Our System Gradually Changes Over Time?</div>
+                <div class="tldr-eyebrow">The Intuition: Boiling Frogs and Silent Regressions</div>
                 <div class="tldr-content">
-                    <p>Section 1 assumed our system's behavior is stable over the observation window. But what if a service looks steady on Monday morning (\( 50\text{ ms}, 52\text{ ms}, 49\text{ ms}, 51\text{ ms} \)), yet drifts upward day by day across the week (Monday \( 50\text{ ms} \to \) Tuesday \( 52\text{ ms} \to \) Wednesday \( 55\text{ ms} \to \) Thursday \( 60\text{ ms} \to \) Friday \( 70\text{ ms} \)) due to a slow memory leak, connection-pool saturation, cache degradation, or an inefficient canary deployment?</p>
-                    <p>Traditional static alerts (e.g., "Page when latency exceeds \( 80\text{ ms} \)") only look at one data point at a time. If a deployment shifts average latency from \( 50\text{ ms} \) to \( 58\text{ ms} \), the service can run degraded for days without crossing an \( 80\text{ ms} \) line. By subtracting expected traffic patterns to isolate <strong>residuals</strong> and feeding them into <strong>Page's CUSUM</strong>, we accumulate small deviations across multiple measurements to catch gradual drift early.</p>
+                    <p>Goodness-of-fit tests assume our gateway's behavior stays stable over the observation window. In production, systems drift: an Arrow buffer leak, gradual connection-pool fragmentation, or a slightly suboptimal canary build might push baseline query latency up from \( 50\text{ ms} \) to \( 58\text{ ms} \) (\(+0.8\sigma_0\)).</p>
+                    <p>A static PagerDuty threshold (say, "Alert if latency \( > 80\text{ ms} \)") evaluates each minute in complete isolation—it has zero memory. A \( 58\text{ ms} \) regression will sail right under an \( 80\text{ ms} \) ceiling for weeks until peak Monday traffic pushes the degraded cluster over a queueing cliff. By subtracting expected diurnal traffic swings to isolate <strong>residuals</strong> and feeding them into <strong>Page's CUSUM</strong>, we accumulate tiny bits of evidence minute by minute to catch silent regressions within 10 minutes.</p>
                 </div>
             </div>
 
-            <h3>2.1 Stationarity, Expected Baselines, and Residuals</h3>
+            <h3>2.1 Stationarity and Stripping Out Diurnal Traffic Swings (Residuals)</h3>
 
-            <p>When we fit a probability distribution or set an alert threshold, we assume <strong>stationarity</strong>—meaning the statistical rules governing the system remain stable over time. In mathematical systems engineering, we distinguish between two levels of stationarity:</p>
-            <ul>
-                <li><strong>Strict Stationarity:</strong> The entire probability distribution (including all tail shapes and joint distributions) remains completely unchanged as time shifts forward.</li>
-                <li><strong>Weak (Wide-Sense) Stationarity:</strong> The mean and variance remain constant over time, and the correlation between any two measurements depends only on the time lag \( \tau \) separating them, not on the time of day.</li>
-            </ul>
+            <p>Every statistical model or alert threshold assumes <strong>stationarity</strong>—that the underlying rules generating your latencies aren't shifting underneath your feet. In practice, raw gateway latency is never stationary because enterprise tenants hammer the cluster at 10:00 AM and go home at 6:00 PM. Seeing \( 64\text{ ms} \) at noon might look fine on a raw chart, even if traffic dropped and latency <em>should</em> have fallen to \( 55\text{ ms} \).</p>
 
-            <p>In real production systems, raw metrics are rarely stationary because traffic rises during business hours. Observing \( 100\text{ ms} \) latency during peak load might be completely healthy, whereas \( 100\text{ ms} \) at 3 AM when expected latency is \( 50\text{ ms} \) indicates a severe regression. To remove predictable workload swings, we subtract the expected baseline latency \( \hat{\mu}_t \) from the actual observed latency \( x_t \) to calculate the <strong>residual</strong> \( e_t \):</p>
+            <p>To test the system rather than the time of day, we subtract the expected workload baseline \( \hat{\mu}_t \) (predicted from historical QPS or time-of-day regression) from the observed latency \( x_t \) to isolate the <strong>residual</strong> \( e_t \), and divide by the baseline standard deviation \( \sigma_0 \) to get a dimensionless <strong>standardized residual</strong> \( z_t \):</p>
 
             <div class="equation-flow">
-                \[ e_t = x_t - \hat{\mu}_t \]
+                \[ e_t = x_t - \hat{\mu}_t, \qquad z_t = \frac{x_t - \hat{\mu}_t}{\sigma_0} \]
             </div>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.92rem;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                            <th style="padding: 0.5rem;">Time</th>
+                            <th style="padding: 0.5rem;">Time Window</th>
                             <th style="padding: 0.5rem;">Expected Baseline (\( \hat{\mu}_t \))</th>
-                            <th style="padding: 0.5rem;">Actual Latency (\( x_t \))</th>
-                            <th style="padding: 0.5rem;">Residual (\( e_t = x_t - \hat{\mu}_t \))</th>
+                            <th style="padding: 0.5rem;">Observed Latency (\( x_t \))</th>
+                            <th style="padding: 0.5rem;">Residual (\( e_t \)) & Standardized (\( z_t \), \(\sigma_0=10\text{ ms}\))</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;">9:00 AM</td>
+                            <td style="padding: 0.5rem;">09:00 AM (Ramp-up)</td>
                             <td style="padding: 0.5rem;">\( 50\text{ ms} \)</td>
                             <td style="padding: 0.5rem;">\( 51\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;">\( +1\text{ ms} \) (Normal jitter)</td>
+                            <td style="padding: 0.5rem;">\( +1\text{ ms} \) (\( z_t = +0.1 \)) — Normal healthy noise</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;">10:00 AM</td>
-                            <td style="padding: 0.5rem;">\( 55\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;">\( 56\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;">\( +1\text{ ms} \) (Normal jitter)</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;">11:00 AM</td>
+                            <td style="padding: 0.5rem;">11:00 AM (Peak QPS)</td>
                             <td style="padding: 0.5rem;">\( 60\text{ ms} \)</td>
                             <td style="padding: 0.5rem;">\( 65\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;"><strong>\( +5\text{ ms} \) (Drift starting)</strong></td>
+                            <td style="padding: 0.5rem;"><strong>\( +5\text{ ms} \) (\( z_t = +0.5 \)) — Canary regression starts</strong></td>
                         </tr>
                         <tr>
-                            <td style="padding: 0.5rem;">12:00 PM</td>
+                            <td style="padding: 0.5rem;">12:00 PM (Lunch lull)</td>
                             <td style="padding: 0.5rem;">\( 55\text{ ms} \)</td>
                             <td style="padding: 0.5rem;">\( 64\text{ ms} \)</td>
-                            <td style="padding: 0.5rem;"><strong>\( +9\text{ ms} \) (Clear divergence)</strong></td>
+                            <td style="padding: 0.5rem;"><strong>\( +9\text{ ms} \) (\( z_t = +0.9 \)) — Raw \( x_t \) fell, but drift worsened!</strong></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p>Notice what happens at 12:00 PM: raw latency actually <em>dropped</em> from \( 65\text{ ms} \) to \( 64\text{ ms} \) as noon traffic eased, which would fool a naive dashboard! Yet the residual jumped from \( +5\text{ ms} \) to \( +9\text{ ms} \), exposing behaviour that cannot be explained by the workload pattern.</p>
+            <h3>2.2 Autocorrelation (ACF): Does Your Gateway Have Memory or Heartbeats?</h3>
 
-            <h3>2.2 Autocorrelation Function (ACF): Detecting Memory & Periodic Heartbeats</h3>
-
-            <p>Imagine observing five consecutive 1-minute CPU utilization measurements: \( 50\%, 52\%, 54\%, 56\%, 58\% \). When utilization is high in minute 1, it remains high in minute 2. These observations are not independent—they are correlated over time. The <strong>Autocorrelation Function (ACF)</strong> measures the correlation between residuals separated by a time lag of \( \tau \) steps:</p>
+            <p>Once you have residuals \( e_t \), check whether an error in minute \( t \) leaks into minute \( t + \tau \). The <strong>Autocorrelation Function (ACF)</strong> measures how strongly residuals separated by \( \tau \) steps move together:</p>
 
             <div class="equation-flow">
-                \[ \rho(\tau) = \text{Corr}\left(e_t, \, e_{t+\tau}\right) \]
+                \[ \hat{\rho}(\tau) = \frac{\sum_{t=1}^{n-\tau} (e_t - \bar{e})(e_{t+\tau} - \bar{e})}{\sum_{t=1}^{n} (e_t - \bar{e})^2} \]
             </div>
 
-            <p>Where Lag \( \tau = 1 \) compares each minute with the previous minute, Lag \( \tau = 5 \) compares with 5 minutes earlier, and Lag \( \tau = 15 \) compares with 15 minutes earlier. Inspecting the ACF gives an architect three immediate physical diagnostics:</p>
+            <p>Plotting \( \hat{\rho}(\tau) \) across lags \( \tau = 1 \dots 20 \) minutes immediately diagnoses two classic infrastructure headaches:</p>
             <ul>
-                <li><strong>Situation A — A Sharp Spike at Lag 15 (\(\tau = 15\text{ min}\)):</strong> Strong correlation recurring every 15 minutes points to a deterministic background mechanism—such as scheduled Iceberg manifest compaction, JVM garbage collection cycles, periodic cache refreshes, or reconciliation cron jobs.</li>
-                <li><strong>Situation B — Positive Correlation Decaying Slowly Across Lags 1 to 5:</strong> Indicates persistent system memory—such as an un-drained queue backlog (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>), connection-pool pressure, resource contention, or slow recovery after traffic bursts.</li>
-                <li><strong>Situation C — No Meaningful Autocorrelation Across Lags:</strong> The residuals behave as uncorrelated white noise (though zero linear correlation does not automatically prove complete statistical independence).</li>
+                <li><strong>Sharp Spike at a Fixed Lag (e.g., \( \tau = 15\text{ min} \)):</strong> You have a deterministic cron heartbeat—such as scheduled Iceberg manifest compaction, tenant metadata syncs, or key-rotation jobs firing across all nodes in lockstep every 15 minutes.</li>
+                <li><strong>Sticky Positive Decay Across Lags \( 1 \to 5 \):</strong> Your gateway has physical queue memory (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>). When a burst hits in minute 1, un-drained DuckDB worker queues or exhausted connection pools carry that latency penalty forward into minutes 2, 3, and 4.</li>
             </ul>
 
             <div class="math-explanation">
-                <strong>Why Independence Matters: Effective Sample Size (\( n_{\text{eff}} \))</strong>
-                <p style="margin-top: 0.4rem;">When consecutive observations are positively correlated, \( 1,000 \) measurements do not contain \( 1,000 \) independent pieces of information. For estimating the <strong>sample mean</strong>, the effective number of independent observations shrinks to:</p>
+                <strong>The Autocorrelation Trap: Effective Sample Size (\( n_{\text{eff}} \))</strong>
+                <p style="margin-top: 0.4rem;">When residuals are positively correlated across consecutive minutes, \( 1,000 \) data points do not give you \( 1,000 \) independent pieces of evidence. For estimating the <strong>sample mean</strong>, positive serial correlation shrinks your effective sample size to:</p>
                 <div class="equation-flow">
-                    \[ n_{\text{eff}} = \frac{n}{1 + 2\sum_{\tau=1}^{\infty} \rho(\tau)} \]
+                    \[ n_{\text{eff}} \approx \frac{n}{1 + 2\sum_{\tau=1}^{K} \hat{\rho}(\tau)} \]
                 </div>
-                <p>If strong serial correlation reduces \( n = 1,000 \) actual measurements to \( n_{\text{eff}} = 200 \), your sample mean has the wide uncertainty of a \( 200 \)-point sample. <strong>Crucial Warning:</strong> This \( n_{\text{eff}} \) formula applies strictly to sample-mean inference. Never blindly substitute \( n_{\text{eff}} \) into KS, Anderson-Darling, or CUSUM threshold formulas—if residuals are serially correlated, calibrate your detector thresholds via block bootstrap or Monte Carlo simulation over historical logs.</p>
+                <p><strong>Crucial Engineering Guardrail:</strong> That \( n_{\text{eff}} \) formula applies <em>strictly to the variance of the sample mean</em>. Never plug \( n_{\text{eff}} \) directly into KS, Anderson-Darling, or CUSUM equations! Positive serial correlation makes CUSUM accumulate consecutive noisy readings much faster than independent white noise, causing false-alarm storms. If your residuals show sticky lag-1 correlation, either aggregate into wider time buckets (e.g., 5-minute windows) or calibrate your alert threshold \( h \) via block bootstrap on historical logs.</p>
             </div>
 
-            <h3>2.3 EWMA vs. Page's CUSUM: Smoothing vs. Accumulating Evidence</h3>
+            <h3>2.3 Page's CUSUM: Catching a \( +0.8\sigma_0 \) Canary Regression in 10 Minutes</h3>
 
-            <p>Suppose our gateway's healthy baseline latency is \( \mu_0 = 50\text{ ms} \) with standard deviation \( \sigma_0 = 10\text{ ms} \). A new deployment introduces an inefficient query path that shifts average latency to \( \mu_1 = 58\text{ ms} \) (a \( +8\text{ ms} \) regression). How do monitoring algorithms respond?</p>
+            <p>Suppose our gateway's healthy residual baseline has mean \( \mu_0 = 50\text{ ms} \) and standard deviation \( \sigma_0 = 10\text{ ms} \). A canary deployment introduces a subtle lock contention that shifts mean latency to \( \mu_1 = 58\text{ ms} \)—a shift of \( \delta = \frac{58 - 50}{10} = +0.8 \) standard deviations. A \( 3\sigma_0 \) static alert sits at \( 80\text{ ms} \) and will never fire. An Exponentially Weighted Moving Average (\( Z_t = \lambda x_t + (1-\lambda)Z_{t-1} \)) is great for smoothing dashboard lines, but because it continually blends new data with history, it reacts sluggishly to small step changes.</p>
 
-            <p><strong>1. EWMA (Exponentially Weighted Moving Average):</strong> EWMA smooths noisy series by blending the newest reading \( x_t \) with the previous smoothed value \( Z_{t-1} \):</p>
+            <p><strong>Page's Upper CUSUM (\( S_t^+ \))</strong> solves this by acting like a leaky bucket that accumulates evidence above a reference slack \( k \):</p>
 
             <div class="equation-flow">
-                \[ Z_t = \lambda x_t + (1 - \lambda)Z_{t-1} \]
+                \[ S_t^+ = \max\!\left(0, \; S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0, \quad \text{Trigger Alert when } S_t^+ > h \]
             </div>
 
-            <p>If \( \lambda = 0.2 \), the previous EWMA is \( Z_{t-1} = 50\text{ ms} \), and a new measurement arrives at \( x_t = 60\text{ ms} \), the smoothed value updates to \( Z_t = 0.2(60) + 0.8(50) = 52\text{ ms} \). EWMA is an excellent visual trend indicator for dashboards, but because it continually averages recent readings with history, it reacts sluggishly to small step changes.</p>
+            <p>To tune CUSUM optimally (derived from sequential log-likelihood ratios for a shift of size \( \delta \)), we set the <strong>reference slack to half the target shift: \( k = \frac{\delta}{2} \)</strong>:</p>
+            <ul>
+                <li><strong>Target Shift (\( \delta = 0.8 \)):</strong> The \( +0.8\sigma_0 \) (\( +8\text{ ms} \)) regression we want our canary gate to catch.</li>
+                <li><strong>Reference Slack (\( k = \frac{\delta}{2} = 0.4 \)):</strong> The constant drain on the bucket every step. When the system is healthy (\( \mathbb{E}[z_t] = 0 \)), each step adds \( 0 - 0.4 = -0.4 \) on average, keeping \( S_t^+ \) clamped firmly at \( 0 \). When the \( \delta = 0.8 \) regression hits, each step adds a net positive drift of \( \Delta = \delta - k = 0.8 - 0.4 = +0.4 \) into the bucket!</li>
+                <li><strong>Decision Threshold (\( h = 4.0 \)):</strong> The bucket capacity required to fire an alert and halt the canary rollout.</li>
+            </ul>
 
-            <p><strong>2. Page's CUSUM (Cumulative Sum Control Chart):</strong> Instead of smoothing, CUSUM <strong>accumulates small deviations over time</strong>. First, we standardize each observation into a dimensionless Z-score \( z_t \) (measuring how many standard deviations \( x_t \) sits above the baseline \( \mu_0 \)):</p>
+            <p>At a steady \( 58\text{ ms} \) (\( z_t = 0.8 \)), adding \( +0.4 \) per minute pushes \( S_t^+ \) from \( 0 \to 0.4 \to 0.8 \dots \to 4.0 \) in just <strong>10 minutes</strong>—catching a regression that a static \( 80\text{ ms} \) threshold would miss forever.</p>
 
-            <div class="equation-flow">
-                \[ z_t = \frac{x_t - \mu_0}{\sigma_0} \implies \text{For } x_t = 58\text{ ms}: \quad z_t = \frac{58 - 50}{10} = +0.8 \]
-            </div>
-
-            <p>Next, we feed \( z_t \) into the upper CUSUM accumulator \( S_t^+ \):</p>
-
-            <div class="equation-flow">
-                \[ S_t^+ = \max\left(0, \, S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0, \quad \text{Raise alert when } S_t^+ > h \]
-            </div>
-
-            <p>Here is what the three tuning parameters mean in plain engineering terms:</p>
-
-            <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.92rem;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                            <th style="padding: 0.5rem;">Parameter</th>
-                            <th style="padding: 0.5rem;">Formula / Value</th>
-                            <th style="padding: 0.5rem;">Simple Engineering Meaning</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;"><strong>Target Shift (\( \delta \))</strong></td>
-                            <td style="padding: 0.5rem;">\( \delta = \frac{\Delta\mu}{\sigma_0} = \frac{58 - 50}{10} = 0.8 \)</td>
-                            <td style="padding: 0.5rem;">The size of the shift we want to detect, measured in standard deviations.</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.5rem;"><strong>Reference Slack (\( k \))</strong></td>
-                            <td style="padding: 0.5rem;">\( k = \frac{\delta}{2} = 0.4 \)</td>
-                            <td style="padding: 0.5rem;">The amount of deviation we tolerate (drain away) at each step before accumulating evidence.</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 0.5rem;"><strong>Alert Threshold (\( h \))</strong></td>
-                            <td style="padding: 0.5rem;">\( h = 4.0 \)</td>
-                            <td style="padding: 0.5rem;">How much accumulated evidence is required before triggering an alert.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p>Look at what happens when our canary deployment consistently produces \( 58\text{ ms} \) latencies (\( z_t = 0.8 \)) with slack \( k = 0.4 \) and threshold \( h = 4.0 \). Even though \( 58\text{ ms} \) never comes close to a traditional \( 80\text{ ms} \) static alert line, every single step adds \( z_t - k = 0.8 - 0.4 = +0.4 \) to the CUSUM bucket:</p>
-
-            <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: center;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid var(--border, #334155);">
-                            <th style="padding: 0.4rem;">Step (\( t \))</th>
-                            <th style="padding: 0.4rem;">1</th>
-                            <th style="padding: 0.4rem;">2</th>
-                            <th style="padding: 0.4rem;">3</th>
-                            <th style="padding: 0.4rem;">4</th>
-                            <th style="padding: 0.4rem;">5</th>
-                            <th style="padding: 0.4rem;">6</th>
-                            <th style="padding: 0.4rem;">7</th>
-                            <th style="padding: 0.4rem;">8</th>
-                            <th style="padding: 0.4rem;">9</th>
-                            <th style="padding: 0.4rem;">10</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.4rem; text-align: left;"><strong>Standardized \( z_t \)</strong></td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 0.4rem; text-align: left;"><strong>CUSUM (\( S_t^+ \))</strong></td>
-                            <td style="padding: 0.4rem;">0.4</td>
-                            <td style="padding: 0.4rem;">0.8</td>
-                            <td style="padding: 0.4rem;">1.2</td>
-                            <td style="padding: 0.4rem;">1.6</td>
-                            <td style="padding: 0.4rem;">2.0</td>
-                            <td style="padding: 0.4rem;">2.4</td>
-                            <td style="padding: 0.4rem;">2.8</td>
-                            <td style="padding: 0.4rem;">3.2</td>
-                            <td style="padding: 0.4rem;">3.6</td>
-                            <td style="padding: 0.4rem;"><strong>4.0 (Alert!)</strong></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p>That is the core architectural advantage of CUSUM: <strong>a traditional threshold alert looks at a single measurement in isolation; CUSUM accumulates evidence across multiple measurements</strong>, making it ideal for canary gates, gradual latency regressions, slowly deteriorating throughput, and cache degradation.</p>
-
-            <h3>2.4 Average Run Length (\(\text{ARL}_0\) vs. \(\text{ARL}_1\)) & Operational Trade-Offs</h3>
-
-            <p>When deploying CUSUM to production, we must balance two competing operational questions:</p>
-            <ol>
-                <li><strong>\(\text{ARL}_0\) (In-Control Average Run Length):</strong> When the system is completely healthy (\(\delta = 0\)), how many observations pass on average before random noise triggers a <em>false alarm</em>?</li>
-                <li><strong>\(\text{ARL}_1\) (Out-of-Control Average Run Length):</strong> Once a real shift of size \(\delta\) occurs, how many observations does it take on average to <em>detect the problem</em>?</li>
-            </ol>
+            <h3>2.4 Tuning False Alarms (\(\text{ARL}_0\)) vs. Detection Delay (\(\text{ARL}_1\))</h3>
 
             <div class="math-explanation">
-                <strong>Balancing Detection Speed Against False Alarms (Siegmund's Approximation):</strong>
-                <p style="margin-top: 0.4rem;">For independent Gaussian observations with net upward drift \( \Delta = \delta - k \) and boundary overshoot correction \( b = h + 1.166 \), Siegmund's diffusion approximation estimates the expected run length as \( \text{ARL}(\Delta) \approx \frac{e^{-2\Delta b} + 2\Delta b - 1}{2\Delta^2} \). Increasing the threshold \( h \) reduces false alarms (raises \(\text{ARL}_0\)), but increases detection delay (raises \(\text{ARL}_1\)):</p>
+                <strong>Siegmund's Approximation & Three Operational Rules for CUSUM:</strong>
+                <p style="margin-top: 0.4rem;">In production, random noise bounces \( z_t \) around its mean. We evaluate a CUSUM gate by its <strong>Average Run Length (ARL)</strong>: <strong>\(\text{ARL}_0\)</strong> is the average number of steps before a healthy system (\(\delta = 0\)) suffers a false alarm, while <strong>\(\text{ARL}_1\)</strong> is the average number of steps required to catch a real shift (\(\delta > k\)). Using Siegmund's boundary-corrected diffusion formula with \( b = h + 1.166 \) and net drift \( \Delta = \delta - k \neq 0 \):</p>
+                <div class="equation-flow">
+                    \[ \text{ARL}(\Delta) \approx \frac{e^{-2\Delta b} + 2\Delta b - 1}{2\Delta^2} \quad \left(\text{and } \text{ARL}(0) \approx b^2 \text{ when } \Delta = 0\right) \]
+                </div>
                 <div class="table-wrap" style="margin: 0.6rem 0; overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
                         <thead>
                             <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                <th style="padding: 0.4rem;">Configuration (\( 1\text{-min} \) sampling)</th>
-                                <th style="padding: 0.4rem;">Expected False-Alarm Interval (\(\text{ARL}_0\))</th>
-                                <th style="padding: 0.4rem;">Expected Detection Delay (\(\text{ARL}_1\))</th>
+                                <th style="padding: 0.4rem;">Gateway Gate Profile (\( 1\text{-min} \) ticks)</th>
+                                <th style="padding: 0.4rem;">False-Alarm Interval (\(\text{ARL}_0\) at \(\delta=0\))</th>
+                                <th style="padding: 0.4rem;">Expected Detection Delay (\(\text{ARL}_1\) at target \(\delta\))</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -778,11 +617,9 @@
                         </tbody>
                     </table>
                 </div>
-                <p><strong>Three Essential Engineering Caveats:</strong></p>
                 <ul>
-                    <li><strong>1. Optimality Assumptions:</strong> CUSUM's theoretical optimality and the \(\text{ARL}\) numbers above assume independent Gaussian observations and a known step shift. Heavy tails or serial autocorrelation will shorten \(\text{ARL}_0\) and increase false alarms unless calibrated on historical residuals.</li>
-                    <li><strong>2. When Shift \(\delta \le k\) (Below the Slack Floor):</strong> Positive drift accumulation requires the shift to exceed the reference slack (\(\delta > k\)). If \(\delta \le k\), net drift \(\Delta = \delta - k \le 0\) is non-positive—meaning the bucket drains faster than it fills, and the resulting value is an in-control/sub-slack false-alarm run length, <em>not</em> a meaningful out-of-control detection delay \(\text{ARL}_1\).</li>
-                    <li><strong>3. Single Trajectory vs. Expected Value Across Repeated Runs:</strong> A single random trajectory in a simulator cannot prove detector reliability on its own—random noise in one run might trigger an alert in \( 5 \) steps or \( 16 \) steps. Theoretical \(\text{ARL}_1\) (\( 9.84\text{ steps} \)) is the <strong>average expectation across hundreds of repeated Monte Carlo trials</strong>, not a guaranteed deterministic timer for a single deployment.</li>
+                    <li><strong>1. What Happens When \(\delta \le k\) (Shift Below the Slack Floor):</strong> Systematic upward accumulation only occurs when the shift exceeds the slack (\(\delta > k \implies \Delta > 0\)). If \(\delta \le k\), net drift \(\Delta = \delta - k \le 0\) is zero or negative—meaning the bucket drains faster than the shift fills it. In that regime, Siegmund's formula outputs an <em>in-control or sub-slack false-alarm interval</em> (\(\text{ARL}_0\)), not an out-of-control detection delay (\(\text{ARL}_1\)).</li>
+                    <li><strong>2. One Trajectory vs. Multi-Trial Expectation:</strong> Clicking <strong>▶ Generate Series</strong> in Simulator 2 below runs a single random path. Depending on random Gaussian draws, one path might cross \( h = 4.0 \) in \( 5 \) steps while the next takes \( 15 \) steps. Theoretical \(\text{ARL}_1 = 9.84\) is the <strong>ensemble average across thousands of independent rollouts</strong>, not a deterministic stopwatch.</li>
                 </ul>
             </div>
 
@@ -820,76 +657,53 @@
                     <div>Steps (\( T \)): <span class="stat-n">100 (Shift @ t=50)</span></div>
                     <div>Threshold (\( h \)): <span>4.00 (upper-only)</span></div>
                     <div>Peak \( S_t^+ \): <span class="stat-maxs">–</span></div>
-                    <div>Theo Delay (\(\approx \text{ARL}_1\)): <span class="stat-arl1">–</span></div>
+                    <div>Theo Run Length (\(\text{ARL}\)): <span class="stat-arl1">–</span></div>
                     <div>Sim Detection Delay: <span class="stat-delay">–</span></div>
                     <div>Alert Status: <span class="stat-alert" id="cusum_alert">–</span></div>
                 </div>
 
                 <div class="sim-meta-footer">
-                    <p><strong>Assumptions:</strong> Upper-only one-sided detector (\( S_t^+ \)). Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Threshold is fixed at \( h = 4.00 \). Note that theoretical \(\text{ARL}_1\) is only a meaningful out-of-control detection delay when \(\delta > k\) (positive net drift \(\Delta = \delta - k > 0\)).</p>
-                    <p><strong>Engineering Interpretation:</strong> Click <strong>▶ Generate Series</strong> repeatedly at default \( \delta = 0.8, k = 0.4 \). Notice how individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) climbs across \( h = 4.00 \). Because each click draws a new random trajectory, individual detection delays fluctuate around the theoretical multi-trial average (\(\text{ARL}_1 \approx 9.84\text{ steps}\)). If you set \(\delta \le k\) (e.g., \(\delta = 0.3, k = 0.4\)), net drift is negative and the detector cannot systematically accumulate evidence.</p>
+                    <p><strong>Assumptions:</strong> Upper-only one-sided detector (\( S_t^+ \)). Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Threshold is fixed at \( h = 4.00 \). When \(\delta > k\), Theoretical Run Length displays out-of-control detection delay \(\text{ARL}_1\); when \(\delta \le k\), net drift is non-positive (\(\Delta \le 0\)) and it labels the sub-slack/in-control run length.</p>
+                    <p><strong>Engineering Interpretation:</strong> Click <strong>▶ Generate Series</strong> repeatedly at default \( \delta = 0.8, k = 0.4 \). Notice how individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) climbs across \( h = 4.00 \) in roughly \( 6\text{–}14 \) steps (averaging \(\text{ARL}_1 \approx 9.84\text{ steps}\)). Now slide \(\delta\) down to \( 0.3 \) (so \(\delta \le k\)) and watch the accumulator stay pinned near zero.</p>
                 </div>
             </div>
- <!-- ========================================== -->
+
+            <!-- ========================================== -->
             <!-- 3. HYPERGEOMETRIC FLEET AUDITING -->
             <!-- ========================================== -->
             <h2>3. Hypergeometric Reality: Auditing Finite Infrastructure Fleets</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Sampling Without Replacement</div>
+                <div class="tldr-eyebrow">The Intuition: You Don't Audit the Same Node Twice</div>
                 <div class="tldr-content">
-                    <p>Standard Binomial probability assumes you are drawing samples from an infinite ocean—or putting each item back into the pool after inspecting it (<em>sampling with replacement</em>). That works fine when sampling \( 1,000 \) HTTP requests out of \( 50\text{ million} \). But infrastructure fleets, storage shards, and enterprise tenant catalogs are strictly finite.</p>
-                    <p>If you audit \( n = 20 \) worker nodes out of a \( N = 50 \) node cluster, you do not put an inspected node back into the hat to be audited twice. Every healthy or corrupted node you inspect changes the odds for the next draw. Treating finite fleet audits as independent Binomial coin flips artificially inflates your uncertainty bounds and predicts impossible tail defect counts.</p>
+                    <p>Standard Binomial probability assumes you are drawing from an infinite ocean—or tossing each inspected item back into the pool so it can be picked again (<em>sampling with replacement</em>). That is fine when sampling \( 1,000 \) HTTP packets out of \( 50\text{ million} \). It is dead wrong when auditing finite infrastructure.</p>
+                    <p>If our Multi-Tenant Analytics Gateway manages \( N = 50 \) dedicated tenant Iceberg catalogs and a reconciliation job deep-scans \( n = 20 \) distinct catalogs, you sample <strong>without replacement</strong>. Every catalog you verify shrinks the remaining pool and tightens your uncertainty bounds. Using Binomial math on a finite fleet inflates variance by \( +63\% \) and predicts impossible defect counts.</p>
                 </div>
             </div>
 
-            <h3>3.1 Why Inspecting Finite Fleets Changes the Math</h3>
+            <h3>3.1 Exact Hypergeometric Auditing & The Finite Population Correction (FPC)</h3>
 
-            <p>Imagine our Multi-Tenant Analytics Gateway hosts \( N = 50 \) dedicated enterprise tenant Iceberg catalogs. Suppose a faulty schema migration silently corrupts \( K = 5 \) of those catalogs (a \( 10\% \) defect rate, \( p = \frac{5}{50} = 0.10 \)), leaving \( 45 \) healthy catalogs.</p>
+            <p>Suppose our gateway hosts \( N = 50 \) enterprise tenant Iceberg catalogs, and a buggy schema migration silently corrupts \( K = 5 \) of them (a \( 10\% \) defect rate, \( p = \frac{K}{N} = 0.10 \)). Because deep-scanning a catalog's Parquet footers is expensive, our audit script randomly selects \( n = 20 \) distinct catalogs without replacement.</p>
 
-            <p>To verify migration health without locking up all \( 50 \) production catalogs, our reconciliation job picks \( n = 20 \) distinct tenants at random to deep-scan. Look at how the probability shifts as we inspect tenants one by one <strong>without replacement</strong>:</p>
-            <ul>
-                <li><strong>Draw 1:</strong> There are \( 5 \) corrupted tenants out of \( 50 \). The chance of finding a corrupted catalog on the first check is \( \frac{5}{50} = 10.0\% \).</li>
-                <li><strong>Draw 2 (if Draw 1 was corrupted):</strong> Only \( 4 \) corrupted tenants remain among the \( 49 \) uninspected catalogs. The chance of finding a second corrupted catalog drops to \( \frac{4}{49} \approx 8.16\% \).</li>
-                <li><strong>Draw 6 (if the first 5 draws were all corrupted):</strong> All \( 5 \) defective catalogs in the entire company have already been found! The chance of finding a 6th corrupted catalog is strictly <strong>\( \frac{0}{45} = 0\% \)</strong>.</li>
-            </ul>
-
-            <p>A naive Binomial model assumes the defect probability stays locked at \( 10.0\% \) forever—even predicting a non-zero chance of finding \( 6, 7, \) or \( 20 \) corrupted tenants when only \( 5 \) exist in the entire cluster! The true probability of finding exactly \( k \) defective units when sampling \( n \) items from a finite fleet of \( N \) units (containing \( K \) total defects) follows the <strong>Hypergeometric Distribution</strong>:</p>
+            <p>On Draw 1, the probability of picking a corrupted catalog is \( \frac{5}{50} = 10\% \). If the first 5 catalogs we check all turn out to be corrupted, how many corrupted catalogs remain in the other 45 tenants? <strong>Zero!</strong> The probability of finding a 6th corrupted catalog is strictly \( 0\% \). The exact probability of finding \( k \) corrupted units in an \( n \)-unit audit drawn without replacement from a fleet of size \( N \) containing \( K \) total defects is given by the <strong>Hypergeometric Distribution</strong>, and its variance shrinks by the <strong>Finite Population Correction (FPC)</strong>:</p>
 
             <div class="equation-flow">
-                \[ P(X = k) = \frac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}} \]
+                \[ P(X = k) = \frac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}}, \qquad \text{Var}_{\text{hyp}}(X) = \underbrace{np(1 - p)}_{\text{Binomial Variance}} \times \underbrace{\left(\frac{N - n}{N - 1}\right)}_{\text{Finite Population Correction (FPC)}} \]
             </div>
 
-            <p>To translate the three combination blocks into plain systems language:</p>
+            <p>Look at why the FPC factor \( \frac{N - n}{N - 1} \) is a sanity check every systems engineer should memorize:</p>
             <ul>
-                <li>\( \binom{K}{k} \): The number of ways to pick \( k \) defective units from the \( K \) total defects in the fleet.</li>
-                <li>\( \binom{N-K}{n-k} \): The number of ways to fill the remaining \( n - k \) audit slots from the \( N - K \) healthy units.</li>
-                <li>\( \binom{N}{n} \): The total number of possible \( n \)-unit audit samples you could draw from a fleet of size \( N \).</li>
-            </ul>
-
-            <h3>3.2 The Finite Population Correction (FPC): Shrinking Your Uncertainty</h3>
-
-            <p>Whether you sample with or without replacement, the <em>average</em> number of defects you expect to find in your audit sample is the same: \( \mathbb{E}[X] = n \left(\frac{K}{N}\right) = np \). For our \( 20 \)-tenant audit with a \( 10\% \) defect rate, we expect to see \( 20 \times 0.10 = 2.0 \) corrupted tenants on average.</p>
-
-            <p>However, the <strong>variance</strong> (how wildly your audit results bounce around from sample to sample) is smaller under Hypergeometric sampling because each draw removes uncertainty about the remaining uninspected fleet. Specifically, Binomial variance is multiplied by the <strong>Finite Population Correction (FPC)</strong> factor:</p>
-
-            <div class="equation-flow">
-                \[ \text{Var}_{\text{hyp}}(X) = \underbrace{np(1 - p)}_{\text{Binomial Variance}} \times \underbrace{\left(\frac{N - n}{N - 1}\right)}_{\text{Finite Population Correction (FPC)}} \]
-            </div>
-
-            <p>Look at how intuitively the FPC factor \( \frac{N - n}{N - 1} \) behaves at the boundaries:</p>
-            <ul>
-                <li><strong>Auditing just 1 node (\( n = 1 \)):</strong> \( \text{FPC} = \frac{N - 1}{N - 1} = 1.0 \). A single draw has the exact same variance as a Binomial trial.</li>
-                <li><strong>Auditing nearly half the fleet (\( n = 20 \) of \( N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 20}{50 - 1} = \frac{30}{49} \approx 0.612 \). Sampling \( 40\% \) of the fleet cuts sample variance by nearly \( 39\% \)!</li>
-                <li><strong>Auditing the entire fleet (\( n = N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 50}{49} = 0.0 \). Once you inspect every single tenant in the fleet, sampling variance drops to <strong>zero</strong>—because you no longer have a sample estimate; you have an exact census!</li>
+                <li><strong>Spot-checking 1 unit (\( n = 1 \)):</strong> \( \text{FPC} = \frac{N-1}{N-1} = 1.0 \). Your first draw has the exact same variance as a Binomial coin flip.</li>
+                <li><strong>Auditing \( 40\% \) of the fleet (\( n = 20 \) of \( N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 20}{50 - 1} = \frac{30}{49} \approx 0.612 \). Inspecting \( 40\% \) of the cluster cuts variance by \( 38.8\% \)!</li>
+                <li><strong>Auditing the entire fleet (\( n = N = 50 \)):</strong> \( \text{FPC} = \frac{50 - 50}{49} = 0.0 \). Once you inspect all 50 tenants, sampling uncertainty drops to <strong>zero</strong>—you have an exact census, whereas Binomial math absurdly claims you still have \( \pm 1.34 \) tenants of random sampling error!</li>
             </ul>
 
             <div class="scenario-card">
                 <div class="scenario-title">
-                    <span>Worked Comparison: Auditing \( n = 20 \) of \( N = 50 \) Tenant Catalogs (\( K = 5 \) Defects)</span>
-                    <span class="scenario-tag">Binomial Mistake vs. Hypergeometric Reality</span>
+                    <span>Worked Audit: Inspecting \( n = 20 \) of \( N = 50 \) Tenant Catalogs (\( K = 5 \) Corrupted)</span>
+                    <span class="scenario-tag">Binomial Error vs. Hypergeometric Reality</span>
                 </div>
-                <p>Suppose our automated migration verifier audits \( n = 20 \) out of \( N = 50 \) tenant catalogs when \( K = 5 \) catalogs (\( 10\% \)) are actually corrupted. Compare the naive Binomial approximation against exact Hypergeometric reality:</p>
+                <p>Compare what a naive Binomial formula tells your incident commander versus exact Hypergeometric reality on our \( 50 \)-tenant gateway:</p>
                 <div class="table-wrap" style="margin: 0.75rem 0; overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
@@ -897,85 +711,46 @@
                                 <th style="padding: 0.45rem;">Audit Metric</th>
                                 <th style="padding: 0.45rem;">Naive Binomial (With Replacement)</th>
                                 <th style="padding: 0.45rem;">Exact Hypergeometric (Without Replacement)</th>
-                                <th style="padding: 0.45rem;">Operational Impact</th>
+                                <th style="padding: 0.45rem;">Why It Matters in Production</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Expected Defects \( \mathbb{E}[X] \)</td>
-                                <td style="padding: 0.45rem;">\( 2.00\text{ tenants} \)</td>
-                                <td style="padding: 0.45rem;">\( 2.00\text{ tenants} \)</td>
-                                <td style="padding: 0.45rem;">Identical center point</td>
+                                <td style="padding: 0.45rem;">Expected Defects \( \mathbb{E}[X] = np \)</td>
+                                <td style="padding: 0.45rem;">\( 2.00\text{ catalogs} \)</td>
+                                <td style="padding: 0.45rem;">\( 2.00\text{ catalogs} \)</td>
+                                <td style="padding: 0.45rem;">Unbiased mean in both models</td>
                             </tr>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Sample Variance \( \text{Var}(X) \)</td>
-                                <td style="padding: 0.45rem;">\( 1.800 \)</td>
-                                <td style="padding: 0.45rem;">\( 1.800 \times \frac{30}{49} = \mathbf{1.102} \)</td>
-                                <td style="padding: 0.45rem;">Binomial overstates variance by <strong>\(+63.3\%\)</strong></td>
+                                <td style="padding: 0.45rem;">Variance \( \text{Var}(X) \) & Std Error</td>
+                                <td style="padding: 0.45rem;">\( 1.800 \) (\(\text{SE} = \pm 1.342\))</td>
+                                <td style="padding: 0.45rem;"><strong>\( 1.102 \) (\(\text{SE} = \pm 1.050\))</strong></td>
+                                <td style="padding: 0.45rem;">Binomial inflates variance by <strong>\(+63.3\%\)</strong> (\(\text{SE}\) by \(+27.8\%\))</td>
                             </tr>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Standard Error \( \text{SE}(X) \)</td>
-                                <td style="padding: 0.45rem;">\( \pm 1.342\text{ tenants} \)</td>
-                                <td style="padding: 0.45rem;">\( \mathbf{\pm 1.050\text{ tenants}} \)</td>
-                                <td style="padding: 0.45rem;">Binomial inflates error bars by <strong>\(+27.8\%\)</strong></td>
+                                <td style="padding: 0.45rem;">Chance of Missing All 5 (\( P(X = 0) \))</td>
+                                <td style="padding: 0.45rem;">\( 12.16\% \)</td>
+                                <td style="padding: 0.45rem;"><strong>\( 10.00\% \)</strong></td>
+                                <td style="padding: 0.45rem;">Without replacement, a clean 20-tenant audit gives stronger assurance</td>
                             </tr>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;">Prob. of Finding All 5 (\( P(X = 5) \))</td>
-                                <td style="padding: 0.45rem;">\( 3.19\% \) (\( 0.0319 \))</td>
-                                <td style="padding: 0.45rem;">\( \mathbf{0.73\%} \) (\( 0.0073 \))</td>
-                                <td style="padding: 0.45rem;">Binomial overstates \( k=5 \) risk by <strong>\( 4.4\times \)</strong></td>
+                                <td style="padding: 0.45rem;">Chance of Catching All 5 (\( P(X = 5) \))</td>
+                                <td style="padding: 0.45rem;">\( 3.19\% \)</td>
+                                <td style="padding: 0.45rem;"><strong>\( 0.73\% \)</strong></td>
+                                <td style="padding: 0.45rem;">Binomial overstates \( k=5 \) probability by <strong>\( 4.4\times \)</strong></td>
                             </tr>
                             <tr>
-                                <td style="padding: 0.45rem;">Prob. of \( \ge 6 \) Defects (\( P(X \ge 6) \))</td>
-                                <td style="padding: 0.45rem;">\( 1.13\% \) (\( 0.0113 \))</td>
+                                <td style="padding: 0.45rem;">Chance of \( \ge 6 \) Defects (\( P(X \ge 6) \))</td>
+                                <td style="padding: 0.45rem;">\( 1.13\% \)</td>
                                 <td style="padding: 0.45rem;"><strong>\( 0.00\% \) (Impossible!)</strong></td>
-                                <td style="padding: 0.45rem;">Only 5 defects exist in the entire fleet</td>
+                                <td style="padding: 0.45rem;">Only 5 corrupted catalogs exist in the entire 50-tenant fleet</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p><strong>What About the Textbook "\( 5\% \) Rule of Thumb" (\( n/N > 0.05 \))?</strong> Statistics textbooks often say you can ignore the Finite Population Correction unless you sample more than \( 5\% \) of the population. Understand that \( 5\% \) is just a convenience convention, not a physical cliff. The correction factor \( \frac{N-n}{N-1} \approx 1 - \frac{n}{N} \) scales smoothly with the fraction of the fleet you inspect:</p>
-                <div class="table-wrap" style="margin: 0.5rem 0; overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                <th style="padding: 0.35rem;">Fleet Audited (\( f = n/N \))</th>
-                                <th style="padding: 0.35rem;">FPC Factor (\( \approx 1 - f \))</th>
-                                <th style="padding: 0.35rem;">Variance Overstatement if Ignored</th>
-                                <th style="padding: 0.35rem;">Error-Bar Inflation if Ignored</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.35rem;">\( 1\% \) (e.g., \( 10 \) of \( 1,000 \) nodes)</td>
-                                <td style="padding: 0.35rem;">\( 0.990 \)</td>
-                                <td style="padding: 0.35rem;">\( +1.0\% \)</td>
-                                <td style="padding: 0.35rem;">\( +0.5\% \) (Safe to ignore)</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.35rem;">\( 5\% \) (Textbook threshold)</td>
-                                <td style="padding: 0.35rem;">\( 0.950 \)</td>
-                                <td style="padding: 0.35rem;">\( +5.3\% \)</td>
-                                <td style="padding: 0.35rem;">\( +2.6\% \) (Borderline)</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.35rem;">\( 20\% \) (e.g., \( 10 \) of \( 50 \) tenants)</td>
-                                <td style="padding: 0.35rem;">\( 0.816 \)</td>
-                                <td style="padding: 0.35rem;">\( +22.5\% \)</td>
-                                <td style="padding: 0.35rem;">\( +10.7\% \) (Use FPC / Hypergeometric)</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 0.35rem;">\( 40\% \) (e.g., \( 20 \) of \( 50 \) tenants)</td>
-                                <td style="padding: 0.35rem;">\( 0.612 \)</td>
-                                <td style="padding: 0.35rem;"><strong>\(+63.3\%\)</strong></td>
-                                <td style="padding: 0.35rem;"><strong>\(+27.8\%\) (Mandatory)</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <p><strong>Rule of Thumb:</strong> Whenever your audit sample covers more than <strong>\( 5\%\text{–}10\% \) of a finite population</strong> (\( n/N > 0.05 \))—whether worker nodes, Kafka partitions, or enterprise tenants—always apply the Finite Population Correction and Hypergeometric bounds.</p>
             </div>
-
-            <!-- ========================================== -->
+ <!-- ========================================== -->
             <!-- 4. TELEMETRY CENSORING -->
             <!-- ========================================== -->
             <h2>4. Telemetry Defects: Right-Censoring and Percentile Aggregation Bias</h2>
@@ -983,21 +758,23 @@
             <div class="tldr-box">
                 <div class="tldr-eyebrow">The Intuition: When Your Monitoring Pipeline Lies to Your Math</div>
                 <div class="tldr-content">
-                    <p>Even the sharpest Anderson-Darling test or CUSUM detector will fail if your observability pipeline distorts latency measurements before they ever reach your time-series database. Two telemetry bugs routinely blind engineering teams during production incidents:</p>
-                    <p><strong>1. The Timeout Mirage (Right-Censoring & Truncation):</strong> Dropping timed-out requests from latency histograms makes your \( P_{99} \) latency chart look <em>faster</em> during an outage, while clipping them at the timeout ceiling (\( 30\text{ s} \)) tricks distribution fits into underestimating the true tail.<br>
-                    <strong>2. Averaging Percentiles Across Pods:</strong> Taking `avg(p99_latency)` across Kubernetes pods is a mathematical crime. If 1 pod out of 10 stalls at \( 1,080\text{ ms} \) on \( 15\% \) of its queries, averaging pod \( P_{99} \)s reports a calm \( 198\text{ ms} \) while the true cluster-wide \( P_{99} \) is burning at \( 1,080\text{ ms} \).</p>
+                    <p>You can have the sharpest Anderson-Darling test or the most finely tuned CUSUM detector in the world, and it will still fail if your observability pipeline mangles the numbers before they ever hit your time-series database. In production, two telemetry traps routinely blind engineering teams right in the middle of an outage:</p>
+                    <p><strong>1. The Timeout Mirage (Truncation vs. Right-Censoring):</strong> Dropping timed-out requests from your latency metrics makes your \( P_{99} \) dashboard look <em>faster</em> while the cluster is actually melting down. Conversely, recording timeouts as if they finished right at the \( 30\text{ s} \) deadline tricks distribution models into underestimating how bad the tail really is.<br>
+                    <strong>2. Averaging Percentiles Across Pods:</strong> Running <code>avg(p99_latency)</code> across Kubernetes pods is a mathematical crime. If 1 pod out of 10 stalls at \( 1,080\text{ ms} \) on \( 15\% \) of its queries, averaging the pod \( P_{99} \)s reports a breezy \( 198\text{ ms} \)—while your actual cluster-wide \( P_{99} \) is burning at \( 1,080\text{ ms} \).</p>
                 </div>
             </div>
 
-            <h3>4.1 Defect 1: The Timeout Mirage (Right-Censoring and Success-Only Truncation)</h3>
+            <h3>4.1 Defect 1: The Timeout Mirage (Success-Only Truncation vs. Right-Censoring)</h3>
 
-            <p>Suppose a database deadlock causes \( 15\% \) of gateway queries to hang for \( 120\text{ seconds} \) if left untouched. However, our API gateway enforces a hard deadline timeout at \( T_{\max} = 30,000\text{ ms} \) (\( 30\text{ s} \)), killing any request still running at the deadline. Because of that timeout, your telemetry pipeline never sees the true \( 120\text{ s} \) latency—it only sees a <strong>Right-Censored</strong> observation capped at \( 30,000\text{ ms} \):</p>
+            <p>Suppose an object-store metadata lock causes \( 15\% \) of queries on our Multi-Tenant Analytics Gateway to stall for \( 120\text{ seconds} \) if left unchecked. To protect worker threads, our gateway enforces a hard deadline at \( T_{\max} = 30,000\text{ ms} \) (\( 30\text{ s} \)), killing any query that runs past the limit and returning <code>HTTP 504 Gateway Timeout</code>.</p>
+
+            <p>Because the gateway pulls the plug at \( 30\text{ seconds} \), we never observe the true \( 120\text{ s} \) demand \( X_i \). Instead, our telemetry only sees a <strong>Right-Censored</strong> duration \( Y_i \) paired with a completion flag \( \delta_i \):</p>
 
             <div class="equation-flow">
-                \[ Y_i = \min\left(X_i, \, T_{\max}\right), \quad \delta_i = \begin{cases} 1 & \text{if } X_i < T_{\max} \text{ (Completed normally)} \\ 0 & \text{if } X_i \ge T_{\max} \text{ (Timed out at } T_{\max}\text{)} \end{cases} \]
+                \[ Y_i = \min\left(X_i, \, T_{\max}\right), \quad \delta_i = \begin{cases} 1 & \text{if } X_i < T_{\max} \text{ (Completed normally)} \\ 0 & \text{if } X_i \ge T_{\max} \text{ (Killed by timeout at } T_{\max}\text{)} \end{cases} \]
             </div>
 
-            <p>Consider a concrete batch of \( 100 \) requests during this incident: \( 85 \) fast cache hits finish between \( 50\text{ ms} \) and \( 200\text{ ms} \), while \( 15 \) deadlocked queries would have taken \( 120,000\text{ ms} \) but get killed at \( T_{\max} = 30,000\text{ ms} \). Look at how three different telemetry pipelines report this exact same outage:</p>
+            <p>Let's trace a concrete batch of \( 100 \) gateway requests during this incident: \( 85 \) warm Arrow cache hits finish cleanly between \( 50\text{ ms} \) and \( 200\text{ ms} \), while \( 15 \) cold Iceberg queries hit the lock and time out at \( T_{\max} = 30,000\text{ ms} \). Look at how three different telemetry configurations report the exact same outage:</p>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
@@ -1011,28 +788,28 @@
                     </thead>
                     <tbody>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.45rem;"><strong>1. Success-Only Truncation</strong><br><em>(Filtering `status == 200`)</em></td>
-                            <td style="padding: 0.45rem;">Drops `HTTP 504` timeouts completely; computes \( P_{99} \) only over the \( 85 \) successful hits.</td>
-                            <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">\( \approx 195\text{ ms} \) (Looks great!)</span></td>
-                            <td style="padding: 0.45rem;"><strong>Catastrophic Blindness:</strong> As more slow queries time out and get dropped, the "successful \( P_{99} \)" chart actually <em>improves</em> during an outage!</td>
+                            <td style="padding: 0.45rem;"><strong>1. Success-Only Truncation</strong><br><em>(Filtering <code>status == 200</code>)</em></td>
+                            <td style="padding: 0.45rem;">Discards <code>HTTP 504</code> timeouts completely; calculates \( P_{99} \) only across the \( 85 \) fast cache hits.</td>
+                            <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">\( \approx 195\text{ ms} \) (All green!)</span></td>
+                            <td style="padding: 0.45rem;"><strong>The Survivor Illusion:</strong> The slower your backend gets, the more queries cross \( 30\text{ s} \) and get dropped from the metric—making your latency chart look <em>better</em> as the outage worsens!</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                             <td style="padding: 0.45rem;"><strong>2. Naive Clipped Histogram</strong><br><em>(Recording \( Y_i = 30,000\text{ ms} \))</em></td>
-                            <td style="padding: 0.45rem;">Includes timeouts as if they finished at exactly \( 30,000\text{ ms} \).</td>
+                            <td style="padding: 0.45rem;">Includes all \( 100 \) requests, treating the \( 15 \) timeouts as if they finished at exactly \( 30,000\text{ ms} \).</td>
                             <td style="padding: 0.45rem;"><span style="color: #f59e0b; font-weight: 600;">\( 30,000\text{ ms} \) (Pinned at cap)</span></td>
-                            <td style="padding: 0.45rem;">Shows \( P_{99} \) hit the ceiling, but if you fit a Lognormal/Weibull curve to \( 30\text{ s} \) values, the model assumes queries finished at \( 30\text{ s} \) and underestimates true tail demand.</td>
+                            <td style="padding: 0.45rem;">Correctly alerts you that \( P_{99} \) hit the timeout ceiling, but if you fit a Lognormal curve to these clipped numbers, the math assumes work finished in \( 30\text{ s} \) and severely under-sizes your capacity model.</td>
                         </tr>
                         <tr>
                             <td style="padding: 0.45rem;"><strong>3. Censored Survival Fit</strong><br><em>(Proper Reliability Math)</em></td>
-                            <td style="padding: 0.45rem;">Treats completed queries (\(\delta_i=1\)) as exact latencies and timeouts (\(\delta_i=0\)) as tail exceedances \( P(X > 30\text{ s}) \).</td>
+                            <td style="padding: 0.45rem;">Uses exact durations for completed queries (\(\delta_i=1\)) and tail survival probability \( P(X \ge 30\text{ s}) \) for timeouts (\(\delta_i=0\)).</td>
                             <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Reconstructs true tail (\(\gg 30\text{ s}\))</span></td>
-                            <td style="padding: 0.45rem;">Correctly uses survival probability \( 1 - F(T_{\max}) \) (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>) to estimate what capacity is needed to clear the backlog.</td>
+                            <td style="padding: 0.45rem;">Tells you the truth: \( 15\% \) of traffic is still alive past \( 30\text{ s} \), letting you estimate the real unclipped workload demand (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>).</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p><strong>Architectural Rule:</strong> Never display a `status == 200` latency percentile graph without including timeouts in the percentile population (or overlaying the timeout rate directly on the same panel). When fitting tail models offline, use <strong>Censored Maximum Likelihood</strong> so every timeout \(\delta_i = 0\) contributes its survival probability \( \ln(1 - F(T_{\max})) \) rather than a fake completion at \( 30\text{ s} \):</p>
+            <p><strong>The Architectural Fix:</strong> Never put a <code>status == 200</code> latency percentile chart on an operational dashboard without including timed-out requests in the latency population (or pairing it directly with an error/timeout rate panel). And when fitting capacity or tail models offline, use <strong>Censored Maximum Likelihood Estimation (MLE)</strong>. Instead of feeding a fake \( 30\text{ s} \) completion time into the probability density \( f(y_i; \theta) \), every timed-out request (\(\delta_i = 0\)) contributes its survival probability \( 1 - F(T_{\max}; \theta) \)—the mathematical fact that the query was still running when the clock ran out:</p>
 
             <div class="equation-flow">
                 \[ \ell(\theta) = \sum_{\text{completed } (\delta_i=1)} \ln f(y_i; \theta) \;+\; \sum_{\text{timed out } (\delta_i=0)} \ln\left(1 - F(T_{\max}; \theta)\right) \]
@@ -1040,9 +817,9 @@
 
             <h3>4.2 Defect 2: Never Average Percentiles Across Pods (Sketch Merging)</h3>
 
-            <p>Suppose our Analytics Gateway runs across \( M = 10 \) Kubernetes pods, each handling \( 1,000\text{ requests/min} \) (\( 10,000 \) total cluster requests per minute). Each pod calculates its local \( P_{99} \) latency and exports it to Prometheus. A shockingly common dashboard mistake is writing `avg(p99_latency_by_pod)` to get the "cluster-wide \( P_{99} \)".</p>
+            <p>Now let's tackle the second observability trap. Suppose our Multi-Tenant Analytics Gateway runs across \( M = 10 \) Kubernetes pods, each handling \( 1,000\text{ requests/min} \) (\( 10,000 \) total cluster requests per minute). If each pod computes its own local \( P_{99} \) and ships that single number to Prometheus or Datadog, it is dangerously tempting to write <code>avg(p99_latency_by_pod)</code> to get a "cluster-wide \( P_{99} \)".</p>
 
-            <p><strong>Why Averaging Percentiles Fails:</strong> A percentile is a position in a sorted list, not an additive sum. Suppose <strong>Pods 1 through 9</strong> are completely healthy, while <strong>Pod 10</strong> hits a hot-key partition (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>) where \( 15\% \) of its requests (\( 150 \) queries) stall for \( 1,080\text{ ms} \):</p>
+            <p><strong>Why Averaging Percentiles Is Broken:</strong> A percentile is a rank order across a sorted population, not an additive total. Suppose <strong>Pods 1 through 9</strong> are cruising along smoothly, while <strong>Pod 10</strong> gets pinned by a noisy-neighbor tenant scanning a massive unpartitioned Iceberg table (<a href="part-5-gravity-of-hot-keys.html" style="color:var(--teal);">Part 5</a>), stalling \( 15\% \) of Pod 10's queries (\( 150 \) requests) at \( 1,080\text{ ms} \):</p>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
@@ -1062,7 +839,7 @@
                             <td style="padding: 0.45rem;">\( 100\text{ ms} \) (each)</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.45rem;"><strong>Pod 10</strong> (1 Hot-Shard Pod)</td>
+                            <td style="padding: 0.45rem;"><strong>Pod 10</strong> (1 Hot-Tenant Pod)</td>
                             <td style="padding: 0.45rem;">\( 1 \times 1,000 = 1,000\text{ req/min} \)</td>
                             <td style="padding: 0.45rem;">\( 85\% \) at \( 50\text{ ms} \); <strong>\( 15\% \) (\( 150\text{ reqs} \)) at \( 1,080\text{ ms} \)</strong></td>
                             <td style="padding: 0.45rem;"><strong>\( 1,080\text{ ms} \)</strong></td>
@@ -1070,41 +847,41 @@
                         <tr style="border-bottom: 1px solid var(--border, #1e293b); background: rgba(239, 68, 68, 0.06);">
                             <td style="padding: 0.45rem;" colspan="2"><strong>Wrong Method:</strong> Average of the 10 Pod \( P_{99} \)s</td>
                             <td style="padding: 0.45rem;">\( \frac{9(100\text{ ms}) + 1(1,080\text{ ms})}{10} \)</td>
-                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">\( 198\text{ ms} \) (Under-reported by \( 5.45\times \)!)</span></td>
+                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">\( 198\text{ ms} \) (Hides the outage by \( 5.45\times \)!)</span></td>
                         </tr>
                         <tr style="background: rgba(16, 185, 129, 0.06);">
-                            <td style="padding: 0.45rem;" colspan="2"><strong>Right Method:</strong> True Global \( P_{99} \) (\( 9,900\text{th} \) of \( 10,000 \) reqs)</td>
-                            <td style="padding: 0.45rem;">Top \( 150 \) slowest requests in the cluster all took \( 1,080\text{ ms} \)</td>
+                            <td style="padding: 0.45rem;" colspan="2"><strong>Right Method:</strong> True Cluster \( P_{99} \) (\( 9,900\text{th} \) of \( 10,000 \) reqs)</td>
+                            <td style="padding: 0.45rem;">The slowest \( 150 \) requests in the entire cluster all took \( 1,080\text{ ms} \)</td>
                             <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">\( 1,080\text{ ms} \) (True Cluster \( P_{99} \))</span></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p>Look at why the true cluster \( P_{99} \) is \( 1,080\text{ ms} \): across all \( 10,000 \) requests in the cluster, the \( 99\text{th} \) percentile is the \( 9,900\text{th} \) fastest request (meaning the \( 100\text{th} \) slowest request from the top). Because Pod 10 alone produced <strong>\( 150 \) requests at \( 1,080\text{ ms} \)</strong>, the worst \( 150 \) requests across the entire cluster all sit at \( 1,080\text{ ms} \)! Averaging the pod percentiles diluted Pod 10's stall by \( 9\times \) and hid an SLA breach.</p>
+            <p>See why that happens? Across all \( 10,000 \) requests in the cluster, the \( 99\text{th} \) percentile is the \( 100\text{th} \) slowest request from the top. Because Pod 10 alone generated <strong>\( 150 \) requests at \( 1,080\text{ ms} \)</strong>, those \( 150 \) stalled queries completely fill the top \( 1.5\% \) of the cluster-wide latency distribution! Taking the average across pods diluted Pod 10's pain across 9 idle neighbors and hid a massive SLA breach.</p>
 
             <div class="math-explanation">
-                <strong>How to Aggregate Percentiles Properly: Merge Buckets First, Then Take the Percentile</strong>
-                <p style="margin-top: 0.4rem;">Instead of emitting pre-calculated percentiles, each pod must emit a <strong>mergeable histogram or quantile sketch</strong>. The central aggregator sums the request counts inside each latency bucket across all pods (\( C_{\text{global}}[b] = \sum_{m=1}^{M} C_m[b] \)) and extracts \( P_{99} \) from the combined distribution. Choose between the two industry standards based on whether your latency range is bounded:</p>
+                <strong>How to Aggregate Percentiles Properly: Merge Sketch Buckets First, Extract \( P_{99} \) Second</strong>
+                <p style="margin-top: 0.4rem;">Percentiles do not commute with averages, but <strong>bucket counts are purely additive</strong>. Every pod must group its latencies into histogram bins and ship those bucket counts to the aggregator. The aggregator sums the counts inside each bucket across all \( M \) pods (\( C_{\text{global}}[b] = \sum_{m=1}^{M} C_m[b] \)) and finds the bucket where cumulative requests cross \( 99\% \). Two data structures dominate production systems:</p>
                 <div class="table-wrap" style="margin: 0.6rem 0; overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
                         <thead>
                             <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
                                 <th style="padding: 0.4rem;">Sketch Structure</th>
                                 <th style="padding: 0.4rem;">How It Buckets Latencies</th>
-                                <th style="padding: 0.4rem;">Best Engineering Fit</th>
+                                <th style="padding: 0.4rem;">Best Engineering Fit for the Gateway</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                                 <td style="padding: 0.4rem;"><strong>HDRHistogram</strong><br><em>(High Dynamic Range)</em></td>
-                                <td style="padding: 0.4rem;">Fixed-size integer arrays using linear sub-buckets inside power-of-two ranges. Requires pre-declaring \( [x_{\min}, x_{\max}] \) (e.g., \( 1\text{ }\mu\text{s} \) to \( 3,600\text{ s} \)) and significant digits (e.g., 3 digits \( \approx 0.1\% \) precision).</td>
-                                <td style="padding: 0.4rem;"><strong>Bounded Services & Benchmarks:</strong> Zero memory allocation on the hot path and ultra-fast bitwise indexing when \( x_{\max} \) is bounded by a hard gateway timeout.</td>
+                                <td style="padding: 0.4rem;">Pre-allocates a flat integer array using linear sub-buckets inside power-of-two ranges. Requires declaring a min/max range \( [x_{\min}, x_{\max}] \) (e.g., \( 1\text{ }\mu\text{s} \) to \( 3,600\text{ s} \)) and significant figures (e.g., 3 digits \( \approx 0.1\% \) relative error).</td>
+                                <td style="padding: 0.4rem;"><strong>Bounded Hot Paths & Benchmarks:</strong> Zero heap allocations during recording and nanosecond bitwise indexing when \( x_{\max} \) is strictly capped by a gateway timeout.</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.4rem;"><strong>DDSketch</strong><br><em>(Datadog / Prometheus Native)</em></td>
-                                <td style="padding: 0.4rem;">Logarithmic buckets \( b(x) = \lceil \log_{\gamma}(x) \rceil \) where \( \gamma = \frac{1+\alpha}{1-\alpha} \). Dynamically allocates buckets and merges lowest bins if memory caps are hit.</td>
-                                <td style="padding: 0.4rem;"><strong>Unbounded Cloud Telemetry:</strong> Guarantees strict relative value accuracy \( |\hat{Q}_q - Q_q| \le \alpha Q_q \) (e.g., \( \alpha = 0.01 \implies 1\% \) error) across any scale without pre-declaring \( x_{\max} \).</td>
+                                <td style="padding: 0.4rem;">Maps latencies to logarithmic bins \( b(x) = \lceil \log_{\gamma}(x) \rceil \) where \( \gamma = \frac{1+\alpha}{1-\alpha} \). Dynamically grows bins and collapses the lowest buckets if memory limits are reached.</td>
+                                <td style="padding: 0.4rem;"><strong>Unbounded Cloud Telemetry:</strong> Guarantees a strict relative error \( |\hat{Q}_q - Q_q| \le \alpha Q_q \) (e.g., \( \alpha = 0.01 \implies \le 1\% \) error) across any latency scale without guessing \( x_{\max} \) upfront.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1116,7 +893,7 @@
             <!-- ========================================== -->
             <h2>5. Diagnostic Methodology: Matching the Test to the Failure Mode</h2>
 
-            <p>No single statistical test catches every production failure mode. A test that excels at spotting a slow memory leak will miss a \( 0.1\% \) compaction stall, and a test designed for continuous latency traces will give overconfident error bars on a 50-node cluster audit. Use this reference matrix as an operational checklist to match the right diagnostic tool to your system problem:</p>
+            <p>No single statistical test catches every production failure mode. A test that spots a slow memory leak in 9 minutes will completely miss a \( 0.1\% \) Iceberg compaction stall, and a formula built for infinite request streams will give bloated error bars when auditing a 50-tenant catalog. Use this cheat sheet to pick the right tool for the job:</p>
 
             <div class="arch-table-wrap">
                 <table class="reality-table">
@@ -1133,114 +910,115 @@
                             <td><strong>KS Test (\( D_n \))</strong></td>
                             <td><em>"Did the middle bulk (\( P_{20}\text{–}P_{80} \)) of my latency distribution shift?"</em><br>Measures max vertical probability gap \(\sup_x |\hat{F}_n(x) - F(x)|\).</td>
                             <td><strong>Catches:</strong> Median shifts and broad shape changes.<br><strong>Blind Spot:</strong> Horizontal tail blowouts beyond \( P_{99} \) where vertical probability room is \( < 1\% \).</td>
-                            <td>Use only for coarse central-distribution screening. <strong>Never</strong> use a passing KS test to sign off on \( P_{99} \) or \( P_{99.9} \) SLAs.</td>
+                            <td>Use only for quick sanity checks on median traffic. <strong>Never</strong> use a passing KS test to certify \( P_{99} \) or \( P_{99.9} \) SLAs.</td>
                         </tr>
                         <tr>
                             <td><strong>Anderson-Darling (\( A^2 \))</strong></td>
                             <td><em>"Does my model fit both the center and the extreme tails?"</em><br>Amplifies vertical CDF errors near \( 0 \) and \( 1 \) by \( [F(x)(1-F(x))]^{-1} \).</td>
-                            <td><strong>Catches:</strong> Tail divergence (such as a \( 1.2\% \) compaction stall regime).<br><strong>Blind Spot:</strong> Can still miss \( 1\text{–}2 \) isolated outliers at small \( n \); flags trivial \( 0.2\text{ ms} \) noise at \( n = 10^6 \).</td>
-                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)), use Parametric Bootstrap when fitting parameters from data, and check millisecond quantile error.</td>
+                            <td><strong>Catches:</strong> Tail divergence (like our \( 1.2\% \) Iceberg compaction stall regime).<br><strong>Blind Spot:</strong> Can miss \( 1\text{–}2 \) lone outliers at small \( n \); flags harmless \( 0.2\text{ ms} \) noise at \( n = 10^6 \).</td>
+                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)), run a Parametric Bootstrap when fitting parameters from data, and check actual millisecond error.</td>
                         </tr>
                         <tr>
                             <td><strong>Q-Q Plot (Visual Diagnostic)</strong></td>
-                            <td><em>"Where exactly does production latency break away from my theoretical curve?"</em><br>Plots actual sorted latencies \( X_{(i)} \) against model quantiles.</td>
+                            <td><em>"Where exactly does production latency peel away from my theoretical curve?"</em><br>Plots actual sorted latencies \( X_{(i)} \) against model quantiles.</td>
                             <td><strong>Catches:</strong> Heavy-tail upward bends, timeout clipping, and multi-modal knees (even 1–2 extreme outliers).<br><strong>Blind Spot:</strong> Ignores time order and serial correlation.</td>
-                            <td>Always plot Q-Q graphs before trusting scalar \( p \)-values. If the curve bends sharply upward above a threshold, split traffic into a mixture model (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) or EVT tail (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>).</td>
+                            <td>Always inspect a Q-Q plot before trusting a single \( p \)-value. An upward bend means you have a mixture workload (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) or heavy tail (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>).</td>
                         </tr>
                         <tr>
                             <td><strong>Residual ACF (\(\hat{\rho}(\tau)\))</strong></td>
                             <td><em>"Do my errors have memory or hidden periodic heartbeats?"</em><br>Measures correlation between baseline residuals \( e_t \) and \( e_{t+\tau} \).</td>
-                            <td><strong>Catches:</strong> Fixed-interval spikes (15-min compaction/GC) and slow decay across consecutive minutes (queue backlog carryover).<br><strong>Blind Spot:</strong> Single step-shifts.</td>
-                            <td>Stagger cron/compaction jobs if periodic spikes appear. If lag-1 to lag-5 correlation is sticky, widen bucket windows or calibrate detector thresholds via block bootstrap.</td>
+                            <td><strong>Catches:</strong> Fixed-interval spikes (15-min compaction/GC) and sticky decay across consecutive minutes (queue backlog carryover).<br><strong>Blind Spot:</strong> Single step-shifts.</td>
+                            <td>Jitter cron/compaction schedules if periodic spikes appear. If lag-1 to lag-5 correlation is high, widen bucket windows or calibrate thresholds with block bootstrap.</td>
                         </tr>
                         <tr>
                             <td><strong>Page's CUSUM (\( S_t^+ \))</strong></td>
                             <td><em>"Did a canary deploy or slow leak shift mean latency by \( +0.8\sigma_0 \)?"</em><br>Accumulates standardized deviations above slack \( k = \delta/2 \).</td>
                             <td><strong>Catches:</strong> Persistent small regressions (\(\delta \sim 0.5\text{–}1.5\sigma_0\)) hidden inside normal \( \pm 3\sigma_0 \) noise.<br><strong>Blind Spot:</strong> Single spikes (ignored by design) and shifts smaller than slack (\(\delta \le k\)).</td>
-                            <td>Tune threshold \( h \) by balancing false-alarm interval (\(\text{ARL}_0\)) against detection delay (\(\text{ARL}_1\)). When \( S_t^+ > h \), halt canary rollout and trace back to where \( S_t^+ \) left zero.</td>
+                            <td>Tune threshold \( h \) by balancing false-alarm interval (\(\text{ARL}_0\)) against detection delay (\(\text{ARL}_1\)). When \( S_t^+ > h \), halt canary rollout and check when \( S_t^+ \) left zero.</td>
                         </tr>
                         <tr>
                             <td><strong>Hypergeometric Fleet Audit</strong></td>
                             <td><em>"How many corrupted shards/tenants exist in a finite fleet of size \( N \)?"</em><br>Models sampling \( n \) of \( N \) units without replacement.</td>
                             <td><strong>Catches:</strong> Exact defect probabilities and tighter confidence bounds via Finite Population Correction \(\frac{N-n}{N-1}\).<br><strong>Blind Spot:</strong> Correlated rack/AZ failures (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>).</td>
-                            <td>Apply whenever auditing \( > 5\%\text{–}10\% \) of a finite node cluster, shard map, or tenant pool; stratify audit samples across availability zones.</td>
+                            <td>Use whenever spot-checking \( > 5\%\text{–}10\% \) of a finite node cluster, shard map, or tenant catalog; stratify samples across availability zones.</td>
                         </tr>
                         <tr>
                             <td><strong>Censored Survival & Sketch Merging</strong></td>
                             <td><em>"Is my telemetry pipeline hiding timeouts or diluting hot-pod spikes?"</em><br>Accounts for timeout caps \( T_{\max} \) and multi-pod distributions.</td>
-                            <td><strong>Catches:</strong> Artificial \( P_{99} \) drops from filtering `HTTP 200` only, and \( 5\times \) under-reporting from `avg(p99_by_pod)`.<br><strong>Blind Spot:</strong> Client-side drops before reaching the gateway.</td>
+                            <td><strong>Catches:</strong> Artificial \( P_{99} \) drops from filtering <code>HTTP 200</code> only, and \( 5\times \) under-reporting from <code>avg(p99_by_pod)</code>.<br><strong>Blind Spot:</strong> Client-side drops before reaching the gateway.</td>
                             <td>Include timeouts in percentile populations (or fit censored survival likelihoods), and always merge <strong>HDRHistogram</strong> or <strong>DDSketch</strong> buckets across pods before computing \( P_{99} \).</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-    <!-- ========================================== -->
+
+            <!-- ========================================== -->
             <!-- 6. TLA+ CONFORMANCE & PHYSICAL CLIFFS -->
             <!-- ========================================== -->
             <h2>6. Formal Specification vs. Runtime Conformance and Physical Cliffs</h2>
 
             <div class="tldr-box">
-                <div class="tldr-eyebrow">The Intuition: Proving the Blueprint vs. Surviving the Physics</div>
+                <div class="tldr-eyebrow">The Intuition: Proving the Blueprint vs. Surviving the Hardware</div>
                 <div class="tldr-content">
-                    <p>Architects increasingly use formal verification tools like <strong>TLA+</strong> and the TLC model checker to prove distributed algorithms correct before writing production code. TLA+ is unmatched at catching subtle concurrency bugs—such as split-brain lease locks or lost wake-ups—across millions of state-machine interleavings.</p>
-                    <p>However, a verified TLA+ specification and a smooth probability curve (like a Lognormal latency model) share the exact same blind spot: <strong>both are mathematical abstractions that ignore physical hardware limits unless you explicitly build those limits into the system.</strong> A model checker does not know that your Linux kernel runs out of ephemeral ports at <code>65,535</code>, and a Lognormal equation does not know that your Kubernetes pod gets <code>OOMKilled</code> the instant memory crosses <code>16 GiB</code>.</p>
+                    <p>When designing complex state machines—like lock-free cache invalidation or multi-tenant Iceberg snapshot commits in our Analytics Gateway—formal verification tools like <strong>TLA+</strong> and the TLC model checker are indispensable. They exhaustively explore millions of concurrent interleavings to prove your state machine cannot deadlock or corrupt pointers.</p>
+                    <p>But here is the trap: <strong>a TLA+ proof verifies your abstract blueprint, not your running C++, Rust, or Python code—and neither TLA+ nor smooth probability distributions know about hard physical hardware cliffs unless you explicitly model them.</strong> TLC does not know that Linux runs out of ephemeral ports at <code>65,535</code>, and a smooth Lognormal curve does not know that Kubernetes instantly fires <code>SIGKILL (OOMKilled)</code> the millisecond your pod's Arrow buffer crosses <code>16 GiB</code>.</p>
                 </div>
             </div>
 
-            <h3>6.1 Logical Correctness vs. Physical Execution Reality</h3>
+            <h3>6.1 Logical Blueprints vs. Implementation Drift and Physical Cliffs</h3>
 
-            <p>When you run the TLC model checker on a specification for our Multi-Tenant Analytics Gateway, you are verifying two types of logical rules:</p>
+            <p>When we verify our Multi-Tenant Analytics Gateway in TLA+, we check two classes of logical guarantees:</p>
             <ul>
-                <li><strong>Safety Invariants ("Nothing bad ever happens"):</strong> Two concurrent compaction workers can never commit conflicting Iceberg snapshot pointers at the same time.</li>
-                <li><strong>Temporal Liveness ("Something good eventually happens"):</strong> Every admitted tenant query eventually receives either a valid result set or an explicit abort signal—no request hangs forever in a deadlocked state.</li>
+                <li><strong>Safety Invariants ("Nothing bad ever happens"):</strong> Two concurrent compaction workers can never overwrite the same Iceberg catalog pointer without detecting a conflict, and Tenant A can never read a cached Arrow memory buffer belonging to Tenant B.</li>
+                <li><strong>Temporal Liveness ("Something good eventually happens"):</strong> Every admitted query eventually reaches either a <code>COMPLETED</code> or <code>ABORTED</code> terminal state—no worker thread stays wedged in an infinite wait loop.</li>
             </ul>
 
-            <p>Why do systems with 100% verified TLA+ specs and passing goodness-of-fit tests still suffer catastrophic outages? Because production code runs on physical silicon with two sharp boundaries that pure math ignores:</p>
+            <p>Why do systems with 100% verified TLA+ blueprints and validated latency models still fall over at 2 AM? Because two gaps separate abstract math from production silicon:</p>
             <ul>
-                <li><strong>1. Logical Steps Are Not Free in Physical Time:</strong> In TLA+, changing a state variable (`state' = "COMPLETED"`) is an instantaneous, zero-cost atomic step. In production, that single transition might trigger Python GIL contention, a Linux <code>epoll</code> thundering-herd wake-up storm, TCP connection-pool lock convoying, or an NVMe SSD garbage-collection stall.</li>
-                <li><strong>2. Smooth Probability Curves Shatter at Deterministic Cliffs:</strong> Continuous distributions (Lognormal, Gamma, Weibull) assume latency stretches smoothly out to infinity as load increases. In real hardware, smooth queueing curves only hold inside a bounded operating envelope. The instant resource consumption touches a hard physical ceiling, the system hits a <strong>deterministic cliff</strong>:</li>
+                <li><strong>1. The Implementation Conformance Gap:</strong> In TLA+, changing a state variable (<code>cache_state' = "VALID"</code>) is an instantaneous, atomic line of math. In production code, that single transition might span 400 lines of async Python or Go, contend on a mutex, drop an exception during a network blip, or suffer an out-of-order retry that your TLA+ spec assumed was impossible.</li>
+                <li><strong>2. Deterministic Physical Cliffs Shatter Smooth Curves:</strong> Probability distributions (Lognormal, Weibull, Kingman's queueing formula) are smooth, continuous functions—they assume that if traffic rises by \( 5\% \), latency bends smoothly upward. Real hardware is only smooth <em>inside a bounded operating envelope</em>. The moment a resource hits a hard kernel or container limit, your system falls off a <strong>deterministic cliff</strong>:</li>
             </ul>
 
             <div class="table-wrap" style="margin: 1rem 0; overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                            <th style="padding: 0.45rem;">Subsystem Resource</th>
-                            <th style="padding: 0.45rem;">Smooth Operating Regime (Math Works)</th>
+                            <th style="padding: 0.45rem;">Gateway Resource</th>
+                            <th style="padding: 0.45rem;">Smooth Regime (Queueing Math Holds)</th>
                             <th style="padding: 0.45rem;">Hard Physical Cliff</th>
-                            <th style="padding: 0.45rem;">What Actually Happens at the Cliff</th>
+                            <th style="padding: 0.45rem;">What Happens at the Cliff</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                             <td style="padding: 0.45rem;"><strong>Pod Memory (DuckDB / Arrow Buffers)</strong></td>
-                            <td style="padding: 0.45rem;">\( 2\text{ GiB} \to 13\text{ GiB} \)<br><em>(Predictable GC & buffer allocation)</em></td>
+                            <td style="padding: 0.45rem;">\( 2\text{ GiB} \to 13\text{ GiB} \)<br><em>(Predictable buffer allocation & GC)</em></td>
                             <td style="padding: 0.45rem;"><code>cgroup memory.max = 16 GiB</code></td>
-                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Instant <code>SIGKILL (OOMKilled)</code></span> — In-flight queries drop; surviving pods inherit the load and cascade.</td>
+                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Instant <code>SIGKILL (OOMKilled)</code></span> — Pod dies mid-query; load shifts to surviving pods in a domino cascade.</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                            <td style="padding: 0.45rem;"><strong>Database / Storage Pool</strong></td>
-                            <td style="padding: 0.45rem;">\( 50 \to 400 \) active connections<br><em>(Kingman's queueing curve holds)</em></td>
+                            <td style="padding: 0.45rem;"><strong>Object-Store / Catalog Pool</strong></td>
+                            <td style="padding: 0.45rem;">\( 50 \to 400 \) active sockets<br><em>(Smooth queueing wait times)</em></td>
                             <td style="padding: 0.45rem;"><code>max_connections = 500</code></td>
-                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Connection Starvation</span> — Threads block waiting for pool slots until gateway timeouts cascade.</td>
+                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Pool Starvation</span> — Worker threads block waiting for a free socket while holding memory buffers until timeouts fire.</td>
                         </tr>
                         <tr>
-                            <td style="padding: 0.45rem;"><strong>OS Network Stack</strong></td>
-                            <td style="padding: 0.45rem;">\( 1,000 \to 45,000 \) sockets<br><em>(Sub-millisecond TCP handshakes)</em></td>
-                            <td style="padding: 0.45rem;"><code>ulimit -n = 65,536</code> or <code>TIME_WAIT</code> exhaustion</td>
-                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;"><code>EMFILE</code> / <code>EADDRNOTAVAIL</code></span> — Node can no longer open outbound object-store sockets.</td>
+                            <td style="padding: 0.45rem;"><strong>Linux Network & File Descriptors</strong></td>
+                            <td style="padding: 0.45rem;">\( 1,000 \to 45,000 \) open FDs<br><em>(Sub-millisecond TCP handshakes)</em></td>
+                            <td style="padding: 0.45rem;"><code>ulimit -n = 65,536</code> or ephemeral port exhaustion</td>
+                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;"><code>EMFILE</code> / <code>EADDRNOTAVAIL</code></span> — Node cannot open new outbound storage connections or accept client sockets.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
             <div class="math-explanation">
-                <strong>Architectural Control: Enforcing Bounded Regimes Before the Cliff</strong>
-                <p style="margin-top: 0.4rem;">How do you make production hardware obey your TLA+ liveness proofs and statistical latency models? <strong>You place an explicit software wall in front of the hardware cliff:</strong></p>
+                <strong>Bridging the Gap: Runtime Conformance & Software Walls Before the Hardware Cliff</strong>
+                <p style="margin-top: 0.4rem;">To make production reality obey both your TLA+ state invariants and your statistical latency models, enforce three engineering guardrails:</p>
                 <ol style="margin-top: 0.35rem; margin-bottom: 0.35rem;">
-                    <li><strong>Map the Cliffs Empirically:</strong> Run controlled load and fault-injection tests in staging to find the exact concurrency, memory, and IOPS numbers where your gateway breaks away from its smooth queueing curve.</li>
-                    <li><strong>Install Hard Admission Gates at \( 75\%\text{–}80\% \) of Capacity:</strong> Configure bounded worker queues, per-tenant token buckets, and memory-aware admission controllers (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) well below the physical ceiling.</li>
-                    <li><strong>Fail Fast with Explicit Backpressure (<code>HTTP 429</code>):</strong> When concurrency hits your \( 80\% \) admission cap, immediately reject excess requests with a fast, deterministic <code>HTTP 429 Too Many Requests</code>. Rejecting excess load at the door keeps the admitted \( 80\% \) of traffic strictly inside the predictable, mathematically validated regime where your TLA+ invariants and SLA models hold true.</li>
+                    <li><strong>Explicitly Bound Resources in Your Spec & Code:</strong> Never model queues or memory pools as infinite sets in TLA+. Define hard constants (<code>MaxInFlightQueries = 200</code>, <code>MaxArrowMemoryMB = 12288</code>) and verify that your spec rejects work cleanly when full.</li>
+                    <li><strong>Verify Runtime Conformance with Trace-Checking & Assertions:</strong> Embed lightweight invariant assertions directly in your gateway code (e.g., asserting a tenant's active memory counter never goes negative on buffer release) and validate structured state-transition logs from chaos tests against your TLA+ state graph.</li>
+                    <li><strong>Place Software Admission Gates at \( 75\%\text{–}80\% \) of the Physical Cliff:</strong> Find your hardware cliffs in staging via load tests, then set hard admission-control caps, memory watermarks, and per-tenant token buckets (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) at \( 75\%\text{–}80\% \) of that ceiling. Shed excess traffic at the front door with a fast, deterministic <code>HTTP 429 Too Many Requests</code> so admitted queries stay strictly inside the smooth, mathematically predictable regime.</li>
                 </ol>
             </div>
 
@@ -1249,7 +1027,7 @@
             <!-- ========================================== -->
             <h2>7. End-to-End Validation Runbook: The Analytics Gateway</h2>
 
-            <p>When deploying a major change or certifying SLAs for the Multi-Tenant Analytics Gateway, follow this 7-step engineering runbook in order. Each step protects the assumptions required by the next step:</p>
+            <p>When rolling out a major architectural change or signing off on SLAs for the Multi-Tenant Analytics Gateway, walk through this 7-step operational runbook in order. Each step guarantees the statistical and physical assumptions required by the next:</p>
 
             <div class="arch-table-wrap">
                 <table class="reality-table">
@@ -1264,7 +1042,7 @@
                         <tr>
                             <td><strong>1. Telemetry Hygiene & Censoring</strong></td>
                             <td>Are our dashboards distorting the raw latency numbers before we even analyze them?</td>
-                            <td>Export mergeable <strong>DDSketch</strong> (for unbounded cloud latencies) or <strong>HDRHistogram</strong> buckets from every pod—never run <code>avg(p99_by_pod)</code>. Include timed-out queries (\( Y_i = T_{\max}, \delta_i = 0 \)) in percentile calculations so outages never look like latency improvements.</td>
+                            <td>Export mergeable <strong>DDSketch</strong> (for unbounded cloud latencies) or <strong>HDRHistogram</strong> buckets from every pod—never run <code>avg(p99_by_pod)</code>. Keep timed-out queries (\( Y_i = T_{\max}, \delta_i = 0 \)) in your percentile population so outages never disguise themselves as latency improvements.</td>
                         </tr>
                         <tr>
                             <td><strong>2. Workload Split (Stratification)</strong></td>
@@ -1274,12 +1052,12 @@
                         <tr>
                             <td><strong>3. Residual & Memory Check (ACF)</strong></td>
                             <td>Are consecutive minutes independent, or do we have queue carryover and cron spikes?</td>
-                            <td>Subtract the expected time-of-day baseline (\( e_t = x_t - \hat{\mu}_t \)) and plot the <strong>Autocorrelation Function (ACF)</strong> across \( 20 \) lags. Stagger periodic jobs if fixed-lag spikes (e.g., Lag 15) appear; widen bucket windows or use block-bootstrap thresholds if lag-1 to lag-5 correlation is sticky.</td>
+                            <td>Subtract the expected time-of-day baseline (\( e_t = x_t - \hat{\mu}_t \)) and check the <strong>Autocorrelation Function (ACF)</strong> across \( 20 \) lags. Jitter periodic jobs if fixed-lag spikes (e.g., Lag 15) appear; widen bucket windows or use block-bootstrap thresholds if lag-1 to lag-5 correlation is sticky.</td>
                         </tr>
                         <tr>
                             <td><strong>4. Tail Goodness-of-Fit (AD & Q-Q)</strong></td>
                             <td>Does our statistical model actually predict the \( P_{99.9} \) tail accurately?</td>
-                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)). Plot a <strong>Q-Q graph</strong> to inspect for upward tail bends, run the tail-weighted <strong>Anderson-Darling (\( A^2 \))</strong> test (calibrated via Parametric Bootstrap if parameters were fitted on the dataset), and check actual millisecond error at \( P_{99.9} \).</td>
+                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)). Inspect a <strong>Q-Q plot</strong> for upward tail bends, run the tail-weighted <strong>Anderson-Darling (\( A^2 \))</strong> test (calibrated via Parametric Bootstrap when parameters are fitted from the sample), and verify actual millisecond error at \( P_{99.9} \).</td>
                         </tr>
                         <tr>
                             <td><strong>5. Canary & Drift Gate (CUSUM)</strong></td>
@@ -1294,13 +1072,15 @@
                         <tr>
                             <td><strong>7. Physical Cliff Guardrails</strong></td>
                             <td>Where does hardware saturation break our continuous math and TLA+ assumptions?</td>
-                            <td>Run chaos load tests to find hard memory (<code>OOMKilled</code>), connection-pool, and socket limits. Set hard admission-control and token-bucket limits at <strong>\( 75\%\text{–}80\% \) of the physical cliff</strong>, shedding excess load via fast <code>HTTP 429</code> responses so admitted queries stay inside the verified operating regime.</td>
+                            <td>Run chaos load tests to map hard memory (<code>OOMKilled</code>), connection-pool, and socket limits. Enforce hard admission-control caps and token buckets at <strong>\( 75\%\text{–}80\% \) of the physical cliff</strong>, shedding excess load via fast <code>HTTP 429</code> responses so admitted queries stay inside the verified regime.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p>Across Parts 1 through 7, we have built a practical mathematical and empirical toolkit for distributed systems engineering. Traditional data platforms have deterministic execution rules and repeatable query logic—yet even here, <strong>infrastructure health does not automatically guarantee business correctness</strong>. Seeing an <code>HTTP 200</code> status code only proves a packet arrived; hitting a \( P_{99} \) latency target only proves it arrived on time; passing a checksum only proves the bytes were not flipped in transit. True correctness in our Analytics Gateway still requires strict tenant isolation, Iceberg snapshot consistency, and end-to-end data validation.</p>
+            <p>What happens when our Multi-Tenant Analytics Gateway grows so interdependent—combining time-varying tenant arrivals, shared Arrow memory pools, tiered NVMe/object-store cache evictions, and correlated retry storms—that clean closed-form equations can no longer solve the system or invert its parameters? That is where we turn to <strong>Monte Carlo simulation</strong> and <strong>Markov Chain Monte Carlo (MCMC)</strong>. Standard Monte Carlo handles the <em>forward problem</em>: we run thousands of synthetic traffic timelines through our system model (just like the Parametric Bootstrap and CUSUM simulators on this page) to map out tail risk and cascade probabilities under known parameters. MCMC tackles the <em>inverse problem</em>: when production telemetry is right-censored by timeouts or tangled across hidden mixture states, MCMC walks the parameter space to infer the underlying probability distributions directly from messy operational logs. Because designing production-grade stochastic simulators and Bayesian inference pipelines is a foundational discipline of its own, we will explore Monte Carlo and MCMC for systems engineering in a dedicated standalone article.</p>
+
+            <p>Across Parts 1 through 7, we have built a complete mathematical and empirical toolkit for distributed systems engineering. Traditional data platforms have deterministic execution rules and repeatable query logic—yet even here, <strong>infrastructure health does not automatically guarantee business correctness</strong>. Seeing an <code>HTTP 200</code> status code only proves a packet arrived; hitting a \( P_{99} \) latency target only proves it arrived on time; passing a checksum only proves the bytes were not flipped in transit. True correctness in our Analytics Gateway still requires strict tenant isolation, Iceberg snapshot consistency, and end-to-end data validation.</p>
 
             <p>Now ask: what happens when the execution engine itself is no longer deterministic? What happens when a query routes into an LLM inference cluster where service time depends dynamically on how many output tokens the model decides to generate, where GPU KV-cache memory grows mid-request, and where an <code>HTTP 200</code> response can return in \( 400\text{ ms} \) with perfect JSON syntax while hallucinating the business answer? In <strong>Part 8</strong>, we take our entire queueing, tail-latency, and verification toolkit into the world of AI infrastructure, LLM serving engines, and multi-step agentic workflows.</p>
 
