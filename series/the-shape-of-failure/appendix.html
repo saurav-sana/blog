@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MM2SH8Z0L6"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { window.dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-MM2SH8Z0L6');
+    </script>
+
+    <!-- Primary SEO & AIO Meta Tags -->
+    <title>Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure | Saurav Sana</title>
+    <meta name="title" content="Appendix: Mapping Failure to LLM Infrastructure | The Shape of Failure | Saurav Sana">
+    <meta name="description" content="A distribution-by-distribution translation guide for AI inference, agents, and RAG. Mapping candidate models to LLM variables, metrics, and controls.">
+    <meta name="author" content="Saurav Sana">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://saurav-sana.github.io/blog/series/shape-of-failure/appendix-ai-systems.html">
+
+    <!-- Early Theme Initialization (prevents Flash of Unstyled Content) -->
+    <script>
+        (function () {
+            try {
+                var root = document.documentElement;
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var initialTheme = saved || (prefersLight ? 'light' : 'dark');
+                root.setAttribute('data-theme', initialTheme);
+                root.classList.add(initialTheme, 'theme-' + initialTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../assets/css/blog-theme.css">
+
+    <style>
+        /* =======================================================================
+           SERIES-ALIGNED STYLES & LAYOUT
+           ======================================================================= */
+
+        /* --- Page Adjustments --- */
+        .site-header { margin-bottom: 0 !important; padding-bottom: 1rem !important; border-bottom: 1px solid var(--line-soft); }
+        main { margin-top: 1.5rem !important; padding-top: 0 !important; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+        /* --- Typography & Elements --- */
+        h2 { font-family: 'Libre Franklin', sans-serif; font-size: 1.6rem; margin-top: 3.5rem; margin-bottom: 1.25rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+        h3 { font-family: 'Libre Franklin', sans-serif; font-size: 1.2rem; color: var(--teal); margin-top: 2rem; margin-bottom: 0.85rem; }
+        p, li { font-family: 'IBM Plex Sans', sans-serif; font-size: 1.05rem; line-height: 1.7; color: var(--text); }
+        p { margin-bottom: 1.35rem; }
+        code { background: var(--panel-2); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 0.85em; color: var(--teal); border: 1px solid var(--line); }
+
+        /* --- Quote Styling --- */
+        .snarky-quote { border-left: 3px solid var(--amber, #D4A72C); padding: 0.1rem 0 0.1rem 1.25rem; margin: 2.5rem 0 3.5rem 0; background: transparent; }
+        .snarky-quote-text { font-family: 'Georgia', serif; font-size: 1.15rem; font-style: italic; color: var(--muted); line-height: 1.6; margin: 0 0 0.6rem 0; }
+        .snarky-quote-author { font-family: 'Georgia', serif; font-size: 1.05rem; color: var(--muted); margin: 0; }
+        .snarky-quote-author strong { font-weight: 700; font-style: italic; color: var(--text); }
+
+        /* --- Series Heading Row --- */
+        .series-heading-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 0.25rem; }
+        .series-heading-row h1 { margin: 0; font-size: 2.0rem; font-family: 'Libre Franklin', sans-serif; }
+
+        /* --- TL;DR / Callout Boxes --- */
+        .tldr-box { background: var(--panel-2); border-left: 3px solid var(--teal, #4fb8a6); padding: 1.75rem 1.5rem; margin-bottom: 2.5rem; margin-top: 1.5rem; border-radius: 0 8px 8px 0; }
+        .tldr-box--warning { background: rgba(217, 119, 87, 0.08); border-left-color: var(--bad, #d97757); }
+        .tldr-box--math { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+        
+        .tldr-eyebrow { font-family: 'IBM Plex Mono', Consolas, monospace; color: var(--teal, #4fb8a6); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.25rem; font-weight: 600; }
+        .tldr-box--warning .tldr-eyebrow { color: var(--bad); }
+        .tldr-box--math .tldr-eyebrow { color: var(--amber); }
+        
+        .tldr-content { font-family: 'IBM Plex Sans', Arial, sans-serif; color: var(--muted, #c9d1d9); font-size: 0.95rem; line-height: 1.6; }
+        .tldr-content p { margin: 0 0 1rem 0; color: var(--text); font-size: 0.95rem; }
+        .tldr-content p:last-child { margin-bottom: 0; }
+        .tldr-content ul { margin: 0.5rem 0 1rem 0; padding-left: 1.25rem; }
+        .tldr-content li { margin-bottom: 0.4rem; }
+
+        /* --- Interactive Translation Matrix --- */
+        .matrix-container { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; margin: 2rem 0; }
+        .matrix-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 1rem; flex-wrap: wrap; }
+        .matrix-tab { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; transition: all 0.2s ease; }
+        .matrix-tab:hover { background: var(--panel-2); color: var(--text); }
+        .matrix-tab.active { background: var(--teal); color: #0d1117; border-color: var(--teal); font-weight: 600; }
+        
+        .matrix-display { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        @media (max-width: 650px) { .matrix-display { grid-template-columns: 1fr; } }
+        
+        .matrix-card { background: var(--panel-2); border: 1px solid var(--line-soft); padding: 1.25rem; border-radius: 6px; }
+        .matrix-card h4 { margin: 0 0 0.5rem 0; font-family: 'Libre Franklin', sans-serif; color: var(--text); font-size: 1.1rem; }
+        .matrix-card .distribution { font-family: 'IBM Plex Mono', monospace; color: var(--amber); font-size: 0.9rem; font-weight: 600; display: block; margin-bottom: 0.75rem; }
+        .matrix-card p { font-size: 0.9rem; color: var(--muted); margin-bottom: 0; line-height: 1.5; }
+        .matrix-card ul { margin: 0.5rem 0 0 0; padding-left: 1.25rem; }
+        .matrix-card li { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
+        .matrix-card li strong { color: var(--text); }
+
+        /* --- Reference Table --- */
+        .ref-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
+        .ref-table th { text-align: left; padding: 0.75rem; border-bottom: 2px solid var(--line); color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .ref-table td { padding: 0.75rem; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; }
+        .ref-table td strong { color: var(--text); }
+        .ref-table tr:last-child td { border-bottom: none; }
+
+        /* --- Post Pager --- */
+        .post-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+        .post-pager a { font-family: 'IBM Plex Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+        .post-pager a:hover { opacity: 0.8; text-decoration: underline; }
+
+        /* --- Theme Toggle Icon Visibility --- */
+        .theme-toggle { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0.4rem; display: flex; align-items: center; transition: color 0.2s ease; }
+        .theme-toggle:hover { color: var(--teal); }
+        .theme-toggle .icon-moon, .theme-toggle .icon-bulb { display: none !important; }
+        html[data-theme="light"] .theme-toggle .icon-moon, .light .theme-toggle .icon-moon { display: block !important; }
+        html[data-theme="dark"] .theme-toggle .icon-bulb, .dark .theme-toggle .icon-bulb { display: block !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <header class="site-header">
+            <a href="../../index.html" class="site-title">
+                <span class="site-title__badge">SS</span>
+                <span>Saurav Sana | Field Notes</span>
+            </a>
+
+            <nav class="site-nav" aria-label="Primary navigation" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 1.5rem;">
+                <a href="../../index.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Home</a>
+                <a href="../../index.html#blog" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Blog</a>
+                <a href="../../index.html#tags" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Tags</a>
+                <a href="../../contact.html" style="color:var(--muted); font-family:'IBM Plex Sans',sans-serif; font-size:0.875rem; text-decoration:none;">Contact</a>
+                <button class="theme-toggle" aria-label="Toggle light/dark theme" aria-pressed="false" title="Toggle theme" data-theme-init="1">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                    </svg>
+                    <svg class="icon-bulb" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </nav>
+        </header>
+
+        <main>
+            <div class="post-meta" style="margin-bottom: 0.5rem;">
+                <a href="index.html" style="color: inherit; text-decoration: none;">← The Shape of Failure Series</a>
+            </div>
+
+            <div class="series-heading-row">
+                <h1>Mapping the Shape of Failure to LLM Infrastructure</h1>
+            </div>
+            <div class="post-meta" style="margin-bottom: 1.25rem;">December 5, 2026 · Appendix · AI/LLM Frontier</div>
+
+            <blockquote class="snarky-quote">
+                <p class="snarky-quote-text">“All models are wrong, but some are useful.”</p>
+                <p class="snarky-quote-author">— <strong><em>George E. P. Box</em></strong>, Statistician</p>
+            </blockquote>
+
+            <p>Welcome to the appendix. This is not a lookup table that prescribes a distribution merely because a system uses an LLM. That is statistical cargo-culting. </p>
+
+            <p>Instead, this is a translation guide. It maps the abstract mathematics of the previous eight parts to the observable, empirical realities of AI infrastructure. It is meant to be used as a decision aid: a way to verify changes, measure assumptions, and enforce system correctness when the underlying model is a black box.</p>
+
+            <div class="tldr-box tldr-box--math">
+                <div class="tldr-eyebrow">The Golden Rule of AI SRE</div>
+                <div class="tldr-content">
+                    <p>When an AI system fails, the first question is never "Which distribution does this follow?" It is: <strong>"What physical process generated this observation, and what architectural control prevents it from taking down the system next time?"</strong></p>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- INTERACTIVE TRANSLATION MATRIX -->
+            <!-- ========================================== -->
+            <h2>Interactive Translation Matrix</h2>
+            <p>Select an LLM subsystem below to see the corresponding math, the metrics that actually matter, the SRE trap to avoid, and the control mechanism required to maintain correctness.</p>
+
+            <div class="matrix-container">
+                <div class="matrix-tabs">
+                    <button class="matrix-tab active" data-target="inference">Inference (Serving)</button>
+                    <button class="matrix-tab" data-target="rag">RAG (Retrieval)</button>
+                    <button class="matrix-tab" data-target="agents">Agents (Workflows)</button>
+                    <button class="matrix-tab" data-target="sampling">Token Sampling</button>
+                </div>
+
+                <div class="matrix-display" id="matrixDisplay">
+                    <!-- Content injected by JS -->
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- THE REFERENCE MATRIX -->
+            <!-- ========================================== -->
+            <h2>The Reference Matrix</h2>
+            <p>If you need a quick reference for a post-mortem or an architecture review, use the table below. It connects the distribution to the physical mechanism of failure.</p>
+
+            <table class="ref-table">
+                <thead>
+                    <tr>
+                        <th>Distribution</th>
+                        <th>LLM Variable</th>
+                        <th>Observable Metric</th>
+                        <th>Engineering Control</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Categorical</strong></td>
+                        <td>Token selection based on logits</td>
+                        <td>Top-p / Top-k convergence</td>
+                        <td>Set temperature to 0 for JSON extraction; enforce schema validation.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Poisson</strong></td>
+                        <td>Arrival of user prompts</td>
+                        <td>Requests per second (RPS)</td>
+                        <td>Continuous batching; dynamic KV-cache allocation; rate limiting.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exponential</strong></td>
+                        <td>Time to First Token (TTFT)</td>
+                        <td>p99 TTFT latency</td>
+                        <td>Pre-fill caching; pre-warming models; GPU concurrency tuning.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Log-Normal</strong></td>
+                        <td>Compounding agent pipeline latency</td>
+                        <td>End-to-end p99 latency</td>
+                        <td>Parallelize steps; aggressive timeouts; decouple sequential calls.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Zipfian</strong></td>
+                        <td>RAG document popularity / KV-cache reuse</td>
+                        <td>Semantic cache hit ratio</td>
+                        <td>Semantic caching (e.g., Redis); prioritizing popular contexts in memory.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Geometric</strong></td>
+                        <td>Retries for valid output (JSON, tool calls)</td>
+                        <td>Output parse failure rate</td>
+                        <td>Constrained decoding; function calling APIs; max retry loops.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Binomial</strong></td>
+                        <td>Per-step agent success rate</td>
+                        <td>Workflow success rate</td>
+                        <td>Reduce chain length; introduce deterministic guardrails; human-in-the-loop.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- ========================================== -->
+            <!-- THE VERIFICATION WORKFLOW -->
+            <!-- ========================================== -->
+            <h2>The Verification Workflow</h2>
+            <p>You cannot fix what you cannot measure, and you cannot measure what you cannot explain. When an AI system degrades, follow this deterministic workflow:</p>
+
+            <div class="tldr-box">
+                <div class="tldr-eyebrow">The Post-Mortem Protocol</div>
+                <div class="tldr-content">
+                    <ol style="margin: 0; padding-left: 1.25rem; color: var(--text);">
+                        <li style="margin-bottom: 0.5rem;"><strong>Observe:</strong> Do not look at averages. Look at p50, p95, and p99 latency. Look at the distribution of token lengths and context windows.</li>
+                        <li style="margin-bottom: 0.5rem;"><strong>Isolate:</strong> Where did the failure occur? Was it in the inference server (TTFT), the retrieval layer (empty context), or the agent parser (malformed JSON)?</li>
+                        <li style="margin-bottom: 0.5rem;"><strong>Identify the Mechanism:</strong> Map the failure to a physical reality. Was it a KV-cache OOM? Was it a compounding hallucination across 10 steps? Was it a thundering herd of retries?</li>
+                        <li style="margin-bottom: 0.5rem;"><strong>Apply the Control:</strong> Implement the specific architectural constraint (timeout, fallback, guardrail, temperature change) that prevents that mechanism from firing again.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <p>The frontier of AI infrastructure requires more rigor than traditional distributed systems, not less. A standard database either writes the row or it doesn't. An LLM might write a row that looks plausible, but is entirely hallucinated. Use the math. Trust the telemetry. And always build the circuit breaker.</p>
+
+            <nav class="post-pager" aria-label="Series pagination">
+                <a href="part-8-stochastic-shape-of-ai-systems.html">← Part 8: The Stochastic Shape of AI Systems</a>
+                <a href="index.html">Back to Series Overview →</a>
+            </nav>
+        </main>
+
+        <footer class="site-footer">
+            <div>© 2026 Saurav Sana</div>
+            <div class="footer-links">
+                <a href="https://github.com/sauravsana" target="_blank" rel="noopener noreferrer">Github</a>
+                <a href="https://x.com/sauravsana" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+                <a href="https://www.linkedin.com/in/sauravsana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="../../contact.html">Email</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Translation Matrix & Theme Engine -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Theme Toggle Logic ---
+            const themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                themeBtn.setAttribute('aria-pressed', currentTheme === 'dark');
+
+                themeBtn.addEventListener('click', () => {
+                    const root = document.documentElement;
+                    const current = root.getAttribute('data-theme') || 'dark';
+                    const newTheme = current === 'light' ? 'dark' : 'light';
+                    
+                    root.classList.remove('light', 'theme-light', 'dark', 'theme-dark');
+                    root.setAttribute('data-theme', newTheme);
+                    root.classList.add(newTheme, 'theme-' + newTheme);
+                    themeBtn.setAttribute('aria-pressed', newTheme === 'dark');
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+
+            // --- Translation Matrix Data ---
+            const matrixData = {
+                inference: {
+                    title: "Inference Serving (TTFT & Throughput)",
+                    dist: "Poisson (Arrivals) + Exponential (Queue Wait)",
+                    math: "The arrival of prompts is uncoordinated (Poisson). The time spent waiting for a GPU slot or KV-cache block is memoryless (Exponential).",
+                    metrics: [
+                        "Time to First Token (TTFT)",
+                        "Requests Per Second (RPS)",
+                        "KV-Cache Utilization %"
+                    ],
+                    trap: "Sizing your GPU cluster based on the average RPS. When traffic spikes (Poisson burst), the queue wait time (Exponential) diverges asymptotically. TTFT goes to infinity.",
+                    control: "Continuous batching (vLLM/TGI) to maximize throughput. Strict admission control (load shedding) when the KV-cache is near capacity."
+                },
+                rag: {
+                    title: "RAG Pipelines (Retrieval & Context)",
+                    dist: "Zipfian (Document Popularity) + Log-Normal (Compounding Latency)",
+                    math: "Document retrieval follows a power law (some docs are hit constantly). The latency of embedding -> vector search -> rerank -> LLM generation is multiplicative (Log-Normal).",
+                    metrics: [
+                        "Semantic Cache Hit Ratio",
+                        "Vector DB p99 Latency",
+                        "Retrieval-to-Generation Time Ratio"
+                    ],
+                    trap: "Assuming uniform document access. If one 'whale' document goes viral, it will saturate your vector DB connection pool. Fitting a Gaussian average over the end-to-end pipeline latency obscures the long tail.",
+                    control: "Semantic caching (Redis). Strict timeouts on the vector DB. Asynchronous pre-fetching of likely documents."
+                },
+                agents: {
+                    title: "Autonomous Agents (Workflows)",
+                    dist: "Binomial (Step Success) + Geometric (Retries)",
+                    math: "Each agent step (tool call, parse, plan) is a Bernoulli trial. The whole workflow is a Binomial product. If a step fails, you retry until success (Geometric).",
+                    metrics: [
+                        "End-to-End Workflow Success Rate",
+                        "Average Steps per Workflow",
+                        "Tool Call Failure Rate"
+                    ],
+                    trap: "Chaining 20 non-deterministic steps together. Even with a 95% success rate per step, the workflow success rate drops to 35%. Error cascades mean the true failure rate is even worse than the Binomial predicts.",
+                    control: "Implement deterministic guardrails (NeMo Guardrails). Limit max iterations. Use human-in-the-loop for high-stakes actions. Force temperature=0 for tool calls."
+                },
+                sampling: {
+                    title: "Token Sampling (Generation)",
+                    dist: "Categorical (Weighted Dice)",
+                    math: "The LLM outputs a probability distribution over its vocabulary. The Categorical distribution models the discrete choice of the next token.",
+                    metrics: [
+                        "Logit Entropy (Confidence)",
+                        "Output Parse Failure Rate",
+                        "Temperature Variance"
+                    ],
+                    trap: "Leaving temperature > 0 for deterministic tasks. The model will hallucinate slightly different outputs on every run, breaking CI/CD tests and downstream parsers.",
+                    control: "Set temperature=0 for structured data extraction. Use JSON mode or function calling to constrain the vocabulary to valid schemas."
+                }
+            };
+
+            const display = document.getElementById('matrixDisplay');
+            const tabs = document.querySelectorAll('.matrix-tab');
+
+            function renderMatrix(key) {
+                const data = matrixData[key];
+                if (!data) return;
+
+                let metricsHtml = data.metrics.map(m => `<li>${m}</li>`).join('');
+
+                display.innerHTML = `
+                    <div class="matrix-card">
+                        <h4>${data.title}</h4>
+                        <span class="distribution">${data.dist}</span>
+                        <p>${data.math}</p>
+                        <p style="margin-top: 1rem;"><strong>Metrics to Watch:</strong></p>
+                        <ul>${metricsHtml}</ul>
+                    </div>
+                    <div class="matrix-card" style="border-left: 3px solid var(--bad);">
+                        <h4 style="color: var(--bad);">The SRE Trap</h4>
+                        <p>${data.trap}</p>
+                        <h4 style="color: var(--teal); margin-top: 1.5rem;">The Engineering Control</h4>
+                        <p>${data.control}</p>
+                    </div>
+                `;
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    renderMatrix(tab.dataset.target);
+                });
+            });
+
+            // Initial render
+            renderMatrix('inference');
+        });
+    </script>
+</body>
+</html>
