@@ -332,6 +332,102 @@
                 </div>
             </div>
 
+<section id="from-key-popularity-to-resource-skew">
+  <h2>From Key Popularity to Actual Resource Skew</h2>
+
+  <p>
+    A popular key is not automatically an expensive key. Request
+    frequency describes how often a key is accessed; it does not
+    describe how much CPU, memory, storage I/O, or execution time
+    those requests consume.
+  </p>
+
+  <p>
+    For partition <code>j</code>, let:
+  </p>
+
+  <ul>
+    <li><code>lambda</code> be the total incoming request rate.</li>
+    <li><code>p_j</code> be the fraction of requests routed to partition j.</li>
+    <li><code>E[S_j]</code> be the mean service time for requests routed to j.</li>
+  </ul>
+
+  <p>
+    The request arrival rate at partition j is:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      \lambda_j = \lambda p_j
+    \]</p>
+  </div>
+
+  <p>
+    A first-order estimate of its offered computational demand,
+    measured in expected busy-server equivalents, is:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      D_j = \lambda p_j E[S_j]
+    \]</p>
+  </div>
+
+  <p>
+    This is still a simplified model. It assumes that service
+    demand can be represented by a mean service time and that
+    the relevant work is captured by the chosen service boundary.
+    It is not a complete CPU, memory, or I/O capacity model.
+  </p>
+
+  <h3>Example: Equal request counts, unequal work</h3>
+
+  <p>
+    Suppose two partitions each receive 1,000 requests per minute.
+    Partition A serves cached metadata lookups averaging 2 ms.
+    Partition B serves cold analytical scans averaging 40 ms.
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      D_A = \frac{1000}{60}\times 0.002
+          \approx 0.033
+    \]</p>
+    <p>\[
+      D_B = \frac{1000}{60}\times 0.040
+          \approx 0.667
+    \]</p>
+  </div>
+
+  <p>
+    Partition B consumes approximately 20 times the mean
+    server occupancy, despite receiving exactly the same
+    request count.
+  </p>
+
+  <p>
+    The architectural consequence is important: balancing keys
+    or request counts does not guarantee balancing actual work.
+  </p>
+
+  <h3>Measure skew at the resource boundary</h3>
+
+  <ul>
+    <li>Requests per partition and tenant.</li>
+    <li>CPU time and worker occupancy.</li>
+    <li>Bytes scanned and bytes read from object storage.</li>
+    <li>Memory allocation and spill volume.</li>
+    <li>Queue depth and waiting time.</li>
+    <li>Cache hit ratio and metadata lookup amplification.</li>
+  </ul>
+
+  <p>
+    Choose the metric that represents the constrained resource.
+    A cluster can be balanced by request count and severely
+    unbalanced by CPU or storage I/O.
+  </p>
+</section>
+
             <h3>Choosing Your Skew Detector: Peak-to-Average vs. CV vs. Gini</h3>
             <p>Saying "our cluster has a skew problem" is like saying "our patient has a temperature." You need to know whether one organ is on fire or the whole body is mildly warm. Engineers frequently grab a fancy-sounding term like the <strong>Gini Coefficient</strong> and paste it onto a Grafana dashboard, only to watch Shard 7 melt to the ground without firing a single alert. That happens because these three metrics measure completely different geometric properties of how load \(L = \{L_1, L_2, \dots, L_M\}\) is distributed across \(M\) shards:</p>
 
@@ -631,7 +727,7 @@
                 <p>Consistent hashing maps both nodes and keys onto a unit ring so adding or removing a node only remaps a \(1/M\) fraction of keys instead of reshuffling the entire cluster. Virtual nodes (vnodes) assign each physical host 100–256 positions around the ring so key-count variance across hosts shrinks to \(CV \approx 1/\sqrt{V}\).</p>
                 <p><strong>What vnodes cannot fix:</strong> Vnodes smooth out <em>key-count</em> imbalance, but they do zero to split traffic for a <em>single logical hot key</em>. All 2,044 RPS for <code>key_1</code> still land on whichever vnode owns that point on the ring. Splitting a single hot key requires L1 caching, read-replica fan-out, or salted key splitting (<code>key_1#0..7</code>).</p>
             </div>
-
+            
             <div class="scenario-card">
                 <div class="scenario-title">2. The Power of Two Random Choices (P2C)</div>
                 <p>In the classic Mitzenmacher balls-into-bins theorem, throwing \(N\) equal-sized jobs uniformly at random into \(N\) workers produces a maximum worker load of \(\Theta(\frac{\log N}{\log \log N})\). If the router instead picks <strong>two random workers</strong> and sends the job to whichever of the two has the smaller load, the maximum load drops exponentially to \(\Theta(\log \log N)\)!</p>
@@ -651,6 +747,70 @@
                 <div class="scenario-title">4. Cost-Aware Scheduling and Dominant Resource Fairness (DRF)</div>
                 <p>Because queries consume multiple resources (CPU cores, RAM buffers, network I/O), fairness cannot be enforced with a single request counter. Track a resource vector per tenant (CPU-ms, memory byte-seconds, scanned bytes) and schedule via <strong>Deficit Round Robin (DRR)</strong> or <strong>Dominant Resource Fairness (DRF)</strong>—ensuring that a tenant hogging 80% of cluster RAM cannot starve tenants that only need 5% RAM and 10% CPU.</p>
             </div>
+
+            
+<section id="consistent-hashing-limits">
+  <h2>What Consistent Hashing Does Not Solve</h2>
+
+  <p>
+    Consistent hashing is primarily a key-placement mechanism.
+    It reduces the number of keys that must move when the
+    membership of a distributed cluster changes.
+  </p>
+
+  <p>
+    Virtual nodes improve the statistical distribution of
+    keyspace ownership. They do not guarantee equal request
+    volume, execution cost, or resource consumption.
+  </p>
+
+  <p>
+    Consider a tenant whose most popular analytical key receives
+    a disproportionate fraction of the gateway's traffic.
+    Consistent hashing continues to map that key to the same
+    partition. Adding virtual nodes does not split the work
+    generated by that individual key.
+  </p>
+
+  <h3>Choose the control according to the failure mechanism</h3>
+
+  <ul>
+    <li>
+      <strong>Uneven keyspace ownership:</strong>
+      Use virtual nodes, weighted placement, and controlled
+      partition rebalancing.
+    </li>
+    <li>
+      <strong>Hot individual keys:</strong>
+      Consider selective replication, request coalescing,
+      caching, or splitting the logical workload where
+      application semantics permit it.
+    </li>
+    <li>
+      <strong>Expensive tenants:</strong>
+      Apply per-tenant concurrency limits, resource budgets,
+      and workload-aware admission control.
+    </li>
+    <li>
+      <strong>Uneven execution costs:</strong>
+      Route using measured resource demand where feasible,
+      rather than relying exclusively on key counts.
+    </li>
+  </ul>
+
+  <p>
+    Replication also introduces consistency, invalidation,
+    and write-amplification costs. It is not a free solution
+    to hot-key concentration.
+  </p>
+
+  <p>
+    <strong>Architectural principle:</strong> Consistent hashing
+    balances placement opportunities. Resource-aware controls
+    are required to balance actual work.
+  </p>
+</section>
+
 
             <h3>Worked Engineering Case Study: Containing a Whale Tenant on a 100-Node DuckDB Gateway</h3>
             <p><strong>Evidence classification:</strong> End-to-end architectural design walkthrough showing how Shuffle Sharding + Cost-Weighted P2C + Fast/Heavy Lane routing combine to survive a multi-tenant noisy-neighbor storm.</p>

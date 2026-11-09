@@ -286,6 +286,118 @@
                 </div>
             </div>
 
+            
+<section id="state-dependent-retry-amplification">
+  <h2>Retry Amplification Is a State-Dependent Process</h2>
+
+  <p>
+    A common introductory model assumes that every retry has
+    the same independent probability q of failing. If a request
+    permits at most R retries, its expected number of attempts is:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      E[A]=\sum_{k=0}^{R}q^k
+      =\frac{1-q^{R+1}}{1-q},
+      \qquad q\ne 1
+    \]</p>
+  </div>
+
+  <p>
+    This is a useful baseline, but it assumes a constant failure
+    probability. During an outage, that assumption often breaks.
+  </p>
+
+  <p>
+    A failing storage service may increase query duration.
+    Longer query duration increases worker occupancy.
+    Higher occupancy increases queueing delay and timeout
+    probability. Timeouts trigger retries, which create additional
+    demand on the same degraded service.
+  </p>
+
+  <p>
+    The retry probability is therefore better understood as
+    conditional on the current system state:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      P(\text{failure at }t)
+      =
+      P(\text{failure}\mid X_t)
+    \]</p>
+  </div>
+
+  <p>
+    Here X_t represents the relevant system state, such as
+    queue depth, worker occupancy, downstream latency,
+    connection-pool utilization, or dependency health.
+  </p>
+
+  <h3>A simple feedback representation</h3>
+
+  <p>
+    Let lambda_new be new incoming work and lambda_retry be
+    retry-generated work:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      \lambda_{\text{effective}}(t)
+      =
+      \lambda_{\text{new}}(t)
+      +
+      \lambda_{\text{retry}}(t)
+    \]</p>
+  </div>
+
+  <p>
+    The retry component depends on previous failures and
+    therefore on the system's recent state. It is not
+    necessarily an independent arrival stream.
+  </p>
+
+  <p>
+    The resulting feedback loop is:
+  </p>
+
+  <ol>
+    <li>Dependency latency increases.</li>
+    <li>Requests occupy workers for longer.</li>
+    <li>Queues grow and timeouts increase.</li>
+    <li>Clients and services generate additional retries.</li>
+    <li>Effective demand increases while service capacity is degraded.</li>
+    <li>The original latency problem becomes a larger overload event.</li>
+  </ol>
+
+  <p>
+    A retry policy that works under normal conditions can
+    destabilize a service during a common dependency failure.
+  </p>
+
+  <h3>Engineering controls</h3>
+
+  <ul>
+    <li>Use bounded retries and an explicit retry budget.</li>
+    <li>Retry only operations that are safe to repeat.</li>
+    <li>Use idempotency keys for operations with side effects.</li>
+    <li>Stop retrying when the request deadline cannot be met.</li>
+    <li>Use circuit breakers and dependency-aware admission control.</li>
+    <li>Propagate cancellation to downstream work.</li>
+    <li>Measure original requests separately from retry attempts.</li>
+  </ul>
+
+  <p>
+    <strong>Important:</strong> A retry budget limits additional
+    work. It does not guarantee recovery. Recovery still depends
+    on capacity, dependency health, and the system's ability
+    to drain existing backlog.
+  </p>
+</section>
+
+
             <h3>Interactive Simulation: Watch the Tail Explode</h3>
             <p>Explore the <strong>constant-\( p \) bounded baseline</strong> below. Notice the bar at the cap \( M \): teal shows requests that genuinely succeeded on their final allowed attempt, while crimson shows requests that exhausted all \( M \) attempts and failed terminally. Drag \( p \) down toward <code>0.15</code> with \( M = 5 \) to watch the crimson failure mass dominate.</p>
             <div class="stage" data-sim-type="geometric">
@@ -346,6 +458,86 @@
                 <li><strong>End-to-End Backpressure:</strong> Propagate saturation signals upstream across async queues so producers slow down instead of OOM-killing intermediate brokers.</li>
                 <li><strong>Separate Telemetry Counters:</strong> Emit distinct metrics for <code>requests.initial</code>, <code>requests.retries</code>, <code>retries.budget_exhausted</code>, and <code>deadline.expired</code>.</li>
             </ul>
+            
+<section id="jitter-is-not-backpressure">
+  <h2>Jitter De-synchronizes Demand; It Does Not Remove Demand</h2>
+
+  <p>
+    Exponential backoff with full jitter chooses a random delay
+    from zero to the current exponential backoff ceiling:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      D_k \sim U(0,B_k)
+    \]</p>
+    <p>\[
+      B_k=\min(D_{\max},D_0 2^k)
+    \]</p>
+  </div>
+
+  <p>
+    The expected delay, conditional on the current backoff
+    ceiling, is:
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      E[D_k]=\frac{B_k}{2}
+    \]</p>
+  </div>
+
+  <p>
+    Without jitter, thousands of clients that fail at nearly
+    the same time can retry at nearly the same scheduled
+    intervals. This produces synchronized retry bursts.
+  </p>
+
+  <p>
+    Jitter spreads those attempts over a time window, reducing
+    synchronization and potentially lowering instantaneous
+    peak demand.
+  </p>
+
+  <p>
+    But the expected number of retry attempts has not
+    automatically decreased. Jitter changes their timing,
+    not the underlying amount of work required to recover.
+  </p>
+
+  <h3>Three different engineering problems require three controls</h3>
+
+  <ul>
+    <li>
+      <strong>Synchronization:</strong> Use jitter to spread
+      retry attempts over time.
+    </li>
+    <li>
+      <strong>Excessive retry volume:</strong> Use retry budgets,
+      maximum attempts, deadlines, and circuit breakers.
+    </li>
+    <li>
+      <strong>Insufficient downstream capacity:</strong>
+      Use admission control, backpressure, concurrency limits,
+      and load shedding.
+    </li>
+  </ul>
+
+  <p>
+    Also account for retry scope. A request retried independently
+    by three nested service layers can generate significantly
+    more downstream attempts than a single client retry policy.
+    Coordinate retry ownership and propagate remaining deadlines
+    through the call chain.
+  </p>
+
+  <p>
+    <strong>Architectural principle:</strong> Jitter controls
+    synchronization. Retry budgets control amplification.
+    Backpressure controls admission.
+  </p>
+</section>
+
 
             <!-- ========================================== -->
             <!-- 2. NEGATIVE BINOMIAL DISTRIBUTION -->
@@ -621,6 +813,83 @@
                 </div>
                 <p><strong>Watch out for correlated or unrepresentative samples:</strong> The calculation assumes independent Bernoulli trials with a stable failure probability. Three thousand synthetic <code>/healthz</code> pings do not provide three thousand independent observations about real query execution, tenant isolation, cache misses, or downstream saturation. Repeated requests from one cached session may carry far less information than their raw count suggests. Measure coverage across relevant tenants, request classes, regions, and operating states; do not mechanically replace the raw sample count with an assumed effective sample size.</p>
             </div>
+
+            
+<section id="heavy-tail-and-bounded-probabilities">
+  <h2>Heavy-Tailed Demand Is Not the Same as Uncertain Probabilities</h2>
+
+  <h3>1. Pareto: candidate model for heavy-tailed demand</h3>
+
+  <p>
+    A Pareto distribution can describe quantities such as
+    tenant request volume, data size, or workload concentration
+    when empirical evidence supports a power-law tail.
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      P(X>x)=\left(\frac{x_m}{x}\right)^\alpha,
+      \qquad x\ge x_m
+    \]</p>
+  </div>
+
+  <p>
+    Its mean is finite only when alpha is greater than 1,
+    and its variance is finite only when alpha is greater than 2.
+    This distinction matters when using sample averages and
+    variance-based capacity estimates.
+  </p>
+
+  <p>
+    A Pareto fit must be validated against alternatives and
+    the actual observed tail. A heavy-tailed workload is not
+    automatically Pareto distributed.
+  </p>
+
+  <h3>2. Beta: candidate model for bounded quantities</h3>
+
+  <p>
+    The Beta distribution is defined on the interval [0,1].
+    It can represent uncertainty about quantities such as
+    a tenant's request share, a failure probability, or
+    a measured success proportion.
+  </p>
+
+  <div class="math-block">
+    <p>\[
+      X\sim\operatorname{Beta}(a,b)
+    \]</p>
+  </div>
+
+  <p>
+    Its use requires a clear interpretation of the uncertain
+    quantity and the data-generating process. For example,
+    a Beta posterior can be obtained from a Beta prior and
+    binomial observations.
+  </p>
+
+  <p>
+    A Beta distribution does not, by itself, model the temporal
+    evolution of tenant traffic, retry synchronization,
+    or dependency failure propagation.
+  </p>
+
+  <h3>3. Choose the model from the mechanism</h3>
+
+  <ul>
+    <li>Tenant demand: examine empirical concentration and tail behaviour.</li>
+    <li>Tenant share: estimate a bounded proportion from observed traffic.</li>
+    <li>Retry frequency: model attempts conditional on failure state and policy.</li>
+    <li>Failure propagation: model dependencies and state transitions.</li>
+  </ul>
+
+  <p>
+    <strong>Architectural principle:</strong> A distribution
+    describes a variable. It does not explain the feedback
+    mechanism that changes that variable over time.
+  </p>
+</section>
+
 
             <div class="tldr-box tldr-box--math">
                 <div class="tldr-eyebrow">Architectural Application: Taming the "Half-Open" Circuit Breaker</div>
