@@ -324,7 +324,7 @@
                             <th style="padding: 0.5rem;">Model CDF \( F(x) \)</th>
                             <th style="padding: 0.5rem;">Vertical Probability Gap \( |\hat{F}_n(x) - F(x)| \)</th>
                         </tr>
-                    </thead>
+                    </thead>w
                     <tbody>
                         <tr style="border-bottom: 1px solid var(--border, #1e293b);">
                             <td style="padding: 0.5rem;">\( 50\text{ ms} \) (Near Median)</td>
@@ -390,16 +390,16 @@
                                 <td style="padding: 0.45rem;">\( 1,120.8\text{ ms} \) vs. <strong>\( 4,800.0\text{ ms} \)</strong></td>
                                 <td style="padding: 0.45rem;">\( 4.28\times \) horizontal SLA breach (\( X_{(1000)} = 7,900\text{ ms} \))</td>
                             </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.45rem;"><strong>KS Statistic (\( D_n \))</strong></td>
-                                <td style="padding: 0.45rem;">\( 0.0294 \) (Crit \( \alpha=0.05 \): \( 0.0429 \))</td>
-                                <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">PASS (Fails to reject!)</span> — Completely blind to the \( 1.2\% \) stall</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 0.45rem;"><strong>AD Statistic (\( A^2 \))</strong></td>
-                                <td style="padding: 0.45rem;">\( 3.142 \) (Crit \( \alpha=0.05 \): \( 2.492 \))</td>
-                                <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">REJECT</span> — Tail weighting catches the compaction stalls</td>
-                            </tr>
+                           <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+    <td style="padding: 0.45rem;"><strong>KS Statistic (\( D_n \))</strong></td>
+    <td style="padding: 0.45rem;">\( 0.0294 \) (Crit \( \alpha=0.05 \): \( 0.0429 \))</td>
+    <td style="padding: 0.45rem;"><span style="color: #10b981; font-weight: 600;">DO NOT REJECT</span> — At this sample size and calibration, the global maximum CDF gap is below the critical value. The rare-tail discrepancy contributes little to the unweighted supremum; this is not evidence that the tail quantile is accurate.</td>
+</tr>
+<tr>
+    <td style="padding: 0.45rem;"><strong>AD Statistic (\( A^2 \))</strong></td>
+    <td style="padding: 0.45rem;">\( 3.142 \) (Crit \( \alpha=0.05 \): \( 2.492 \))</td>
+    <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">REJECT</span> — Under the stated calibration, the tail-weighted statistic rejects this sample as inconsistent with the baseline model. This does not mean AD is guaranteed to detect every rare stall.</td>
+</tr>
                         </tbody>
                     </table>
                 </div>
@@ -426,14 +426,15 @@
                         \[ n \ge \frac{m}{1-q} \]
                         Taking \(m\approx25\) gives \(n\approx2,500\) for \(P_{99}\) and \(n\approx25,000\) for \(P_{99.9}\). This only targets an expected number of tail observations under an approximately independent, stable sampling process. It does <strong>not</strong> guarantee a precise percentile estimate or a narrow confidence interval. Quantile precision also depends on the density near the target percentile, serial dependence, workload mixtures, non-stationarity, and censoring. Use order-statistic confidence intervals for an IID sample; for dependent telemetry, use an appropriate moving-block or stationary bootstrap and report the observation window, workload scope, censoring policy, and uncertainty. More data cannot repair a biased or unrepresentative sample.
                     </li>
-                    <li><strong>2. The Parameter-Fitting Trap (Parametric Bootstrap):</strong> Standard critical values (\( D_{\text{crit}} = \frac{1.358}{\sqrt{n}} \) and \( A^2_{\text{crit}} = 2.492 \)) strictly assume a <em>fully specified</em> null model—meaning you fixed \( \mu_0 \) and \( \sigma_0 \) from last month's baseline or an SLA contract <em>before</em> looking at today's sample. If you estimate \( (\hat{\mu}, \hat{\sigma}) \) from today's sample and test against that same sample (the composite-null / Lilliefors setting), the fitted curve hugs the data's quirks and shrinks \( D_n \) and \( A^2 \), causing false passes. To get an honest threshold when fitting parameters from data, run a 4-step <strong>Parametric Bootstrap</strong>:
-                        <ol style="margin-top:0.35rem; margin-bottom:0.35rem;">
-                            <li>Fit \( \hat{\theta} = (\hat{\mu}, \hat{\sigma}) \) to your production sample of size \( n \) and compute \( A^2_{\text{obs}} \).</li>
-                            <li>Simulate \( B = 2,000 \) synthetic datasets of size \( n \) drawn from \( \text{Lognormal}(\hat{\mu}, \hat{\sigma}) \).</li>
-                            <li><strong>Re-fit</strong> \( (\hat{\mu}^*_b, \hat{\sigma}^*_b) \) on each synthetic dataset and compute its synthetic statistic \( A^{2*}_b \).</li>
-                            <li>Reject the model if \( A^2_{\text{obs}} \) exceeds the \( 95\text{th} \) percentile of your synthetic \( A^{2*}_b \) values.</li>
-                        </ol>
-                    </li>
+                 <li><strong>2. The Parameter-Fitting Trap (Parametric Bootstrap):</strong> Standard critical values such as \(D_{\text{crit}}=1.358/\sqrt{n}\) and a tabulated \(A^2_{\text{crit}}\) apply only under the null-model and parameter-estimation conditions for which they were calibrated. If you estimate \((\hat{\mu},\hat{\sigma})\) from today's sample and test that same sample as though the parameters had been fixed in advance, the ordinary fully specified-null reference distribution is not valid. Use a <strong>Parametric Bootstrap</strong> to calibrate both KS and AD under the actual fitting procedure:
+    <ol style="margin-top:0.35rem; margin-bottom:0.35rem;">
+        <li>Fit \(\hat{\theta}=(\hat{\mu},\hat{\sigma})\) to the production sample of size \(n\), then compute both observed statistics: \(D_{n,\text{obs}}\) and \(A^2_{\text{obs}}\).</li>
+        <li>Simulate \(B=2,000\) synthetic datasets of size \(n\) from the fitted model \(F(x;\hat{\theta})\).</li>
+        <li>For every synthetic dataset, <strong>refit</strong> the parameters using the same estimation procedure and compute both \(D^*_{n,b}\) and \(A^{2*}_b\).</li>
+        <li>Build separate empirical reference distributions for KS and AD. Reject using the relevant bootstrap critical value or bootstrap tail probability for each statistic; do not reuse a fixed-parameter critical value after estimating parameters from the tested sample.</li>
+    </ol>
+    If the distribution family itself was selected after inspecting the data, repeat that selection procedure inside each bootstrap replicate or use a separate validation sample; otherwise the calibration can still be optimistic.
+</li>
                 </ul>
             </div>
 
@@ -555,75 +556,48 @@
             </ul>
 
             <div class="math-explanation">
-                <strong>The Autocorrelation Trap: Effective Sample Size (\( n_{\text{eff}} \))</strong>
-                <p style="margin-top: 0.4rem;">When residuals are positively correlated across consecutive minutes, \( 1,000 \) data points do not give you \( 1,000 \) independent pieces of evidence. For estimating the <strong>sample mean</strong>, positive serial correlation shrinks your effective sample size to:</p>
-                <div class="equation-flow">
-                    \[ n_{\text{eff}} \approx \frac{n}{1 + 2\sum_{\tau=1}^{K} \hat{\rho}(\tau)} \]
-                </div>
-                <p><strong>Crucial Engineering Guardrail:</strong> That \( n_{\text{eff}} \) formula applies <em>strictly to the variance of the sample mean</em>. Never plug \( n_{\text{eff}} \) directly into KS, Anderson-Darling, or CUSUM equations! Positive serial correlation makes CUSUM accumulate consecutive noisy readings much faster than independent white noise, causing false-alarm storms. If your residuals show sticky lag-1 correlation, either aggregate into wider time buckets (e.g., 5-minute windows) or calibrate your alert threshold \( h \) via block bootstrap on historical logs.</p>
-            </div>
-
-            <h3>2.3 Page's CUSUM: Catching a \( +0.8\sigma_0 \) Canary Regression in 10 Minutes</h3>
-
-            <p>Suppose our gateway's healthy residual baseline has mean \( \mu_0 = 50\text{ ms} \) and standard deviation \( \sigma_0 = 10\text{ ms} \). A canary deployment introduces a subtle lock contention that shifts mean latency to \( \mu_1 = 58\text{ ms} \)—a shift of \( \delta = \frac{58 - 50}{10} = +0.8 \) standard deviations. A \( 3\sigma_0 \) static alert sits at \( 80\text{ ms} \) and will never fire. An Exponentially Weighted Moving Average (\( Z_t = \lambda x_t + (1-\lambda)Z_{t-1} \)) is great for smoothing dashboard lines, but because it continually blends new data with history, it reacts sluggishly to small step changes.</p>
-
-            <p><strong>Page's Upper CUSUM (\( S_t^+ \))</strong> solves this by acting like a leaky bucket that accumulates evidence above a reference slack \( k \):</p>
-
-            <div class="equation-flow">
-                \[ S_t^+ = \max\!\left(0, \; S_{t-1}^+ + z_t - k\right), \quad S_0^+ = 0, \quad \text{Trigger Alert when } S_t^+ > h \]
-            </div>
-
-            <p>To tune CUSUM optimally (derived from sequential log-likelihood ratios for a shift of size \( \delta \)), we set the <strong>reference slack to half the target shift: \( k = \frac{\delta}{2} \)</strong>:</p>
-            <ul>
-                <li><strong>Target Shift (\( \delta = 0.8 \)):</strong> The \( +0.8\sigma_0 \) (\( +8\text{ ms} \)) regression we want our canary gate to catch.</li>
-                <li><strong>Reference Slack (\( k = \frac{\delta}{2} = 0.4 \)):</strong> The constant drain on the bucket every step. When the system is healthy (\( \mathbb{E}[z_t] = 0 \)), each step adds \( 0 - 0.4 = -0.4 \) on average, keeping \( S_t^+ \) clamped firmly at \( 0 \). When the \( \delta = 0.8 \) regression hits, each step adds a net positive drift of \( \Delta = \delta - k = 0.8 - 0.4 = +0.4 \) into the bucket!</li>
-                <li><strong>Decision Threshold (\( h = 4.0 \)):</strong> The bucket capacity required to fire an alert and halt the canary rollout.</li>
-            </ul>
-
-            <p>At a steady \( 58\text{ ms} \) (\( z_t = 0.8 \)), adding \( +0.4 \) per minute pushes \( S_t^+ \) from \( 0 \to 0.4 \to 0.8 \dots \to 4.0 \) in just <strong>10 minutes</strong>—catching a regression that a static \( 80\text{ ms} \) threshold would miss forever.</p>
-
-            <h3>2.4 Tuning False Alarms (\(\text{ARL}_0\)) vs. Detection Delay (\(\text{ARL}_1\))</h3>
-
-            <div class="math-explanation">
-                <strong>Siegmund's Approximation & Three Operational Rules for CUSUM:</strong>
-                <p style="margin-top: 0.4rem;">In production, random noise bounces \( z_t \) around its mean. We evaluate a CUSUM gate by its <strong>Average Run Length (ARL)</strong>: <strong>\(\text{ARL}_0\)</strong> is the average number of steps before a healthy system (\(\delta = 0\)) suffers a false alarm, while <strong>\(\text{ARL}_1\)</strong> is the average number of steps required to catch a real shift (\(\delta > k\)). Using Siegmund's boundary-corrected diffusion formula with \( b = h + 1.166 \) and net drift \( \Delta = \delta - k \neq 0 \):</p>
-                <div class="equation-flow">
-                    \[ \text{ARL}(\Delta) \approx \frac{e^{-2\Delta b} + 2\Delta b - 1}{2\Delta^2} \quad \left(\text{and } \text{ARL}(0) \approx b^2 \text{ when } \Delta = 0\right) \]
-                </div>
-                <div class="table-wrap" style="margin: 0.6rem 0; overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
-                                <th style="padding: 0.4rem;">Gateway Gate Profile (\( 1\text{-min} \) ticks)</th>
-                                <th style="padding: 0.4rem;">False-Alarm Interval (\(\text{ARL}_0\) at \(\delta=0\))</th>
-                                <th style="padding: 0.4rem;">Expected Detection Delay (\(\text{ARL}_1\) at target \(\delta\))</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.4rem;"><strong>Canary Gate:</strong> \( \delta = 0.8, k = 0.4, h = 4.0 \)</td>
-                                <td style="padding: 0.4rem;">\( \approx 168\text{ steps} \) (\( 2.8\text{ hours} \))</td>
-                                <td style="padding: 0.4rem;"><strong>\( \approx 9.84\text{ steps} \) (\( 9.8\text{ minutes} \))</strong></td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border, #1e293b);">
-                                <td style="padding: 0.4rem;"><strong>Standard Gate:</strong> \( \delta = 1.0, k = 0.5, h = 4.0 \)</td>
-                                <td style="padding: 0.4rem;">\( \approx 336\text{ steps} \) (\( 5.6\text{ hours} \))</td>
-                                <td style="padding: 0.4rem;"><strong>\( \approx 8.34\text{ steps} \) (\( 8.3\text{ minutes} \))</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 0.4rem;"><strong>Low-Noise Gate:</strong> \( \delta = 1.0, k = 0.5, h = 5.0 \)</td>
-                                <td style="padding: 0.4rem;">\( \approx 930\text{ steps} \) (\( 15.5\text{ hours} \))</td>
-                                <td style="padding: 0.4rem;"><strong>\( \approx 10.34\text{ steps} \) (\( 10.3\text{ minutes} \))</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <ul>
-                    <li><strong>1. What Happens When \(\delta \le k\) (Shift Below the Slack Floor):</strong> Systematic upward accumulation only occurs when the shift exceeds the slack (\(\delta > k \implies \Delta > 0\)). If \(\delta \le k\), net drift \(\Delta = \delta - k \le 0\) is zero or negative—meaning the bucket drains faster than the shift fills it. In that regime, Siegmund's formula outputs an <em>in-control or sub-slack false-alarm interval</em> (\(\text{ARL}_0\)), not an out-of-control detection delay (\(\text{ARL}_1\)).</li>
-                    <li><strong>2. One trajectory vs. an average run length:</strong> Clicking <strong>▶ Generate Series</strong> in Simulator 2 below runs one random path. One path might cross \(h=4.0\) in 5 steps while another takes 15. \(\text{ARL}_1\) is the <strong>expected run length to signal under a specified out-of-control process</strong>; it is not the delay that every rollout will experience. The value shown by this simulator is a diffusion-approximation estimate, not the measured average of the single path on screen. Estimate empirical ARL by running many independent or appropriately dependent-aware trials and averaging their signal times.</li>
-                </ul>
-                <p><strong>Calibration note:</strong> The tabulated run lengths are illustrative diffusion-approximation values under the stated standardized IID assumptions. They are not universal operating characteristics for production telemetry. Estimate \(\text{ARL}_0\) and \(\text{ARL}_1\) for the actual residual process, including any serial dependence and baseline-estimation uncertainty.</p>
-            </div>
+    <strong>Diffusion Approximation &amp; How to Read the Average Run Length:</strong>
+    <p style="margin-top: 0.4rem;">For this upper-only standardized Page's CUSUM, let the standardized observation have mean shift \(\delta\), let \(k\) be the reference value (slack), and define the accumulator's net mean drift as \(\Delta=\delta-k\). With threshold \(h\), this article uses the illustrative boundary correction \(b=h+1.166\). Under the stated IID, unit-variance diffusion approximation:</p>
+    <div class="equation-flow">
+        \[ \operatorname{ARL}(\Delta) \approx \frac{e^{-2\Delta b}+2\Delta b-1}{2\Delta^2}, \quad \Delta\ne0; \qquad \lim_{\Delta\to0}\operatorname{ARL}(\Delta)=b^2 \]
+    </div>
+    <p><strong>The important distinction is the drift used:</strong></p>
+    <ul>
+        <li><strong>In-control false-alarm run length:</strong> when the process is healthy, \(\delta=0\), so the net drift is \(\Delta=-k\). Therefore calculate \(\text{ARL}_0\) using \(\operatorname{ARL}(-k)\), not by substituting \(\Delta=0\).</li>
+        <li><strong>Out-of-control detection run length:</strong> for a sustained upward shift \(\delta>k\), the net drift is positive, \(\Delta=\delta-k\). Calculate \(\text{ARL}_1\) using \(\operatorname{ARL}(\delta-k)\).</li>
+        <li><strong>Shift at or below the reference value:</strong> if \(\delta\le k\), there is no positive mean drift in the accumulator. Do not describe the result as a positive-drift detection delay; treat it as a false-signal/run-length regime and calibrate it for the actual process.</li>
+    </ul>
+    <p>The table below is recalculated consistently from the displayed approximation, using \(b=h+1.166\). Values are illustrative—not universal production guarantees.</p>
+    <div class="table-wrap" style="margin: 0.6rem 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
+                    <th style="padding: 0.4rem;">Gateway Gate Profile (1-min ticks)</th>
+                    <th style="padding: 0.4rem;">Approx. \(\text{ARL}_0\) (\(\delta=0,\ \Delta=-k\))</th>
+                    <th style="padding: 0.4rem;">Approx. \(\text{ARL}_1\) (\(\delta>k\))</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.4rem;"><strong>Canary Gate:</strong> \(\delta=0.8,\ k=0.4,\ h=4.0\)</td>
+                    <td style="padding: 0.4rem;">\(\approx179\) steps (\(\approx3.0\) hours)</td>
+                    <td style="padding: 0.4rem;"><strong>\(\approx9.84\) steps (\(\approx9.8\) minutes)</strong></td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+                    <td style="padding: 0.4rem;"><strong>Standard Gate:</strong> \(\delta=1.0,\ k=0.5,\ h=4.0\)</td>
+                    <td style="padding: 0.4rem;">\(\approx338\) steps (\(\approx5.6\) hours)</td>
+                    <td style="padding: 0.4rem;"><strong>\(\approx8.34\) steps (\(\approx8.3\) minutes)</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.4rem;"><strong>Low-Noise Gate:</strong> \(\delta=1.0,\ k=0.5,\ h=5.0\)</td>
+                    <td style="padding: 0.4rem;">\(\approx938\) steps (\(\approx15.6\) hours)</td>
+                    <td style="padding: 0.4rem;"><strong>\(\approx10.34\) steps (\(\approx10.3\) minutes)</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p><strong>Calibration note:</strong> These are diffusion-approximation values for standardized IID increments. Real residuals may be autocorrelated, non-normal, heteroskedastic, seasonal, or affected by baseline-estimation error. Calibrate \(h\), \(\text{ARL}_0\), and \(\text{ARL}_1\) using representative in-control and shifted residual sequences. Use dependence-aware simulation or block resampling when serial dependence is material. A single simulated path is one realization, not an estimate of ARL.</p>
+</div>
 
             <h3>Interactive Simulation: Standardized Page's CUSUM Drift Detector</h3>
 
@@ -861,9 +835,8 @@
                 </table>
             </div>
 
-            <p><strong>The Architectural Fix:</strong> Never put a <code>status == 200</code> latency percentile chart on an operational dashboard without including timed-out requests in the latency population (or pairing it directly with an error/timeout rate panel). And when fitting capacity or tail models offline, use <strong>Censored Maximum Likelihood Estimation (MLE)</strong>. Instead of feeding a fake \( 30\text{ s} \) completion time into the probability density \( f(y_i; \theta) \), every timed-out request (\(\delta_i = 0\)) contributes its survival probability \( 1 - F(T_{\max}; \theta) \)—the mathematical fact that the query was still running when the clock ran out:</p>
-
-            <div class="equation-flow">
+          <p><strong>The Architectural Fix:</strong> Never let a success-only latency chart stand alone: report completed-request latency alongside timeout/error rate and request volume. Keep two concepts separate. For an operational view of user-visible outcomes, you may record the time to terminal outcome (including the configured timeout deadline), but label timeout outcomes explicitly rather than calling them completed service times. For estimating the underlying service-time distribution or capacity demand, treat timed-out requests as <strong>right-censored observations</strong>: they contribute the survival probability \(1-F(T_{\max};\theta)\), not a completed-duration density at \(T_{\max}\). Use censored maximum-likelihood or survival-analysis methods for offline fitting, and document the censoring mechanism and deadline policy.</p>
+               <div class="equation-flow">
                 \[ \ell(\theta) = \sum_{\text{completed } (\delta_i=1)} \ln f(y_i; \theta) \;+\; \sum_{\text{timed out } (\delta_i=0)} \ln\left(1 - F(T_{\max}; \theta)\right) \]
             </div>
 
@@ -958,12 +931,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td><strong>KS Test (\( D_n \))</strong></td>
-                            <td><em>"Did the middle bulk (\( P_{20}\text{–}P_{80} \)) of my latency distribution shift?"</em><br>Measures max vertical probability gap \(\sup_x |\hat{F}_n(x) - F(x)|\).</td>
-                            <td><strong>Catches:</strong> Differences that create a large global absolute CDF gap, including tail differences when sufficiently large.<br><strong>Limitation:</strong> It has no special tail weighting; a rare but operationally severe tail error may contribute little to the maximum statistic.</td>
-                            <td>Use only for quick sanity checks on median traffic. <strong>Never</strong> use a passing KS test to certify \( P_{99} \) or \( P_{99.9} \) SLAs.</td>
-                        </tr>
+                       <tr>
+    <td><strong>KS Test (\( D_n \))</strong></td>
+    <td><em>“Does the empirical distribution differ enough anywhere to create a large global CDF gap?”</em><br>Measures the maximum absolute vertical probability difference \(\sup_x|\hat{F}_n(x)-F(x)|\).</td>
+    <td><strong>Catches:</strong> Broad distributional differences, including tail differences when they create a sufficiently large global CDF gap.<br><strong>Limitation:</strong> It has no special tail weighting; a rare but operationally severe tail discrepancy may contribute little to the statistic.</td>
+    <td>Use KS as a global goodness-of-fit diagnostic under an appropriately calibrated null. A passing result does not certify \(P_{99}\) or \(P_{99.9}\); validate the target quantiles, exceedance rates, and uncertainty directly.</td>
+</tr>
                         <tr>
                             <td><strong>Anderson-Darling (\( A^2 \))</strong></td>
                             <td><em>"Does my model fit both the center and the extreme tails?"</em><br>Amplifies vertical CDF errors near \( 0 \) and \( 1 \) by \( [F(x)(1-F(x))]^{-1} \).</td>
@@ -1013,8 +986,7 @@
                 <div class="tldr-eyebrow">The Intuition: Proving the Blueprint vs. Surviving the Hardware</div>
                 <div class="tldr-content">
                     <p>When designing complex state machines—like lock-free cache invalidation or multi-tenant Iceberg snapshot commits in our Analytics Gateway—formal verification tools like <strong>TLA+</strong> and the TLC model checker are indispensable. They exhaustively explore millions of concurrent interleavings to prove your state machine cannot deadlock or corrupt pointers.</p>
-                    <p>But here is the trap: <strong>a TLA+ proof verifies your abstract blueprint, not your running C++, Rust, or Python code—and neither TLA+ nor smooth probability distributions know about hard physical hardware cliffs unless you explicitly model them.</strong> TLC does not know that Linux runs out of ephemeral ports at <code>65,535</code>, and a smooth Lognormal curve does not know that Kubernetes instantly fires <code>SIGKILL (OOMKilled)</code> the millisecond your pod's Arrow buffer crosses <code>16 GiB</code>.</p>
-                </div>
+<p>But here is the trap: <strong>a TLA+ proof verifies your abstract blueprint, not your running C++, Rust, or Python code—and neither TLA+ nor a smooth probability model automatically captures kernel, container, or configured resource limits unless you model them.</strong> TLC does not know that a configured cgroup memory limit can trigger kernel OOM handling, that an application connection pool can become exhausted, or that outbound connections can fail when the available ephemeral-port range and connection-tuple space are consumed. These are distinct limits with different failure mechanisms; they should not be collapsed into one universal “65,535-port” ceiling.</p>                </div>
             </div>
 
             <h3>6.1 Logical Blueprints vs. Implementation Drift and Physical Cliffs</h3>
@@ -1037,7 +1009,7 @@
                         <tr style="border-bottom: 2px solid var(--border, #334155); text-align: left;">
                             <th style="padding: 0.45rem;">Gateway Resource</th>
                             <th style="padding: 0.45rem;">Smooth Regime (Queueing Math Holds)</th>
-                            <th style="padding: 0.45rem;">Hard Physical Cliff</th>
+                            <th style="padding: 0.45rem;">Configured / Kernel Limit</th>
                             <th style="padding: 0.45rem;">What Happens at the Cliff</th>
                         </tr>
                     </thead>
@@ -1054,12 +1026,18 @@
                             <td style="padding: 0.45rem;"><code>max_connections = 500</code></td>
                             <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;">Pool Starvation</span> — Worker threads block waiting for a free socket while holding memory buffers until timeouts fire.</td>
                         </tr>
-                        <tr>
-                            <td style="padding: 0.45rem;"><strong>Linux Network & File Descriptors</strong></td>
-                            <td style="padding: 0.45rem;">\( 1,000 \to 45,000 \) open FDs<br><em>(Sub-millisecond TCP handshakes)</em></td>
-                            <td style="padding: 0.45rem;"><code>ulimit -n = 65,536</code> or ephemeral port exhaustion</td>
-                            <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;"><code>EMFILE</code> / <code>EADDRNOTAVAIL</code></span> — Node cannot open new outbound storage connections or accept client sockets.</td>
-                        </tr>
+                     <tr style="border-bottom: 1px solid var(--border, #1e293b);">
+    <td style="padding: 0.45rem;"><strong>Linux File Descriptors</strong></td>
+    <td style="padding: 0.45rem;">Open file/socket descriptors approach the process limit<br><em>(Workload-dependent growth)</em></td>
+    <td style="padding: 0.45rem;"><code>RLIMIT_NOFILE</code> (example: <code>65,536</code>)</td>
+    <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;"><code>EMFILE</code></span> — The process cannot open another file or socket until descriptors are released or the configured limit is changed.</td>
+</tr>
+<tr>
+    <td style="padding: 0.45rem;"><strong>Outbound Ephemeral Ports</strong></td>
+    <td style="padding: 0.45rem;">Concurrent outbound connections consume source-port / connection-tuple capacity<br><em>(Affected by destination, protocol, reuse and socket state)</em></td>
+    <td style="padding: 0.45rem;">Configured ephemeral range (for example, inspect <code>ip_local_port_range</code>); no universal fixed application limit of <code>65,535</code></td>
+    <td style="padding: 0.45rem;"><span style="color: #ef4444; font-weight: 600;"><code>EADDRNOTAVAIL</code></span> or connection failures — Available source ports or tuples cannot be allocated under the current range and socket-state constraints.</td>
+</tr>
                     </tbody>
                 </table>
             </div>
@@ -1091,8 +1069,7 @@
                         <tr>
                             <td><strong>1. Telemetry Hygiene & Censoring</strong></td>
                             <td>Are our dashboards distorting the raw latency numbers before we even analyze them?</td>
-                            <td>Export mergeable <strong>DDSketch</strong> (for unbounded cloud latencies) or <strong>HDRHistogram</strong> buckets from every pod—never run <code>avg(p99_by_pod)</code>. Keep timed-out queries (\( Y_i = T_{\max}, \delta_i = 0 \)) in your percentile population so outages never disguise themselves as latency improvements.</td>
-                        </tr>
+                           <td>Export mergeable <strong>DDSketch</strong> or <strong>HDRHistogram</strong> buckets from every pod—never run <code>avg(p99_by_pod)</code>. Report completed-request latency together with timeout/error rate and request volume. For service-time fitting, retain each timeout as a right-censored observation \((Y_i=T_{\max},\delta_i=0)\); do not treat it as a completed service time at \(T_{\max}\). If you also publish time-to-terminal-outcome, label timeout outcomes and the deadline explicitly.</td>
                         <tr>
                             <td><strong>2. Workload Split (Stratification)</strong></td>
                             <td>Are we mixing completely different execution paths into a single curve?</td>
