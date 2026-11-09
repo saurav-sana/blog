@@ -242,7 +242,7 @@
                 <div class="tldr-eyebrow">The Intuition: Vertical Probability vs. Horizontal Latency</div>
                 <div class="tldr-content">
                     <p>Suppose we pull \( 10,000 \) request traces from our Multi-Tenant Analytics Gateway to verify whether query latency follows a Lognormal distribution. Goodness-of-Fit testing compares two curves: <strong>what actually happened in production</strong> versus <strong>what our mathematical model predicted would happen</strong>.</p>
-                    <p>Engineers frequently run a Kolmogorov-Smirnov (KS) test, see a passing \( p \)-value, and sign off on capacity plans. That is a trap. KS measures the maximum <em>vertical</em> gap in cumulative probability \( |\hat{F}_n(x) - F(x)| \). Once you pass \( P_{99} \), both curves are already above \( 99\% \)—leaving less than \( 1\% \) of vertical room up to \( 100\% \). Even if production \( P_{99.9} \) explodes horizontally from a predicted \( 1,120\text{ ms} \) out to \( 4,800\text{ ms} \), the vertical gap is tiny (\( < 0.01 \)) and completely invisible to KS.</p>
+                    <p>Engineers sometimes run a Kolmogorov-Smirnov (KS) test, see a non-significant result, and treat it as proof that a latency model is safe for capacity planning. That conclusion is too strong. KS measures the <em>largest absolute vertical difference</em> between the empirical and model CDFs, \(D_n=\sup_x|\hat F_n(x)-F(x)|\). It gives no special extra weight to the tail. A large horizontal error at a very rare percentile can correspond to a small probability difference and may contribute little to the global maximum—especially when a larger discrepancy exists in the body of the distribution. KS can detect a tail discrepancy if it is large enough; it simply does not guarantee useful sensitivity to the operational tail. A passing test therefore does not certify \(P_{99.9}\) accuracy or an SLA.</p>
                 </div>
             </div>
 
@@ -348,13 +348,13 @@
                             <td style="padding: 0.5rem;">\( 4,800\text{ ms} \) (\( P_{99.9} \) Blowout)</td>
                             <td style="padding: 0.5rem;">\( 99.9\% \)</td>
                             <td style="padding: 0.5rem;">\( 99.999\% \)</td>
-                            <td style="padding: 0.5rem;">\( 0.099\% \) (\( 0.00099 \)) — Invisible to KS!</td>
+                            <td style="padding: 0.5rem;">\( 0.099\% \) (\( 0.00099 \)) — Smaller than the body discrepancy</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <p>See the architectural blind spot? Near the median (\( 50\text{ ms} \)), a harmless \( 2\text{ ms} \) jitter creates a \( 2.0\% \) vertical shift. Out at \( P_{99.9} \), a background Iceberg manifest compaction stalls queries for \( 4,800\text{ ms} \) instead of the predicted \( 1,120\text{ ms} \). That horizontal latency error destroys our SLA, yet the vertical probability gap is less than \( 0.1\% \)—completely dwarfed by normal noise in the middle of the curve.</p>
+            <p>This example illustrates why the KS statistic can be dominated by a discrepancy in the body of the distribution. The median-region difference of \(0.020\) sets the displayed maximum, while the rare-tail difference at the listed point is only \(0.00099\). The tail latency error is still operationally serious: the model's predicted time is far below the observed stall. But KS does not translate that horizontal millisecond error into a tail-specific penalty. Read the statistic alongside direct quantile errors, tail exceedance counts, Q-Q diagnostics, and uncertainty intervals.</p>
 
             <p>To catch tail blowouts, we need a test that penalizes errors near \( F(x) \to 1 \) and \( F(x) \to 0 \). That is the <strong>Anderson-Darling (AD) test</strong>, which divides the squared vertical error by the tail weight \( F(x)(1 - F(x)) \) and evaluates directly over your sorted sample \( X_{(1)} \le \dots \le X_{(n)} \):</p>
 
@@ -403,7 +403,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p><strong>Reality Check on AD:</strong> Even Anderson-Darling is not magic. If only \( 1 \) or \( 2 \) isolated requests stall in a \( 1,000 \)-trace sample, their weight isn't enough to push \( A^2 \) across \( 2.492 \). Conversely, if you feed \( n = 1,000,000 \) traces into AD, it will reject your model over a meaningless \( 0.3\text{ ms} \) serialization jitter. Always pair numerical tests with Q-Q plots and horizontal millisecond error checks.</p>
+                <p><strong>Reality Check on AD:</strong> Anderson-Darling gives greater weight to discrepancies in the tails than KS does, but it does not guarantee detection of every extreme observation. Whether one or two outliers materially change \(A^2\) depends on their magnitude, their location relative to the fitted CDF, sample size, and the test's calibration. At very large sample sizes, a test may also reject statistically detectable but operationally negligible deviations. Pair the statistic with Q-Q plots, direct tail-quantile error, exceedance analysis, and an engineering tolerance expressed in milliseconds.</p>
             </div>
 
             <h3>1.3 Visual Diagnosis First: Quantile-Quantile (Q-Q) Plots</h3>
@@ -422,8 +422,9 @@
             <div class="math-explanation">
                 <strong>Two Operational Rules Before You Trust a Tail Fit:</strong>
                 <ul>
-                    <li><strong>1. Sample Size Rule for \( P_{99.9} \):</strong> At \( P_{99.9} \) (\( q = 0.999 \)), only \( 0.1\% \) of traffic exceeds the threshold. If you grab \( n = 1,000 \) traces, you expect only \( 1 \) trace above \( P_{99.9} \), and basic probability (\( 0.999^{1000} \approx 36.8\% \)) says <strong>there is a \( 36.8\% \) chance your sample contains zero requests above the true \( P_{99.9} \)!</strong> Because the relative standard error of the exceedance count is \( \text{RSE} = \sqrt{\frac{q}{n(1-q)}} \approx \frac{1}{\sqrt{n(1-q)}} \), achieving a bare-minimum \( 20\% \) RSE (at least \( 25 \) tail events) requires:
-                        \[ n \ge \frac{25}{1 - q} \implies \text{At } P_{99}: n \ge 2,500 \quad \big| \quad \text{At } P_{99.9}: n \ge 25,000 \text{ independent traces} \]
+                    <li><strong>1. Tail-observation planning heuristic—not a quantile-accuracy guarantee:</strong> At percentile \(q\), the exceedance probability is \(1-q\). If we want an expected \(m\) observations beyond that percentile, a first planning approximation is:
+                        \[ n \ge \frac{m}{1-q} \]
+                        Taking \(m\approx25\) gives \(n\approx2,500\) for \(P_{99}\) and \(n\approx25,000\) for \(P_{99.9}\). This only targets an expected number of tail observations under an approximately independent, stable sampling process. It does <strong>not</strong> guarantee a precise percentile estimate or a narrow confidence interval. Quantile precision also depends on the density near the target percentile, serial dependence, workload mixtures, non-stationarity, and censoring. Use order-statistic confidence intervals for an IID sample; for dependent telemetry, use an appropriate moving-block or stationary bootstrap and report the observation window, workload scope, censoring policy, and uncertainty. More data cannot repair a biased or unrepresentative sample.
                     </li>
                     <li><strong>2. The Parameter-Fitting Trap (Parametric Bootstrap):</strong> Standard critical values (\( D_{\text{crit}} = \frac{1.358}{\sqrt{n}} \) and \( A^2_{\text{crit}} = 2.492 \)) strictly assume a <em>fully specified</em> null model—meaning you fixed \( \mu_0 \) and \( \sigma_0 \) from last month's baseline or an SLA contract <em>before</em> looking at today's sample. If you estimate \( (\hat{\mu}, \hat{\sigma}) \) from today's sample and test against that same sample (the composite-null / Lilliefors setting), the fitted curve hugs the data's quirks and shrinks \( D_n \) and \( A^2 \), causing false passes. To get an honest threshold when fitting parameters from data, run a 4-step <strong>Parametric Bootstrap</strong>:
                         <ol style="margin-top:0.35rem; margin-bottom:0.35rem;">
@@ -619,8 +620,9 @@
                 </div>
                 <ul>
                     <li><strong>1. What Happens When \(\delta \le k\) (Shift Below the Slack Floor):</strong> Systematic upward accumulation only occurs when the shift exceeds the slack (\(\delta > k \implies \Delta > 0\)). If \(\delta \le k\), net drift \(\Delta = \delta - k \le 0\) is zero or negative—meaning the bucket drains faster than the shift fills it. In that regime, Siegmund's formula outputs an <em>in-control or sub-slack false-alarm interval</em> (\(\text{ARL}_0\)), not an out-of-control detection delay (\(\text{ARL}_1\)).</li>
-                    <li><strong>2. One Trajectory vs. Multi-Trial Expectation:</strong> Clicking <strong>▶ Generate Series</strong> in Simulator 2 below runs a single random path. Depending on random Gaussian draws, one path might cross \( h = 4.0 \) in \( 5 \) steps while the next takes \( 15 \) steps. Theoretical \(\text{ARL}_1 = 9.84\) is the <strong>ensemble average across thousands of independent rollouts</strong>, not a deterministic stopwatch.</li>
+                    <li><strong>2. One trajectory vs. an average run length:</strong> Clicking <strong>▶ Generate Series</strong> in Simulator 2 below runs one random path. One path might cross \(h=4.0\) in 5 steps while another takes 15. \(\text{ARL}_1\) is the <strong>expected run length to signal under a specified out-of-control process</strong>; it is not the delay that every rollout will experience. The value shown by this simulator is a diffusion-approximation estimate, not the measured average of the single path on screen. Estimate empirical ARL by running many independent or appropriately dependent-aware trials and averaging their signal times.</li>
                 </ul>
+                <p><strong>Calibration note:</strong> The tabulated run lengths are illustrative diffusion-approximation values under the stated standardized IID assumptions. They are not universal operating characteristics for production telemetry. Estimate \(\text{ARL}_0\) and \(\text{ARL}_1\) for the actual residual process, including any serial dependence and baseline-estimation uncertainty.</p>
             </div>
 
             <h3>Interactive Simulation: Standardized Page's CUSUM Drift Detector</h3>
@@ -631,7 +633,7 @@
                         <span>Simulator 2: Standardized CUSUM Change-Point Detection</span>
                         <span class="scenario-tag">Synthetic Monte Carlo Simulation</span>
                     </div>
-                    <p class="sim-purpose">Observe how an upper-only one-sided dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) responds to a persistent step shift injected at time step \( t = 50 \). Compare a single random trajectory's detection delay against the theoretical expectation \(\text{ARL}_1\) across repeated trials.</p>
+                    <p class="sim-purpose">Observe how an upper-only one-sided dimensionless Page's CUSUM \( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \) responds to a persistent step shift injected at time step \(t=50\). The plotted detection delay belongs to one random trajectory; the displayed ARL is an approximation under the stated IID normal assumptions, not the result of averaging the visible path.</p>
                 </div>
 
                 <div class="sim-toolbar">
@@ -657,16 +659,24 @@
                     <div>Steps (\( T \)): <span class="stat-n">100 (Shift @ t=50)</span></div>
                     <div>Threshold (\( h \)): <span>4.00 (upper-only)</span></div>
                     <div>Peak \( S_t^+ \): <span class="stat-maxs">–</span></div>
-                    <div>Theo Run Length (\(\text{ARL}\)): <span class="stat-arl1">–</span></div>
+                    <div>Approx. Average Run Length (\(\text{ARL}\)): <span class="stat-arl1">–</span></div>
                     <div>Sim Detection Delay: <span class="stat-delay">–</span></div>
                     <div>Alert Status: <span class="stat-alert" id="cusum_alert">–</span></div>
                 </div>
 
                 <div class="sim-meta-footer">
-                    <p><strong>Assumptions:</strong> Upper-only one-sided detector (\( S_t^+ \)). Pre-shift process (\( t < 50 \)) is i.i.d. standardized normal \( z_t \sim \mathcal{N}(0, 1) \) (raw \( \mu_0 = 50\text{ ms}, \sigma_0 = 10\text{ ms} \)). At \( t \ge 50 \), mean shifts to \( z_t \sim \mathcal{N}(\delta, 1) \). Threshold is fixed at \( h = 4.00 \). When \(\delta > k\), Theoretical Run Length displays out-of-control detection delay \(\text{ARL}_1\); when \(\delta \le k\), net drift is non-positive (\(\Delta \le 0\)) and it labels the sub-slack/in-control run length.</p>
-                    <p><strong>Engineering Interpretation:</strong> Click <strong>▶ Generate Series</strong> repeatedly at default \( \delta = 0.8, k = 0.4 \). Notice how individual grey observations \( z_t \) rarely cross a static \( +3.0 \) line, yet the amber accumulator \( S_t^+ \) climbs across \( h = 4.00 \) in roughly \( 6\text{–}14 \) steps (averaging \(\text{ARL}_1 \approx 9.84\text{ steps}\)). Now slide \(\delta\) down to \( 0.3 \) (so \(\delta \le k\)) and watch the accumulator stay pinned near zero.</p>
+                    <p><strong>Assumptions:</strong> Upper-only one-sided detector (\(S_t^+\)). The illustrative calculation assumes IID standardized normal residuals: before the shift, \(z_t\sim\mathcal{N}(0,1)\); after the shift, \(z_t\sim\mathcal{N}(\delta,1)\). The threshold is fixed at \(h=4.00\). When \(\delta>k\), the displayed value is a diffusion-approximation estimate of out-of-control run length; when \(\delta\le k\), the net drift is non-positive and the value should not be interpreted as a finite detection delay for that shift. Real telemetry may be autocorrelated, non-normal, or affected by baseline-estimation error, so production thresholds require calibration against representative data.</p>
+                    <p><strong>Engineering Interpretation:</strong> Click <strong>▶ Generate Series</strong> repeatedly at the default \(\delta=0.8, k=0.4\). Individual grey observations may rarely cross a static \(+3.0\) line, while the amber accumulator can cross \(h=4.00\) after a variable delay. The displayed \(\text{ARL}_1\approx9.84\) steps is an approximation under the simulator's assumptions—not a promise that each path signals in 6–14 steps. Now slide \(\delta\) down to \(0.3\) (so \(\delta\le k\)); the shift no longer creates positive expected accumulation.</p>
                 </div>
             </div>
+
+            <h3>2.5 Interpreting CUSUM Detection Delay Correctly</h3>
+
+            <p>An Average Run Length is an expectation over repeated monitoring paths, not a deadline. In this setting, \(\text{ARL}_0\) is the expected number of observations until a false signal when the process remains in control; \(\text{ARL}_1\) is the expected run length to signal under a specified out-of-control process and target shift. The exact interpretation also depends on how the chart is initialized and whether the delay is measured from the change point or from a steady-state condition.</p>
+
+            <p>The threshold \(h\) trades detection speed against false alarms: lowering it generally shortens detection delay but increases false signals. A value such as \(h=4\) is not universally correct. Calibrate both in-control \(\text{ARL}_0\) and out-of-control \(\text{ARL}_1\) for the target shift, sampling interval, baseline-estimation procedure, and actual residual process. The reference value \(k\) also determines which shift sizes accumulate evidence efficiently.</p>
+
+            <p>For the gateway, do not take IID Gaussian lookup values or this simulator's diffusion approximation directly into production if residuals show serial dependence, heavy tails, changing variance, or workload-regime mixtures. Estimate false-alarm behaviour and detection delay by replaying representative historical residuals or by using a dependence-aware simulation or block bootstrap. Recalibrate after material changes to telemetry aggregation, workload mix, deployment, or baseline model. Treat simulator values as explanatory until these operating characteristics have been measured and validated.</p>
 
             <!-- ========================================== -->
             <!-- 3. HYPERGEOMETRIC FLEET AUDITING -->
@@ -714,11 +724,21 @@
     \]
 </div>
 
-<p>The Finite Population Correction (FPC) tells us how much the variance should shrink when our sample is a meaningful fraction of the entire population:</p>
+<p>The FPC shown in the variance equation is a <strong>variance multiplier</strong>. If you are correcting a standard error or standard deviation, take its square root. For simple random sampling without replacement:</p>
+
+<div class="equation-flow">
+    \[
+    \text{Variance multiplier}=\frac{N-n}{N-1},
+    \qquad
+    \text{Standard-error multiplier}=\sqrt{\frac{N-n}{N-1}}
+    \]
+</div>
+
+<p>As the sample becomes a larger fraction of the finite fleet, both uncertainty measures shrink. Do not apply the variance multiplier directly to a standard error.</p>
 
 <ul>
     <li><strong>Inspecting one catalog (\(n=1\)):</strong> The FPC is \(1\). The first draw has the same variance as a Binomial draw.</li>
-    <li><strong>Inspecting 40% of the fleet (\(n=20\), \(N=50\)):</strong> The FPC is \(30/49 \approx 0.612\). The variance is approximately 38.8% lower than the Binomial approximation.</li>
+    <li><strong>Inspecting 40% of the fleet (\(n=20\), \(N=50\)):</strong> The variance multiplier is \(30/49 \approx 0.612\), so variance is approximately 38.8% lower. The standard-error multiplier is \(\sqrt{30/49}\approx0.782\), so standard error is approximately 21.8% lower.</li>
     <li><strong>Inspecting the entire fleet (\(n=N=50\)):</strong> The FPC is \(0\). There is no sampling uncertainty because every catalog has been inspected. The result is a census, not an estimate.</li>
 </ul>
 
@@ -941,19 +961,19 @@
                         <tr>
                             <td><strong>KS Test (\( D_n \))</strong></td>
                             <td><em>"Did the middle bulk (\( P_{20}\text{–}P_{80} \)) of my latency distribution shift?"</em><br>Measures max vertical probability gap \(\sup_x |\hat{F}_n(x) - F(x)|\).</td>
-                            <td><strong>Catches:</strong> Median shifts and broad shape changes.<br><strong>Blind Spot:</strong> Horizontal tail blowouts beyond \( P_{99} \) where vertical probability room is \( < 1\% \).</td>
+                            <td><strong>Catches:</strong> Differences that create a large global absolute CDF gap, including tail differences when sufficiently large.<br><strong>Limitation:</strong> It has no special tail weighting; a rare but operationally severe tail error may contribute little to the maximum statistic.</td>
                             <td>Use only for quick sanity checks on median traffic. <strong>Never</strong> use a passing KS test to certify \( P_{99} \) or \( P_{99.9} \) SLAs.</td>
                         </tr>
                         <tr>
                             <td><strong>Anderson-Darling (\( A^2 \))</strong></td>
                             <td><em>"Does my model fit both the center and the extreme tails?"</em><br>Amplifies vertical CDF errors near \( 0 \) and \( 1 \) by \( [F(x)(1-F(x))]^{-1} \).</td>
-                            <td><strong>Catches:</strong> Tail divergence (like our \( 1.2\% \) Iceberg compaction stall regime).<br><strong>Blind Spot:</strong> Can miss \( 1\text{–}2 \) lone outliers at small \( n \); flags harmless \( 0.2\text{ ms} \) noise at \( n = 10^6 \).</td>
-                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)), run a Parametric Bootstrap when fitting parameters from data, and check actual millisecond error.</td>
+                            <td><strong>Catches:</strong> Gives greater weight to discrepancies in the tails than KS.<br><strong>Limitation:</strong> Power depends on discrepancy size and location, sample size, and calibration; it does not guarantee detection of every isolated outlier. Very large samples can make negligible deviations statistically significant.</td>
+                            <td>Use \(n\ge m/(1-q)\) only as a rough tail-observation planning heuristic (for example, \(m\approx25\) expected exceedances), not as a quantile-precision guarantee. Use a Parametric Bootstrap when fitting parameters from the same sample, and check actual millisecond error and uncertainty.</td>
                         </tr>
                         <tr>
                             <td><strong>Q-Q Plot (Visual Diagnostic)</strong></td>
                             <td><em>"Where exactly does production latency peel away from my theoretical curve?"</em><br>Plots actual sorted latencies \( X_{(i)} \) against model quantiles.</td>
-                            <td><strong>Catches:</strong> Heavy-tail upward bends, timeout clipping, and multi-modal knees (even 1–2 extreme outliers).<br><strong>Blind Spot:</strong> Ignores time order and serial correlation.</td>
+                            <td><strong>Catches:</strong> Heavy-tail upward bends, timeout clipping, mixture knees, and visible isolated extremes.<br><strong>Blind Spot:</strong> A static Q-Q plot does not show time order or serial correlation; extreme-point visibility depends on scale and sample size.</td>
                             <td>Always inspect a Q-Q plot before trusting a single \( p \)-value. An upward bend means you have a mixture workload (<a href="part-1-mean-is-a-lie.html" style="color:var(--teal);">Part 1</a>) or heavy tail (<a href="part-4-tyranny-of-the-slowest-node.html" style="color:var(--teal);">Part 4</a>).</td>
                         </tr>
                         <tr>
@@ -966,13 +986,13 @@
                             <td><strong>Page's CUSUM (\( S_t^+ \))</strong></td>
                             <td><em>"Did a canary deploy or slow leak shift mean latency by \( +0.8\sigma_0 \)?"</em><br>Accumulates standardized deviations above slack \( k = \delta/2 \).</td>
                             <td><strong>Catches:</strong> Persistent small regressions (\(\delta \sim 0.5\text{–}1.5\sigma_0\)) hidden inside normal \( \pm 3\sigma_0 \) noise.<br><strong>Blind Spot:</strong> Single spikes (ignored by design) and shifts smaller than slack (\(\delta \le k\)).</td>
-                            <td>Tune threshold \( h \) by balancing false-alarm interval (\(\text{ARL}_0\)) against detection delay (\(\text{ARL}_1\)). When \( S_t^+ > h \), halt canary rollout and check when \( S_t^+ \) left zero.</td>
+                            <td>Calibrate \(h\) against both \(\text{ARL}_0\) and \(\text{ARL}_1\) for the observed residual process and target shift. When \(S_t^+>h\), halt or pause the canary and investigate the contributing residual sequence.</td>
                         </tr>
                         <tr>
                             <td><strong>Hypergeometric Fleet Audit</strong></td>
                             <td><em>"How many corrupted shards/tenants exist in a finite fleet of size \( N \)?"</em><br>Models sampling \( n \) of \( N \) units without replacement.</td>
-                            <td><strong>Catches:</strong> Exact defect probabilities and tighter confidence bounds via Finite Population Correction \(\frac{N-n}{N-1}\).<br><strong>Blind Spot:</strong> Correlated rack/AZ failures (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>).</td>
-                            <td>Use whenever spot-checking \( > 5\%\text{–}10\% \) of a finite node cluster, shard map, or tenant catalog; stratify samples across availability zones.</td>
+                            <td><strong>Catches:</strong> Exact defect-count probabilities for simple random sampling without replacement; the variance multiplier is \(\frac{N-n}{N-1}\), while the standard-error multiplier is its square root.<br><strong>Blind Spot:</strong> It does not model common-cause or clustered defects such as correlated rack/AZ failures (<a href="part-2-math-of-mistrust.html" style="color:var(--teal);">Part 2</a>).</td>
+                            <td>Use the finite-population model for sampling without replacement; stratify by availability zone, rack, deployment, or version when defect risk is clustered.</td>
                         </tr>
                         <tr>
                             <td><strong>Censored Survival & Sketch Merging</strong></td>
@@ -1050,17 +1070,14 @@
                 <ol style="margin-top: 0.35rem; margin-bottom: 0.35rem;">
                     <li><strong>Explicitly Bound Resources in Your Spec & Code:</strong> Never model queues or memory pools as infinite sets in TLA+. Define hard constants (<code>MaxInFlightQueries = 200</code>, <code>MaxArrowMemoryMB = 12288</code>) and verify that your spec rejects work cleanly when full.</li>
                     <li><strong>Verify Runtime Conformance with Trace-Checking & Assertions:</strong> Embed lightweight invariant assertions directly in your gateway code (e.g., asserting a tenant's active memory counter never goes negative on buffer release) and validate structured state-transition logs from chaos tests against your TLA+ state graph.</li>
-                    <li><strong>Place Software Admission Gates at \( 75\%\text{–}80\% \) of the Physical Cliff:</strong> Find your hardware cliffs in staging via load tests, then set hard admission-control caps, memory watermarks, and per-tenant token buckets (<a href="part-3-anatomy-of-a-traffic-jam.html" style="color:var(--teal);">Part 3</a>) at \( 75\%\text{–}80\% \) of that ceiling. Shed excess traffic at the front door with a fast, deterministic <code>HTTP 429 Too Many Requests</code> so admitted queries stay strictly inside the smooth, mathematically predictable regime.</li>
+                    <li><strong>Establish a validated operating envelope—not a universal percentage:</strong> Use controlled load and failure tests to map the saturation curve for each constrained resource. Choose admission limits from measured queue growth, backlog-drain time, \(P_{95}/P_{99}/P_{99.9}\) behaviour against the SLO, workload variability and burst duration, dependency headroom, and the recovery margin required after a node or zone is lost. A value such as 75–80% may be an experiment-specific starting point, but it is not a general safety law. Enforce the resulting limits with bounded queues, per-tenant concurrency/resource budgets, admission control, and load shedding. Reject early with an appropriate <code>HTTP 429</code> or <code>503</code> response and retry guidance; do not admit work that the system cannot drain within its recovery objective.</li>
                 </ol>
             </div>
 
             <!-- ========================================== -->
             <!-- 7. END-TO-END VALIDATION CHECKLIST -->
             <!-- ========================================== -->
-            <h2>7. End-to-End Validation Runbook: The Analytics Gateway</h2>
-
-            <p>When rolling out a major architectural change or signing off on SLAs for the Multi-Tenant Analytics Gateway, walk through this 7-step operational runbook in order. Each step guarantees the statistical and physical assumptions required by the next:</p>
-
+         
             <div class="arch-table-wrap">
                 <table class="reality-table">
                     <thead>
@@ -1089,22 +1106,22 @@
                         <tr>
                             <td><strong>4. Tail Goodness-of-Fit (AD & Q-Q)</strong></td>
                             <td>Does our statistical model actually predict the \( P_{99.9} \) tail accurately?</td>
-                            <td>Collect at least \( n \ge \frac{25}{1-q} \) traces (\( \ge 25,000 \) for \( P_{99.9} \)). Inspect a <strong>Q-Q plot</strong> for upward tail bends, run the tail-weighted <strong>Anderson-Darling (\( A^2 \))</strong> test (calibrated via Parametric Bootstrap when parameters are fitted from the sample), and verify actual millisecond error at \( P_{99.9} \).</td>
+                            <td>Use \(n\ge m/(1-q)\) (for example, \(m\approx25\) expected exceedances) only to plan rough tail-observation volume—not to guarantee quantile accuracy. Assess dependence, workload mix, stationarity, and censoring; use order-statistic intervals for IID samples or a dependence-aware block bootstrap. Inspect a <strong>Q-Q plot</strong>, run tail-weighted <strong>Anderson-Darling (\(A^2\))</strong> with Parametric Bootstrap calibration when fitting parameters from the sample, and report the actual millisecond error and uncertainty at \(P_{99.9}\).</td>
                         </tr>
                         <tr>
                             <td><strong>5. Canary & Drift Gate (CUSUM)</strong></td>
                             <td>Did a new deployment or slow resource leak shift baseline latency by \( +0.8\sigma_0 \)?</td>
-                            <td>Run an upper-only standardized <strong>Page's CUSUM</strong> (\( S_t^+ = \max(0, S_{t-1}^+ + z_t - k) \)) with slack \( k = \delta / 2 \). Tune threshold \( h \) (e.g., \( h = 4.0 \) or \( 5.0 \)) against historical residuals to balance detection speed (\(\text{ARL}_1 \approx 8\text{–}10\text{ mins}\)) against false alarms (\(\text{ARL}_0\)), auto-halting canary rollouts when \( S_t^+ > h \).</td>
+                            <td>Run an upper-only standardized <strong>Page's CUSUM</strong> (\(S_t^+=\max(0,S_{t-1}^++z_t-k)\)) with a reference value chosen for the shift of interest. Calibrate the threshold \(h\) on representative residuals to measure both in-control false-alarm behaviour (\(\text{ARL}_0\)) and out-of-control expected run length (\(\text{ARL}_1\)); do not treat the simulator's approximate 8–10-minute result as universal. Account for serial dependence and baseline-estimation error before using the detector as a canary gate.</td>
                         </tr>
                         <tr>
                             <td><strong>6. Finite-Fleet Audit (Hypergeometric)</strong></td>
                             <td>How confident are we in shard/tenant health after spot-checking \( n \) out of \( N \) units?</td>
-                            <td>When auditing a finite pool of \( N \) tenant catalogs or storage nodes without replacement, apply the <strong>Finite Population Correction</strong> \( \frac{N-n}{N-1} \) and exact <strong>Hypergeometric</strong> tail probabilities whenever your sample exceeds \( 5\%\text{–}10\% \) of the fleet.</td>
+                            <td>For simple random sampling without replacement, use exact <strong>Hypergeometric</strong> probabilities when the defect count is fixed. Apply \(\frac{N-n}{N-1}\) to the variance and \(\sqrt{\frac{N-n}{N-1}}\) to the standard error. Stratify by availability zone, rack, deployment, or version if failures may be clustered; the FPC does not correct common-cause dependence.</td>
                         </tr>
                         <tr>
                             <td><strong>7. Physical Cliff Guardrails</strong></td>
                             <td>Where does hardware saturation break our continuous math and TLA+ assumptions?</td>
-                            <td>Run chaos load tests to map hard memory (<code>OOMKilled</code>), connection-pool, and socket limits. Enforce hard admission-control caps and token buckets at <strong>\( 75\%\text{–}80\% \) of the physical cliff</strong>, shedding excess load via fast <code>HTTP 429</code> responses so admitted queries stay inside the verified regime.</td>
+                            <td>Run controlled saturation tests to map CPU, memory, connection-pool, storage IOPS, and socket degradation boundaries. Record queue growth, tail latency, burst tolerance, and backlog recovery after load or a failure. Derive bounded-queue, concurrency, admission, and load-shedding thresholds from measured SLO margins, dependency headroom, and recovery objectives. Treat utilization percentages as experiment-specific—not universal—and reject excess work early with suitable <code>HTTP 429</code> or <code>503</code> responses.</td>
                         </tr>
                     </tbody>
                 </table>
